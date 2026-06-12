@@ -3,5 +3,5 @@ source: crates/es-fluent-derive/src/macros/derive_es_fluent_label/mod.rs
 expression: label_opts_tokens
 ---
 compile_error!(
-    "Attribute error in label container: `#[fluent_label(variants(...))]` has the wrong value shape for key `variants` in label container `InvalidLabelOpts`\nhelp: use a bare flag, for example `variants`"
+    "Attribute error in label container: `#[fluent_label(namespace(...))]` has the wrong value shape for key `namespace` in label container `InvalidLabelOpts`\nhelp: use a namespace rule, for example `namespace = \"ui\"` or `namespace = file`"
 );

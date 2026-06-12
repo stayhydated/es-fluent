@@ -17,7 +17,7 @@ clippy:
 check:
     cargo check --workspace --all-features
 
-test: test-dioxus-manager-feature-matrix test-dioxus-integration-surface
+test: test-dioxus-manager-feature-matrix
     cargo test --workspace --all-features --all-targets
 
 test-dioxus-manager-feature-matrix:
@@ -26,10 +26,6 @@ test-dioxus-manager-feature-matrix:
     cargo test -p es-fluent-manager-dioxus --no-default-features --features ssr
     cargo test -p es-fluent-manager-dioxus --no-default-features --features client,ssr
     cargo check -p es-fluent-manager-dioxus --target wasm32-unknown-unknown --no-default-features --features client
-
-test-dioxus-integration-surface:
-    cargo test -p web --features server
-    cargo check -p web --features web
 
 cov:
     cargo llvm-cov --workspace --exclude xtask --exclude web --all-features --all-targets

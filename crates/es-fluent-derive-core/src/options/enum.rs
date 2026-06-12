@@ -37,6 +37,13 @@ struct RawVariantOpts {
 impl FromVariant for VariantOpts {
     fn from_variant(variant: &syn::Variant) -> darling::Result<Self> {
         let raw = RawVariantOpts::from_variant(variant)?;
+        if raw.attr_args.is_skipped() && raw.attr_args.key().is_some() {
+            return Err(darling::Error::custom(
+                "Cannot use #[fluent(key = \"...\")] on a skipped variant",
+            )
+            .with_span(variant));
+        }
+
         Ok(Self {
             ident: raw.ident,
             fields: raw.fields,
@@ -96,15 +103,6 @@ pub struct EnumOpts {
 }
 
 impl EnumOpts {
-    /// Returns the base localization key used for this enum.
-    pub fn base_key(&self) -> String {
-        if let Some(id) = self.attr_args().id_message_id() {
-            id.value().as_str().to_string()
-        } else {
-            namer::FluentKey::from(self.ident()).to_string()
-        }
-    }
-
     /// Returns the base localization key as a typed Fluent message id.
     pub fn base_message_id(
         &self,
@@ -273,13 +271,21 @@ mod tests {
                     hidden: bool,
                 },
                 Tuple(#[fluent(skip)] u8, String),
-                #[fluent(skip, key = "skipped")]
+                #[fluent(skip)]
                 Skipped,
+                #[fluent(key = "visible")]
+                Visible,
             }
         };
 
         let opts = EnumOpts::from_derive_input(&input).expect("EnumOpts should parse");
-        assert_eq!(opts.base_key(), "custom_error");
+        assert_eq!(
+            opts.base_message_id(AttrContext::MessageContainer)
+                .expect("base message id")
+                .value()
+                .as_str(),
+            "custom_error"
+        );
         assert_eq!(
             opts.attr_args()
                 .id_message_id()
@@ -335,18 +341,37 @@ mod tests {
             .find(|variant| *variant.ident() == "Skipped")
             .expect("Skipped variant should exist");
         assert!(skipped.directive().is_skipped());
+        assert!(skipped.directive().key().is_none());
+
+        let visible = variants
+            .iter()
+            .find(|variant| *variant.ident() == "Visible")
+            .expect("Visible variant should exist");
         assert_eq!(
-            skipped.directive().key().expect("key").value().as_str(),
-            "skipped"
+            visible.directive().key().expect("key").value().as_str(),
+            "visible"
         );
         assert_eq!(
-            skipped
+            visible
                 .variant_key(crate::error::AttrContext::EnumVariant)
                 .expect("variant key")
                 .expect("key")
                 .value()
                 .as_str(),
-            "skipped"
+            "visible"
+        );
+
+        let invalid_input: DeriveInput = parse_quote! {
+            enum Invalid {
+                #[fluent(skip, key = "hidden")]
+                Hidden,
+            }
+        };
+        let err =
+            EnumOpts::from_derive_input(&invalid_input).expect_err("skip and key should conflict");
+        assert!(
+            err.to_string()
+                .contains("Cannot use #[fluent(key = \"...\")] on a skipped variant")
         );
 
         let no_resource_input: DeriveInput = parse_quote! {
@@ -356,7 +381,14 @@ mod tests {
         };
         let no_resource_opts =
             EnumOpts::from_derive_input(&no_resource_input).expect("EnumOpts should parse");
-        assert_eq!(no_resource_opts.base_key(), "http_status");
+        assert_eq!(
+            no_resource_opts
+                .base_message_id(AttrContext::MessageContainer)
+                .expect("base message id")
+                .value()
+                .as_str(),
+            "http_status"
+        );
 
         let domain_input: DeriveInput = parse_quote! {
             #[fluent(id = "custom_error", domain = "shared-errors")]
@@ -365,7 +397,14 @@ mod tests {
             }
         };
         let domain_opts = EnumOpts::from_derive_input(&domain_input).expect("domain parse");
-        assert_eq!(domain_opts.base_key(), "custom_error");
+        assert_eq!(
+            domain_opts
+                .base_message_id(AttrContext::MessageContainer)
+                .expect("base message id")
+                .value()
+                .as_str(),
+            "custom_error"
+        );
         assert_eq!(
             domain_opts
                 .attr_args()

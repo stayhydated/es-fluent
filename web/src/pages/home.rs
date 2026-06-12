@@ -1,13 +1,16 @@
-use crate::components::{FeatureCard, FooterPanel, PageHeader, PageLink};
+use crate::components::{FeatureCard, FooterPanel, PageHeader};
 use crate::site::i18n::{HomeHeroMessage, HomeWorkflowMessage, SiteLanguage};
 use crate::site::routing::PageKind;
 use dioxus::prelude::*;
-use stayhydated_dioxus::DisplayText;
+use stayhydated_dioxus::{
+    ButtonLink, ButtonRouteLink, ButtonVariant, HeroSidePanel, LinkTarget, ProjectHero,
+    ProjectHomeShell, SkillRepo, SkillSurfaceSection,
+};
 
 #[component]
 pub(crate) fn HomePage(locale: SiteLanguage) -> Element {
-    let hero_style = crate::components::use_reveal_style(0, 24.0).into_string();
-    let workflow_style = crate::components::use_reveal_style(90, 18.0).into_string();
+    let hero_style = crate::components::use_reveal_style(0, 24.0);
+    let workflow_style = crate::components::use_reveal_style(90, 18.0);
     let first_card_style = crate::components::use_reveal_style(160, 16.0);
     let second_card_style = crate::components::use_reveal_style(230, 16.0);
     let third_card_style = crate::components::use_reveal_style(300, 16.0);
@@ -40,27 +43,16 @@ pub(crate) fn HomePage(locale: SiteLanguage) -> Element {
     let workflow_three_body = i18n.localize_message(&HomeWorkflowMessage::ThreeBody);
 
     rsx! {
-        div { class: "page-shell",
-            PageHeader { locale, current_page: PageKind::Home }
-            main { class: "stack",
-                section {
-                    class: "hero motion-reveal",
-                    style: hero_style,
-                    div {
-                        div { class: "eyebrow", "{hero_eyebrow}" }
-                        h1 { "{hero_title}" }
-                        p { "{hero_body}" }
-                        div { class: "hero-actions",
-                            a { class: "button-link primary", href: crate::site::routing::book_href().as_str(), "{hero_primary_action}" }
-                            PageLink {
-                                locale,
-                                page: PageKind::Demos,
-                                class: "button-link secondary".to_string(),
-                                label: hero_secondary_action,
-                            }
-                        }
-                    }
-                    aside { class: "hero-panel",
+        ProjectHomeShell {
+            header: rsx!(PageHeader { locale, current_page: PageKind::Home }),
+            footer: rsx!(FooterPanel {}),
+            ProjectHero {
+                eyebrow: hero_eyebrow,
+                title: hero_title,
+                body: hero_body,
+                style: hero_style,
+                side: Some(rsx! {
+                    HeroSidePanel { class: "hero-panel",
                         h2 { class: "panel-label", "{hero_panel_label}" }
                         ul { class: "hero-list",
                             li {
@@ -77,35 +69,44 @@ pub(crate) fn HomePage(locale: SiteLanguage) -> Element {
                             }
                         }
                     }
-                }
-                section {
-                    class: "section-panel motion-reveal",
-                    style: workflow_style,
-                    h2 { class: "section-title", "{workflow_title}" }
-                    p { class: "section-lead", "{workflow_lead}" }
-                    div { class: "grid columns-3",
-                        FeatureCard {
-                            label: DisplayText::new(workflow_one_label),
-                            title: DisplayText::new(workflow_one_title),
-                            body: DisplayText::new(workflow_one_body),
-                            style: first_card_style,
-                        }
-                        FeatureCard {
-                            label: DisplayText::new(workflow_two_label),
-                            title: DisplayText::new(workflow_two_title),
-                            body: DisplayText::new(workflow_two_body),
-                            style: second_card_style,
-                        }
-                        FeatureCard {
-                            label: DisplayText::new(workflow_three_label),
-                            title: DisplayText::new(workflow_three_title),
-                            body: DisplayText::new(workflow_three_body),
-                            style: third_card_style,
-                        }
+                }),
+                actions: Some(rsx! {
+                    ButtonLink {
+                        href: crate::site::routing::book_href().as_str(),
+                        label: hero_primary_action,
                     }
+                    ButtonRouteLink::<crate::site::routing::AppRoute> {
+                        target: LinkTarget::route(crate::site::routing::app_route(locale, PageKind::Demos)),
+                        label: hero_secondary_action,
+                        variant: ButtonVariant::Secondary,
+                    }
+                }),
+            }
+
+            SkillSurfaceSection {
+                title: workflow_title,
+                lead: workflow_lead,
+                repo: SkillRepo::EsFluent,
+                style: workflow_style,
+                FeatureCard {
+                    label: workflow_one_label,
+                    title: workflow_one_title,
+                    body: workflow_one_body,
+                    style: first_card_style,
+                }
+                FeatureCard {
+                    label: workflow_two_label,
+                    title: workflow_two_title,
+                    body: workflow_two_body,
+                    style: second_card_style,
+                }
+                FeatureCard {
+                    label: workflow_three_label,
+                    title: workflow_three_title,
+                    body: workflow_three_body,
+                    style: third_card_style,
                 }
             }
-            FooterPanel {}
         }
     }
 }

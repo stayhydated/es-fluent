@@ -4,10 +4,12 @@ gender_label_label = Genre
 
 ## LoginFormDescriptionVariants
 
+login_form_description_variants_label = Login Form Description Variants
 login_form_description_variants-password = Mot de passe
 login_form_description_variants-username = Nom d’utilisateur
 
 ## LoginFormLabelVariants
 
+login_form_label_variants_label = Login Form Label Variants
 login_form_label_variants-password = Mot de passe
 login_form_label_variants-username = Nom d’utilisateur

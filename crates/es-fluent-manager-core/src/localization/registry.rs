@@ -192,8 +192,6 @@ mod tests {
     use super::*;
     use crate::asset_localization::{I18nModuleDescriptor, StaticModuleDescriptor};
     use crate::localization::{I18nModule, LocalizationError, Localizer};
-    use fluent_bundle::FluentValue;
-    use std::collections::HashMap;
     use std::error::Error as _;
     use unic_langid::{LanguageIdentifier, langid};
 
@@ -228,8 +226,8 @@ mod tests {
 
         fn localize<'a>(
             &self,
-            _id: &str,
-            _args: Option<&HashMap<&str, FluentValue<'a>>>,
+            _id: crate::StaticFluentEntryId,
+            _args: Option<&crate::FluentArgumentMap<'a>>,
         ) -> Option<String> {
             None
         }

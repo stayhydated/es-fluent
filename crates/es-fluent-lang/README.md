@@ -19,9 +19,13 @@ use strum::EnumIter;
 
 // Define an empty enum, and the macro fills it
 #[es_fluent_language]
-#[derive(Debug, Clone, Copy, PartialEq, Eq, EnumIter)]
+#[derive(EnumIter)]
 pub enum Languages {}
 ```
+
+The macro derives `Clone`, `Copy`, `Debug`, `Eq`, `Hash`, and `PartialEq`
+automatically. Add derives such as `EnumIter` only when your application needs
+them.
 
 If your `assets_dir` contains the same locales as the executable README example
 (`en`, `fr-FR`, and `zh-CN`), this generates:
@@ -46,7 +50,7 @@ For user-facing labels, call manager-backed `localize_message(...)` instead of
 relying on `Display`.
 
 If you want to provide your own language-name translations, use
-`#[es_fluent_language(mode = "custom")]`. Custom mode skips the built-in
+`#[es_fluent_language(custom)]`. Custom mode skips the built-in
 `es-fluent-lang` runtime hook and registers the enum with inventory so your own
 FTL resources can provide the labels.
 
@@ -76,7 +80,7 @@ for language in Languages::iter() {
 i18n.select_language(Languages::FrFr)?;
 ```
 
-The runtime resolves fallback locales through the shared ICU4X/CLDR fallback chain when a display locale is missing exact display-name data. If you need fully custom labels for project-specific or unsupported locale tags, use `#[es_fluent_language(mode = "custom")]` and ship your own translations.
+The runtime resolves fallback locales through the shared ICU4X/CLDR fallback chain when a display locale is missing exact display-name data. If you need fully custom labels for project-specific or unsupported locale tags, use `#[es_fluent_language(custom)]` and ship your own translations.
 
 The built-in language-name module follows successful manager locale switches
 but does not count as application content support. A manager still reports an

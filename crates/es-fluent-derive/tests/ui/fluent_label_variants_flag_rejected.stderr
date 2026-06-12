@@ -1,0 +1,6 @@
+error: Attribute error in label container: `#[fluent_label(variants)]` is not supported in label container `LoginForm`
+       help: accepted key here is namespace
+ --> tests/ui/fluent_label_variants_flag_rejected.rs:6:16
+  |
+6 | #[fluent_label(variants)]
+  |                ^^^^^^^^

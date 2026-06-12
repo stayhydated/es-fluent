@@ -241,13 +241,31 @@ fn generate(context: &CodegenContext, expansion: &EsFluentEnumExpansion) -> Toke
         )
     };
 
-    crate::macros::utils::emit_message_inventory_impls(
+    let message_output = crate::macros::utils::emit_message_inventory_impls(
         context,
         original_ident,
         expansion.generics(),
         fluent_message_body,
         inventory_output,
-    )
+    );
+
+    let choice_output =
+        expansion
+            .inferred_choice()
+            .map_or_else(proc_macro2::TokenStream::new, |choice| {
+                crate::macros::utils::generate_fluent_choice_impl(
+                    context,
+                    original_ident,
+                    expansion.generics(),
+                    choice,
+                )
+            });
+
+    quote! {
+        #message_output
+
+        #choice_output
+    }
 }
 
 enum MessageVariantToken<'a> {

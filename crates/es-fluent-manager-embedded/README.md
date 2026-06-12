@@ -44,7 +44,6 @@ use es_fluent_manager_embedded::EmbeddedI18n;
 use unic_langid::langid;
 
 #[derive(EsFluent, EsFluentLabel)]
-#[fluent_label(origin)]
 enum MyMessage {
     Hello { name: String },
 }

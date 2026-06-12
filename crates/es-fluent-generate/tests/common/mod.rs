@@ -25,7 +25,7 @@ pub fn leak_slice<T>(items: Vec<T>) -> &'static [T] {
 pub fn variant(name: &str, ftl_key: &str) -> FtlVariant {
     FtlVariant::new(
         leak_str(name),
-        StaticFluentEntryId::try_new(leak_str(ftl_key)).expect("valid test entry id"),
+        StaticFluentEntryId::try_new(leak_str(ftl_key)).expect("valid test message id"),
         Vec::new().leak(),
         "test",
         0,
@@ -36,7 +36,7 @@ pub fn variant(name: &str, ftl_key: &str) -> FtlVariant {
 pub fn variant_with_args(name: &str, ftl_key: &str, args: Vec<&str>) -> FtlVariant {
     FtlVariant::new(
         leak_str(name),
-        StaticFluentEntryId::try_new(leak_str(ftl_key)).expect("valid test entry id"),
+        StaticFluentEntryId::try_new(leak_str(ftl_key)).expect("valid test message id"),
         leak_slice(
             args.into_iter()
                 .map(|arg| {

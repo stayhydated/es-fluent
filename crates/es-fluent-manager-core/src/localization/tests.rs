@@ -3,7 +3,6 @@ use crate::asset_localization::{I18nModuleDescriptor, ModuleData, StaticModuleDe
 use fluent_bundle::FluentResource;
 use parking_lot::RwLock;
 use serial_test::serial;
-use std::collections::HashMap;
 use std::error::Error as _;
 use std::io;
 use std::sync::Arc;
@@ -121,6 +120,14 @@ struct StatefulSuccessLocalizer {
 struct StatefulFailLocalizer;
 struct HardFailLocalizer;
 
+fn static_domain(value: &'static str) -> crate::StaticFluentDomain {
+    crate::__macro::static_domain(value)
+}
+
+fn static_entry(value: &'static str) -> crate::StaticFluentEntryId {
+    crate::__macro::static_entry_id(value)
+}
+
 impl Localizer for LocalizerOk {
     fn select_language(&self, _lang: &LanguageIdentifier) -> Result<(), LocalizationError> {
         SELECT_OK_CALLS.fetch_add(1, Ordering::Relaxed);
@@ -129,10 +136,10 @@ impl Localizer for LocalizerOk {
 
     fn localize<'a>(
         &self,
-        id: &str,
-        _args: Option<&HashMap<&str, FluentValue<'a>>>,
+        id: crate::StaticFluentEntryId,
+        _args: Option<&crate::FluentArgumentMap<'a>>,
     ) -> Option<String> {
-        match id {
+        match id.as_str() {
             "from-ok" => Some("ok-value".to_string()),
             "shared-id" => Some("ok-shared".to_string()),
             _ => None,
@@ -148,10 +155,10 @@ impl Localizer for LocalizerErr {
 
     fn localize<'a>(
         &self,
-        id: &str,
-        _args: Option<&HashMap<&str, FluentValue<'a>>>,
+        id: crate::StaticFluentEntryId,
+        _args: Option<&crate::FluentArgumentMap<'a>>,
     ) -> Option<String> {
-        match id {
+        match id.as_str() {
             "from-err" => Some("err-value".to_string()),
             "shared-id" => Some("err-shared".to_string()),
             _ => None,
@@ -166,8 +173,8 @@ impl Localizer for FilterRuntimeLocalizer {
 
     fn localize<'a>(
         &self,
-        _id: &str,
-        _args: Option<&HashMap<&str, FluentValue<'a>>>,
+        _id: crate::StaticFluentEntryId,
+        _args: Option<&crate::FluentArgumentMap<'a>>,
     ) -> Option<String> {
         None
     }
@@ -189,8 +196,8 @@ impl Localizer for StatefulSuccessLocalizer {
 
     fn localize<'a>(
         &self,
-        id: &str,
-        _args: Option<&HashMap<&str, FluentValue<'a>>>,
+        id: crate::StaticFluentEntryId,
+        _args: Option<&crate::FluentArgumentMap<'a>>,
     ) -> Option<String> {
         (id == "selected-language")
             .then(|| self.selected.read().clone())
@@ -205,8 +212,8 @@ impl Localizer for StatefulFailLocalizer {
 
     fn localize<'a>(
         &self,
-        _id: &str,
-        _args: Option<&HashMap<&str, FluentValue<'a>>>,
+        _id: crate::StaticFluentEntryId,
+        _args: Option<&crate::FluentArgumentMap<'a>>,
     ) -> Option<String> {
         None
     }
@@ -219,8 +226,8 @@ impl Localizer for HardFailLocalizer {
 
     fn localize<'a>(
         &self,
-        _id: &str,
-        _args: Option<&HashMap<&str, FluentValue<'a>>>,
+        _id: crate::StaticFluentEntryId,
+        _args: Option<&crate::FluentArgumentMap<'a>>,
     ) -> Option<String> {
         None
     }
@@ -387,10 +394,10 @@ fn manager_select_language_best_effort_skips_unsupported_modules_when_any_module
     assert!(SELECT_OK_CALLS.load(Ordering::Relaxed) > ok_before);
     assert!(SELECT_ERR_CALLS.load(Ordering::Relaxed) > err_before);
     assert_eq!(
-        manager.localize("from-ok", None),
+        manager.localize(static_entry("from-ok"), None),
         Some("ok-value".to_string())
     );
-    assert_eq!(manager.localize("from-err", None), None);
+    assert_eq!(manager.localize(static_entry("from-err"), None), None);
 }
 
 #[test]
@@ -406,7 +413,7 @@ fn manager_select_language_strict_returns_error_when_any_module_fails() {
     assert!(SELECT_OK_CALLS.load(Ordering::Relaxed) > ok_before);
     assert!(SELECT_ERR_CALLS.load(Ordering::Relaxed) > err_before);
     assert!(matches!(err, LocalizationError::LanguageNotSupported(_)));
-    assert_eq!(manager.localize("from-ok", None), None);
+    assert_eq!(manager.localize(static_entry("from-ok"), None), None);
 }
 
 #[test]
@@ -478,30 +485,34 @@ fn manager_localize_returns_first_matching_message() {
         ]),
     };
     assert_eq!(
-        manager.localize("from-ok", None),
+        manager.localize(static_entry("from-ok"), None),
         Some("ok-value".to_string())
     );
     assert_eq!(
-        manager.localize("from-err", None),
+        manager.localize(static_entry("from-err"), None),
         Some("err-value".to_string())
     );
     assert_eq!(
-        manager.localize("shared-id", None),
+        manager.localize(static_entry("shared-id"), None),
         Some("ok-shared".to_string())
     );
     assert_eq!(
-        manager.localize_in_domain("module-err", "shared-id", None),
+        manager.localize_in_domain(static_domain("module-err"), static_entry("shared-id"), None),
         Some("err-shared".to_string())
     );
     assert_eq!(
-        manager.localize_in_domain("module-ok", "missing", None),
+        manager.localize_in_domain(static_domain("module-ok"), static_entry("missing"), None),
         None
     );
     assert_eq!(
-        manager.localize_in_domain("missing-domain", "shared-id", None),
+        manager.localize_in_domain(
+            static_domain("missing-domain"),
+            static_entry("shared-id"),
+            None
+        ),
         None
     );
-    assert_eq!(manager.localize("missing", None), None);
+    assert_eq!(manager.localize(static_entry("missing"), None), None);
 }
 
 #[test]
@@ -553,7 +564,10 @@ fn manager_select_language_returns_error_on_non_unsupported_failure() {
         .expect_err("unexpected runtime-localizer failures should still abort");
 
     assert!(matches!(err, LocalizationError::IoError(_)));
-    assert_eq!(manager.localize("selected-language", None), None);
+    assert_eq!(
+        manager.localize(static_entry("selected-language"), None),
+        None
+    );
 }
 
 #[test]
@@ -575,7 +589,7 @@ fn manager_keeps_previous_localizers_when_strict_selection_fails() {
 
     assert!(matches!(err, LocalizationError::LanguageNotSupported(_)));
     assert_eq!(
-        manager.localize("selected-language", None),
+        manager.localize(static_entry("selected-language"), None),
         Some("en-US".to_string())
     );
 }
@@ -643,7 +657,7 @@ fn build_sync_bundle_reports_resource_add_errors() {
     assert_eq!(bundle.locales, vec![langid!("en-US"), langid!("en")]);
 
     let (localized, _format_errors) =
-        localize_with_bundle(&bundle, "hello", None).expect("message should exist");
+        localize_with_bundle(&bundle, static_entry("hello"), None).expect("message should exist");
     assert_eq!(localized, "first");
 }
 

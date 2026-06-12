@@ -1,7 +1,9 @@
 //! Shared helpers for proc-macro crates built on `es-fluent-derive-core`.
 
 use crate::error::EsFluentCoreError;
-use es_fluent_shared::fluent::{FluentArgumentName, FluentDomain, FluentMessageId};
+use es_fluent_shared::fluent::{
+    FluentArgumentName, FluentDomain, FluentMessageId, FluentVariantKey,
+};
 use proc_macro_crate::{FoundCrate, crate_name};
 use proc_macro2::TokenStream;
 use quote::{format_ident, quote, quote_spanned};
@@ -85,6 +87,16 @@ pub fn static_argument_name_tokens(
     let argument_name = argument_name.as_str();
     quote! {
         #facade_path::registry::__macro::static_argument_name(#argument_name)
+    }
+}
+
+pub fn static_variant_key_tokens(
+    facade_path: &TokenStream,
+    variant_key: &FluentVariantKey,
+) -> TokenStream {
+    let variant_key = variant_key.as_str();
+    quote! {
+        #facade_path::registry::__macro::static_variant_key(#variant_key)
     }
 }
 

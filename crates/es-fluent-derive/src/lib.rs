@@ -12,6 +12,8 @@ mod snapshot_support;
 /// - **Enums**: Each variant becomes a message ID (e.g., `MyEnum::Variant` -> `my_enum-Variant`).
 /// - **Structs**: The struct itself becomes the message ID (e.g., `MyStruct` -> `my_struct`).
 /// - **Fields**: Fields are automatically exposed as arguments to the Fluent message.
+/// - **Unit enums**: Unit-only enums also implement `EsFluentChoice`, so they
+///   can be used as `#[fluent(selector)]` fields without a second derive.
 ///
 /// # Example
 ///
@@ -41,7 +43,8 @@ mod snapshot_support;
 ///
 /// - `#[fluent(selector)]`: Marks a field as a selector for Fluent's select expression.
 /// - `#[fluent(arg = "value")]`: On a field, renames that exposed Fluent argument (works on struct fields, enum named fields, and enum tuple fields).
-#[proc_macro_derive(EsFluent, attributes(fluent))]
+/// - `#[fluent_choice(rename_all = "...")]`: On a unit-only enum deriving `EsFluent`, changes the inferred selector value casing.
+#[proc_macro_derive(EsFluent, attributes(fluent, fluent_choice))]
 #[proc_macro_error]
 pub fn derive_es_fluent(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     macros::derive_es_fluent::from(input)
@@ -66,12 +69,14 @@ pub fn derive_es_fluent(input: proc_macro::TokenStream) -> proc_macro::TokenStre
 /// // Generates enums -> keys:
 /// // LoginFormLabelVariants::{Variants} -> (login_form_label_variants-{variant})
 /// // LoginFormDescriptionVariants::{Variants} -> (login_form_description_variants-{variant})
+/// // Generated enums also implement EsFluentChoice for selector fields.
 /// ```
 ///
 /// # Container Attributes
 ///
 /// - `#[fluent_variants(keys = ["label", "description"])]`: Specifies which key variants to generate.
 /// - `#[fluent(namespace = "...")]`: Routes generated registrations to a namespaced FTL file.
+/// - Generated enums infer `EsFluentChoice`; do not include `EsFluentChoice` in `derive(...)`.
 #[proc_macro_derive(EsFluentVariants, attributes(fluent_variants, fluent_label, fluent))]
 #[proc_macro_error]
 pub fn derive_es_fluent_variants(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
@@ -80,13 +85,16 @@ pub fn derive_es_fluent_variants(input: proc_macro::TokenStream) -> proc_macro::
 
 /// Allows an enum to be used inside another message as a selector (e.g., for gender or status).
 ///
+/// Unit-only enums that already derive `EsFluent` implement this automatically.
+/// Use `EsFluentChoice` directly for selector-only enums that should not also
+/// be registered as messages.
+///
 /// # Example
 ///
 /// ```ignore
 /// use es_fluent::{EsFluent, EsFluentChoice};
 ///
-/// #[derive(EsFluent, EsFluentChoice)]
-/// #[fluent_choice(rename_all = "snake_case")]
+/// #[derive(EsFluentChoice)]
 /// pub enum Gender {
 ///     Male,
 ///     Female,
@@ -103,7 +111,8 @@ pub fn derive_es_fluent_variants(input: proc_macro::TokenStream) -> proc_macro::
 ///
 /// # Container Attributes
 ///
-/// - `#[fluent_choice(rename_all = "...")]`: Controls variant name serialization (e.g., `"snake_case"`).
+/// - `#[fluent_choice(rename_all = "...")]`: Overrides the default kebab-case variant serialization.
+/// - Derived variants return validated `StaticFluentVariantKey` values instead of raw selector strings.
 #[proc_macro_derive(EsFluentChoice, attributes(fluent_choice))]
 #[proc_macro_error]
 pub fn derive_fluent_choice(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
@@ -120,7 +129,6 @@ pub fn derive_fluent_choice(input: proc_macro::TokenStream) -> proc_macro::Token
 /// use es_fluent::{EsFluentLabel, FluentLabel as _};
 ///
 /// #[derive(EsFluentLabel)]
-/// #[fluent_label(origin)]
 /// pub enum Gender {
 ///     Male,
 ///     Female,
@@ -128,16 +136,16 @@ pub fn derive_fluent_choice(input: proc_macro::TokenStream) -> proc_macro::Token
 /// }
 ///
 /// // Generates key: (gender_label)
-/// // Usage: Gender::localize_label(&i18n)
+/// // Usage:
+/// // let _ = Gender::localize_label(&i18n);
+/// // let _ = Gender::try_localize_label(&i18n);
+/// // let _ = Gender::fluent_label_id();
 /// ```
 ///
 /// # Attributes
 ///
-/// - `#[fluent_label(origin)]`: Required for `EsFluentLabel`; generates an implementation where `localize_label(localizer)` returns the base key for the type.
-/// - `#[fluent_label(origin, variants)]`: Can be combined with `EsFluentVariants`
-///   derives to generate keys for the generated variant enums when the type also derives `EsFluentLabel`.
-/// - `origin` requires `#[derive(EsFluentLabel)]`; using it with only `EsFluentVariants` is rejected.
-/// - `origin` and `variants` are bare flags.
+/// - `#[derive(EsFluentLabel)]` generates typed label metadata plus `localize_label(localizer)` and `try_localize_label(localizer)`.
+/// - `#[derive(EsFluentVariants)]` generated variant enums get label keys inferred from their generated enum names.
 /// - `#[fluent(namespace = "...")]`: Routes generated registrations to a namespaced FTL file.
 #[proc_macro_derive(EsFluentLabel, attributes(fluent_label, fluent))]
 #[proc_macro_error]

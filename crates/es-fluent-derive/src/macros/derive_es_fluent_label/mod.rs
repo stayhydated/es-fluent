@@ -36,30 +36,14 @@ fn expand_es_fluent_label_with_context(
         expansion.ftl_key(),
         expansion.domain(),
     );
-    let label_origin_marker_impl = crate::macros::utils::generate_label_origin_marker_impl(
-        context,
-        expansion.ident(),
-        expansion.generics(),
-        expansion.ftl_key().is_some(),
-    );
-    let variants_requirement_impl = crate::macros::utils::generate_label_variants_requirement_impl(
-        context,
-        expansion.ident(),
-        expansion.generics(),
-        expansion.requires_variants(),
-    );
-
-    let inventory_output = if let Some(label_model) = expansion.label_inventory() {
-        if let Some(label) = label_model.label() {
-            crate::macros::utils::label_inventory_output(
-                expansion.ident(),
-                label_model.type_kind().clone(),
-                label_model.namespace().cloned(),
-                label.clone(),
-            )
-        } else {
-            InventoryOutput::None
-        }
+    let label_model = expansion.label_inventory();
+    let inventory_output = if let Some(label) = label_model.label() {
+        crate::macros::utils::label_inventory_output(
+            expansion.ident(),
+            label_model.type_kind().clone(),
+            label_model.namespace().cloned(),
+            label.clone(),
+        )
     } else {
         InventoryOutput::None
     };
@@ -67,8 +51,6 @@ fn expand_es_fluent_label_with_context(
 
     let tokens = quote! {
         #localize_label_impl
-        #label_origin_marker_impl
-        #variants_requirement_impl
         #inventory_submit
     };
 
@@ -81,9 +63,8 @@ mod tests {
     use syn::parse_quote;
 
     #[test]
-    fn expand_es_fluent_label_generates_inventory_when_origin_is_enabled() {
+    fn expand_es_fluent_label_generates_inventory_by_default() {
         let input: syn::DeriveInput = parse_quote! {
-            #[fluent_label(origin)]
             #[fluent(namespace = "ui")]
             struct LoginForm;
         };
@@ -91,28 +72,28 @@ mod tests {
         let tokens =
             crate::snapshot_support::pretty_file_tokens(super::expand_es_fluent_label(input));
         assert_snapshot!(
-            "expand_es_fluent_label_generates_inventory_when_origin_is_enabled",
+            "expand_es_fluent_label_generates_inventory_by_default",
             tokens
         );
     }
 
     #[test]
-    fn expand_es_fluent_label_rejects_missing_origin() {
+    fn expand_es_fluent_label_accepts_empty_label_attribute() {
         let input: syn::DeriveInput = parse_quote! {
             #[fluent_label]
-            struct MissingOrigin;
+            struct LabelOnly;
         };
 
         let tokens =
             crate::snapshot_support::pretty_file_tokens(super::expand_es_fluent_label(input));
-        assert!(tokens.contains("compile_error"));
-        assert!(tokens.contains("requires `#[fluent_label(origin)]`"));
+        assert!(!tokens.contains("compile_error"));
+        assert!(tokens.contains("impl ::es_fluent::FluentLabel for LabelOnly"));
     }
 
     #[test]
-    fn expand_es_fluent_label_rejects_non_bare_origin_flag() {
+    fn expand_es_fluent_label_rejects_legacy_origin_flag() {
         let input: syn::DeriveInput = parse_quote! {
-            #[fluent_label(origin("parent"))]
+            #[fluent_label(origin)]
             enum NoOrigin {
                 A
             }
@@ -120,16 +101,13 @@ mod tests {
 
         let tokens =
             crate::snapshot_support::pretty_file_tokens(super::expand_es_fluent_label(input));
-        assert_snapshot!(
-            "expand_es_fluent_label_rejects_non_bare_origin_flag",
-            tokens
-        );
+        assert_snapshot!("expand_es_fluent_label_rejects_legacy_origin_flag", tokens);
     }
 
     #[test]
     fn expand_es_fluent_label_returns_compile_errors_for_parse_failures() {
         let label_opts_error: syn::DeriveInput = parse_quote! {
-            #[fluent_label(variants("children"))]
+            #[fluent_label(namespace("children"))]
             struct InvalidLabelOpts;
         };
         let label_opts_tokens = crate::snapshot_support::pretty_file_tokens(
@@ -141,7 +119,6 @@ mod tests {
         );
 
         let struct_namespace_error: syn::DeriveInput = parse_quote! {
-            #[fluent_label(origin)]
             #[fluent(namespace = 123)]
             struct InvalidStructNamespace;
         };
@@ -154,7 +131,6 @@ mod tests {
         );
 
         let enum_namespace_error: syn::DeriveInput = parse_quote! {
-            #[fluent_label(origin)]
             #[fluent(namespace = 123)]
             enum InvalidEnumNamespace {
                 A
@@ -173,7 +149,7 @@ mod tests {
     fn expand_es_fluent_label_rejects_parent_and_label_namespace_conflict() {
         let input: syn::DeriveInput = parse_quote! {
             #[fluent(namespace = "parent")]
-            #[fluent_label(origin, namespace = "child")]
+            #[fluent_label(namespace = "child")]
             struct NamespacedLabel;
         };
 
@@ -188,7 +164,6 @@ mod tests {
     #[test]
     fn expand_es_fluent_label_uses_struct_type_kind_for_structs() {
         let input: syn::DeriveInput = parse_quote! {
-            #[fluent_label(origin)]
             struct LoginForm;
         };
 
@@ -203,7 +178,6 @@ mod tests {
     #[test]
     fn expand_es_fluent_label_uses_enum_type_kind_for_enums() {
         let input: syn::DeriveInput = parse_quote! {
-            #[fluent_label(origin)]
             enum LoginState {
                 Ready
             }

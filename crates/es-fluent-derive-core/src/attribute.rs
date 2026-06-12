@@ -121,12 +121,6 @@ mod tests {
             FluentAttributeKey::Selector,
         );
         assert_allowed(
-            parse_quote!(optional),
-            AttributeName::Fluent,
-            AttributeLocation::MessageField,
-            FluentAttributeKey::Optional,
-        );
-        assert_allowed(
             parse_quote!(skip),
             AttributeName::Fluent,
             AttributeLocation::MessageField,
@@ -169,28 +163,16 @@ mod tests {
             FluentAttributeKey::Keys,
         );
         assert_allowed(
-            parse_quote!(origin),
-            AttributeName::FluentLabel,
-            AttributeLocation::LabelContainer,
-            FluentAttributeKey::Origin,
-        );
-        assert_allowed(
-            parse_quote!(variants),
-            AttributeName::FluentLabel,
-            AttributeLocation::LabelContainer,
-            FluentAttributeKey::Variants,
-        );
-        assert_allowed(
-            parse_quote!(rename_all = "snake_case"),
+            parse_quote!(rename_all = "kebab-case"),
             AttributeName::FluentChoice,
             AttributeLocation::ChoiceContainer,
             FluentAttributeKey::RenameAll,
         );
         assert_allowed(
-            parse_quote!(mode = "custom"),
+            parse_quote!(custom),
             AttributeName::EsFluentLanguage,
             AttributeLocation::LanguageContainer,
-            FluentAttributeKey::Mode,
+            FluentAttributeKey::Custom,
         );
 
         let keys: Meta = parse_quote!(keys = ["label"]);
@@ -396,7 +378,6 @@ mod tests {
                 &[
                     FluentAttributeKey::Skip,
                     FluentAttributeKey::Selector,
-                    FluentAttributeKey::Optional,
                     FluentAttributeKey::Arg,
                     FluentAttributeKey::Value,
                 ][..],
@@ -451,11 +432,7 @@ mod tests {
             (
                 AttributeFamily::FluentLabel,
                 AttributeLocation::LabelContainer,
-                &[
-                    FluentAttributeKey::Origin,
-                    FluentAttributeKey::Variants,
-                    FluentAttributeKey::Namespace,
-                ][..],
+                &[FluentAttributeKey::Namespace][..],
             ),
             // EsFluentChoice options.
             (
@@ -467,7 +444,7 @@ mod tests {
             (
                 AttributeFamily::EsFluentLanguage,
                 AttributeLocation::LanguageContainer,
-                &[FluentAttributeKey::Mode][..],
+                &[FluentAttributeKey::Builtin, FluentAttributeKey::Custom][..],
             ),
             (
                 AttributeFamily::Locale,
@@ -548,9 +525,7 @@ mod tests {
                 let key = key_ident(rule.key);
                 syn::parse_quote!(#key)
             },
-            AttributeValueShape::StringLiteral
-            | AttributeValueShape::ChoiceCaseStyle
-            | AttributeValueShape::LanguageMode => {
+            AttributeValueShape::StringLiteral | AttributeValueShape::ChoiceCaseStyle => {
                 let key = key_ident(rule.key);
                 let value = string_value_for_rule(rule);
                 syn::parse_quote!(#key = #value)
@@ -593,7 +568,6 @@ mod tests {
             AttributeKey::Arg => "arg",
             AttributeKey::Value => "value",
             AttributeKey::Selector => "selector",
-            AttributeKey::Optional => "optional",
             AttributeKey::Skip => "skip",
             AttributeKey::Key => "key",
             AttributeKey::Id => "id",
@@ -601,10 +575,9 @@ mod tests {
             AttributeKey::Namespace => "namespace",
             AttributeKey::Derive => "derive",
             AttributeKey::Keys => "keys",
-            AttributeKey::Origin => "origin",
-            AttributeKey::Variants => "variants",
             AttributeKey::RenameAll => "rename_all",
-            AttributeKey::Mode => "mode",
+            AttributeKey::Builtin => "builtin",
+            AttributeKey::Custom => "custom",
             AttributeKey::Locale => "locale",
         }
     }
@@ -612,7 +585,6 @@ mod tests {
     fn string_value_for_rule(rule: &AttributeRule) -> &'static str {
         match rule.shape {
             AttributeValueShape::ChoiceCaseStyle => "snake_case",
-            AttributeValueShape::LanguageMode => "custom",
             _ => "value",
         }
     }

@@ -10,12 +10,10 @@ pub enum Gender {
 }
 
 #[derive(EsFluentLabel)]
-#[fluent_label(origin)]
 #[fluent(namespace = file_relative)]
 pub struct UserProfile;
 
 #[derive(EsFluentLabel)]
-#[fluent_label(origin)]
 #[fluent(namespace = folder)]
 pub enum FolderStatus {
     Active,
@@ -23,6 +21,5 @@ pub enum FolderStatus {
 }
 
 #[derive(EsFluentLabel)]
-#[fluent_label(origin)]
 #[fluent(namespace = folder_relative)]
 pub struct FolderUserProfile;

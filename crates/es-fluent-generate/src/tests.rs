@@ -24,7 +24,7 @@ fn test_variant(name: &str, ftl_key: &str, args: &[&str]) -> FtlVariant {
 fn test_variant_at(name: &str, ftl_key: &str, args: &[&str], line: u32) -> FtlVariant {
     FtlVariant::new(
         leak_str(name),
-        StaticFluentEntryId::try_new(leak_str(ftl_key)).expect("valid test entry id"),
+        StaticFluentEntryId::try_new(leak_str(ftl_key)).expect("valid test message id"),
         leak_slice(
             args.iter()
                 .map(|arg| {
@@ -400,14 +400,8 @@ fn insert_late_relocated_handles_empty_groups_and_duplicate_names() {
 }
 
 #[test]
-fn smart_merge_moves_leading_comments_with_relocated_messages_and_terms() {
-    let group_a = test_type(
-        "GroupA",
-        vec![
-            test_variant("A1", "group_a-A1", &[]),
-            test_variant("Term", "-group_a-term", &[]),
-        ],
-    );
+fn smart_merge_moves_leading_comments_with_relocated_messages_and_preserves_terms() {
+    let group_a = test_type("GroupA", vec![test_variant("A1", "group_a-A1", &[])]);
     let group_b = test_type("GroupB", vec![test_variant("B1", "group_b-B1", &[])]);
     let items = vec![&group_a, &group_b];
 
@@ -417,7 +411,6 @@ fn smart_merge_moves_leading_comments_with_relocated_messages_and_terms() {
     let merged = smart_merge(existing, &items, MergeBehavior::Append).expect("merge");
     let content = fluent_syntax::serializer::serialize(&merged);
 
-    let group_a_pos = content.find("## GroupA").expect("group a");
     let group_b_pos = content.find("## GroupB").expect("group b");
     let message_comment_pos = content
         .find("# move-with-message")
@@ -428,20 +421,14 @@ fn smart_merge_moves_leading_comments_with_relocated_messages_and_terms() {
 
     assert!(message_comment_pos > group_b_pos);
     assert!(message_comment_pos < message_pos);
-    assert!(term_comment_pos > group_a_pos);
+    assert!(term_comment_pos > group_b_pos);
     assert!(term_comment_pos < term_pos);
 }
 
 #[test]
-fn smart_merge_covers_relocation_terms_junk_and_cleanup_modes() {
+fn smart_merge_covers_relocation_junk_and_cleanup_modes() {
     let group_a = test_type("GroupA", vec![test_variant("A1", "group_a-A1", &[])]);
-    let group_b = test_type(
-        "GroupB",
-        vec![
-            test_variant("B1", "group_b-B1", &[]),
-            test_variant("SharedTerm", "-shared_term", &[]),
-        ],
-    );
+    let group_b = test_type("GroupB", vec![test_variant("B1", "group_b-B1", &[])]);
     let items = vec![&group_a, &group_b];
 
     let existing_append = parse_resource_allowing_errors(
@@ -461,20 +448,14 @@ fn smart_merge_covers_relocation_terms_junk_and_cleanup_modes() {
     let merged_clean =
         smart_merge(existing_clean, &items, MergeBehavior::Clean).expect("clean merge");
     let merged_clean_text = formatting::sort_ftl_resource(&merged_clean);
-    assert!(merged_clean_text.contains("-shared_term = shared"));
+    assert!(!merged_clean_text.contains("-shared_term = shared"));
     assert!(merged_clean_text.contains("group_b-B1 = wrong-group"));
     assert!(!merged_clean_text.contains("group_a-A1"));
 }
 
 #[test]
 fn smart_merge_handles_duplicates_empty_group_headers_and_comment_entries() {
-    let group_a = test_type(
-        "GroupA",
-        vec![
-            test_variant("A1", "dup-key", &[]),
-            test_variant("SharedTerm", "-dup-term", &[]),
-        ],
-    );
+    let group_a = test_type("GroupA", vec![test_variant("A1", "dup-key", &[])]);
     let items = vec![&group_a];
 
     let mut existing = parse_resource_allowing_errors(
@@ -682,11 +663,12 @@ fn generate_rejects_noncanonical_namespace_literals() {
 
 #[test]
 fn static_registry_wrappers_reject_invalid_manual_keys_and_arguments() {
-    let key_err = StaticFluentEntryId::try_new("_invalid").expect_err("invalid key should fail");
+    let key_err =
+        StaticFluentEntryId::try_new("_invalid").expect_err("invalid message id should fail");
     assert!(
         key_err
             .to_string()
-            .contains("Fluent entry id must start with an ASCII letter")
+            .contains("Fluent message id must start with an ASCII letter")
     );
 
     let arg_err =

@@ -1,7 +1,6 @@
 //! This module provides the implementation of the `EsFluentChoice` derive macro.
 
 use es_fluent_derive_core::expansion::{EsFluentChoiceExpansion, ExpansionError};
-use quote::quote;
 use syn::{DeriveInput, parse_macro_input};
 
 use crate::macros::utils::CodegenContext;
@@ -31,29 +30,12 @@ fn expand_choice_with_context(
         Err(ExpansionError::Darling(error)) => return error.write_errors(),
         Err(ExpansionError::Syn(error)) => return error.to_compile_error(),
     };
-    let enum_ident = expansion.ident();
-    let (impl_generics, ty_generics, where_clause) = expansion.generics().split_for_impl();
-
-    let match_arms = expansion.choice().variants().iter().map(|variant| {
-        let variant_ident = variant.ident();
-        let choice_value = variant.value();
-        quote! {
-            Self::#variant_ident => #choice_value
-        }
-    });
-    let es_fluent = context.facade_path().tokens();
-
-    let generated = quote! {
-        impl #impl_generics #es_fluent::EsFluentChoice for #enum_ident #ty_generics #where_clause {
-            fn as_fluent_choice(&self) -> &'static str {
-                match self {
-                    #(#match_arms),*
-                }
-            }
-        }
-    };
-
-    generated
+    crate::macros::utils::generate_fluent_choice_impl(
+        context,
+        expansion.ident(),
+        expansion.generics(),
+        expansion.choice(),
+    )
 }
 
 #[cfg(all(test, target_os = "linux"))]
@@ -75,17 +57,17 @@ mod tests {
             default_tokens
         );
 
-        let snake_input: syn::DeriveInput = parse_quote! {
-            #[fluent_choice(rename_all = "snake_case")]
-            enum ChoiceSnake {
+        let kebab_input: syn::DeriveInput = parse_quote! {
+            #[fluent_choice(rename_all = "kebab-case")]
+            enum ChoiceKebab {
                 VeryHigh
             }
         };
-        let snake_tokens =
-            crate::snapshot_support::pretty_file_tokens(super::expand_choice(snake_input));
+        let kebab_tokens =
+            crate::snapshot_support::pretty_file_tokens(super::expand_choice(kebab_input));
         assert_snapshot!(
-            "expand_choice_generates_expected_tokens_for_snake_case_mode",
-            snake_tokens
+            "expand_choice_generates_expected_tokens_for_kebab_case_mode",
+            kebab_tokens
         );
     }
 

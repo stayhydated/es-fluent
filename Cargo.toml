@@ -55,13 +55,11 @@ derive_more = "2.1"
 dioxus = { default-features = false, version = "0.7" }
 dioxus-core = "0.7"
 dioxus-core-macro = "0.7"
-dioxus-fullstack = { default-features = false, version = "0.7" }
 dioxus-hooks = "0.7"
 dioxus-html = "0.7"
 dioxus-primitives = { default-features = false, features = [
   "router",
 ], git = "https://github.com/DioxusLabs/components", version = "0.0.1" }
-dioxus-server = { default-features = false, version = "0.7" }
 dioxus-signals = "0.7"
 dioxus-ssr = { default-features = false, version = "0.7" }
 es-fluent = { path = "crates/es-fluent", version = "0.16.0" }
@@ -86,7 +84,7 @@ fs-err = "3.3"
 futures = "0.3"
 getset = "0.1"
 gpui = { git = "https://github.com/zed-industries/zed", rev = "b077f41a9f26ae5ed7fadfea55a501d34afb25de" }
-gpui-component = { git = "https://github.com/stayhydated/gpui-component", branch = "tree-sitter-optional" }
+gpui-component = { branch = "tree-sitter-optional", git = "https://github.com/stayhydated/gpui-component" }
 gpui_platform = { features = [
   "font-kit",
   "x11",

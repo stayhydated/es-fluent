@@ -1,10 +1,13 @@
-use crate::components::{LanguageSelect, PageLink, ProjectSelect};
+use crate::components::LanguageSelect;
 use crate::site::constants::ES_FLUENT_MANAGER_DIOXUS_CRATES_URL;
 use crate::site::i18n::{SiteChromeMessage, SiteFooterMessage, SiteLanguage};
 use crate::site::routing::{PageKind, app_route};
 use dioxus::prelude::*;
 use dioxus::router::{navigator, try_router};
-use stayhydated_dioxus::ProjectId;
+use stayhydated_dioxus::{
+    FooterPanel as SharedFooterPanel, LinkTarget, ProjectChromeHeader, ProjectId, ProjectNavConfig,
+    ProjectNavLabels,
+};
 
 #[component]
 pub(crate) fn PageHeader(locale: SiteLanguage, current_page: PageKind) -> Element {
@@ -16,87 +19,20 @@ pub(crate) fn PageHeader(locale: SiteLanguage, current_page: PageKind) -> Elemen
     let nav_demos = i18n.localize_message(&SiteChromeMessage::NavDemos);
     let nav_docs = i18n.localize_message(&SiteChromeMessage::NavDocs);
     let nav_source = i18n.localize_message(&SiteChromeMessage::NavSource);
-
-    rsx! {
-        header { class: "page-header",
-            ProjectSelect {
-                href: crate::site::routing::page_href(locale, PageKind::Home),
-            }
-            div { class: "header-cluster",
-                HeaderNavLinks {
-                    locale,
-                    current_page,
-                    nav_home,
-                    nav_demos,
-                    nav_docs,
-                    nav_source,
-                }
-                LocaleSwitcher { locale, current_page }
-            }
-        }
-    }
-}
-
-#[component]
-fn HeaderNavLinks(
-    locale: SiteLanguage,
-    current_page: PageKind,
-    nav_home: String,
-    nav_demos: String,
-    nav_docs: String,
-    nav_source: String,
-) -> Element {
-    let is_home_active = current_page == PageKind::Home;
-    let is_demos_active = matches!(
-        current_page,
-        PageKind::Demos | PageKind::Bevy | PageKind::Gpui
+    let nav = ProjectNavConfig::new(
+        ProjectId::EsFluent,
+        crate::site::routing::page_href(locale, PageKind::Home).as_str(),
+        LinkTarget::route(app_route(locale, PageKind::Home)),
+        LinkTarget::route(app_route(locale, PageKind::Demos)),
+        crate::site::routing::book_href().as_str(),
+        ProjectNavLabels::new(nav_home, nav_demos, nav_docs, nav_source),
+        current_page.project_nav_item(),
     );
 
     rsx! {
-        nav { class: "header-nav-links",
-            PageLink {
-                locale,
-                page: PageKind::Home,
-                class: if is_home_active {
-                    "header-nav-item is-active".to_string()
-                } else {
-                    "header-nav-item".to_string()
-                },
-                label: nav_home,
-            }
-            PageLink {
-                locale,
-                page: PageKind::Demos,
-                class: if is_demos_active {
-                    "header-nav-item is-active".to_string()
-                } else {
-                    "header-nav-item".to_string()
-                },
-                label: nav_demos,
-            }
-            ExternalNavLink {
-                href: crate::site::routing::book_href().into_string(),
-                class: "header-nav-item".to_string(),
-                label: nav_docs,
-            }
-            ExternalNavLink {
-                href: ProjectId::EsFluent.source_href().to_string(),
-                class: "header-nav-item".to_string(),
-                label: nav_source,
-            }
-        }
-    }
-}
-
-#[component]
-fn ExternalNavLink(href: String, class: String, label: String) -> Element {
-    rsx! {
-        a {
-            class,
-            href,
-            target: "_blank",
-            rel: "noreferrer",
-            "{label}"
+        ProjectChromeHeader::<crate::site::routing::AppRoute> {
+            nav,
+            LocaleSwitcher { locale, current_page }
         }
     }
 }
@@ -143,7 +79,7 @@ pub(crate) fn FooterPanel() -> Element {
     let body_link_label = i18n.localize_message(&SiteFooterMessage::BodyLinkLabel);
 
     rsx! {
-        footer { class: "site-footer",
+        SharedFooterPanel {
             p { class: "footer-copy",
                 span { class: "footer-label", "{label}" }
                 span { class: "footer-text",

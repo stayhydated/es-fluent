@@ -70,9 +70,7 @@ mod attribute_context_tests {
         let message = err.to_string();
         assert!(message.contains("#[fluent(default)]"));
         assert!(message.contains("message field"));
-        assert!(
-            message.contains("accepted keys here are skip, selector, optional, arg, and value")
-        );
+        assert!(message.contains("accepted keys here are skip, selector, arg, and value"));
     }
 
     #[test]
@@ -275,38 +273,6 @@ mod validate_struct_tests {
     }
 
     #[test]
-    fn optional_conflicts_with_choice_value_and_skip_on_struct_fields() {
-        for input in [
-            parse_quote! {
-                #[derive(EsFluent)]
-                pub struct TestStruct {
-                    #[fluent(optional, selector)]
-                    field: Option<String>,
-                }
-            },
-            parse_quote! {
-                #[derive(EsFluent)]
-                pub struct TestStruct {
-                    #[fluent(optional, value = |value: &Option<String>| value.is_some())]
-                    field: Option<String>,
-                }
-            },
-            parse_quote! {
-                #[derive(EsFluent)]
-                pub struct TestStruct {
-                    #[fluent(optional, skip)]
-                    field: Option<String>,
-                }
-            },
-        ] {
-            let err = StructOpts::from_derive_input(&input)
-                .expect_err("optional conflict should fail during typed field parsing");
-
-            assert!(err.to_string().contains("#[fluent(optional)]"));
-        }
-    }
-
-    #[test]
     fn no_defaults_succeeds() {
         let input: DeriveInput = parse_quote! {
             #[derive(EsFluent)]
@@ -463,7 +429,7 @@ mod validate_enum_tests {
     }
 
     #[test]
-    fn variant_level_skip_and_key_are_allowed() {
+    fn variant_level_skip_and_key_are_allowed_separately() {
         let input: DeriveInput = parse_quote! {
             #[derive(EsFluent)]
             pub enum TestEnum {
@@ -474,8 +440,9 @@ mod validate_enum_tests {
             }
         };
 
-        es_fluent_derive_core::validation::validate_es_fluent_attribute_context(&input)
-            .expect("variant-level skip and key should pass raw context validation");
+        es_fluent_derive_core::validation::validate_es_fluent_attribute_context(&input).expect(
+            "separate variant-level skip and key attributes should pass raw context validation",
+        );
     }
 
     #[test]
@@ -539,35 +506,6 @@ mod validate_enum_tests {
             err.to_string()
                 .contains("Cannot use #[fluent(arg = \"...\")] on a skipped field")
         );
-    }
-
-    #[test]
-    fn optional_conflicts_with_choice_value_and_skip_on_enum_fields() {
-        for input in [
-            parse_quote! {
-                #[derive(EsFluent)]
-                pub enum TestEnum {
-                    Something(#[fluent(optional, selector)] Option<String>),
-                }
-            },
-            parse_quote! {
-                #[derive(EsFluent)]
-                pub enum TestEnum {
-                    Something(#[fluent(optional, value = |value: &Option<String>| value.is_some())] Option<String>),
-                }
-            },
-            parse_quote! {
-                #[derive(EsFluent)]
-                pub enum TestEnum {
-                    Something(#[fluent(optional, skip)] Option<String>),
-                }
-            },
-        ] {
-            let err = EnumOpts::from_derive_input(&input)
-                .expect_err("optional conflict should fail during typed field parsing");
-
-            assert!(err.to_string().contains("#[fluent(optional)]"));
-        }
     }
 
     #[test]

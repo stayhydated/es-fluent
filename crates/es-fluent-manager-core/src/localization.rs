@@ -8,6 +8,7 @@ mod registry;
 mod tests;
 
 use crate::asset_localization::{I18nModuleDescriptor, ModuleResourceSpec, StaticModuleDescriptor};
+use es_fluent_shared::registry::{StaticFluentArgumentName, StaticFluentEntryId};
 use fluent_bundle::FluentValue;
 use std::collections::HashMap;
 use unic_langid::LanguageIdentifier;
@@ -21,6 +22,7 @@ pub use manager::{DiscoveredRuntimeI18nModules, FluentManager};
 pub use registry::{ModuleDiscoveryError, ModuleRegistrationKind, try_filter_module_registry};
 
 pub type LocalizationErrorResult<T> = Result<T, LocalizationError>;
+pub type FluentArgumentMap<'a> = HashMap<StaticFluentArgumentName, FluentValue<'a>>;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum LanguageSelectionPolicy {
@@ -36,11 +38,11 @@ pub trait Localizer: Send + Sync {
     /// need the same behavior should perform that resolution here before
     /// returning [`LocalizationError::LanguageNotSupported`].
     fn select_language(&self, lang: &LanguageIdentifier) -> es_fluent_shared::EsFluentResult<()>;
-    /// Localizes a message by its ID.
+    /// Localizes a message by its validated static ID.
     fn localize<'a>(
         &self,
-        id: &str,
-        args: Option<&HashMap<&str, FluentValue<'a>>>,
+        id: StaticFluentEntryId,
+        args: Option<&FluentArgumentMap<'a>>,
     ) -> Option<String>;
 }
 

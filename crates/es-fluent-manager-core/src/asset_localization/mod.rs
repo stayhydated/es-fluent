@@ -66,7 +66,7 @@ mod tests {
             plan,
             vec![ModuleResourceSpec::new(
                 ResourceKey::from_static_path("app"),
-                "app.ftl",
+                LocaleRelativeFtlPath::from_static_path("app.ftl"),
                 true
             )]
         );
@@ -78,15 +78,19 @@ mod tests {
         assert_eq!(
             plan,
             vec![
-                ModuleResourceSpec::new(ResourceKey::from_static_path("app"), "app.ftl", false),
+                ModuleResourceSpec::new(
+                    ResourceKey::from_static_path("app"),
+                    LocaleRelativeFtlPath::from_static_path("app.ftl"),
+                    false
+                ),
                 ModuleResourceSpec::new(
                     ResourceKey::from_static_path("app/ui"),
-                    "app/ui.ftl",
+                    LocaleRelativeFtlPath::from_static_path("app/ui.ftl"),
                     true
                 ),
                 ModuleResourceSpec::new(
                     ResourceKey::from_static_path("app/errors"),
-                    "app/errors.ftl",
+                    LocaleRelativeFtlPath::from_static_path("app/errors.ftl"),
                     true
                 )
             ]
@@ -101,10 +105,14 @@ mod tests {
         assert_eq!(
             plan,
             vec![
-                ModuleResourceSpec::new(ResourceKey::from_static_path("app"), "app.ftl", false),
+                ModuleResourceSpec::new(
+                    ResourceKey::from_static_path("app"),
+                    LocaleRelativeFtlPath::from_static_path("app.ftl"),
+                    false
+                ),
                 ModuleResourceSpec::new(
                     ResourceKey::from_static_path("app/ui/button"),
-                    "app/ui/button.ftl",
+                    LocaleRelativeFtlPath::from_static_path("app/ui/button.ftl"),
                     true
                 )
             ]
@@ -282,8 +290,11 @@ mod tests {
 
     #[test]
     fn parse_fluent_resource_content_reports_parse_errors() {
-        let spec =
-            ModuleResourceSpec::new(ResourceKey::from_static_path("app/ui"), "app/ui.ftl", true);
+        let spec = ModuleResourceSpec::new(
+            ResourceKey::from_static_path("app/ui"),
+            LocaleRelativeFtlPath::from_static_path("app/ui.ftl"),
+            true,
+        );
 
         let err = parse_fluent_resource_content(&spec, "broken = {".to_string())
             .expect_err("invalid fluent should fail");
@@ -323,8 +334,11 @@ mod tests {
     #[test]
     fn locale_state_helpers_track_reports_resources_and_languages() {
         let lang = langid!("en");
-        let spec =
-            ModuleResourceSpec::new(ResourceKey::from_static_path("app/ui"), "app/ui.ftl", true);
+        let spec = ModuleResourceSpec::new(
+            ResourceKey::from_static_path("app/ui"),
+            LocaleRelativeFtlPath::from_static_path("app/ui.ftl"),
+            true,
+        );
 
         let mut specs = HashMap::new();
         specs.insert((lang.clone(), spec.key.clone()), spec.clone());

@@ -111,11 +111,18 @@ struct DeriveAttributePolicy {
     inherited_parent_keys: &'static [AttributeKey],
 }
 
-const ES_FLUENT_CONTAINER_ATTRIBUTES: &[PolicyAttribute] = &[PolicyAttribute {
-    name: AttributeName::Fluent,
-    struct_location: AttributeLocation::MessageStructContainer,
-    enum_location: AttributeLocation::MessageEnumContainer,
-}];
+const ES_FLUENT_CONTAINER_ATTRIBUTES: &[PolicyAttribute] = &[
+    PolicyAttribute {
+        name: AttributeName::Fluent,
+        struct_location: AttributeLocation::MessageStructContainer,
+        enum_location: AttributeLocation::MessageEnumContainer,
+    },
+    PolicyAttribute {
+        name: AttributeName::FluentChoice,
+        struct_location: AttributeLocation::MessageStructContainer,
+        enum_location: AttributeLocation::ChoiceContainer,
+    },
+];
 const ES_FLUENT_VARIANT_ATTRIBUTES: &[PolicyAttribute] = &[PolicyAttribute::same_location(
     AttributeName::Fluent,
     AttributeLocation::EnumVariant,

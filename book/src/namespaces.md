@@ -83,7 +83,6 @@ use es_fluent::EsFluentLabel;
 
 // In src/user/profile.rs
 #[derive(EsFluentLabel)]
-#[fluent_label(origin)]
 #[fluent(namespace = folder)]
 pub enum FolderStatus {
     Active,
@@ -102,7 +101,6 @@ use es_fluent::EsFluentLabel;
 
 // In src/user/profile.rs
 #[derive(EsFluentLabel)]
-#[fluent_label(origin)]
 #[fluent(namespace = folder_relative)]
 pub struct FolderUserProfile;
 ```

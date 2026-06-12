@@ -1,11 +1,12 @@
-use crate::components::{FooterPanel, PageCardLink, PageHeader};
+use crate::components::{FooterPanel, PageHeader};
 use crate::site::i18n::{DemosPageMessage, SiteLanguage};
 use crate::site::routing::PageKind;
 use dioxus::prelude::*;
+use stayhydated_dioxus::{DemoCard, DemoCardGrid, ProjectPageShell};
 
 #[component]
 pub(crate) fn DemosPage(locale: SiteLanguage) -> Element {
-    let demos_style = crate::components::use_reveal_style(0, 24.0).into_string();
+    let demos_style = crate::components::use_reveal_style(0, 24.0);
     let i18n = match es_fluent_manager_dioxus::use_i18n() {
         Ok(i18n) => i18n,
         Err(error) => return rsx! { div { class: "page-shell", "failed: {error}" } },
@@ -20,31 +21,30 @@ pub(crate) fn DemosPage(locale: SiteLanguage) -> Element {
     let gpui_action = i18n.localize_message(&DemosPageMessage::GpuiAction);
 
     rsx! {
-        div { class: "page-shell",
-            PageHeader { locale, current_page: PageKind::Demos }
-            main { class: "stack",
-                section {
-                class: "grid motion-reveal",
+        ProjectPageShell {
+            header: rsx!(PageHeader { locale, current_page: PageKind::Demos }),
+            footer: Some(rsx!(FooterPanel {})),
+            DemoCardGrid::<crate::site::routing::AppRoute> {
+                cards: vec![
+                    DemoCard::route(
+                        crate::site::routing::app_route(locale, PageKind::Bevy),
+                        label,
+                        title,
+                        body,
+                        action,
+                    ),
+                    DemoCard::route(
+                        crate::site::routing::app_route(locale, PageKind::Gpui),
+                        gpui_label,
+                        gpui_title,
+                        gpui_body,
+                        gpui_action,
+                    ),
+                ],
+                extra_class: "motion-reveal",
                 style: demos_style,
-                PageCardLink {
-                    locale,
-                    page: PageKind::Bevy,
-                    label,
-                    title,
-                    body,
-                    action,
-                }
-                PageCardLink {
-                    locale,
-                    page: PageKind::Gpui,
-                    label: gpui_label,
-                    title: gpui_title,
-                    body: gpui_body,
-                    action: gpui_action,
-                }
+                body_class: "card-copy",
             }
         }
-        FooterPanel {}
-    }
     }
 }

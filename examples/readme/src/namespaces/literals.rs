@@ -5,7 +5,6 @@ use es_fluent::{EsFluent, EsFluentLabel, EsFluentVariants};
 pub struct Button<'a>(pub &'a str);
 
 #[derive(EsFluentLabel)]
-#[fluent_label(origin)]
 #[fluent(namespace = "forms")]
 pub enum GenderLabel {
     Male,

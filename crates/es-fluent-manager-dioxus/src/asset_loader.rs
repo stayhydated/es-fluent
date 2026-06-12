@@ -5,13 +5,16 @@ use dioxus_core::{Element, VNode};
 use dioxus_core_macro::{Props, component, rsx};
 #[cfg(feature = "client")]
 use dioxus_signals::{ReadableExt as _, Signal, WritableExt as _};
-use es_fluent::{FluentLocalizer, FluentLocalizerExt, FluentMessage, FluentValue};
+use es_fluent::{
+    FluentArgs, FluentLocalizer, FluentLocalizerExt, FluentLocalizerLookup, FluentMessage,
+    registry::{StaticFluentDomain, StaticFluentEntryId},
+};
 use es_fluent_manager_core::{
-    FluentManager, I18nModuleDescriptor, I18nModuleRegistration, LanguageSelectionPolicy,
-    LocaleLoadReport, LocalizationError, ModuleData, ModuleDiscoveryError, ModuleRegistrationKind,
-    ModuleResourceSpec, ResourceKey, ResourceLoadError, SyncFluentBundle, build_sync_bundle,
-    fallback_errors_are_fatal, localize_with_bundle, localize_with_fallback_resources,
-    parse_fluent_resource_bytes,
+    FluentArgumentMap, FluentManager, I18nModuleDescriptor, I18nModuleRegistration,
+    LanguageSelectionPolicy, LocaleLoadReport, LocaleRelativeFtlPath, LocalizationError,
+    ModuleData, ModuleDiscoveryError, ModuleRegistrationKind, ModuleResourceSpec, ResourceKey,
+    ResourceLoadError, SyncFluentBundle, build_sync_bundle, fallback_errors_are_fatal,
+    localize_with_bundle, localize_with_fallback_resources, parse_fluent_resource_bytes,
 };
 use fluent_bundle::FluentResource;
 use parking_lot::{Mutex, RwLock};
@@ -112,7 +115,7 @@ impl DioxusI18nAssetResource {
     fn spec(&self) -> ModuleResourceSpec {
         ModuleResourceSpec::new(
             ResourceKey::from_static_path(self.key),
-            self.locale_relative_path,
+            LocaleRelativeFtlPath::from_static_path(self.locale_relative_path),
             self.required,
         )
     }
@@ -453,8 +456,8 @@ impl LoadedDioxusAssetLocalizer {
 
     fn localize<'a>(
         &self,
-        id: &str,
-        args: Option<&HashMap<&str, FluentValue<'a>>>,
+        id: StaticFluentEntryId,
+        args: Option<&FluentArgumentMap<'a>>,
     ) -> Option<String> {
         let (bundle, locale_resources) = {
             let state = self.state.read();
@@ -468,7 +471,11 @@ impl LoadedDioxusAssetLocalizer {
             && let Some((value, errors)) = localize_with_bundle(bundle.as_ref(), id, args)
         {
             if !errors.is_empty() {
-                tracing::error!("Fluent formatting errors for id '{}': {:?}", id, errors);
+                tracing::error!(
+                    "Fluent formatting errors for id '{}': {:?}",
+                    id.as_str(),
+                    errors
+                );
                 return None;
             }
 
@@ -481,7 +488,7 @@ impl LoadedDioxusAssetLocalizer {
         if fallback_errors_are_fatal(&errors) {
             tracing::error!(
                 "Fluent fallback formatting errors for id '{}': {:?}",
-                id,
+                id.as_str(),
                 errors
             );
             return None;
@@ -690,11 +697,11 @@ impl DioxusAssetI18n {
 impl FluentLocalizer for DioxusAssetI18n {
     fn localize<'a>(
         &self,
-        id: &str,
-        args: Option<&HashMap<&str, FluentValue<'a>>>,
+        id: StaticFluentEntryId,
+        args: Option<&FluentArgs<'a>>,
     ) -> Option<String> {
         for (_, localizer) in self.inner.localizers.read().iter() {
-            if let Some(message) = localizer.localize(id, args) {
+            if let Some(message) = localizer.localize(id, args.map(FluentArgs::as_raw)) {
                 return Some(message);
             }
         }
@@ -707,13 +714,13 @@ impl FluentLocalizer for DioxusAssetI18n {
 
     fn localize_in_domain<'a>(
         &self,
-        domain: &str,
-        id: &str,
-        args: Option<&HashMap<&str, FluentValue<'a>>>,
+        domain: StaticFluentDomain,
+        id: StaticFluentEntryId,
+        args: Option<&FluentArgs<'a>>,
     ) -> Option<String> {
         for (data, localizer) in self.inner.localizers.read().iter() {
-            if data.domain() == domain
-                && let Some(message) = localizer.localize(id, args)
+            if data.domain == domain
+                && let Some(message) = localizer.localize(id, args.map(FluentArgs::as_raw))
             {
                 return Some(message);
             }
@@ -725,46 +732,40 @@ impl FluentLocalizer for DioxusAssetI18n {
             .and_then(|runtime_followers| runtime_followers.localize_in_domain(domain, id, args))
     }
 
-    fn with_lookup(
-        &self,
-        f: &mut dyn FnMut(
-            &mut dyn for<'a> FnMut(
-                &str,
-                &str,
-                Option<&HashMap<&str, FluentValue<'a>>>,
-            ) -> Option<String>,
-        ),
-    ) {
+    fn with_lookup(&self, f: &mut dyn FnMut(&mut FluentLocalizerLookup<'_>)) {
         let localizers = self.inner.localizers.read();
         if let Some(runtime_followers) = self.inner.runtime_followers.as_ref() {
             runtime_followers.with_lookup(&mut |runtime_lookup| {
-                let mut lookup =
-                    |domain: &str, id: &str, args: Option<&HashMap<&str, FluentValue<'_>>>| {
-                        for (data, localizer) in localizers.iter() {
-                            if data.domain() == domain
-                                && let Some(message) = localizer.localize(id, args)
-                            {
-                                return Some(message);
-                            }
-                        }
-
-                        runtime_lookup(domain, id, args)
-                    };
-                f(&mut lookup);
-            });
-        } else {
-            let mut lookup =
-                |domain: &str, id: &str, args: Option<&HashMap<&str, FluentValue<'_>>>| {
+                let mut lookup = |domain: StaticFluentDomain,
+                                  id: StaticFluentEntryId,
+                                  args: Option<&FluentArgs<'_>>| {
                     for (data, localizer) in localizers.iter() {
-                        if data.domain() == domain
-                            && let Some(message) = localizer.localize(id, args)
+                        if data.domain == domain
+                            && let Some(message) =
+                                localizer.localize(id, args.map(FluentArgs::as_raw))
                         {
                             return Some(message);
                         }
                     }
 
-                    None
+                    runtime_lookup(domain, id, args)
                 };
+                f(&mut lookup);
+            });
+        } else {
+            let mut lookup = |domain: StaticFluentDomain,
+                              id: StaticFluentEntryId,
+                              args: Option<&FluentArgs<'_>>| {
+                for (data, localizer) in localizers.iter() {
+                    if data.domain == domain
+                        && let Some(message) = localizer.localize(id, args.map(FluentArgs::as_raw))
+                    {
+                        return Some(message);
+                    }
+                }
+
+                None
+            };
             f(&mut lookup);
         }
     }
@@ -1082,8 +1083,8 @@ impl DioxusAssetI18nHandle {
 impl FluentLocalizer for DioxusAssetI18nHandle {
     fn localize<'a>(
         &self,
-        id: &str,
-        args: Option<&HashMap<&str, FluentValue<'a>>>,
+        id: StaticFluentEntryId,
+        args: Option<&FluentArgs<'a>>,
     ) -> Option<String> {
         let _ = self.context.current();
         let i18n = self.context.i18n();
@@ -1092,25 +1093,16 @@ impl FluentLocalizer for DioxusAssetI18nHandle {
 
     fn localize_in_domain<'a>(
         &self,
-        domain: &str,
-        id: &str,
-        args: Option<&HashMap<&str, FluentValue<'a>>>,
+        domain: StaticFluentDomain,
+        id: StaticFluentEntryId,
+        args: Option<&FluentArgs<'a>>,
     ) -> Option<String> {
         let _ = self.context.current();
         let i18n = self.context.i18n();
         FluentLocalizer::localize_in_domain(&i18n, domain, id, args)
     }
 
-    fn with_lookup(
-        &self,
-        f: &mut dyn FnMut(
-            &mut dyn for<'a> FnMut(
-                &str,
-                &str,
-                Option<&HashMap<&str, FluentValue<'a>>>,
-            ) -> Option<String>,
-        ),
-    ) {
+    fn with_lookup(&self, f: &mut dyn FnMut(&mut FluentLocalizerLookup<'_>)) {
         let _ = self.context.current();
         let i18n = self.context.i18n();
         FluentLocalizer::with_lookup(&i18n, f);
@@ -1256,6 +1248,14 @@ mod tests {
         supported_languages: &[langid!("en")],
         namespaces: &["ui"],
     };
+
+    fn static_domain(value: &'static str) -> StaticFluentDomain {
+        StaticFluentDomain::try_new(value).expect("valid test domain")
+    }
+
+    fn static_entry(value: &'static str) -> StaticFluentEntryId {
+        StaticFluentEntryId::try_new(value).expect("valid test message id")
+    }
     static ASSET_DATA: ModuleData = ModuleData {
         name: "asset-test",
         domain: es_fluent_manager_core::__macro::static_domain("asset-test"),
@@ -1305,7 +1305,7 @@ mod tests {
     fn base_spec() -> ModuleResourceSpec {
         ModuleResourceSpec::new(
             ResourceKey::from_static_path("test-app"),
-            "test-app.ftl",
+            LocaleRelativeFtlPath::from_static_path("test-app.ftl"),
             true,
         )
     }
@@ -1363,7 +1363,7 @@ mod tests {
         let lang = langid!("en");
         let spec = ModuleResourceSpec::new(
             ResourceKey::from_static_path("fallback-app"),
-            "fallback-app.ftl",
+            LocaleRelativeFtlPath::from_static_path("fallback-app.ftl"),
             true,
         );
         LoadedDioxusI18nAssetModule {
@@ -1381,12 +1381,12 @@ mod tests {
         let lang = langid!("en");
         let base_spec = ModuleResourceSpec::new(
             ResourceKey::from_static_path("duplicate-resource-app"),
-            "duplicate-resource-app.ftl",
+            LocaleRelativeFtlPath::from_static_path("duplicate-resource-app.ftl"),
             false,
         );
         let ui_spec = ModuleResourceSpec::new(
             ResourceKey::from_static_path("duplicate-resource-app/ui"),
-            "duplicate-resource-app/ui.ftl",
+            LocaleRelativeFtlPath::from_static_path("duplicate-resource-app/ui.ftl"),
             true,
         );
         LoadedDioxusI18nAssetModule {
@@ -1411,11 +1411,7 @@ mod tests {
     impl FluentMessage for TestMessage {
         fn to_fluent_string_with(
             &self,
-            localize: &mut dyn for<'a> FnMut(
-                es_fluent::registry::StaticFluentDomain,
-                es_fluent::registry::StaticFluentEntryId,
-                Option<&es_fluent::FluentArgs<'a>>,
-            ) -> String,
+            localize: &mut es_fluent::FluentMessageLookup<'_>,
         ) -> String {
             localize(
                 es_fluent::registry::__macro::static_domain("test-app"),
@@ -1432,7 +1428,7 @@ mod tests {
         let _provided = use_provide_asset_i18n(i18n);
         let i18n = use_i18n().expect("asset i18n context should be present");
         let message = i18n
-            .localize("hello", None)
+            .localize(static_entry("hello"), None)
             .unwrap_or_else(|| "missing".to_string());
 
         rsx! { "{message}" }
@@ -1454,11 +1450,11 @@ mod tests {
             .expect("handle should strictly select en");
         let message = handle.localize_message(&TestMessage);
         let domain_message = handle
-            .localize_in_domain("test-app", "hello", None)
+            .localize_in_domain(static_domain("test-app"), static_entry("hello"), None)
             .unwrap_or_else(|| "missing".to_string());
         let mut lookup_message = None;
         handle.with_lookup(&mut |lookup| {
-            lookup_message = lookup("test-app", "hello", None);
+            lookup_message = lookup(static_domain("test-app"), static_entry("hello"), None);
         });
         let lookup_message = lookup_message.unwrap_or_else(|| "missing".to_string());
 
@@ -1486,10 +1482,13 @@ mod tests {
         )
         .expect("initial language should load");
 
-        assert_eq!(i18n.localize("hello", None), Some("Hello".to_string()));
+        assert_eq!(
+            i18n.localize(static_entry("hello"), None),
+            Some("Hello".to_string())
+        );
         assert_eq!(i18n.requested_language(), langid!("en"));
         assert_eq!(
-            i18n.localize_in_domain("test-app", "hello", None),
+            i18n.localize_in_domain(static_domain("test-app"), static_entry("hello"), None),
             Some("Hello".to_string())
         );
         assert!(i18n == i18n.clone());
@@ -1497,7 +1496,7 @@ mod tests {
             .expect("selecting the active language should be a no-op");
         let mut looked_up = None;
         i18n.with_lookup(&mut |lookup| {
-            looked_up = lookup("test-app", "hello", None);
+            looked_up = lookup(static_domain("test-app"), static_entry("hello"), None);
         });
         assert_eq!(looked_up, Some("Hello".to_string()));
         assert_eq!(i18n.localize_message(&TestMessage), "Hello");
@@ -1514,16 +1513,24 @@ mod tests {
         .expect("initial language should load");
 
         assert_eq!(
-            i18n.localize("es-fluent-lang-en", None),
+            i18n.localize(static_entry("es-fluent-lang-en"), None),
             Some("English".to_string())
         );
         assert_eq!(
-            i18n.localize_in_domain("es-fluent-lang", "es-fluent-lang-en", None),
+            i18n.localize_in_domain(
+                static_domain("es-fluent-lang"),
+                static_entry("es-fluent-lang-en"),
+                None,
+            ),
             Some("English".to_string())
         );
         let mut looked_up = None;
         i18n.with_lookup(&mut |lookup| {
-            looked_up = lookup("es-fluent-lang", "es-fluent-lang-en", None);
+            looked_up = lookup(
+                static_domain("es-fluent-lang"),
+                static_entry("es-fluent-lang-en"),
+                None,
+            );
         });
         assert_eq!(looked_up, Some("English".to_string()));
     }
@@ -1666,13 +1673,17 @@ mod tests {
         .expect("asset module should load");
 
         assert_eq!(
-            i18n.localize_in_domain("asset-test", "asset-hello", None),
+            i18n.localize_in_domain(
+                static_domain("asset-test"),
+                static_entry("asset-hello"),
+                None,
+            ),
             Some("Hello from asset".to_string())
         );
         i18n.select_language(langid!("fr"))
             .expect("asset i18n should select fr");
         assert_eq!(
-            i18n.localize("asset-hello", None),
+            i18n.localize(static_entry("asset-hello"), None),
             Some("Bonjour from asset".to_string())
         );
     }
@@ -1703,7 +1714,11 @@ mod tests {
 
         assert_eq!(i18n.requested_language(), langid!("en-US"));
         assert_eq!(
-            i18n.localize_in_domain("fallback-app", "fallback", None),
+            i18n.localize_in_domain(
+                static_domain("fallback-app"),
+                static_entry("fallback"),
+                None
+            ),
             Some("English fallback".to_string())
         );
     }

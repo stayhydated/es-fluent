@@ -22,14 +22,12 @@ pub use es_fluent_lang_macro::es_fluent_language;
 
 #[doc(hidden)]
 use es_fluent_manager_core::{
-    I18nModule, I18nModuleDescriptor, I18nModuleRegistration, LocalizationError, Localizer,
-    ModuleData,
+    FluentArgumentMap, I18nModule, I18nModuleDescriptor, I18nModuleRegistration, LocalizationError,
+    Localizer, ModuleData, StaticFluentEntryId,
 };
-use fluent_bundle::FluentValue;
 use icu_experimental::displaynames::{DisplayNamesOptions, multi::LocaleDisplayNamesFormatter};
 use icu_locale::Locale;
 use parking_lot::RwLock;
-use std::collections::HashMap;
 
 const ES_FLUENT_LANG_PREFIX: &str = "es-fluent-lang-";
 const DISPLAY_LANGUAGE_FALLBACKS: &[&str] = &["en", "en-001"];
@@ -146,17 +144,17 @@ impl Localizer for EsFluentLanguageLocalizer {
 
     fn localize<'a>(
         &self,
-        id: &str,
-        args: Option<&HashMap<&str, FluentValue<'a>>>,
+        id: StaticFluentEntryId,
+        args: Option<&FluentArgumentMap<'a>>,
     ) -> Option<String> {
         if args.is_some_and(|args| !args.is_empty()) {
             tracing::debug!(
                 "Ignoring Fluent args for built-in language label '{}'; ICU-backed labels do not accept arguments",
-                id
+                id.as_str()
             );
         }
 
-        let target_language = parse_message_language(id)?;
+        let target_language = parse_message_language(id.as_str())?;
 
         #[cfg(feature = "localized-langs")]
         let display_language = self.current_lang.read().clone();

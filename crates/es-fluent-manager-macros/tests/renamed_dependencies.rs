@@ -79,11 +79,7 @@ pub struct LocalizedMessage {
 impl localized::FluentMessage for Message {
     fn to_fluent_string_with(
         &self,
-        _localize: &mut dyn for<'a> FnMut(
-            localized::registry::StaticFluentDomain,
-            localized::registry::StaticFluentEntryId,
-            Option<&localized::FluentArgs<'a>>,
-        ) -> String,
+        _localize: &mut localized::FluentMessageLookup<'_>,
     ) -> String {
         String::new()
     }
@@ -92,11 +88,7 @@ impl localized::FluentMessage for Message {
 impl localized::FluentMessage for LocalizedMessage {
     fn to_fluent_string_with(
         &self,
-        _localize: &mut dyn for<'a> FnMut(
-            localized::registry::StaticFluentDomain,
-            localized::registry::StaticFluentEntryId,
-            Option<&localized::FluentArgs<'a>>,
-        ) -> String,
+        _localize: &mut localized::FluentMessageLookup<'_>,
     ) -> String {
         String::new()
     }

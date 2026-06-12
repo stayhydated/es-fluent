@@ -7,13 +7,11 @@ license = "Unlicense"
 publish = false
 
 [features]
-default = [  ]
-server = [ "dioxus/server", "dep:dioxus-server", "stayhydated-site/server" ]
+default = [ "web" ]
 web = [ "dioxus/web", "stayhydated-site/web" ]
 
 [dependencies]
-dioxus = { features = [ "router", "launch", "lib", "fullstack" ], workspace = true }
-dioxus-server = { optional = true, workspace = true }
+dioxus = { features = [ "router", "launch", "lib" ], workspace = true }
 es-fluent = { features = [ "derive" ], workspace = true }
 es-fluent-lang = { workspace = true }
 es-fluent-manager-dioxus = { features = [ "client", "ssr" ], workspace = true }
@@ -28,9 +26,6 @@ es-fluent-build = { workspace = true }
 anyhow = { workspace = true }
 serial_test = { workspace = true }
 tempfile = { workspace = true }
-
-[package.metadata.cargo-machete]
-ignored = [ "dioxus-server" ]
 
 [lints]
 workspace = true

@@ -151,13 +151,15 @@ pub(crate) fn handle_asset_loading(
 mod tests {
     use super::*;
     use bevy::asset::{AssetLoadError, AssetPath, Assets};
-    use es_fluent_manager_core::{ModuleResourceSpec, ResourceLoadError};
+    use es_fluent_manager_core::{LocaleRelativeFtlPath, ModuleResourceSpec, ResourceLoadError};
     use unic_langid::langid;
 
     fn spec(key: &str, required: bool) -> ModuleResourceSpec {
         let resource_key = ResourceKey::try_new(key)
             .unwrap_or_else(|error| panic!("test resource key '{key}' should be valid: {error}"));
-        ModuleResourceSpec::new(resource_key, format!("{key}.ftl"), required)
+        let locale_relative_path = LocaleRelativeFtlPath::try_new(format!("{key}.ftl"))
+            .unwrap_or_else(|error| panic!("test FTL path '{key}.ftl' should be valid: {error}"));
+        ModuleResourceSpec::new(resource_key, locale_relative_path, required)
     }
 
     #[test]

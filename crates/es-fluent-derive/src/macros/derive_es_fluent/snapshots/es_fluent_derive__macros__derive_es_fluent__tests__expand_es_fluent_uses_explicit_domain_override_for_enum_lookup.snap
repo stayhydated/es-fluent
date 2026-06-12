@@ -1,16 +1,11 @@
 ---
 source: crates/es-fluent-derive/src/macros/derive_es_fluent/mod.rs
-assertion_line: 284
 expression: tokens
 ---
 impl ::es_fluent::FluentMessage for Languages {
     fn to_fluent_string_with(
         &self,
-        localize: &mut dyn for<'__es_fluent_message> FnMut(
-            ::es_fluent::registry::StaticFluentDomain,
-            ::es_fluent::registry::StaticFluentEntryId,
-            Option<&::es_fluent::FluentArgs<'__es_fluent_message>>,
-        ) -> String,
+        localize: &mut ::es_fluent::FluentMessageLookup<'_>,
     ) -> String {
         match self {
             Self::En => {
@@ -47,4 +42,11 @@ mod __es_fluent_inventory_Languages {
     ::es_fluent::__inventory::submit!(
         ::es_fluent::registry::RegisteredFtlType(& TYPE_INFO)
     );
+}
+impl ::es_fluent::EsFluentChoice for Languages {
+    fn as_fluent_choice(&self) -> ::es_fluent::registry::StaticFluentVariantKey {
+        match self {
+            Self::En => ::es_fluent::registry::__macro::static_variant_key("en"),
+        }
+    }
 }

@@ -58,10 +58,14 @@ mod tests {
     #[test]
     fn required_and_optional_keys_reflect_plan_membership() {
         let plan = vec![
-            ModuleResourceSpec::new(ResourceKey::from_static_path("demo"), "demo.ftl", true),
+            ModuleResourceSpec::new(
+                ResourceKey::from_static_path("demo"),
+                LocaleRelativeFtlPath::from_static_path("demo.ftl"),
+                true,
+            ),
             ModuleResourceSpec::new(
                 ResourceKey::from_static_path("demo/optional"),
-                "demo/optional.ftl",
+                LocaleRelativeFtlPath::from_static_path("demo/optional.ftl"),
                 false,
             ),
         ];

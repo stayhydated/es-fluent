@@ -19,35 +19,11 @@ pub struct LabelOpts {
 /// Attribute arguments for `EsFluentLabel`.
 #[derive(Clone, Debug, Default, FromMeta, Getters)]
 pub struct LabelNamespacedAttributeArgs {
-    #[darling(default)]
-    origin: Option<super::PresentFlag>,
-    #[darling(default)]
-    variants: Option<super::PresentFlag>,
     #[darling(flatten)]
     namespace_args: super::NamespacedAttributeArgs,
 }
 
 impl LabelNamespacedAttributeArgs {
-    /// Returns `true` if the origin flag was provided.
-    pub fn has_origin(&self) -> bool {
-        self.origin.is_some()
-    }
-
-    /// Returns `true` if `origin` should be generated.
-    pub fn is_origin(&self) -> bool {
-        self.origin.is_some_and(super::PresentFlag::is_present)
-    }
-
-    /// Returns `true` if `variants` should be generated.
-    pub fn is_variants(&self) -> bool {
-        self.variants.is_some_and(super::PresentFlag::is_present)
-    }
-
-    /// Returns the span of the variants flag if provided.
-    pub fn variants_span(&self) -> Option<proc_macro2::Span> {
-        self.variants.map(super::PresentFlag::span)
-    }
-
     /// Returns the namespace value if provided.
     pub fn namespace(&self) -> Option<&NamespaceRule> {
         self.namespace_args.namespace()
@@ -67,39 +43,24 @@ mod tests {
     use syn::{DeriveInput, parse_quote};
 
     #[test]
-    fn label_options_default_to_no_outputs() {
+    fn label_options_default_to_type_label_output() {
         let input: DeriveInput = parse_quote! {
             struct SettingsLabel;
         };
 
         let opts = LabelOpts::from_derive_input(&input).expect("LabelOpts should parse");
 
-        assert!(!opts.attr_args().has_origin());
-        assert!(!opts.attr_args().is_origin());
-        assert!(!opts.attr_args().is_variants());
+        assert!(opts.attr_args().namespace().is_none());
     }
 
     #[test]
-    fn label_options_accept_bare_flags() {
+    fn label_options_reject_variants_flag() {
         let input: DeriveInput = parse_quote! {
-            #[fluent_label(origin, variants)]
+            #[fluent_label(variants)]
             struct SettingsLabel;
         };
 
-        let opts = LabelOpts::from_derive_input(&input).expect("LabelOpts should parse");
-
-        assert!(opts.attr_args().is_origin());
-        assert!(opts.attr_args().is_variants());
-    }
-
-    #[test]
-    fn label_options_reject_non_bare_flags() {
-        let input: DeriveInput = parse_quote! {
-            #[fluent_label(origin("parent"), variants("children"))]
-            struct SettingsLabel;
-        };
-
-        let err = LabelOpts::from_derive_input(&input).expect_err("non-bare flags should fail");
+        let err = LabelOpts::from_derive_input(&input).expect_err("variants flag should fail");
 
         assert!(!err.to_string().is_empty(), "unexpected error: {err}");
     }

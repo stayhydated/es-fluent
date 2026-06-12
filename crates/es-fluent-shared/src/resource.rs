@@ -195,14 +195,6 @@ impl ResourceKey {
             .unwrap_or_else(|error| panic!("invalid static resource key '{key}': {error}"))
     }
 
-    /// Creates a resource key from macro-generated static metadata validated before emission.
-    ///
-    /// This constructor is intentionally narrow. Prefer `try_new` for dynamic
-    /// input and `from_static_path` for hand-written static literals.
-    pub fn from_static_path_unchecked(key: &'static str) -> Self {
-        Self(key.to_string())
-    }
-
     /// Creates a base resource key from an already-validated static Fluent domain.
     pub fn from_static_domain(domain: StaticFluentDomain) -> Self {
         Self(domain.as_str().to_string())
@@ -232,6 +224,12 @@ impl ResourceKey {
     /// Returns the domain segment of the key.
     pub fn domain(&self) -> &str {
         self.0.split('/').next().unwrap_or(self.as_str())
+    }
+
+    /// Returns the domain segment as a validated Fluent domain.
+    pub fn domain_name(&self) -> FluentDomain {
+        FluentDomain::try_new(self.domain())
+            .expect("resource key validation should guarantee a valid domain segment")
     }
 }
 
@@ -281,14 +279,13 @@ impl LocaleRelativeFtlPath {
         Ok(Self(path))
     }
 
-    /// Creates a locale-relative Fluent resource path, panicking when invalid.
+    /// Validates and creates a locale-relative Fluent resource path from a static literal.
     #[allow(
         clippy::panic,
         reason = "static metadata uses literal paths; use try_new for dynamic input"
     )]
-    pub fn new(path: impl Into<String>) -> Self {
-        let path = path.into();
-        Self::try_new(path.clone())
+    pub fn from_static_path(path: &'static str) -> Self {
+        Self::try_new(path)
             .unwrap_or_else(|error| panic!("invalid locale-relative FTL path '{path}': {error}"))
     }
 
@@ -463,11 +460,15 @@ impl ModuleResourceSpec {
         })
     }
 
-    /// Creates a resource specification.
-    pub fn new(key: ResourceKey, locale_relative_path: impl Into<String>, required: bool) -> Self {
+    /// Creates a resource specification from validated parts.
+    pub fn new(
+        key: ResourceKey,
+        locale_relative_path: LocaleRelativeFtlPath,
+        required: bool,
+    ) -> Self {
         Self {
             key,
-            locale_relative_path: LocaleRelativeFtlPath::new(locale_relative_path),
+            locale_relative_path,
             required,
         }
     }
@@ -488,7 +489,8 @@ impl ModuleResourceSpec {
     pub fn base_for_static_domain(domain: StaticFluentDomain, required: bool) -> Self {
         Self::new(
             ResourceKey::from_static_domain(domain),
-            format!("{}.ftl", domain.as_str()),
+            LocaleRelativeFtlPath::try_new(format!("{}.ftl", domain.as_str()))
+                .expect("static domain should produce a valid locale-relative FTL path"),
             required,
         )
     }
@@ -496,7 +498,8 @@ impl ModuleResourceSpec {
     fn base_for_domain(domain: &FluentDomain, required: bool) -> Self {
         Self::new(
             ResourceKey::from_domain(domain),
-            format!("{}.ftl", domain.as_str()),
+            LocaleRelativeFtlPath::try_new(format!("{}.ftl", domain.as_str()))
+                .expect("domain should produce a valid locale-relative FTL path"),
             required,
         )
     }
@@ -529,7 +532,9 @@ impl ModuleResourceSpec {
     ) -> Self {
         Self::new(
             ResourceKey::from_static_domain_and_namespace(domain, namespace),
-            format!("{}/{namespace}.ftl", domain.as_str()),
+            LocaleRelativeFtlPath::try_new(format!("{}/{namespace}.ftl", domain.as_str())).expect(
+                "static domain and namespace should produce a valid locale-relative FTL path",
+            ),
             required,
         )
     }
@@ -541,7 +546,8 @@ impl ModuleResourceSpec {
     ) -> Self {
         Self::new(
             ResourceKey::from_domain_and_namespace(domain, namespace),
-            format!("{}/{namespace}.ftl", domain.as_str()),
+            LocaleRelativeFtlPath::try_new(format!("{}/{namespace}.ftl", domain.as_str()))
+                .expect("domain and namespace should produce a valid locale-relative FTL path"),
             required,
         )
     }
@@ -1023,6 +1029,7 @@ mod tests {
 
         assert_eq!(dynamic.as_str(), "demo/ui");
         assert_eq!(dynamic.domain(), "demo");
+        assert_eq!(dynamic.domain_name().as_str(), "demo");
         assert_eq!(dynamic.as_ref(), "demo/ui");
         assert_eq!(static_key.to_string(), "demo/errors");
     }
@@ -1049,6 +1056,10 @@ mod tests {
         assert_eq!(path.as_str(), "demo/ui.ftl");
         assert_eq!(path.to_string(), "demo/ui.ftl");
         assert_eq!(path, "demo/ui.ftl");
+        assert_eq!(
+            LocaleRelativeFtlPath::from_static_path("demo/static.ftl").as_str(),
+            "demo/static.ftl"
+        );
 
         assert_eq!(
             LocaleRelativeFtlPath::try_new("").expect_err("empty path"),
@@ -1137,7 +1148,7 @@ mod tests {
                 ModuleResourceSpec::base("demo", false),
                 ModuleResourceSpec::new(
                     ResourceKey::from_static_path("demo/errors/forms"),
-                    "demo/errors/forms.ftl",
+                    LocaleRelativeFtlPath::from_static_path("demo/errors/forms.ftl"),
                     true
                 ),
             ]
@@ -1311,10 +1322,14 @@ mod tests {
     #[test]
     fn required_and_optional_keys_reflect_plan_membership() {
         let plan = vec![
-            ModuleResourceSpec::new(ResourceKey::from_static_path("demo"), "demo.ftl", true),
+            ModuleResourceSpec::new(
+                ResourceKey::from_static_path("demo"),
+                LocaleRelativeFtlPath::from_static_path("demo.ftl"),
+                true,
+            ),
             ModuleResourceSpec::new(
                 ResourceKey::from_static_path("demo/optional"),
-                "demo/optional.ftl",
+                LocaleRelativeFtlPath::from_static_path("demo/optional.ftl"),
                 false,
             ),
         ];

@@ -1,7 +1,7 @@
-use crate::components::PageLink;
 use crate::site::i18n::{BevyPageMessage, SiteLanguage};
 use crate::site::routing::{PageKind, SiteRoute};
 use dioxus::prelude::*;
+use stayhydated_dioxus::{BackLink, LinkTarget};
 
 #[component]
 pub(crate) fn BevyPage(locale: SiteLanguage) -> Element {
@@ -19,10 +19,8 @@ pub(crate) fn BevyPage(locale: SiteLanguage) -> Element {
 
     rsx! {
         div { class: "fullscreen-demo",
-            PageLink {
-                locale,
-                page: PageKind::Demos,
-                class: "back-pill".to_string(),
+            BackLink::<crate::site::routing::AppRoute> {
+                target: LinkTarget::route(crate::site::routing::app_route(locale, PageKind::Demos)),
                 label: back_to_demos,
             }
             iframe {

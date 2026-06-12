@@ -1,10 +1,11 @@
 use bevy::asset::{Asset, AssetLoader, AsyncReadExt as _, LoadContext};
 use bevy::prelude::*;
 use es_fluent_manager_core::{
-    FluentManager, LocaleLoadReport, LocalizationError, ModuleResourceSpec, ResourceKey,
-    ResourceLoadError, SyncFluentBundle,
+    FluentArgumentMap, FluentDomain, FluentManager, LocaleLoadReport, LocalizationError,
+    ModuleResourceSpec, ResourceKey, ResourceLoadError, StaticFluentDomain, StaticFluentEntryId,
+    SyncFluentBundle,
 };
-use fluent_bundle::{FluentResource, FluentValue};
+use fluent_bundle::FluentResource;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -69,9 +70,9 @@ pub struct I18nBundle {
 #[doc(hidden)]
 #[derive(Clone, Default, Resource)]
 pub struct I18nDomainBundles {
-    pub(crate) bundles: HashMap<LanguageIdentifier, HashMap<String, Arc<SyncFluentBundle>>>,
+    pub(crate) bundles: HashMap<LanguageIdentifier, HashMap<FluentDomain, Arc<SyncFluentBundle>>>,
     pub(crate) locale_resources:
-        HashMap<LanguageIdentifier, HashMap<String, Vec<Arc<FluentResource>>>>,
+        HashMap<LanguageIdentifier, HashMap<FluentDomain, Vec<Arc<FluentResource>>>>,
 }
 
 /// Bundle build failures that leave the last good cache active.
@@ -88,7 +89,12 @@ impl I18nAssets {
     fn inferred_spec_for_key(key: &str, required: bool) -> ModuleResourceSpec {
         let resource_key = ResourceKey::try_new(key)
             .unwrap_or_else(|error| panic!("test resource key '{key}' should be valid: {error}"));
-        ModuleResourceSpec::new(resource_key, format!("{key}.ftl"), required)
+        let locale_relative_path =
+            es_fluent_manager_core::LocaleRelativeFtlPath::try_new(format!("{key}.ftl"))
+                .unwrap_or_else(|error| {
+                    panic!("test FTL path '{key}.ftl' should be valid: {error}")
+                });
+        ModuleResourceSpec::new(resource_key, locale_relative_path, required)
     }
 
     pub(crate) fn load_state_mut(
@@ -265,7 +271,7 @@ impl I18nDomainBundles {
     pub(crate) fn set_locale_resources(
         &mut self,
         lang: LanguageIdentifier,
-        locale_resources: HashMap<String, Vec<Arc<FluentResource>>>,
+        locale_resources: HashMap<FluentDomain, Vec<Arc<FluentResource>>>,
     ) {
         self.locale_resources.insert(lang, locale_resources);
     }
@@ -273,7 +279,7 @@ impl I18nDomainBundles {
     pub(crate) fn set_bundles(
         &mut self,
         lang: LanguageIdentifier,
-        bundles: HashMap<String, Arc<SyncFluentBundle>>,
+        bundles: HashMap<FluentDomain, Arc<SyncFluentBundle>>,
     ) {
         self.bundles.insert(lang, bundles);
     }
@@ -405,8 +411,8 @@ impl I18nResource {
     /// that chain.
     pub fn localize<'a>(
         &self,
-        id: &str,
-        args: Option<&HashMap<&str, FluentValue<'a>>>,
+        id: StaticFluentEntryId,
+        args: Option<&FluentArgumentMap<'a>>,
         i18n_bundle: &I18nBundle,
     ) -> Option<String> {
         let locale_resources = i18n_bundle.fallback_locale_resources(&self.active_language);
@@ -418,7 +424,8 @@ impl I18nResource {
         if es_fluent_manager_core::fallback_errors_are_fatal(&errors) {
             error!(
                 "Fluent fallback formatting errors for '{}': {:?}",
-                id, errors
+                id.as_str(),
+                errors
             );
             return None;
         }
@@ -434,12 +441,12 @@ impl I18nResource {
     pub fn localize_with_fallback<'a>(
         &self,
         i18n_bundle: &I18nBundle,
-        id: &str,
-        args: Option<&HashMap<&str, FluentValue<'a>>>,
+        id: StaticFluentEntryId,
+        args: Option<&FluentArgumentMap<'a>>,
     ) -> String {
         self.localize(id, args, i18n_bundle).unwrap_or_else(|| {
-            warn!("Translation for '{}' not found", id);
-            id.to_string()
+            warn!("Translation for '{}' not found", id.as_str());
+            id.as_str().to_string()
         })
     }
 
@@ -447,12 +454,12 @@ impl I18nResource {
     pub(crate) fn localize_in_domain<'a>(
         &self,
         i18n_domain_bundles: &I18nDomainBundles,
-        domain: &str,
-        id: &str,
-        args: Option<&HashMap<&str, FluentValue<'a>>>,
+        domain: StaticFluentDomain,
+        id: StaticFluentEntryId,
+        args: Option<&FluentArgumentMap<'a>>,
     ) -> Option<String> {
         let locale_resources =
-            i18n_domain_bundles.fallback_locale_resources(&self.active_language, domain);
+            i18n_domain_bundles.fallback_locale_resources(&self.active_language, domain.as_str());
         let (value, errors) = es_fluent_manager_core::localize_with_fallback_resources(
             locale_resources.as_slice(),
             id,
@@ -461,7 +468,9 @@ impl I18nResource {
         if es_fluent_manager_core::fallback_errors_are_fatal(&errors) {
             error!(
                 "Fluent fallback formatting errors for '{}' in domain '{}': {:?}",
-                id, domain, errors
+                id.as_str(),
+                domain.as_str(),
+                errors
             );
             return None;
         }
@@ -477,10 +486,16 @@ impl I18nResource {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use es_fluent_manager_core::LocaleRelativeFtlPath;
     use unic_langid::langid;
 
     fn resource(content: &str) -> Arc<FluentResource> {
         Arc::new(FluentResource::try_new(content.to_string()).expect("valid FTL"))
+    }
+
+    fn domain(value: &str) -> FluentDomain {
+        FluentDomain::try_new(value)
+            .unwrap_or_else(|error| panic!("test domain '{value}' should be valid: {error}"))
     }
 
     #[test]
@@ -489,7 +504,7 @@ mod tests {
         let mut assets = I18nAssets::new();
         let spec = ModuleResourceSpec::new(
             ResourceKey::from_static_path("optional"),
-            "optional.ftl",
+            LocaleRelativeFtlPath::from_static_path("optional.ftl"),
             false,
         );
 
@@ -536,13 +551,13 @@ mod tests {
         domain_bundles.set_bundles(
             lang.clone(),
             HashMap::from([(
-                "app".to_string(),
+                domain("app"),
                 Arc::new(SyncFluentBundle::new_concurrent(vec![lang.clone()])),
             )]),
         );
         domain_bundles.set_locale_resources(
             lang.clone(),
-            HashMap::from([("app".to_string(), vec![resource("hello = Hello")])]),
+            HashMap::from([(domain("app"), vec![resource("hello = Hello")])]),
         );
 
         domain_bundles.remove_bundles(&lang);

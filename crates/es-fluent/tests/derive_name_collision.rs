@@ -1,7 +1,7 @@
 #![cfg(feature = "derive")]
 
-use es_fluent::{EsFluent, FluentLocalizer, FluentLocalizerExt as _, FluentValue};
-use std::collections::HashMap;
+use es_fluent::registry::{StaticFluentDomain, StaticFluentEntryId};
+use es_fluent::{EsFluent, FluentArgs, FluentLocalizer, FluentLocalizerExt as _};
 
 #[derive(EsFluent)]
 struct URLMessage;
@@ -14,19 +14,19 @@ struct IdLocalizer;
 impl FluentLocalizer for IdLocalizer {
     fn localize<'a>(
         &self,
-        id: &str,
-        _args: Option<&HashMap<&str, FluentValue<'a>>>,
+        id: StaticFluentEntryId,
+        _args: Option<&FluentArgs<'a>>,
     ) -> Option<String> {
-        Some(id.to_string())
+        Some(id.as_str().to_string())
     }
 
     fn localize_in_domain<'a>(
         &self,
-        _domain: &str,
-        id: &str,
-        _args: Option<&HashMap<&str, FluentValue<'a>>>,
+        _domain: StaticFluentDomain,
+        id: StaticFluentEntryId,
+        _args: Option<&FluentArgs<'a>>,
     ) -> Option<String> {
-        Some(id.to_string())
+        Some(id.as_str().to_string())
     }
 }
 

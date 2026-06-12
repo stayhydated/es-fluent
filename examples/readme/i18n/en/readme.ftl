@@ -6,6 +6,14 @@ gender_label_only_label = Gender Label Only
 
 login_form_combined_label = Login Form Combined
 
+## ActiveFormField
+
+active_form_field =
+    { $field ->
+        [username] Editing username
+       *[password] Editing password
+    }
+
 ## GenderChoice
 
 gender_choice-Female = Female
@@ -42,11 +50,13 @@ login_form_combined_label_variants-username = Username
 
 ## LoginFormVariantsDescriptionVariants
 
+login_form_variants_description_variants_label = Login Form Variants Description Variants
 login_form_variants_description_variants-password = Password
 login_form_variants_description_variants-username = Username
 
 ## LoginFormVariantsLabelVariants
 
+login_form_variants_label_variants_label = Login Form Variants Label Variants
 login_form_variants_label_variants-password = Password
 login_form_variants_label_variants-username = Username
 
@@ -56,6 +66,7 @@ network_error-ApiUnavailable = API is unavailable
 
 ## SettingsTabVariants
 
+settings_tab_variants_label = Settings Tab Variants
 settings_tab_variants-General = General
 settings_tab_variants-Notifications = Notifications
 settings_tab_variants-Privacy = Privacy

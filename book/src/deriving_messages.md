@@ -60,14 +60,15 @@ Common derive attributes:
 - `arg = "..."` on a field renames that exposed Fluent argument (works on struct fields, enum named fields, and enum tuple fields).
 - `#[fluent(skip)]` on a field excludes that field from generated arguments.
 - `#[fluent(value = |x: &String| x.len())]` transforms a field before inserting it as a Fluent argument.
-- `#[fluent(optional)]` treats an `Option<T>`-style field as an omitted Fluent argument when it is `None`.
-- `#[fluent(selector)]`, `#[fluent(optional)]`, and `#[fluent(value = ...)]` are mutually exclusive on the same field.
-- `#[fluent(key = "...")]` on an enum variant overrides that variant's key suffix.
+- Plain `Option<T>` fields are inferred as optional Fluent arguments and are omitted when `None`.
+- `#[fluent(selector)]` on `Option<T>` fields creates an optional selector argument.
+- `#[fluent(selector)]` and `#[fluent(value = ...)]` are mutually exclusive on the same field. Explicit value attributes override `Option<T>` inference.
+- `#[fluent(key = "...")]` on an enum variant overrides that variant's key suffix. On unit-only `EsFluent` enums, it also overrides the inferred selector value.
+- `#[fluent(skip)]` and `#[fluent(key = "...")]` cannot be combined on the same enum variant.
 - `#[fluent(id = "...")]` on an enum overrides the base key, and `domain = "..."` routes lookup to a specific manager domain.
 - `id = "..."` and `domain = "..."` are enum-only. Struct message containers accept `namespace = ...`; struct messages resolve in the current crate's domain.
 - Generated FTL keys must be unique within each output file. `generate`, `clean`, and `check` fail when two derived items produce the same key.
 - For namespaced types, `check` validates the expected namespace file; a key in `{crate}.ftl` still counts as missing if the Rust type belongs in `{crate}/{namespace}.ftl`.
-- Optional-argument omission is explicit; plain `Option<T>` fields are treated like ordinary field values unless marked `#[fluent(optional)]`.
 - `#[fluent_variants(skip)]` omits a struct field or enum variant from generated variant enums; `keys = [...]` values must be lowercase snake_case.
 
 Skipped single-field enum variants:
@@ -101,16 +102,16 @@ network_error-ApiUnavailable = API is unavailable
 
 ## Using Choices
 
-Choices allow an enum to be used _inside_ another message as a Fluent selector (e.g., for gender or category). Derive `EsFluentChoice` alongside `EsFluent` on the selector enum.
-Choice values are validated as Fluent select variant keys. `rename_all` styles
-that generate invalid selector values, such as values containing spaces, are
-rejected at compile time.
+Choices allow an enum to be used _inside_ another message as a Fluent selector (e.g., for gender or category). Unit-only enums that derive `EsFluent` infer `EsFluentChoice` automatically.
+Variants serialize as kebab-case by default, so `GenderChoice::Male` becomes
+`male` and a compound variant like `VeryFriendly` becomes `very-friendly`.
+Derived choice values are emitted as validated `StaticFluentVariantKey` values.
+Use `#[fluent_choice(rename_all = "...")]` on the same enum to change selector casing. Styles that generate invalid selector values, such as values containing spaces, are rejected at compile time. Use standalone `#[derive(EsFluentChoice)]` only for selector enums that should not also be registered as messages.
 
 ```rust
-use es_fluent::{EsFluent, EsFluentChoice};
+use es_fluent::EsFluent;
 
-#[derive(EsFluent, EsFluentChoice)]
-#[fluent_choice(rename_all = "snake_case")]
+#[derive(EsFluent)]
 pub enum GenderChoice {
     Male,
     Female,
@@ -121,7 +122,7 @@ pub enum GenderChoice {
 pub struct Greeting<'a> {
     pub name: &'a str,
     #[fluent(selector)] // Matches $gender -> [male]...
-    pub gender: &'a GenderChoice,
+    pub gender: Option<&'a GenderChoice>,
 }
 ```
 
@@ -137,7 +138,7 @@ greeting = { $gender ->
 
 ```rust
 use es_fluent::FluentMessage;
-let greeting = Greeting { name: "John", gender: &GenderChoice::Male };
+let greeting = Greeting { name: "John", gender: Some(&GenderChoice::Male) };
 let _ = i18n.localize_message(&greeting);
 ```
 
@@ -149,13 +150,19 @@ descriptions for a form object, and it can also expose enum variants as
 localizable keys.
 
 ```rust
-use es_fluent::EsFluentVariants;
+use es_fluent::{EsFluent, EsFluentVariants};
 
 #[derive(EsFluentVariants)]
 #[fluent_variants(keys = ["label", "description"])]
 pub struct LoginFormVariants {
     pub username: String,
     pub password: String,
+}
+
+#[derive(EsFluent)]
+pub struct ActiveFormField {
+    #[fluent(selector)]
+    pub field: LoginFormVariantsLabelVariants,
 }
 ```
 
@@ -176,6 +183,20 @@ login_form_variants_description_variants-username = Username
 ```rust
 use es_fluent::FluentMessage;
 let _ = i18n.localize_message(&LoginFormVariantsLabelVariants::Username);
+let _ = i18n.localize_message(&ActiveFormField {
+    field: LoginFormVariantsLabelVariants::Username,
+});
+```
+
+Generated variant enums also implement `EsFluentChoice`, so they can drive
+selector fields:
+
+```ftl
+active_form_field =
+    { $field ->
+        [username] Editing username
+       *[password] Editing password
+    }
 ```
 
 Enums are supported too. In that case, the derive generates a single
@@ -207,26 +228,26 @@ let _ = i18n.localize_message(&SettingsTabVariants::Notifications);
 
 `keys = [...]` values must be lowercase snake_case. Use
 `#[fluent_variants(skip)]` to omit a struct field or enum variant from the
-generated enums. Use `derive(Debug, Clone)` inside `#[fluent_variants(...)]` to
-add derives to the generated enums.
+generated enums. Generated enums derive `Clone`, `Copy`, `Debug`, `Eq`, `Hash`,
+and `PartialEq` automatically and implement `EsFluentChoice`, so they can be
+used directly in `#[fluent(selector)]` fields. Use `derive(...)` inside
+`#[fluent_variants(...)]` for additional traits; `EsFluentChoice` is already
+inferred.
 
 ## Type-level Labels
 
 `EsFluentLabel` generates a `FluentLabel` implementation that registers the type's _name_ as a key. Where `EsFluentVariants` registers individual fields, `EsFluentLabel` registers the parent type itself.
 
-### Origin Only
+### Type Label
 
-`#[fluent_label(origin)]` creates a single key for the type and is required
-when deriving `EsFluentLabel`. `origin` and `variants` are bare flags.
-`origin` requires `#[derive(EsFluentLabel)]`; using it with only
-`EsFluentVariants` is rejected because `EsFluentVariants` can only generate
-labels for generated variant enums.
+`#[derive(EsFluentLabel)]` creates a single key for the type. The derive is
+enough to register the type label; no additional `#[fluent_label(...)]` flag is
+needed for the parent type itself.
 
 ```rust
 use es_fluent::EsFluentLabel;
 
 #[derive(EsFluentLabel)]
-#[fluent_label(origin)]
 pub enum GenderLabelOnly {
     Male,
     Female,
@@ -241,19 +262,19 @@ gender_label_only_label = Gender Label Only
 ```rust
 use es_fluent::FluentLabel;
 let _ = GenderLabelOnly::localize_label(&i18n);
+let _ = GenderLabelOnly::try_localize_label(&i18n);
+let _ = GenderLabelOnly::fluent_label_id();
 ```
 
-### Combined with Variants
+### Combined with Generated Variant Labels
 
-`#[fluent_label(origin, variants)]` requires both `EsFluentLabel` and
-`EsFluentVariants`. It generates type-level keys for each generated variant enum
-when the type also derives `EsFluentLabel`:
+`#[derive(EsFluentVariants)]` also gives each generated variant enum a
+type-level label key inferred from the generated enum name:
 
 ```rust
 use es_fluent::{EsFluentLabel, EsFluentVariants};
 
 #[derive(EsFluentLabel, EsFluentVariants)]
-#[fluent_label(origin, variants)]
 #[fluent_variants(keys = ["label", "description"])]
 pub struct LoginFormCombined {
     pub username: String,

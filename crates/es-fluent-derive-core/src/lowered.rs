@@ -608,7 +608,6 @@ mod tests {
         let input: syn::DeriveInput = parse_quote! {
             struct FieldStrategies {
                 plain: String,
-                #[fluent(optional)]
                 maybe: Option<String>,
                 #[fluent(selector)]
                 selected: String,

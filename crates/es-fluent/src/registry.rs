@@ -4,7 +4,7 @@
 pub use es_fluent_shared::registry::__macro;
 pub use es_fluent_shared::registry::{
     FtlTypeInfo, FtlVariant, NamespaceRule, StaticFluentArgumentName, StaticFluentDomain,
-    StaticFluentEntryId,
+    StaticFluentEntryId, StaticFluentVariantKey,
 };
 pub use es_fluent_shared::source::{SourceFile, SourceLine, SourceLocation};
 

@@ -79,6 +79,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 Use `try_new_with_language_strict(...)` or `select_language_strict(...)` when every discovered module must support the selected locale.
 
+Prefer concrete manager `localize_message(...)` methods for application code.
+Manager-core lookup and custom `es_fluent::FluentLocalizer` integrations receive
+typed `StaticFluentDomain`, `StaticFluentEntryId`, and typed Fluent argument
+maps; convert to raw strings only at the final Fluent bundle lookup boundary.
+
 ## Dioxus Manager
 
 Client apps localize through Dioxus context:
@@ -100,7 +105,6 @@ fn app() -> Element {
 
 #[derive(Clone, Copy, EsFluent, EsFluentLabel)]
 #[fluent(namespace = "ui")]
-#[fluent_label(origin)]
 enum UiMessage {
     Hello,
 }
@@ -113,6 +117,7 @@ fn LocaleButton() -> Element {
     };
     let label = i18n.localize_message(&UiMessage::Hello);
     let title = UiMessage::localize_label(&i18n);
+    let _ = UiMessage::try_localize_label(&i18n);
 
     rsx! { button { "{title}: {label}" } }
 }
@@ -218,11 +223,11 @@ use es_fluent_lang::es_fluent_language;
 use strum::EnumIter;
 
 #[es_fluent_language]
-#[derive(Clone, Copy, Debug, Eq, EnumIter, PartialEq)]
+#[derive(EnumIter)]
 pub enum Languages {}
 ```
 
-The macro scans `i18n.toml` and canonical locale folders, implements `Default` from `fallback_language`, conversion to/from `LanguageIdentifier`, and `FluentMessage` for rendering language labels through the active manager:
+The macro scans `i18n.toml` and canonical locale folders, derives `Clone`, `Copy`, `Debug`, `Eq`, `Hash`, and `PartialEq` automatically, implements `Default` from `fallback_language`, conversion to/from `LanguageIdentifier`, and `FluentMessage` for rendering language labels through the active manager:
 
 ```rust
 use strum::IntoEnumIterator as _;
@@ -235,4 +240,4 @@ for language in Languages::iter() {
 i18n.select_language(Languages::FrFr)?;
 ```
 
-Use `#[es_fluent_language(mode = "custom")]` when the application ships its own translated language names.
+Use `#[es_fluent_language(custom)]` when the application ships its own translated language names.

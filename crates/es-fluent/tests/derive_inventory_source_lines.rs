@@ -24,7 +24,6 @@ struct InventoryLineVariantFields {
 }
 
 #[derive(EsFluentLabel)]
-#[fluent_label(origin)]
 #[allow(dead_code)]
 enum InventoryLineLabel {
     A,
@@ -39,12 +38,9 @@ fn marker_line(marker: &str) -> u32 {
 }
 
 fn inventory_line(type_name: &str, ftl_key: &str) -> u32 {
-    let info = es_fluent::registry::get_all_ftl_type_infos()
-        .find(|info| info.type_name() == type_name)
-        .unwrap_or_else(|| panic!("registered type {type_name} exists"));
-    let variant = info
-        .variants()
-        .iter()
+    let variant = es_fluent::registry::get_all_ftl_type_infos()
+        .filter(|info| info.type_name() == type_name)
+        .flat_map(|info| info.variants())
         .find(|variant| variant.entry_id().as_str() == ftl_key)
         .unwrap_or_else(|| panic!("registered key {ftl_key} exists"));
 

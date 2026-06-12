@@ -13,7 +13,7 @@ use es_fluent::FluentMessage;
 ///
 /// # Examples
 ///
-/// ```no_run
+/// ```ignore
 /// use bevy::prelude::*;
 /// use es_fluent::EsFluent;
 /// use es_fluent_manager_bevy::{BevyFluentText, FluentText};
@@ -74,11 +74,7 @@ mod tests {
     impl FluentMessage for FakeMessage {
         fn to_fluent_string_with(
             &self,
-            _localize: &mut dyn for<'a> FnMut(
-                es_fluent::registry::StaticFluentDomain,
-                es_fluent::registry::StaticFluentEntryId,
-                Option<&es_fluent::FluentArgs<'a>>,
-            ) -> String,
+            _localize: &mut es_fluent::FluentMessageLookup<'_>,
         ) -> String {
             self.0.to_string()
         }

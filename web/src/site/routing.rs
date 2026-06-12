@@ -8,6 +8,7 @@ use dioxus::prelude::*;
 use dioxus::router as dioxus_router;
 use es_fluent_lang::LanguageIdentifier;
 use es_fluent_manager_dioxus::DioxusAssetI18nHandle;
+use stayhydated_dioxus::ProjectNavItem;
 use stayhydated_site::routing::{BaseHref, BasePath, Href, OutputDir, RoutePath};
 use std::fmt::{self, Display};
 use std::path::Path;
@@ -32,6 +33,13 @@ impl PageKind {
             Self::Demos => "demos",
             Self::Bevy => "bevy-example",
             Self::Gpui => "gpui-example",
+        }
+    }
+
+    pub(crate) const fn project_nav_item(self) -> ProjectNavItem {
+        match self {
+            Self::Home => ProjectNavItem::Home,
+            Self::Demos | Self::Bevy | Self::Gpui => ProjectNavItem::Demos,
         }
     }
 
@@ -322,15 +330,6 @@ fn route_element(route: SiteRoute) -> Element {
             message: error,
         }),
     }
-}
-
-#[server(endpoint = "static_routes")]
-async fn static_routes() -> Result<Vec<String>, ServerFnError> {
-    Ok(all_routes()
-        .into_iter()
-        .map(|route| page_href(route.locale, route.page))
-        .map(Href::into_string)
-        .collect())
 }
 
 #[component]

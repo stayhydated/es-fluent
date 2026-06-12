@@ -38,30 +38,22 @@ fn string_literal_value(item: &syn::Meta) -> darling::Result<(String, proc_macro
 
 /// Marker for a bare attribute flag whose grammar accepts only path syntax.
 #[derive(Clone, Copy, Debug)]
-struct PresentFlag {
-    span: proc_macro2::Span,
-}
+struct PresentFlag;
 
 impl PresentFlag {
     fn is_present(self) -> bool {
         true
     }
-
-    fn span(self) -> proc_macro2::Span {
-        self.span
-    }
 }
 
 impl FromMeta for PresentFlag {
     fn from_word() -> darling::Result<Self> {
-        Ok(Self {
-            span: proc_macro2::Span::call_site(),
-        })
+        Ok(Self)
     }
 
     fn from_meta(item: &syn::Meta) -> darling::Result<Self> {
         match item {
-            syn::Meta::Path(path) => Ok(Self { span: path.span() }),
+            syn::Meta::Path(_) => Ok(Self),
             _ => Err(darling::Error::custom("use a bare flag").with_span(item)),
         }
     }
@@ -594,9 +586,6 @@ struct FluentFieldAttributeArgs {
     /// Whether this field is a selector for a Fluent select expression.
     #[darling(default)]
     selector: Option<PresentFlag>,
-    /// Whether this field should be treated as an optional argument.
-    #[darling(default)]
-    optional: Option<PresentFlag>,
     /// A value transformation expression.
     #[darling(default)]
     value: Option<ValueAttr>,
@@ -614,10 +603,6 @@ impl FluentFieldAttributeArgs {
         self.selector.is_some_and(PresentFlag::is_present)
     }
 
-    fn is_optional(&self) -> bool {
-        self.optional.is_some_and(PresentFlag::is_present)
-    }
-
     fn value(&self) -> Option<&syn::Expr> {
         self.value.as_ref().map(|value| &value.0)
     }
@@ -629,7 +614,6 @@ impl FluentFieldAttributeArgs {
     ) -> EsFluentCoreResult<FieldDirective> {
         let is_skipped = self.is_skipped();
         let is_selector = self.is_selector();
-        let is_optional = self.is_optional();
         let has_value = self.value().is_some();
         let has_arg = self.arg.is_some();
 
@@ -637,12 +621,6 @@ impl FluentFieldAttributeArgs {
             if has_arg {
                 return Err(field_strategy_error(
                     "Cannot use #[fluent(arg = \"...\")] on a skipped field",
-                    span,
-                ));
-            }
-            if is_optional {
-                return Err(field_strategy_error(
-                    "Cannot use #[fluent(optional)] on a skipped field",
                     span,
                 ));
             }
@@ -669,37 +647,17 @@ impl FluentFieldAttributeArgs {
             ));
         }
 
-        if is_optional && is_selector {
-            return Err(field_strategy_error(
-                "Cannot combine #[fluent(optional)] and #[fluent(selector)] on the same field",
-                span,
-            ));
-        }
-
-        if is_optional && has_value {
-            return Err(field_strategy_error(
-                "Cannot combine #[fluent(optional)] and #[fluent(value = ...)] on the same field",
-                span,
-            ));
-        }
-
-        if is_optional {
-            let Some(inner_ty) = option_inner_type(ty) else {
-                return Err(field_strategy_error(
-                    "#[fluent(optional)] can only be used on Option<T> fields",
-                    span,
-                ));
-            };
-            return Ok(FieldDirective::Argument(Box::new(FieldArgumentDirective {
-                name: self.arg.clone(),
-                value: FieldValueDirective::Optional {
-                    span: ty.span(),
-                    inner_ty: inner_ty.clone(),
-                },
-            })));
-        }
-
         if is_selector {
+            if let Some(inner_ty) = option_inner_type(ty) {
+                return Ok(FieldDirective::Argument(Box::new(FieldArgumentDirective {
+                    name: self.arg.clone(),
+                    value: FieldValueDirective::OptionalChoice {
+                        span: ty.span(),
+                        inner_ty: inner_ty.clone(),
+                    },
+                })));
+            }
+
             return Ok(FieldDirective::Argument(Box::new(FieldArgumentDirective {
                 name: self.arg.clone(),
                 value: FieldValueDirective::Choice {
@@ -716,6 +674,16 @@ impl FluentFieldAttributeArgs {
                     expr.clone(),
                     expr.span(),
                 )),
+            })));
+        }
+
+        if let Some(inner_ty) = option_inner_type(ty) {
+            return Ok(FieldDirective::Argument(Box::new(FieldArgumentDirective {
+                name: self.arg.clone(),
+                value: FieldValueDirective::Optional {
+                    span: ty.span(),
+                    inner_ty: inner_ty.clone(),
+                },
             })));
         }
 
@@ -796,6 +764,11 @@ pub enum FieldValueDirective {
         span: proc_macro2::Span,
         ty: syn::Type,
     },
+    /// Convert an optional field value through `EsFluentChoice`, preserving `None`.
+    OptionalChoice {
+        span: proc_macro2::Span,
+        inner_ty: syn::Type,
+    },
     /// Apply an explicit field-level transform expression.
     Transform(ValueTransform),
 }
@@ -811,6 +784,10 @@ impl FieldValueDirective {
             Self::Choice { span, ty } => ArgumentValueStrategy::Choice {
                 span: *span,
                 ty: Box::new(ty.clone()),
+            },
+            Self::OptionalChoice { span, inner_ty } => ArgumentValueStrategy::OptionalChoice {
+                span: *span,
+                ty: Box::new(inner_ty.clone()),
             },
             Self::Transform(transform) => {
                 ArgumentValueStrategy::Transform(Box::new(transform.clone()))
@@ -921,15 +898,14 @@ pub enum MessageVariantDirective {
     Localized {
         key: Option<SpannedValue<VariantKey>>,
     },
-    Skipped {
-        key: Option<SpannedValue<VariantKey>>,
-    },
+    Skipped,
 }
 
 impl MessageVariantDirective {
     pub fn key(&self) -> Option<&SpannedValue<VariantKey>> {
         match self {
-            Self::Localized { key } | Self::Skipped { key } => key.as_ref(),
+            Self::Localized { key } => key.as_ref(),
+            Self::Skipped => None,
         }
     }
 
@@ -943,7 +919,7 @@ impl MessageVariantDirective {
 
 impl SkipDirective for MessageVariantDirective {
     fn is_skipped(&self) -> bool {
-        matches!(self, Self::Skipped { .. })
+        matches!(self, Self::Skipped)
     }
 }
 
@@ -987,14 +963,20 @@ struct KeyedVariantAttributeArgs {
 }
 
 impl KeyedVariantAttributeArgs {
-    fn directive(&self) -> MessageVariantDirective {
-        if matches!(
+    pub(super) fn is_skipped(&self) -> bool {
+        matches!(
             self.skipped_args.directive(),
             GeneratedVariantDirective::Skip
-        ) {
-            MessageVariantDirective::Skipped {
-                key: self.key.clone(),
-            }
+        )
+    }
+
+    pub(super) fn key(&self) -> Option<&SpannedValue<VariantKey>> {
+        self.key.as_ref()
+    }
+
+    fn directive(&self) -> MessageVariantDirective {
+        if self.is_skipped() {
+            MessageVariantDirective::Skipped
         } else {
             MessageVariantDirective::Localized {
                 key: self.key.clone(),
@@ -1280,20 +1262,22 @@ mod tests {
         ));
 
         let skipped_variant: syn::Variant = syn::parse_quote!(
-            #[fluent(skip, key = "skipped")]
+            #[fluent(skip)]
             Skipped
         );
         let skipped_variant = crate::options::r#enum::VariantOpts::from_variant(&skipped_variant)
             .expect("variant parse");
         assert!(skipped_variant.directive().is_skipped());
-        assert_eq!(
-            skipped_variant
-                .directive()
-                .key()
-                .expect("key")
-                .value()
-                .as_str(),
-            "skipped"
+
+        let invalid_skipped_variant: syn::Variant = syn::parse_quote!(
+            #[fluent(skip, key = "skipped")]
+            Skipped
+        );
+        let err = crate::options::r#enum::VariantOpts::from_variant(&invalid_skipped_variant)
+            .expect_err("skip and key should conflict");
+        assert!(
+            err.to_string()
+                .contains("Cannot use #[fluent(key = \"...\")] on a skipped variant")
         );
 
         let generated_variant: syn::Variant = syn::parse_quote!(
@@ -1333,13 +1317,6 @@ mod tests {
         );
         assert!(
             err_for(syn::parse_quote! {
-                #[fluent(skip, optional)]
-                name: Option<String>
-            })
-            .contains("optional")
-        );
-        assert!(
-            err_for(syn::parse_quote! {
                 #[fluent(skip, selector)]
                 name: String
             })
@@ -1359,26 +1336,55 @@ mod tests {
             })
             .contains("selector")
         );
-        assert!(
-            err_for(syn::parse_quote! {
-                #[fluent(optional, selector)]
-                name: Option<String>
-            })
-            .contains("optional")
-        );
-        assert!(
-            err_for(syn::parse_quote! {
-                #[fluent(optional, value = |x: &str| x.len())]
-                name: Option<String>
-            })
-            .contains("optional")
-        );
-        assert!(
-            err_for(syn::parse_quote! {
-                #[fluent(optional)]
-                name: String
-            })
-            .contains("Option<T>")
-        );
+    }
+
+    #[test]
+    fn field_directive_infers_optional_strategy_for_option_fields() {
+        let field: syn::Field = syn::parse_quote! {
+            maybe_name: Option<String>
+        };
+        let opts = FluentFieldOpts::from_field(&field).expect("option field should parse");
+
+        let Some(FieldValueDirective::Optional { inner_ty, .. }) = opts
+            .directive()
+            .argument()
+            .map(FieldArgumentDirective::value)
+        else {
+            panic!("Option<T> should infer optional argument handling");
+        };
+
+        assert_eq!(quote::quote!(#inner_ty).to_string(), "String");
+
+        let transformed: syn::Field = syn::parse_quote! {
+            #[fluent(value = |value: &Option<String>| value.is_some())]
+            maybe_name: Option<String>
+        };
+        let opts = FluentFieldOpts::from_field(&transformed)
+            .expect("explicit value transform should override Option inference");
+        assert!(matches!(
+            opts.directive()
+                .argument()
+                .map(FieldArgumentDirective::value),
+            Some(FieldValueDirective::Transform(_))
+        ));
+    }
+
+    #[test]
+    fn field_directive_infers_optional_choice_strategy_for_option_selectors() {
+        let field: syn::Field = syn::parse_quote! {
+            #[fluent(selector)]
+            maybe_status: Option<Status>
+        };
+        let opts = FluentFieldOpts::from_field(&field).expect("option selector should parse");
+
+        let Some(FieldValueDirective::OptionalChoice { inner_ty, .. }) = opts
+            .directive()
+            .argument()
+            .map(FieldArgumentDirective::value)
+        else {
+            panic!("Option<T> selector should infer optional choice handling");
+        };
+
+        assert_eq!(quote::quote!(#inner_ty).to_string(), "Status");
     }
 }

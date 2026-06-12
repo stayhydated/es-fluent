@@ -248,15 +248,11 @@ mod tests {
     };
     use bevy::asset::AssetPlugin;
     use bevy::ecs::message::Messages;
-    use es_fluent::FluentValue;
     use es_fluent_manager_core::{
-        LocalizationError, Localizer, ModuleData, ModuleRegistrationKind, ModuleResourceSpec,
-        ResourceKey,
+        FluentArgumentMap, LocaleRelativeFtlPath, LocalizationError, Localizer, ModuleData,
+        ModuleRegistrationKind, ModuleResourceSpec, ResourceKey, StaticFluentEntryId,
     };
-    use std::{
-        collections::{HashMap, HashSet},
-        sync::Arc,
-    };
+    use std::{collections::HashSet, sync::Arc};
     use unic_langid::langid;
 
     static TEST_MODULE_LANGUAGES: &[LanguageIdentifier] = &[langid!("en")];
@@ -281,6 +277,10 @@ mod tests {
     struct SetupFollowerModule;
     struct SetupFollowerLocalizer;
 
+    fn static_entry(value: &'static str) -> StaticFluentEntryId {
+        es_fluent_manager_core::__macro::static_entry_id(value)
+    }
+
     impl Localizer for SetupTestLocalizer {
         fn select_language(&self, lang: &LanguageIdentifier) -> Result<(), LocalizationError> {
             if lang == &langid!("en") {
@@ -292,8 +292,8 @@ mod tests {
 
         fn localize<'a>(
             &self,
-            _id: &str,
-            _args: Option<&HashMap<&str, FluentValue<'a>>>,
+            _id: StaticFluentEntryId,
+            _args: Option<&FluentArgumentMap<'a>>,
         ) -> Option<String> {
             None
         }
@@ -310,8 +310,8 @@ mod tests {
 
         fn localize<'a>(
             &self,
-            id: &str,
-            _args: Option<&HashMap<&str, FluentValue<'a>>>,
+            id: StaticFluentEntryId,
+            _args: Option<&FluentArgumentMap<'a>>,
         ) -> Option<String> {
             (id == "runtime-follower-label").then(|| "runtime follower label".to_string())
         }
@@ -340,12 +340,12 @@ mod tests {
             vec![
                 ModuleResourceSpec::new(
                     ResourceKey::from_static_path("setup-domain"),
-                    "setup-domain.ftl",
+                    LocaleRelativeFtlPath::from_static_path("setup-domain.ftl"),
                     true,
                 ),
                 ModuleResourceSpec::new(
                     ResourceKey::from_static_path("setup-domain/ui"),
-                    "setup-domain/ui.ftl",
+                    LocaleRelativeFtlPath::from_static_path("setup-domain/ui.ftl"),
                     false,
                 ),
             ]
@@ -465,7 +465,11 @@ mod tests {
                 .is_ok()
         );
         assert_eq!(
-            i18n_resource.localize("runtime-follower-label", None, &I18nBundle::default()),
+            i18n_resource.localize(
+                static_entry("runtime-follower-label"),
+                None,
+                &I18nBundle::default()
+            ),
             Some("runtime follower label".to_string())
         );
     }
@@ -524,7 +528,11 @@ mod tests {
         .expect("asset-backed support should allow follower-only runtime fallback modules");
 
         assert_eq!(
-            i18n_resource.localize("runtime-follower-label", None, &I18nBundle::default()),
+            i18n_resource.localize(
+                static_entry("runtime-follower-label"),
+                None,
+                &I18nBundle::default()
+            ),
             Some("runtime follower label".to_string())
         );
     }

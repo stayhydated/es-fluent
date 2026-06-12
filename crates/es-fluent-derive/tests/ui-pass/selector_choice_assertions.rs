@@ -1,6 +1,7 @@
 extern crate es_fluent;
 
 use es_fluent::EsFluentChoice as _;
+use es_fluent::registry::StaticFluentVariantKey;
 use es_fluent_derive::{EsFluent, EsFluentChoice};
 
 #[derive(EsFluentChoice)]
@@ -8,11 +9,15 @@ pub enum DerivedTone {
     Friendly,
 }
 
+fn static_choice(value: &'static str) -> StaticFluentVariantKey {
+    StaticFluentVariantKey::try_new(value).expect("valid Fluent choice key")
+}
+
 pub struct ManualTone;
 
 impl es_fluent::EsFluentChoice for ManualTone {
-    fn as_fluent_choice(&self) -> &'static str {
-        "manual"
+    fn as_fluent_choice(&self) -> StaticFluentVariantKey {
+        static_choice("manual")
     }
 }
 
@@ -20,8 +25,8 @@ pub mod nested {
     pub struct NestedTone;
 
     impl es_fluent::EsFluentChoice for NestedTone {
-        fn as_fluent_choice(&self) -> &'static str {
-            "nested"
+        fn as_fluent_choice(&self) -> es_fluent::registry::StaticFluentVariantKey {
+            super::static_choice("nested")
         }
     }
 }

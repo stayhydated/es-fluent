@@ -201,7 +201,7 @@ mod tests {
     use crate::{FtlAsset, I18nDomainBundles};
     use bevy::asset::{AssetEvent, AssetLoadFailedEvent};
     use es_fluent_manager_core::SyncFluentBundle;
-    use es_fluent_manager_core::{ModuleResourceSpec, ResourceKey};
+    use es_fluent_manager_core::{LocaleRelativeFtlPath, ModuleResourceSpec, ResourceKey};
     use std::sync::Arc;
     use unic_langid::langid;
 
@@ -498,8 +498,11 @@ mod tests {
     #[test]
     fn optional_only_language_rebuilds_ready_and_applies_without_pending_change() {
         let fr = langid!("fr");
-        let optional_spec =
-            ModuleResourceSpec::new(ResourceKey::from_static_path("app"), "app.ftl", false);
+        let optional_spec = ModuleResourceSpec::new(
+            ResourceKey::from_static_path("app"),
+            LocaleRelativeFtlPath::from_static_path("app.ftl"),
+            false,
+        );
         let mut i18n_assets = I18nAssets::new();
         i18n_assets.add_optional_asset_spec(fr.clone(), optional_spec, Handle::default());
 

@@ -26,11 +26,13 @@ country-USA = 美国 { $f0 }
 
 ## CountryDescriptionVariants
 
+country_description_variants_label = Country Description Variants
 country_description_variants-Canada = 加拿大
 country_description_variants-USA = 美国
 
 ## CountryLabelVariants
 
+country_label_variants_label = Country Label Variants
 country_label_variants-Canada = 加拿大
 country_label_variants-USA = 美国
 

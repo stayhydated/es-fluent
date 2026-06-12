@@ -1,0 +1,7 @@
+---
+source: crates/es-fluent-derive/src/macros/derive_es_fluent_label/mod.rs
+expression: tokens
+---
+compile_error!(
+    "Attribute error in label container: `#[fluent_label(origin)]` is not supported in label container `NoOrigin`\nhelp: accepted key here is namespace"
+);

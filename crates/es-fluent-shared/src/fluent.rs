@@ -1,5 +1,6 @@
 //! Shared Fluent identifier and domain newtypes.
 
+use std::borrow::Borrow;
 use std::fmt;
 
 /// Error returned when a Fluent identifier-like value is invalid.
@@ -60,6 +61,12 @@ macro_rules! fluent_string_type {
 
         impl AsRef<str> for $name {
             fn as_ref(&self) -> &str {
+                self.as_str()
+            }
+        }
+
+        impl Borrow<str> for $name {
+            fn borrow(&self) -> &str {
                 self.as_str()
             }
         }
@@ -129,6 +136,12 @@ impl FluentEntryId {
 
 impl AsRef<str> for FluentEntryId {
     fn as_ref(&self) -> &str {
+        self.as_str()
+    }
+}
+
+impl Borrow<str> for FluentEntryId {
+    fn borrow(&self) -> &str {
         self.as_str()
     }
 }
@@ -223,6 +236,17 @@ mod tests {
                 .as_str(),
             "-shared-term"
         );
+    }
+
+    #[test]
+    fn fluent_identifier_newtypes_can_be_used_for_borrowed_str_map_lookup() {
+        let mut domains = std::collections::HashMap::new();
+        domains.insert(
+            FluentDomain::try_new("app-domain").expect("domain"),
+            "domain value",
+        );
+
+        assert_eq!(domains.get("app-domain"), Some(&"domain value"));
     }
 
     #[test]

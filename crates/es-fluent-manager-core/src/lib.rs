@@ -16,17 +16,20 @@ pub use asset_localization::{
     resource_plan_for, store_locale_resource, try_resource_plan_for, validate_module_registry,
 };
 pub use embedded_localization::{BundleBuildError, EmbeddedAssets, EmbeddedI18nModule};
+pub use es_fluent_shared::fluent::FluentDomain;
 #[doc(hidden)]
 pub use es_fluent_shared::registry::__macro;
-pub use es_fluent_shared::registry::StaticFluentDomain;
+pub use es_fluent_shared::registry::{
+    StaticFluentArgumentName, StaticFluentDomain, StaticFluentEntryId, StaticFluentVariantKey,
+};
 pub use fallback::{
     FallbackChainAvailability, fallback_locales, locale_candidates,
     resolve_fallback_chain_availability, resolve_fallback_language, resolve_ready_locale,
 };
 pub use localization::{
-    DiscoveredRuntimeI18nModules, FluentManager, I18nModule, I18nModuleRegistration,
-    LanguageSelectionPolicy, LocalizationError, Localizer, ModuleDiscoveryError,
-    ModuleRegistrationKind, SyncFluentBundle, add_resources_to_bundle, build_fluent_args,
-    build_sync_bundle, fallback_errors_are_fatal, localize_with_bundle,
+    DiscoveredRuntimeI18nModules, FluentArgumentMap, FluentManager, I18nModule,
+    I18nModuleRegistration, LanguageSelectionPolicy, LocalizationError, Localizer,
+    ModuleDiscoveryError, ModuleRegistrationKind, SyncFluentBundle, add_resources_to_bundle,
+    build_fluent_args, build_sync_bundle, fallback_errors_are_fatal, localize_with_bundle,
     localize_with_fallback_resources, try_filter_module_registry,
 };

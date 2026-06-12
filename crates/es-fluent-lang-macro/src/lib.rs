@@ -56,7 +56,7 @@ impl CratePaths {
 /// - Links to the built-in `es-fluent-lang` runtime for language name formatting
 /// - Does NOT register the enum with inventory (since it's a language selector, not a translatable item)
 ///
-/// Use `#[es_fluent_language(mode = "custom")]` to:
+/// Use `#[es_fluent_language(custom)]` to:
 /// - NOT link to the built-in `es-fluent-lang` runtime (you provide your own translations)
 /// - Register the enum with inventory (so it appears in generated FTL files)
 /// - Make your FTL files the source of truth for language labels
@@ -143,7 +143,7 @@ fn expand_es_fluent_language(
         .to_compile_error();
     }
 
-    input_enum.attrs = remove_es_fluent_derive(input_enum.attrs);
+    input_enum.attrs = add_default_language_derives(remove_es_fluent_derive(input_enum.attrs));
 
     let expansion =
         match LanguageExpansion::new(enum_ident, enum_span, mode, languages, fallback_language) {
@@ -477,6 +477,59 @@ fn is_es_fluent_derive_path(path: &Path) -> bool {
         .is_some_and(|segment| segment.ident == "EsFluent")
 }
 
+fn add_default_language_derives(mut attrs: Vec<syn::Attribute>) -> Vec<syn::Attribute> {
+    let mut seen = std::collections::HashSet::new();
+    for attr in &attrs {
+        if !attr.path().is_ident("derive") {
+            continue;
+        }
+
+        let Ok(paths) = attr.parse_args_with(Punctuated::<Path, Token![,]>::parse_terminated)
+        else {
+            continue;
+        };
+
+        for path in paths {
+            seen.insert(derive_path_dedup_key(&path));
+        }
+    }
+
+    let default_paths: Vec<Path> = vec![
+        parse_quote!(Clone),
+        parse_quote!(Copy),
+        parse_quote!(Debug),
+        parse_quote!(Eq),
+        parse_quote!(Hash),
+        parse_quote!(PartialEq),
+    ];
+    let missing_paths = default_paths
+        .into_iter()
+        .filter(|path| seen.insert(derive_path_dedup_key(path)))
+        .collect::<Vec<_>>();
+
+    if !missing_paths.is_empty() {
+        attrs.push(parse_quote!(#[derive(#(#missing_paths),*)]));
+    }
+
+    attrs
+}
+
+fn derive_path_dedup_key(path: &Path) -> String {
+    let Some(last_segment) = path.segments.last() else {
+        return quote!(#path).to_string();
+    };
+
+    let ident = last_segment.ident.to_string();
+    if matches!(
+        ident.as_str(),
+        "Clone" | "Copy" | "Debug" | "Eq" | "Hash" | "PartialEq"
+    ) {
+        ident
+    } else {
+        quote!(#path).to_string()
+    }
+}
+
 fn generate_fluent_message_impl(
     model: &LanguageExpansion,
     crate_paths: &CratePaths,
@@ -496,11 +549,7 @@ fn generate_fluent_message_impl(
         impl #es_fluent::FluentMessage for #enum_ident {
             fn to_fluent_string_with(
                 &self,
-                localize: &mut dyn for<'__es_fluent_message> FnMut(
-                    #es_fluent::registry::StaticFluentDomain,
-                    #es_fluent::registry::StaticFluentEntryId,
-                    Option<&#es_fluent::FluentArgs<'__es_fluent_message>>,
-                ) -> String,
+                localize: &mut #es_fluent::FluentMessageLookup<'_>,
             ) -> String {
                 match self {
                     #(#match_arms,)*
@@ -673,20 +722,19 @@ mod tests {
 
     #[test]
     fn macro_rejects_invalid_attribute_arguments_and_input_shapes() {
-        let invalid_attr = run_macro("custom", "enum Languages {}");
+        let invalid_attr = run_macro("mode = \"custom\"", "enum Languages {}");
         assert_snapshot!(
             "macro_rejects_invalid_attribute_arguments",
             pretty_tokens(&invalid_attr)
         );
 
-        let invalid_mode = run_macro("mode = \"other\"", "enum Languages {}");
+        let invalid_mode = run_macro("other", "enum Languages {}");
         assert_snapshot!(
             "macro_rejects_invalid_language_mode",
             pretty_tokens(&invalid_mode)
         );
 
-        let duplicate_mode =
-            run_macro("mode = \"builtin\", mode = \"custom\"", "enum Languages {}");
+        let duplicate_mode = run_macro("builtin, custom", "enum Languages {}");
         assert_snapshot!(
             "macro_rejects_duplicate_language_mode",
             pretty_tokens(&duplicate_mode)
@@ -749,7 +797,7 @@ mod tests {
                     pretty_tokens(&default_mode)
                 );
 
-                let explicit_builtin_mode = run_macro("mode = \"builtin\"", "enum Languages {}");
+                let explicit_builtin_mode = run_macro("builtin", "enum Languages {}");
                 assert_eq!(
                     pretty_tokens(&default_mode),
                     pretty_tokens(&explicit_builtin_mode)
@@ -760,9 +808,10 @@ mod tests {
                     "#[derive(Clone, Debug, EsFluent)] enum Languages {}",
                 ));
                 assert!(stripped_derive.contains("#[derive(Clone, Debug)]"));
+                assert!(stripped_derive.contains("#[derive(Copy, Eq, Hash, PartialEq)]"));
                 assert!(!stripped_derive.contains("EsFluent,"));
 
-                let custom_mode = run_macro("mode = \"custom\"", "enum CustomLanguages {}");
+                let custom_mode = run_macro("custom", "enum CustomLanguages {}");
                 assert_snapshot!(
                     "macro_adds_missing_fallback_custom_mode",
                     pretty_tokens(&custom_mode)
@@ -783,7 +832,7 @@ mod tests {
                     pretty_tokens(&default_mode)
                 );
 
-                let custom_mode = run_macro("mode = \"custom\"", "enum CustomLanguages {}");
+                let custom_mode = run_macro("custom", "enum CustomLanguages {}");
                 assert_snapshot!(
                     "macro_uses_exact_locale_keys_custom_mode",
                     pretty_tokens(&custom_mode)
@@ -804,7 +853,7 @@ mod tests {
                     pretty_tokens(&output)
                 );
 
-                let custom_output = run_macro("mode = \"custom\"", "enum CustomLanguages {}");
+                let custom_output = run_macro("custom", "enum CustomLanguages {}");
                 assert_snapshot!(
                     "macro_accepts_valid_unlocalized_languages_custom_mode",
                     pretty_tokens(&custom_output)

@@ -2,10 +2,12 @@
 
 use crate::fluent::{
     FluentArgumentName, FluentDomain, FluentEntryId, FluentIdentifierError, FluentMessageId,
+    FluentVariantKey,
 };
 use crate::meta::TypeKind;
 pub use crate::namespace::{NamespacePathError, NamespaceRule, ResolvedNamespace};
 use crate::source::{SourceFile, SourceLine, SourceLocation};
+use std::borrow::Borrow;
 use std::convert::AsRef;
 use std::path::Path;
 
@@ -46,10 +48,20 @@ impl StaticFluentDomain {
     pub fn as_str(self) -> &'static str {
         self.0
     }
+
+    pub fn domain_name(self) -> FluentDomain {
+        FluentDomain::from_valid_static(self.0)
+    }
 }
 
 impl AsRef<str> for StaticFluentDomain {
     fn as_ref(&self) -> &str {
+        self.0
+    }
+}
+
+impl Borrow<str> for StaticFluentDomain {
+    fn borrow(&self) -> &str {
         self.0
     }
 }
@@ -66,22 +78,22 @@ impl PartialEq<&str> for StaticFluentDomain {
     }
 }
 
-/// Static Fluent entry identifier emitted by derive macros.
+/// Static Fluent message identifier emitted by derive macros.
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub struct StaticFluentEntryId(&'static str);
 
 impl StaticFluentEntryId {
-    /// Creates a static entry id from a caller-validated value.
+    /// Creates a static message id from a caller-validated value.
     ///
-    /// Derive macros emit this only after validating the id during macro
+    /// Derive macros emit this only after validating the message id during macro
     /// expansion. Manual callers should prefer [`Self::try_new`].
     pub(crate) const fn new_unchecked(value: &'static str) -> Self {
         Self(value)
     }
 
-    /// Validates and creates a static entry id.
+    /// Validates and creates a static message id.
     pub fn try_new(value: &'static str) -> Result<Self, FluentIdentifierError> {
-        FluentEntryId::try_new(value)?;
+        FluentMessageId::try_new(value)?;
         Ok(Self(value))
     }
 
@@ -89,8 +101,8 @@ impl StaticFluentEntryId {
         self.0
     }
 
-    pub fn message_id(self) -> Result<FluentMessageId, FluentIdentifierError> {
-        FluentMessageId::try_new(self.0)
+    pub fn message_id(self) -> FluentMessageId {
+        FluentMessageId::from_valid_static(self.0)
     }
 
     pub fn entry_id(self) -> FluentEntryId {
@@ -100,6 +112,12 @@ impl StaticFluentEntryId {
 
 impl AsRef<str> for StaticFluentEntryId {
     fn as_ref(&self) -> &str {
+        self.0
+    }
+}
+
+impl Borrow<str> for StaticFluentEntryId {
+    fn borrow(&self) -> &str {
         self.0
     }
 }
@@ -150,6 +168,12 @@ impl AsRef<str> for StaticFluentArgumentName {
     }
 }
 
+impl Borrow<str> for StaticFluentArgumentName {
+    fn borrow(&self) -> &str {
+        self.0
+    }
+}
+
 impl std::fmt::Display for StaticFluentArgumentName {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_str(self.0)
@@ -157,6 +181,58 @@ impl std::fmt::Display for StaticFluentArgumentName {
 }
 
 impl PartialEq<&str> for StaticFluentArgumentName {
+    fn eq(&self, other: &&str) -> bool {
+        self.0 == *other
+    }
+}
+
+/// Static Fluent select variant key emitted by derive macros.
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+pub struct StaticFluentVariantKey(&'static str);
+
+impl StaticFluentVariantKey {
+    /// Creates a static variant key from a caller-validated value.
+    ///
+    /// Derive macros emit this only after validating the key during macro
+    /// expansion. Manual callers should prefer [`Self::try_new`].
+    pub(crate) const fn new_unchecked(value: &'static str) -> Self {
+        Self(value)
+    }
+
+    /// Validates and creates a static select variant key.
+    pub fn try_new(value: &'static str) -> Result<Self, FluentIdentifierError> {
+        FluentVariantKey::try_new(value)?;
+        Ok(Self(value))
+    }
+
+    pub fn as_str(self) -> &'static str {
+        self.0
+    }
+
+    pub fn variant_key(self) -> FluentVariantKey {
+        FluentVariantKey::from_valid_static(self.0)
+    }
+}
+
+impl AsRef<str> for StaticFluentVariantKey {
+    fn as_ref(&self) -> &str {
+        self.0
+    }
+}
+
+impl Borrow<str> for StaticFluentVariantKey {
+    fn borrow(&self) -> &str {
+        self.0
+    }
+}
+
+impl std::fmt::Display for StaticFluentVariantKey {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(self.0)
+    }
+}
+
+impl PartialEq<&str> for StaticFluentVariantKey {
     fn eq(&self, other: &&str) -> bool {
         self.0 == *other
     }
@@ -209,7 +285,7 @@ impl FtlVariant {
     }
 
     /// Returns the validated Fluent message id for this variant.
-    pub fn message_id(&self) -> Result<FluentMessageId, FluentIdentifierError> {
+    pub fn message_id(&self) -> FluentMessageId {
         self.ftl_key.message_id()
     }
 
@@ -339,7 +415,7 @@ impl FtlTypeInfo {
 pub mod __macro {
     use super::{
         FtlTypeInfo, FtlVariant, NamespaceRule, ResolvedNamespace, StaticFluentArgumentName,
-        StaticFluentDomain, StaticFluentEntryId,
+        StaticFluentDomain, StaticFluentEntryId, StaticFluentVariantKey,
     };
     use crate::meta::TypeKind;
 
@@ -353,6 +429,10 @@ pub mod __macro {
 
     pub const fn static_argument_name(value: &'static str) -> StaticFluentArgumentName {
         StaticFluentArgumentName::new_unchecked(value)
+    }
+
+    pub const fn static_variant_key(value: &'static str) -> StaticFluentVariantKey {
+        StaticFluentVariantKey::new_unchecked(value)
     }
 
     pub const fn namespace_literal(value: &'static str) -> NamespaceRule {
@@ -392,7 +472,7 @@ pub mod __macro {
 mod tests {
     use super::{
         FtlTypeInfo, NamespacePathError, NamespaceRule, StaticFluentArgumentName,
-        StaticFluentDomain, StaticFluentEntryId,
+        StaticFluentDomain, StaticFluentEntryId, StaticFluentVariantKey,
     };
     use crate::meta::TypeKind;
     use crate::registry::FtlVariant;
@@ -404,6 +484,15 @@ mod tests {
         } else {
             PathBuf::from("/repo/app")
         }
+    }
+
+    #[test]
+    fn static_variant_key_validates_and_exposes_typed_value() {
+        let key = StaticFluentVariantKey::try_new("very-high").expect("valid variant key");
+
+        assert_eq!(key.as_str(), "very-high");
+        assert_eq!(key.variant_key().as_str(), "very-high");
+        assert!(StaticFluentVariantKey::try_new("not valid").is_err());
     }
 
     #[test]
@@ -562,10 +651,7 @@ mod tests {
 
         assert_eq!(info.source_file().unwrap().as_str(), "src/status.rs");
         assert_eq!(VARIANTS[0].entry_id().as_str(), "status-Ready");
-        assert_eq!(
-            VARIANTS[0].message_id().expect("message entry").as_str(),
-            "status-Ready"
-        );
+        assert_eq!(VARIANTS[0].message_id().as_str(), "status-Ready");
         assert_eq!(VARIANTS[0].argument_names(), Vec::new());
         assert_eq!(VARIANTS[0].source_line().get(), 42);
 
@@ -595,13 +681,20 @@ mod tests {
             StaticFluentEntryId::try_new("_invalid")
                 .unwrap_err()
                 .to_string(),
-            "Fluent entry id must start with an ASCII letter"
+            "Fluent message id must start with an ASCII letter"
         );
         assert_eq!(
             StaticFluentEntryId::try_new("-shared-term")
-                .expect("term entry")
+                .unwrap_err()
+                .to_string(),
+            "Fluent message id must start with an ASCII letter"
+        );
+        assert_eq!(
+            StaticFluentDomain::try_new("app-domain")
+                .expect("domain")
+                .domain_name()
                 .as_str(),
-            "-shared-term"
+            "app-domain"
         );
         assert_eq!(
             StaticFluentDomain::try_new("app-domain")

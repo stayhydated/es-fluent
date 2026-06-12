@@ -18,9 +18,9 @@ Start from the user-facing facade. Most application code uses `es-fluent` plus e
 1. Choose the manager: embedded for CLIs/TUIs/desktop/general Rust, Dioxus for Dioxus client or SSR, and Bevy for ECS/assets.
 2. Put localizable types in a library target (`src/lib.rs` or a library module). `cargo es-fluent generate` discovers library inventory; binary-only derives in `src/main.rs` are not discovered.
 3. Put `define_i18n_module!()` in a library-reachable `src/i18n.rs`, and declare `pub mod i18n;` from `src/lib.rs`.
-4. Derive `EsFluent` for messages. Use `EsFluentChoice` for selector fields, `EsFluentVariants` for field/variant labels, and `EsFluentLabel` for type-level labels.
+4. Derive `EsFluent` for messages. Unit-only `EsFluent` enums and `EsFluentVariants` generated enums infer selector support; use standalone `EsFluentChoice` only for selector enums that should not also be messages or generated variants. Use `EsFluentVariants` for field/variant labels, and `EsFluentLabel` for type-level labels.
 5. Generate and inspect FTL through the es-fluent CLI: `cargo es-fluent generate`, then `cargo es-fluent status --all` or the narrower relevant command.
-6. Localize through an explicit context: `i18n.localize_message(&message)` or `MyType::localize_label(&i18n)`.
+6. Localize through an explicit context: `i18n.localize_message(&message)` or `MyType::localize_label(&i18n)`. Use `MyType::try_localize_label(&i18n)` when missing labels should be handled without the key fallback.
 
 ## Reference Selection
 

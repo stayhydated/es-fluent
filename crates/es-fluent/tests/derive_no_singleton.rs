@@ -1,5 +1,5 @@
-use es_fluent::{EsFluent, FluentLocalizer, FluentLocalizerExt as _, FluentValue};
-use std::collections::HashMap;
+use es_fluent::registry::{StaticFluentDomain, StaticFluentEntryId};
+use es_fluent::{EsFluent, FluentArgs, FluentLocalizer, FluentLocalizerExt as _, FluentValue};
 
 #[derive(EsFluent)]
 struct Child;
@@ -11,7 +11,6 @@ struct Parent {
 
 #[derive(EsFluent)]
 struct OptionalParent {
-    #[fluent(optional)]
     child: Option<Child>,
 }
 
@@ -32,19 +31,20 @@ struct TestLocalizer {
 impl FluentLocalizer for TestLocalizer {
     fn localize<'a>(
         &self,
-        _id: &str,
-        _args: Option<&HashMap<&str, FluentValue<'a>>>,
+        _id: StaticFluentEntryId,
+        _args: Option<&FluentArgs<'a>>,
     ) -> Option<String> {
         None
     }
 
     fn localize_in_domain<'a>(
         &self,
-        _domain: &str,
-        id: &str,
-        args: Option<&HashMap<&str, FluentValue<'a>>>,
+        _domain: StaticFluentDomain,
+        id: StaticFluentEntryId,
+        args: Option<&FluentArgs<'a>>,
     ) -> Option<String> {
-        match id {
+        let args = args.map(FluentArgs::as_raw);
+        match id.as_str() {
             "child" => Some(self.child_value.to_string()),
             "parent" => {
                 let FluentValue::String(child) = args?.get("child")? else {

@@ -13,8 +13,8 @@ pub struct DuplicateVariantsKeys {
 }
 
 #[derive(EsFluentLabel)]
-#[fluent_label(origin, origin)]
-pub struct DuplicateLabelOrigin;
+#[fluent_label(namespace = "labels", namespace = "forms")]
+pub struct DuplicateLabelNamespace;
 
 #[derive(EsFluentChoice)]
 #[fluent_choice(rename_all = "snake_case", rename_all = "kebab-case")]

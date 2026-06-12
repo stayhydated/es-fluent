@@ -17,7 +17,7 @@ pub struct WrongBareFlagShapes {
 }
 
 #[derive(EsFluentLabel)]
-#[fluent_label(origin("parent"), variants("children"))]
+#[fluent_label(namespace("labels"))]
 pub struct WrongLabelFlagShapes;
 
 #[derive(EsFluentVariants)]

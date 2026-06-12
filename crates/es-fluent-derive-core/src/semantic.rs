@@ -345,6 +345,10 @@ impl FluentChoiceValue {
     pub fn as_str(&self) -> &str {
         self.value.as_str()
     }
+
+    pub fn variant_key(&self) -> &FluentVariantKey {
+        &self.value
+    }
 }
 
 /// Semantic seed for one generated unit-enum variant before the target enum key is known.
@@ -460,6 +464,8 @@ pub enum ArgumentValueStrategy {
     Optional { span: Span },
     /// Convert the field value through `EsFluentChoice`.
     Choice { span: Span, ty: Box<syn::Type> },
+    /// Convert an optional field value through `EsFluentChoice`.
+    OptionalChoice { span: Span, ty: Box<syn::Type> },
     /// Apply an explicit field-level transform expression.
     Transform(Box<ValueTransform>),
 }
@@ -467,7 +473,10 @@ pub enum ArgumentValueStrategy {
 impl ArgumentValueStrategy {
     pub fn span(&self) -> Span {
         match self {
-            Self::Borrowed { span } | Self::Optional { span } | Self::Choice { span, .. } => *span,
+            Self::Borrowed { span }
+            | Self::Optional { span }
+            | Self::Choice { span, .. }
+            | Self::OptionalChoice { span, .. } => *span,
             Self::Transform(transform) => transform.span(),
         }
     }
@@ -650,11 +659,48 @@ impl DerivePathList {
         paths: impl IntoIterator<Item = syn::Path>,
         context: AttrContext,
     ) -> EsFluentCoreResult<Self> {
-        let paths = paths
-            .into_iter()
-            .map(|path| DerivePath::new(path, context))
-            .collect::<EsFluentCoreResult<Vec<_>>>()?;
-        Ok(Self { paths })
+        let mut seen = std::collections::HashSet::new();
+        let mut derive_paths = Vec::new();
+        for path in paths {
+            let path = DerivePath::new(path, context)?;
+            if seen.insert(derive_path_dedup_key(path.path())) {
+                derive_paths.push(path);
+            }
+        }
+
+        Ok(Self {
+            paths: derive_paths,
+        })
+    }
+
+    pub fn for_generated_variants(
+        paths: impl IntoIterator<Item = syn::Path>,
+        context: AttrContext,
+    ) -> EsFluentCoreResult<Self> {
+        let defaults: Vec<syn::Path> = vec![
+            syn::parse_quote!(Clone),
+            syn::parse_quote!(Copy),
+            syn::parse_quote!(Debug),
+            syn::parse_quote!(Eq),
+            syn::parse_quote!(Hash),
+            syn::parse_quote!(PartialEq),
+        ];
+
+        let paths = paths.into_iter().collect::<Vec<_>>();
+        for path in &paths {
+            if is_es_fluent_choice_derive_path(path) {
+                return Err(EsFluentCoreError::StructuredAttributeError(AttrError::new(
+                    context,
+                    "generated variant enums implement EsFluentChoice automatically",
+                    Some(path.span()),
+                ))
+                .with_help(
+                    "remove EsFluentChoice from #[fluent_variants(derive(...))]".to_string(),
+                ));
+            }
+        }
+
+        Self::from_paths(defaults.into_iter().chain(paths), context)
     }
 
     pub fn is_empty(&self) -> bool {
@@ -668,6 +714,28 @@ impl DerivePathList {
     pub fn token_strings(&self) -> Vec<String> {
         self.paths.iter().map(DerivePath::to_token_string).collect()
     }
+}
+
+fn derive_path_dedup_key(path: &syn::Path) -> String {
+    let Some(last_segment) = path.segments.last() else {
+        return path.to_token_stream().to_string();
+    };
+
+    let ident = last_segment.ident.to_string();
+    if matches!(
+        ident.as_str(),
+        "Clone" | "Copy" | "Debug" | "Eq" | "Hash" | "PartialEq"
+    ) {
+        ident
+    } else {
+        path.to_token_stream().to_string()
+    }
+}
+
+fn is_es_fluent_choice_derive_path(path: &syn::Path) -> bool {
+    path.segments
+        .last()
+        .is_some_and(|segment| segment.ident == "EsFluentChoice")
 }
 
 /// Semantic model for a generated unit enum.
@@ -748,12 +816,31 @@ impl ChoiceVariantModel {
         &self.ident
     }
 
-    pub fn value(&self) -> &str {
-        self.value.value().as_str()
+    pub fn value(&self) -> &FluentVariantKey {
+        self.value.value().variant_key()
     }
 
     pub fn span(&self) -> Span {
         self.value.span()
+    }
+}
+
+/// Input for one selector value generated from an enum variant.
+#[derive(Clone, Copy, Debug)]
+pub struct ChoiceVariantSource<'a> {
+    ident: &'a syn::Ident,
+    value_override: Option<&'a SpannedValue<VariantKey>>,
+}
+
+impl<'a> ChoiceVariantSource<'a> {
+    pub fn new(
+        ident: &'a syn::Ident,
+        value_override: Option<&'a SpannedValue<VariantKey>>,
+    ) -> Self {
+        Self {
+            ident,
+            value_override,
+        }
     }
 }
 
@@ -770,20 +857,42 @@ impl ChoiceModel {
         variant_idents: impl IntoIterator<Item = &'a syn::Ident>,
         rename_all: Option<CaseStyle>,
     ) -> EsFluentCoreResult<Self> {
-        let variants = variant_idents
+        Self::from_variant_sources(
+            ident,
+            variant_idents
+                .into_iter()
+                .map(|variant_ident| ChoiceVariantSource::new(variant_ident, None)),
+            rename_all,
+        )
+    }
+
+    pub fn from_variant_sources<'a>(
+        ident: &syn::Ident,
+        variant_sources: impl IntoIterator<Item = ChoiceVariantSource<'a>>,
+        rename_all: Option<CaseStyle>,
+    ) -> EsFluentCoreResult<Self> {
+        let rename_all = rename_all.unwrap_or(CaseStyle::KebabCase);
+        let variants = variant_sources
             .into_iter()
-            .map(|variant_ident| {
-                let variant_name = es_fluent_shared::namer::rust_ident_name(variant_ident);
-                let value = rename_all
-                    .map_or_else(|| variant_name.clone(), |style| style.apply(&variant_name));
-                let value = FluentChoiceValue::try_new(
-                    value,
-                    variant_ident.span(),
-                    AttrContext::ChoiceContainer,
-                )?;
+            .map(|source| {
+                let value = if let Some(value_override) = source.value_override {
+                    FluentChoiceValue::try_new(
+                        value_override.value().as_str().to_string(),
+                        value_override.span(),
+                        AttrContext::ChoiceContainer,
+                    )?
+                } else {
+                    let variant_name = es_fluent_shared::namer::rust_ident_name(source.ident);
+                    let value = rename_all.apply(&variant_name);
+                    FluentChoiceValue::try_new(
+                        value,
+                        source.ident.span(),
+                        AttrContext::ChoiceContainer,
+                    )?
+                };
                 Ok(ChoiceVariantModel::new(
-                    variant_ident.clone(),
-                    SpannedValue::new(value, variant_ident.span()),
+                    source.ident.clone(),
+                    SpannedValue::new(value, source.ident.span()),
                 ))
             })
             .collect::<EsFluentCoreResult<Vec<_>>>()?;
@@ -1017,6 +1126,20 @@ mod tests {
         assert!(matches!(model.type_kind(), TypeKind::Enum));
         assert_eq!(model.messages()[0].message_id().as_str(), "status-Ready");
 
+        let label = MessageEntryModel::new(
+            RustSourceName::new("StatusFtl", span),
+            SpannedValue::new(
+                parse_fluent_message_id_in_context(
+                    "status_ftl_label",
+                    span,
+                    AttrContext::VariantsContainer,
+                )
+                .expect("label id"),
+                span,
+            ),
+            Vec::new(),
+            SourceLocation::new(span),
+        );
         let generated = GeneratedEnumModel::new(
             RustTypeName::new("StatusFtl", proc_macro2::Span::call_site()),
             RustTypeName::new("Status", proc_macro2::Span::call_site()),
@@ -1026,7 +1149,7 @@ mod tests {
             )
             .expect("derive paths"),
             vec![entry],
-            None,
+            Some(label),
             None,
             None,
         );
@@ -1038,6 +1161,50 @@ mod tests {
             vec!["Debug".to_string()]
         );
         assert_eq!(generated.messages()[0].source_name(), "Ready");
+    }
+
+    #[test]
+    fn generated_variant_derives_include_defaults_and_deduplicate_explicit_paths() {
+        let derives = DerivePathList::for_generated_variants(
+            vec![
+                syn::parse_quote!(Debug),
+                syn::parse_quote!(::core::clone::Clone),
+                syn::parse_quote!(serde::Serialize),
+            ],
+            AttrContext::VariantsContainer,
+        )
+        .expect("derive paths");
+
+        assert_eq!(
+            derives.token_strings(),
+            vec![
+                "Clone",
+                "Copy",
+                "Debug",
+                "Eq",
+                "Hash",
+                "PartialEq",
+                "serde :: Serialize",
+            ]
+        );
+    }
+
+    #[test]
+    fn generated_variant_derives_reject_manual_es_fluent_choice() {
+        let err = DerivePathList::for_generated_variants(
+            vec![syn::parse_quote!(es_fluent::EsFluentChoice)],
+            AttrContext::VariantsContainer,
+        )
+        .expect_err("generated variants infer EsFluentChoice");
+
+        assert!(
+            err.to_string()
+                .contains("generated variant enums implement EsFluentChoice automatically")
+        );
+        assert!(
+            err.to_string()
+                .contains("remove EsFluentChoice from #[fluent_variants(derive(...))]")
+        );
     }
 
     #[test]
@@ -1055,8 +1222,19 @@ mod tests {
 
         assert_eq!(model.ident().to_string(), "SeverityChoice");
         assert_eq!(model.variants()[0].ident().to_string(), "VeryHigh");
-        assert_eq!(model.variants()[0].value(), "very_high");
-        assert_eq!(model.variants()[1].value(), "low");
+        assert_eq!(model.variants()[0].value().as_str(), "very_high");
+        assert_eq!(model.variants()[1].value().as_str(), "low");
+    }
+
+    #[test]
+    fn choice_model_defaults_to_kebab_case() {
+        let choice_ident: syn::Ident = syn::parse_quote!(SeverityChoice);
+        let high_ident: syn::Ident = syn::parse_quote!(VeryHigh);
+
+        let model = ChoiceModel::from_variant_idents(&choice_ident, [&high_ident], None)
+            .expect("choice model");
+
+        assert_eq!(model.variants()[0].value().as_str(), "very-high");
     }
 
     #[test]

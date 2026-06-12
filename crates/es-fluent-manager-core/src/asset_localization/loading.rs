@@ -435,6 +435,7 @@ pub fn parse_fluent_resource_content(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::asset_localization::LocaleRelativeFtlPath;
     use unic_langid::langid;
 
     fn spec(key: &str, required: bool) -> ModuleResourceSpec {
@@ -442,9 +443,10 @@ mod tests {
             key: ResourceKey::try_new(key).unwrap_or_else(|error| {
                 panic!("test resource key '{key}' should be valid: {error}")
             }),
-            locale_relative_path: es_fluent_shared::resource::LocaleRelativeFtlPath::new(format!(
-                "{key}.ftl"
-            )),
+            locale_relative_path: LocaleRelativeFtlPath::try_new(format!("{key}.ftl"))
+                .unwrap_or_else(|error| {
+                    panic!("test FTL path '{key}.ftl' should be valid: {error}")
+                }),
             required,
         }
     }

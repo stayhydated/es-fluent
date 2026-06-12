@@ -161,8 +161,10 @@ impl I18nAssets {
                     let required = spec.required;
                     quote! {
                         #manager_core_path::ModuleResourceSpec::new(
-                            #manager_core_path::ResourceKey::from_static_path_unchecked(#key),
-                            #locale_relative_path,
+                            #manager_core_path::ResourceKey::from_static_path(#key),
+                            #manager_core_path::LocaleRelativeFtlPath::from_static_path(
+                                #locale_relative_path,
+                            ),
                             #required,
                         )
                     }

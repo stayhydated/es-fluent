@@ -53,7 +53,6 @@ use es_fluent_manager_embedded::EmbeddedI18n;
 use unic_langid::langid;
 
 #[derive(EsFluent, EsFluentLabel)]
-#[fluent_label(origin)]
 enum MyMessage {
     Hello { name: String },
 }
@@ -69,12 +68,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 ```
 
 For types that derive `EsFluentLabel`, pass the same explicit context to
-`localize_label(...)`:
+`localize_label(...)`. Use `try_localize_label(...)` when missing labels should
+return `None` instead of the key fallback:
 
 ```rust
 use es_fluent::FluentLabel as _;
 
 let title = MyMessage::localize_label(&i18n);
+let maybe_title = MyMessage::try_localize_label(&i18n);
 ```
 
 If you have a [Language Enum](language_enum.md), you can pass it directly since it implements `Into<LanguageIdentifier>`:
@@ -140,10 +141,14 @@ Most applications should prefer a concrete manager crate instead of wiring a raw
 `FluentManager` into application state manually. `FluentManager` remains a
 low-level integration point; import `es_fluent::FluentLocalizerExt as _` if
 custom integration code needs generic `localize_message(...)` or fallible
-`try_localize_message(...)` on a raw manager. Typed rendering uses a
-render-scoped lookup, so nested message arguments and the outer message use the
-same active localizer set during a concurrent language switch. Most application
-code should stay on derived messages and concrete manager handles.
+`try_localize_message(...)` on a raw manager. Manager-core lookup and the
+`es_fluent::FluentLocalizer` trait receive `StaticFluentDomain`,
+`StaticFluentEntryId`, and typed Fluent argument maps, so raw strings only
+appear at the final Fluent bundle lookup boundary.
+Typed rendering uses a render-scoped lookup, so nested message arguments and the
+outer message use the same active localizer set during a concurrent language
+switch. Most application code should stay on derived messages and concrete
+manager handles.
 
 The embedded manager also uses strict discovery and returns initialization
 errors before the manager is returned:
@@ -224,7 +229,6 @@ fn app() -> Element {
 
 #[derive(Clone, Copy, EsFluent, EsFluentLabel)]
 #[fluent(namespace = "ui")]
-#[fluent_label(origin)]
 enum UiMessage {
     Hello,
 }
@@ -258,8 +262,8 @@ inventory-discovered module set asynchronously, renders `loading` while assets a
 renders `fallback` on load failure, and provides context after loading
 succeeds. Use `localize_message(...)` for typed context-bound lookup.
 `DioxusAssetI18nHandle` implements `FluentLocalizer`, so
-`#[derive(EsFluentLabel)]` values can call `MyType::localize_label(&i18n)` in
-client components. Locale switches use fallible `select_language(...)` or
+`#[derive(EsFluentLabel)]` values can call `MyType::localize_label(&i18n)` or
+`MyType::try_localize_label(&i18n)` in client components. Locale switches use fallible `select_language(...)` or
 `select_language_strict(...)`, and `requested_language()` tracks the requested
 locale while `peek_requested_language()` reads it without subscribing.
 
@@ -326,6 +330,8 @@ The render helpers do not install context automatically; pass `SsrI18n` as a pro
 
 SSR components should receive a cloned `SsrI18n` as a prop or through app-owned
 context and call `localize_message(...)` or `MyType::localize_label(&i18n)`.
+Use `MyType::try_localize_label(&i18n)` when missing labels should not fall
+back to the key.
 If SSR components use the Dioxus hook API, enable both `ssr` and `client`
 features because `SsrI18n::provide_context(...)` is compiled behind `client`.
 

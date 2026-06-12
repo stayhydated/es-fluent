@@ -1,8 +1,9 @@
 ---
 source: crates/es-fluent-lang-macro/src/lib.rs
-assertion_line: 781
+assertion_line: 830
 expression: pretty_tokens(&default_mode)
 ---
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 enum Languages {
     En,
     FrFr,
@@ -15,11 +16,7 @@ static __ES_FLUENT_LANG_FORCE_LINK_Languages: fn() -> usize = ::es_fluent_lang::
 impl ::es_fluent::FluentMessage for Languages {
     fn to_fluent_string_with(
         &self,
-        localize: &mut dyn for<'__es_fluent_message> FnMut(
-            ::es_fluent::registry::StaticFluentDomain,
-            ::es_fluent::registry::StaticFluentEntryId,
-            Option<&::es_fluent::FluentArgs<'__es_fluent_message>>,
-        ) -> String,
+        localize: &mut ::es_fluent::FluentMessageLookup<'_>,
     ) -> String {
         match self {
             Self::En => {

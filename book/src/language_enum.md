@@ -29,9 +29,13 @@ use es_fluent_lang::es_fluent_language;
 use strum::EnumIter;
 
 #[es_fluent_language]
-#[derive(Debug, Clone, Copy, PartialEq, EnumIter)]
+#[derive(EnumIter)]
 pub enum Languages {}
 ```
+
+The macro derives `Clone`, `Copy`, `Debug`, `Eq`, `Hash`, and `PartialEq`
+automatically. Add derives such as `EnumIter` only when your application needs
+them.
 
 If your `assets_dir` contains the same locales as the executable README example
 (`en`, `fr-FR`, and `zh-CN`), the macro expands this into:
@@ -117,8 +121,8 @@ unsupported locale when no application translation module can serve it.
 By default, the macro links to the built-in `es-fluent-lang` runtime and skips inventory registration. If you want to provide your own translations for language names (for example, project-specific labels or exact wording control), use **custom mode**:
 
 ```rust
-#[es_fluent_language(mode = "custom")]
-#[derive(Debug, Clone, Copy, EnumIter)]
+#[es_fluent_language(custom)]
+#[derive(EnumIter)]
 pub enum Languages {}
 ```
 

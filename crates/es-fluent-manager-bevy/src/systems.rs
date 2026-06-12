@@ -84,7 +84,7 @@ mod tests {
         ActiveLanguageId, FtlAsset, I18nBundle, I18nDomainBundles, I18nResource,
         RequestedLanguageId,
     };
-    use es_fluent_manager_core::{ResourceKey, SyncFluentBundle};
+    use es_fluent_manager_core::{FluentDomain, ResourceKey, SyncFluentBundle};
     use fluent_bundle::FluentResource;
     use std::collections::HashMap;
     use std::sync::Arc;
@@ -96,11 +96,7 @@ mod tests {
     impl FluentMessage for FakeMessage {
         fn to_fluent_string_with(
             &self,
-            _localize: &mut dyn for<'a> FnMut(
-                es_fluent::registry::StaticFluentDomain,
-                es_fluent::registry::StaticFluentEntryId,
-                Option<&es_fluent::FluentArgs<'a>>,
-            ) -> String,
+            _localize: &mut es_fluent::FluentMessageLookup<'_>,
         ) -> String {
             self.0.to_string()
         }
@@ -115,11 +111,7 @@ mod tests {
     impl FluentMessage for DomainLookupMessage {
         fn to_fluent_string_with(
             &self,
-            localize: &mut dyn for<'a> FnMut(
-                es_fluent::registry::StaticFluentDomain,
-                es_fluent::registry::StaticFluentEntryId,
-                Option<&es_fluent::FluentArgs<'a>>,
-            ) -> String,
+            localize: &mut es_fluent::FluentMessageLookup<'_>,
         ) -> String {
             localize(
                 es_fluent::registry::__macro::static_domain(self.domain),
@@ -131,6 +123,11 @@ mod tests {
 
     fn resource(source: &str) -> Arc<FluentResource> {
         Arc::new(FluentResource::try_new(source.to_string()).expect("valid FTL"))
+    }
+
+    fn domain(value: &str) -> FluentDomain {
+        FluentDomain::try_new(value)
+            .unwrap_or_else(|error| panic!("test domain '{value}' should be valid: {error}"))
     }
 
     fn bundle_for(
@@ -244,28 +241,23 @@ mod tests {
         domain_bundles.set_bundles(
             requested.clone(),
             HashMap::from([
-                ("app".to_string(), bundle_for(&requested, app_exact.clone())),
-                (
-                    "admin".to_string(),
-                    bundle_for(&requested, admin_exact.clone()),
-                ),
+                (domain("app"), bundle_for(&requested, app_exact.clone())),
+                (domain("admin"), bundle_for(&requested, admin_exact.clone())),
             ]),
         );
         domain_bundles.set_locale_resources(
             requested.clone(),
             HashMap::from([
-                ("app".to_string(), vec![app_exact]),
-                ("admin".to_string(), vec![admin_exact]),
+                (domain("app"), vec![app_exact]),
+                (domain("admin"), vec![admin_exact]),
             ]),
         );
         domain_bundles.set_bundles(
             parent.clone(),
-            HashMap::from([("app".to_string(), bundle_for(&parent, app_parent.clone()))]),
+            HashMap::from([(domain("app"), bundle_for(&parent, app_parent.clone()))]),
         );
-        domain_bundles.set_locale_resources(
-            parent,
-            HashMap::from([("app".to_string(), vec![app_parent])]),
-        );
+        domain_bundles
+            .set_locale_resources(parent, HashMap::from([(domain("app"), vec![app_parent])]));
 
         let mut app = App::new();
         app.insert_resource(assets);

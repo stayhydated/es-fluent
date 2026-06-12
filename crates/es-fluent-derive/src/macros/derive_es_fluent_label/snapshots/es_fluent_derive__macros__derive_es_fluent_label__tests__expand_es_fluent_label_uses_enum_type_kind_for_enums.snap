@@ -1,23 +1,17 @@
 ---
 source: crates/es-fluent-derive/src/macros/derive_es_fluent_label/mod.rs
-assertion_line: 207
 expression: tokens
 ---
 impl ::es_fluent::FluentLabel for LoginState {
-    fn localize_label<__EsFluentLocalizer: ::es_fluent::FluentLocalizer + ?Sized>(
-        localizer: &__EsFluentLocalizer,
-    ) -> String {
-        ::es_fluent::__private::localize_label(
-            localizer,
-            (::es_fluent::registry::StaticFluentDomain::from_package_name(
-                env!("CARGO_PKG_NAME"),
-            ))
-                .as_str(),
-            "login_state_label",
+    fn fluent_label_domain() -> ::es_fluent::registry::StaticFluentDomain {
+        ::es_fluent::registry::StaticFluentDomain::from_package_name(
+            env!("CARGO_PKG_NAME"),
         )
     }
+    fn fluent_label_id() -> ::es_fluent::registry::StaticFluentEntryId {
+        ::es_fluent::registry::__macro::static_entry_id("login_state_label")
+    }
 }
-impl ::es_fluent::__private::EsFluentLabelOriginWasDerived for LoginState {}
 #[doc(hidden)]
 #[allow(non_snake_case)]
 mod __es_fluent_label_inventory_LoginState {

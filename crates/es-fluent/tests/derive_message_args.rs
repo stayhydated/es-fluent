@@ -1,20 +1,20 @@
 #![cfg(feature = "derive")]
 
 use es_fluent::registry::{StaticFluentDomain, StaticFluentEntryId};
-use es_fluent::{EsFluent, FluentArgs, FluentMessage, FluentValue};
+use es_fluent::{
+    EsFluent, EsFluentChoice as _, EsFluentVariants, FluentArgs, FluentMessage, FluentValue,
+};
 use std::collections::HashMap;
 
 #[derive(EsFluent)]
 struct DerivedBoolStruct {
     enabled: bool,
-    #[fluent(optional)]
     maybe_enabled: Option<bool>,
 }
 
 #[derive(EsFluent)]
 struct DerivedBorrowedBoolStruct<'a> {
     enabled: &'a bool,
-    #[fluent(optional)]
     maybe_enabled: Option<&'a bool>,
 }
 
@@ -23,10 +23,9 @@ struct DerivedBorrowedBoolStruct<'a> {
 enum DerivedBoolEnum {
     Named {
         enabled: bool,
-        #[fluent(optional)]
         maybe_enabled: Option<bool>,
     },
-    Tuple(bool, #[fluent(optional)] Option<bool>),
+    Tuple(bool, Option<bool>),
 }
 
 #[derive(EsFluent)]
@@ -34,10 +33,35 @@ enum DerivedBoolEnum {
 enum DerivedBorrowedBoolEnum<'a> {
     Named {
         enabled: &'a bool,
-        #[fluent(optional)]
         maybe_enabled: Option<&'a bool>,
     },
-    Tuple(&'a bool, #[fluent(optional)] Option<&'a bool>),
+    Tuple(&'a bool, Option<&'a bool>),
+}
+
+#[derive(EsFluent)]
+enum DerivedTone {
+    VeryFriendly,
+    #[fluent(key = "serious")]
+    Serious,
+}
+
+#[derive(EsFluent)]
+struct OptionalSelector {
+    #[fluent(selector)]
+    tone: Option<DerivedTone>,
+}
+
+#[derive(EsFluentVariants)]
+#[allow(dead_code)]
+struct GeneratedChoiceForm {
+    username: String,
+    password: String,
+}
+
+#[derive(EsFluent)]
+struct GeneratedVariantSelector {
+    #[fluent(selector)]
+    field: GeneratedChoiceFormVariants,
 }
 
 fn describe_arg(value: &FluentValue<'_>) -> String {
@@ -164,4 +188,42 @@ fn derived_enum_tuple_borrowed_bool_and_optional_borrowed_bool_fields_compile_an
 
     assert!(missing.values().any(|value| value == "false"));
     assert!(missing.values().any(|value| value == "<none>"));
+}
+
+#[test]
+fn es_fluent_unit_enum_infers_choice_and_optional_selector_renders() {
+    assert_eq!(
+        DerivedTone::VeryFriendly.as_fluent_choice().as_str(),
+        "very-friendly"
+    );
+    assert_eq!(DerivedTone::Serious.as_fluent_choice().as_str(), "serious");
+
+    let args = render_args(&OptionalSelector {
+        tone: Some(DerivedTone::VeryFriendly),
+    });
+    assert_eq!(args["tone"], "very-friendly");
+
+    let missing = render_args(&OptionalSelector { tone: None });
+    assert_eq!(missing["tone"], "<none>");
+}
+
+#[test]
+fn es_fluent_variants_generated_enums_infer_choice_and_render_as_selectors() {
+    assert_eq!(
+        GeneratedChoiceFormVariants::Username
+            .as_fluent_choice()
+            .as_str(),
+        "username"
+    );
+    assert_eq!(
+        GeneratedChoiceFormVariants::Password
+            .as_fluent_choice()
+            .as_str(),
+        "password"
+    );
+
+    let args = render_args(&GeneratedVariantSelector {
+        field: GeneratedChoiceFormVariants::Username,
+    });
+    assert_eq!(args["field"], "username");
 }

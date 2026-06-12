@@ -1,6 +1,0 @@
-error: Attribute error in label container: `#[fluent_label(variants)]` requires at least one unskipped field or variant for generated variant labels
-       help: remove `variants` from `#[fluent_label(...)]`, or leave at least one field or variant without `#[fluent_variants(skip)]`
- --> tests/ui/fluent_label_variants_all_enum_variants_skipped.rs:6:16
-  |
-6 | #[fluent_label(variants)]
-  |                ^^^^^^^^

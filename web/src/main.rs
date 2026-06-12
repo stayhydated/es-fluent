@@ -1,15 +1,10 @@
-#[cfg(not(any(feature = "web", feature = "server")))]
-compile_error!("web must be built with either the `web` or `server` feature enabled");
+#[cfg(not(feature = "web"))]
+compile_error!("web must be built with the `web` feature enabled");
 
-#[cfg(not(any(feature = "web", feature = "server")))]
+#[cfg(not(feature = "web"))]
 fn main() {}
 
-#[cfg(any(feature = "web", feature = "server"))]
+#[cfg(feature = "web")]
 fn main() {
-    stayhydated_site::launch(
-        stayhydated_site::SiteApp::builder()
-            .app(web::App)
-            .route_cache(web::route_cache())
-            .build(),
-    );
+    stayhydated_site::launch(stayhydated_site::SiteApp::builder().app(web::App).build());
 }

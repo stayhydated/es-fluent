@@ -1,8 +1,7 @@
 ---
 source: crates/es-fluent-lang-macro/src/lib.rs
-assertion_line: 621
 expression: pretty_tokens(&invalid_mode)
 ---
 compile_error!(
-    "Attribute error in language container: #[es_fluent_language] mode must be \"builtin\" or \"custom\""
+    "Attribute error in language container: #[es_fluent_language(other)] is not accepted\nhelp: use #[es_fluent_language] for builtin mode or #[es_fluent_language(custom)] for custom mode"
 );

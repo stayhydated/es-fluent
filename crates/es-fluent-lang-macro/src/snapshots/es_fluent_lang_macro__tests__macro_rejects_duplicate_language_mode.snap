@@ -1,8 +1,7 @@
 ---
 source: crates/es-fluent-lang-macro/src/lib.rs
-assertion_line: 628
 expression: pretty_tokens(&duplicate_mode)
 ---
 compile_error!(
-    "Attribute error in language container: duplicate key `mode` in language container\nnote: first `mode` key in #[es_fluent_language] appears earlier\nhelp: keep only one `mode` entry in #[es_fluent_language]"
+    "Attribute error in language container: #[es_fluent_language] accepts at most one mode flag"
 );

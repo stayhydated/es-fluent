@@ -2,8 +2,8 @@
 source: crates/es-fluent-derive/src/macros/derive_es_fluent_variants/mod.rs
 expression: tokens
 ---
-impl ::es_fluent::__private::EsFluentVariantsLabelWasDerived for Status {}
 ///Variants of [`Status`].
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub enum StatusVariants {
     ///The `Ready` variant of [`Status`].
     Ready,
@@ -13,11 +13,7 @@ pub enum StatusVariants {
 impl ::es_fluent::FluentMessage for StatusVariants {
     fn to_fluent_string_with(
         &self,
-        localize: &mut dyn for<'__es_fluent_message> FnMut(
-            ::es_fluent::registry::StaticFluentDomain,
-            ::es_fluent::registry::StaticFluentEntryId,
-            Option<&::es_fluent::FluentArgs<'__es_fluent_message>>,
-        ) -> String,
+        localize: &mut ::es_fluent::FluentMessageLookup<'_>,
     ) -> String {
         match self {
             Self::Ready => {
@@ -42,6 +38,14 @@ impl ::es_fluent::FluentMessage for StatusVariants {
                     None,
                 )
             }
+        }
+    }
+}
+impl ::es_fluent::EsFluentChoice for StatusVariants {
+    fn as_fluent_choice(&self) -> ::es_fluent::registry::StaticFluentVariantKey {
+        match self {
+            Self::Ready => ::es_fluent::registry::__macro::static_variant_key("ready"),
+            Self::Failed => ::es_fluent::registry::__macro::static_variant_key("failed"),
         }
     }
 }
@@ -103,16 +107,12 @@ mod __es_fluent_label_inventory_StatusVariants {
     );
 }
 impl ::es_fluent::FluentLabel for StatusVariants {
-    fn localize_label<__EsFluentLocalizer: ::es_fluent::FluentLocalizer + ?Sized>(
-        localizer: &__EsFluentLocalizer,
-    ) -> String {
-        ::es_fluent::__private::localize_label(
-            localizer,
-            (::es_fluent::registry::StaticFluentDomain::from_package_name(
-                env!("CARGO_PKG_NAME"),
-            ))
-                .as_str(),
-            "status_variants_label",
+    fn fluent_label_domain() -> ::es_fluent::registry::StaticFluentDomain {
+        ::es_fluent::registry::StaticFluentDomain::from_package_name(
+            env!("CARGO_PKG_NAME"),
         )
+    }
+    fn fluent_label_id() -> ::es_fluent::registry::StaticFluentEntryId {
+        ::es_fluent::registry::__macro::static_entry_id("status_variants_label")
     }
 }

@@ -11,16 +11,17 @@ use crate::{
     lowered,
     namespace::{SpannedNamespaceRule, SpannedNamespaceRuleRef},
     options::{
-        FluentField, GeneratedVariantsOptions,
-        choice::ChoiceOpts,
+        EnumDataOptions as _, FluentField, GeneratedVariantsOptions, VariantFields as _,
+        choice::{CaseStyle, ChoiceOpts},
         r#enum::{EnumOpts, EnumVariantsOpts},
         label::LabelOpts,
         r#struct::{StructOpts, StructVariantsOpts},
     },
     semantic::{
-        ArgumentModel, ChoiceModel, DerivePathList, GeneratedDocName, GeneratedEnumModel,
-        GeneratedKeyIdent, GeneratedKeyName, GeneratedVariantMessageSeed, MessageEntryModel,
-        MessageModel, RustSourceName, RustTypeName, SpannedValue, generated_label_message_value,
+        ArgumentModel, ChoiceModel, ChoiceVariantSource, DerivePathList, GeneratedDocName,
+        GeneratedEnumModel, GeneratedKeyIdent, GeneratedKeyName, GeneratedVariantMessageSeed,
+        MessageEntryModel, MessageModel, RustSourceName, RustTypeName, SpannedValue,
+        generated_label_message_value,
     },
     validation::{self, NamespaceSource, resolve_single_namespace_source},
 };
@@ -151,7 +152,11 @@ impl EsFluentExpansion {
             },
             Data::Enum(_) => {
                 let opts = EnumOpts::from_derive_input(input)?;
-                Ok(Self::Enum(EsFluentEnumExpansion::from_options(&opts)?))
+                let choice_config = inferred_choice_config(input)?;
+                Ok(Self::Enum(EsFluentEnumExpansion::from_options_with_choice(
+                    &opts,
+                    choice_config,
+                )?))
             },
             Data::Union(_) => Err(syn::Error::new(
                 input.ident.span(),
@@ -160,6 +165,63 @@ impl EsFluentExpansion {
             .into()),
         }
     }
+}
+
+#[derive(Clone, Copy, Debug)]
+struct InferredChoiceConfig {
+    rename_all: Option<CaseStyle>,
+}
+
+impl InferredChoiceConfig {
+    fn rename_all(self) -> Option<CaseStyle> {
+        self.rename_all
+    }
+}
+
+fn inferred_choice_config(
+    input: &syn::DeriveInput,
+) -> ExpansionResult<Option<InferredChoiceConfig>> {
+    let Data::Enum(data) = &input.data else {
+        return Ok(None);
+    };
+
+    let has_choice_attr = input
+        .attrs
+        .iter()
+        .any(|attr| attr.path().is_ident("fluent_choice"));
+    let is_unit_enum = data
+        .variants
+        .iter()
+        .all(|variant| matches!(variant.fields, syn::Fields::Unit));
+
+    if !is_unit_enum {
+        if has_choice_attr {
+            return Err(syn::Error::new(
+                input.ident.span(),
+                "#[fluent_choice(...)] can only be used with #[derive(EsFluent)] on unit-only enums",
+            )
+            .into());
+        }
+
+        return Ok(None);
+    }
+
+    if data.variants.is_empty() {
+        if has_choice_attr {
+            return Err(syn::Error::new(
+                input.ident.span(),
+                "#[fluent_choice(...)] cannot be used with #[derive(EsFluent)] on empty enums",
+            )
+            .into());
+        }
+
+        return Ok(None);
+    }
+
+    let choice_opts = ChoiceOpts::from_derive_input(input)?;
+    Ok(Some(InferredChoiceConfig {
+        rename_all: *choice_opts.attr_args().rename_all(),
+    }))
 }
 
 /// Validated data needed to emit an `EsFluent` struct implementation.
@@ -292,11 +354,21 @@ pub struct EsFluentEnumExpansion {
     is_empty: bool,
     variants: Vec<EsFluentMessageVariant>,
     message_model: MessageModel,
+    inferred_choice: Option<ChoiceModel>,
 }
 
 impl EsFluentEnumExpansion {
     /// Builds a validated enum expansion model from parsed options.
     pub fn from_options(opts: &EnumOpts) -> ExpansionResult<Self> {
+        Self::from_options_with_choice(opts, default_inferred_choice_config(opts))
+    }
+
+    /// Builds a validated enum expansion model from parsed options and an
+    /// optional inferred selector configuration.
+    fn from_options_with_choice(
+        opts: &EnumOpts,
+        inferred_choice: Option<InferredChoiceConfig>,
+    ) -> ExpansionResult<Self> {
         let container_context = ContainerContext::from_enum_options(opts);
         validation::validate_enum(opts)?;
         validate_container_namespace(&container_context, opts.ident().span())?;
@@ -332,6 +404,7 @@ impl EsFluentEnumExpansion {
             is_empty: model.is_empty(),
             variants,
             message_model,
+            inferred_choice: inferred_choice_from_options(opts, inferred_choice)?,
         })
     }
 
@@ -360,10 +433,45 @@ impl EsFluentEnumExpansion {
         &self.variants
     }
 
+    /// The inferred `EsFluentChoice` model for unit enums.
+    pub fn inferred_choice(&self) -> Option<&ChoiceModel> {
+        self.inferred_choice.as_ref()
+    }
+
     /// The final inventory model.
     pub fn message_model(&self) -> &MessageModel {
         &self.message_model
     }
+}
+
+fn inferred_choice_from_options(
+    opts: &EnumOpts,
+    config: Option<InferredChoiceConfig>,
+) -> ExpansionResult<Option<ChoiceModel>> {
+    let Some(config) = config else {
+        return Ok(None);
+    };
+
+    let variants = opts
+        .variants()
+        .into_iter()
+        .map(|variant| ChoiceVariantSource::new(variant.ident(), variant.directive().key()))
+        .collect::<Vec<_>>();
+    let choice = ChoiceModel::from_variant_sources(opts.ident(), variants, config.rename_all())?;
+
+    Ok(Some(choice))
+}
+
+fn default_inferred_choice_config(opts: &EnumOpts) -> Option<InferredChoiceConfig> {
+    let variants = opts.variants();
+    if variants.is_empty() {
+        return None;
+    }
+
+    variants
+        .iter()
+        .all(|variant| matches!(variant.style(), darling::ast::Style::Unit))
+        .then_some(InferredChoiceConfig { rename_all: None })
 }
 
 /// Runtime and inventory model for one enum variant.
@@ -641,10 +749,9 @@ impl EsFluentChoiceExpansion {
 pub struct EsFluentLabelExpansion {
     ident: syn::Ident,
     generics: syn::Generics,
-    ftl_key: Option<SpannedValue<FluentMessageId>>,
+    ftl_key: SpannedValue<FluentMessageId>,
     domain: Option<crate::semantic::DomainName>,
-    requires_variants: bool,
-    label_inventory: Option<MessageModel>,
+    label_inventory: MessageModel,
 }
 
 impl EsFluentLabelExpansion {
@@ -653,45 +760,23 @@ impl EsFluentLabelExpansion {
         let validated = ValidatedDeriveInput::for_es_fluent_label(input)?;
         let opts = LabelOpts::from_derive_input(validated.input())?;
         let container_context = ContainerContext::from_envelope(validated.required_envelope()?);
-        if !opts.attr_args().has_origin() {
-            let mut error = AttrError::new(
-                AttrContext::LabelContainer,
-                format!(
-                    "`#[derive(EsFluentLabel)]` on `{}` requires `#[fluent_label(origin)]`",
-                    opts.ident()
-                ),
-                Some(opts.ident().span()),
-            );
-            error.help = Some(
-                "add `#[fluent_label(origin)]`, or remove `EsFluentLabel` when only `EsFluentVariants` output is needed"
-                    .to_string(),
-            );
-            return Err(EsFluentCoreError::StructuredAttributeError(error).into());
-        }
         let model = lowered::LabelModel::from_options(&opts)?;
 
         let original_ident = model.ident();
-        let ftl_key = opts
-            .attr_args()
-            .is_origin()
-            .then(|| model.message_id().clone());
-        let label_inventory = match &ftl_key {
-            Some(ftl_key) => Some(label_inventory_model(
-                original_ident,
-                model.type_kind().clone(),
-                ftl_key.clone(),
-                &opts,
-                &container_context,
-            )?),
-            None => None,
-        };
+        let ftl_key = model.message_id().clone();
+        let label_inventory = label_inventory_model(
+            original_ident,
+            model.type_kind().clone(),
+            ftl_key.clone(),
+            &opts,
+            &container_context,
+        )?;
 
         Ok(Self {
             ident: original_ident.clone(),
             generics: opts.generics().clone(),
             ftl_key,
             domain: container_context.fluent_domain().cloned(),
-            requires_variants: opts.attr_args().is_variants(),
             label_inventory,
         })
     }
@@ -706,9 +791,9 @@ impl EsFluentLabelExpansion {
         &self.generics
     }
 
-    /// The generated label message id, when the origin label is enabled.
-    pub fn ftl_key(&self) -> Option<&FluentMessageId> {
-        self.ftl_key.as_ref().map(SpannedValue::value)
+    /// The generated label message id.
+    pub fn ftl_key(&self) -> &FluentMessageId {
+        self.ftl_key.value()
     }
 
     /// The optional explicit Fluent domain inherited from the parent `#[fluent(...)]`.
@@ -716,14 +801,9 @@ impl EsFluentLabelExpansion {
         self.domain.as_ref()
     }
 
-    /// Whether `#[fluent_label(variants)]` was present and must be backed by `EsFluentVariants`.
-    pub fn requires_variants(&self) -> bool {
-        self.requires_variants
-    }
-
-    /// The generated label inventory model, when the origin label is enabled.
-    pub fn label_inventory(&self) -> Option<&MessageModel> {
-        self.label_inventory.as_ref()
+    /// The generated label inventory model.
+    pub fn label_inventory(&self) -> &MessageModel {
+        &self.label_inventory
     }
 }
 
@@ -758,6 +838,8 @@ pub struct EsFluentVariantsTarget {
     ident: syn::Ident,
     key_name: Option<GeneratedKeyName>,
     variants: Vec<EsFluentGeneratedVariant>,
+    choice: ChoiceModel,
+    label_entry: MessageEntryModel,
     generated_model: GeneratedEnumModel,
 }
 
@@ -777,11 +859,19 @@ impl EsFluentVariantsTarget {
         &self.variants
     }
 
-    /// Optional generated label key when `#[fluent_label(variants)]` is present.
-    pub fn label_key(&self) -> Option<&FluentMessageId> {
-        self.generated_model
-            .label()
-            .map(MessageEntryModel::message_id)
+    /// Inferred selector mapping for the generated unit enum.
+    pub fn choice(&self) -> &ChoiceModel {
+        &self.choice
+    }
+
+    /// Generated label key for the generated enum target.
+    pub fn label_key(&self) -> &FluentMessageId {
+        self.label_entry.message_id()
+    }
+
+    /// Generated label metadata for the generated enum target.
+    pub fn label_entry(&self) -> &MessageEntryModel {
+        &self.label_entry
     }
 
     /// Validated semantic model for the generated enum target.
@@ -797,8 +887,6 @@ pub struct EsFluentVariantsExpansion {
     generics: syn::Generics,
     domain: Option<crate::semantic::DomainName>,
     namespace: Option<NamespaceRule>,
-    requires_label_origin: bool,
-    provides_variants_label: bool,
     targets: Vec<EsFluentVariantsTarget>,
 }
 
@@ -867,16 +955,6 @@ impl EsFluentVariantsExpansion {
         self.namespace.as_ref()
     }
 
-    /// Whether `#[fluent_label(origin)]` was present and must be backed by `EsFluentLabel`.
-    pub fn requires_label_origin(&self) -> bool {
-        self.requires_label_origin
-    }
-
-    /// Whether `#[fluent_label(variants)]` was present and this derive provides it.
-    pub fn provides_variants_label(&self) -> bool {
-        self.provides_variants_label
-    }
-
     /// The generated enum targets.
     pub fn targets(&self) -> &[EsFluentVariantsTarget] {
         &self.targets
@@ -889,18 +967,13 @@ fn build_variants_expansion(
     label_opts: Option<&LabelOpts>,
     variant_seeds: &[GeneratedVariantMessageSeed],
 ) -> ExpansionResult<EsFluentVariantsExpansion> {
-    let requires_label_origin = label_opts.is_some_and(|opts| opts.attr_args().has_origin());
-    let provides_variants_label = label_opts.is_some_and(|opts| opts.attr_args().is_variants());
-
     if variant_seeds.is_empty() {
-        validate_requested_generated_variants_have_targets(opts, label_opts)?;
+        validate_requested_generated_variants_have_targets(opts)?;
         return Ok(EsFluentVariantsExpansion {
             origin_ident: opts.variants_ident().clone(),
             generics: container_context.generics().clone(),
             domain: container_context.fluent_domain().cloned(),
             namespace: None,
-            requires_label_origin,
-            provides_variants_label,
             targets: Vec::new(),
         });
     }
@@ -919,7 +992,7 @@ fn build_variants_expansion(
             .unwrap_or_else(|| opts.variants_ident().span()),
     )?;
     let namespace = namespace.map(|namespace| namespace.rule().clone());
-    let derives = DerivePathList::from_paths(
+    let derives = DerivePathList::for_generated_variants(
         opts.variants_attr_args().derive().iter().cloned(),
         AttrContext::VariantsContainer,
     )?;
@@ -931,16 +1004,18 @@ fn build_variants_expansion(
                 .iter()
                 .map(|seed| materialize_generated_variant(seed, &base_key))
                 .collect::<Result<Vec<_>, _>>()?;
-            let label_key =
-                variants_label_key(label_opts, &base_key, opts.variants_ident().span())?;
-            let label_model = label_key.map(|label_key| {
-                MessageEntryModel::new(
-                    RustSourceName::from_ident(&target.ident),
-                    SpannedValue::new(label_key, opts.variants_ident().span()),
-                    Vec::new(),
-                    crate::semantic::SourceLocation::new(opts.variants_ident().span()),
-                )
-            });
+            let choice = ChoiceModel::from_variant_idents(
+                &target.ident,
+                variants.iter().map(|variant| variant.ident()),
+                None,
+            )?;
+            let label_key = variants_label_key(&base_key, opts.variants_ident().span())?;
+            let label_model = MessageEntryModel::new(
+                RustSourceName::from_ident(&target.ident),
+                SpannedValue::new(label_key, opts.variants_ident().span()),
+                Vec::new(),
+                crate::semantic::SourceLocation::new(opts.variants_ident().span()),
+            );
             let generated_model = GeneratedEnumModel::new(
                 RustTypeName::from_ident(&target.ident),
                 RustTypeName::from_ident(opts.variants_ident()),
@@ -949,7 +1024,7 @@ fn build_variants_expansion(
                     .iter()
                     .map(|variant| variant.message_entry().clone())
                     .collect(),
-                label_model,
+                Some(label_model.clone()),
                 container_context.fluent_domain().cloned(),
                 namespace.clone(),
             );
@@ -958,6 +1033,8 @@ fn build_variants_expansion(
                 ident: target.ident,
                 key_name: target.key_name,
                 variants,
+                choice,
+                label_entry: label_model,
                 generated_model,
             })
         })
@@ -968,15 +1045,12 @@ fn build_variants_expansion(
         generics: container_context.generics().clone(),
         domain: container_context.fluent_domain().cloned(),
         namespace,
-        requires_label_origin,
-        provides_variants_label,
         targets,
     })
 }
 
 fn validate_requested_generated_variants_have_targets(
     opts: &impl GeneratedVariantsOptions,
-    label_opts: Option<&LabelOpts>,
 ) -> Result<(), EsFluentCoreError> {
     let mut errors = Vec::new();
 
@@ -990,22 +1064,6 @@ fn validate_requested_generated_variants_have_targets(
         );
         error.help = Some(
             "remove `keys = [...]`, or leave at least one field or variant without `#[fluent_variants(skip)]`"
-                .to_string(),
-        );
-        errors.push(error);
-    }
-
-    if let Some(label_opts) = label_opts.filter(|opts| opts.attr_args().is_variants()) {
-        let mut error = AttrError::new(
-            AttrContext::LabelContainer,
-            "`#[fluent_label(variants)]` requires at least one unskipped field or variant for generated variant labels",
-            label_opts
-                .attr_args()
-                .variants_span()
-                .or_else(|| Some(opts.variants_ident().span())),
-        );
-        error.help = Some(
-            "remove `variants` from `#[fluent_label(...)]`, or leave at least one field or variant without `#[fluent_variants(skip)]`"
                 .to_string(),
         );
         errors.push(error);
@@ -1057,14 +1115,10 @@ fn materialize_generated_variant(
 }
 
 fn variants_label_key(
-    label_opts: Option<&LabelOpts>,
     base_key: &es_fluent_shared::namer::FluentKey,
     span: proc_macro2::Span,
-) -> Result<Option<FluentMessageId>, EsFluentCoreError> {
-    label_opts
-        .filter(|opts| opts.attr_args().is_variants())
-        .map(|_| generated_label_message_value(base_key, span, AttrContext::VariantsContainer))
-        .transpose()
+) -> Result<FluentMessageId, EsFluentCoreError> {
+    generated_label_message_value(base_key, span, AttrContext::VariantsContainer)
 }
 
 fn build_struct_variant_seeds(
@@ -1258,7 +1312,6 @@ mod tests {
     fn validated_input_captures_label_parent_context() {
         let input: syn::DeriveInput = parse_quote! {
             #[fluent(domain = "shared", namespace = "labels")]
-            #[fluent_label(origin)]
             enum Status {
                 Active,
             }
@@ -1302,7 +1355,6 @@ mod tests {
     #[test]
     fn validated_input_covers_choice_boundary() {
         let input: syn::DeriveInput = parse_quote! {
-            #[fluent_choice(rename_all = "snake_case")]
             enum Priority {
                 VeryHigh,
             }
@@ -1319,7 +1371,6 @@ mod tests {
     #[test]
     fn choice_expansion_builds_validated_choice_model() {
         let input: syn::DeriveInput = parse_quote! {
-            #[fluent_choice(rename_all = "snake_case")]
             enum Priority<T>
             where
                 T: Clone,
@@ -1341,8 +1392,11 @@ mod tests {
                 .collect::<Vec<_>>(),
             vec!["T"]
         );
-        assert_eq!(expansion.choice().variants()[0].value(), "very_high");
-        assert_eq!(expansion.choice().variants()[1].value(), "low");
+        assert_eq!(
+            expansion.choice().variants()[0].value().as_str(),
+            "very-high"
+        );
+        assert_eq!(expansion.choice().variants()[1].value().as_str(), "low");
     }
 
     #[test]
@@ -1464,21 +1518,15 @@ mod tests {
     fn label_expansion_builds_label_impl_and_inventory_model() {
         let input: syn::DeriveInput = parse_quote! {
             #[fluent(namespace = "ui")]
-            #[fluent_label(origin)]
             struct LoginForm<T>(T);
         };
 
         let expansion = EsFluentLabelExpansion::from_derive_input(&input)
             .expect("label expansion should build");
-        let inventory = expansion
-            .label_inventory()
-            .expect("origin flag builds inventory");
+        let inventory = expansion.label_inventory();
 
         assert_eq!(expansion.ident().to_string(), "LoginForm");
-        assert_eq!(
-            expansion.ftl_key().expect("ftl key").as_str(),
-            "login_form_label"
-        );
+        assert_eq!(expansion.ftl_key().as_str(), "login_form_label");
         assert_eq!(
             expansion
                 .generics()
@@ -1502,45 +1550,42 @@ mod tests {
     }
 
     #[test]
-    fn label_expansion_rejects_missing_origin_flag() {
+    fn label_expansion_accepts_no_label_attribute() {
         let input: syn::DeriveInput = parse_quote! {
-            #[fluent_label]
-            enum MissingOrigin {
+            enum LabelOnly {
                 A,
             }
         };
 
-        let err = EsFluentLabelExpansion::from_derive_input(&input)
-            .expect_err("missing origin should fail");
+        let expansion = EsFluentLabelExpansion::from_derive_input(&input)
+            .expect("label expansion should infer the type label");
+        let inventory = expansion.label_inventory();
 
-        assert!(matches!(err, ExpansionError::Core(_)));
-        assert!(
-            err.to_string()
-                .contains("requires `#[fluent_label(origin)]`")
-        );
+        assert!(inventory.label().is_some());
     }
 
     #[test]
-    fn label_expansion_rejects_non_bare_origin_flag() {
+    fn label_expansion_rejects_legacy_origin_flag() {
         let input: syn::DeriveInput = parse_quote! {
-            #[fluent_label(origin("parent"))]
+            #[fluent_label(origin)]
             enum NoOrigin {
                 A,
             }
         };
 
         let err = EsFluentLabelExpansion::from_derive_input(&input)
-            .expect_err("non-bare origin should fail");
+            .expect_err("legacy origin should fail");
 
         assert!(matches!(err, ExpansionError::Core(_)));
-        assert!(err.to_string().contains("use a bare flag"));
+        assert!(err.to_string().contains("#[fluent_label(origin)]"));
+        assert!(err.to_string().contains("accepted key here is namespace"));
     }
 
     #[test]
     fn label_expansion_rejects_conflicting_namespace_sources() {
         let input: syn::DeriveInput = parse_quote! {
             #[fluent(namespace = "parent")]
-            #[fluent_label(origin, namespace = "child")]
+            #[fluent_label(namespace = "child")]
             struct NamespacedLabel;
         };
 
@@ -1587,11 +1632,11 @@ mod tests {
             "label"
         );
         assert_eq!(
-            expansion.targets()[0].generated_model().derives().paths()[0]
-                .path()
-                .segments[0]
-                .ident,
-            "Debug"
+            expansion.targets()[0]
+                .generated_model()
+                .derives()
+                .token_strings(),
+            vec!["Clone", "Copy", "Debug", "Eq", "Hash", "PartialEq"]
         );
         assert_eq!(expansion.targets()[0].variants().len(), 1);
         assert_eq!(
@@ -1622,28 +1667,9 @@ mod tests {
     }
 
     #[test]
-    fn variants_expansion_rejects_label_variants_with_no_unskipped_targets() {
-        let input: syn::DeriveInput = parse_quote! {
-            #[fluent_label(variants)]
-            enum LoginState {
-                #[fluent_variants(skip)]
-                Ready,
-            }
-        };
-
-        let err = EsFluentVariantsExpansion::from_derive_input(&input)
-            .expect_err("variants label with no generated members should fail");
-
-        assert!(matches!(err, ExpansionError::Core(_)));
-        assert!(err.to_string().contains("fluent_label(variants)"));
-        assert!(err.to_string().contains("generated variant labels"));
-    }
-
-    #[test]
     fn variants_expansion_builds_enum_label_key_and_domain() {
         let input: syn::DeriveInput = parse_quote! {
             #[fluent(domain = "es-fluent-lang", namespace = "languages")]
-            #[fluent_label(variants)]
             enum Language {
                 English,
                 French,
@@ -1658,10 +1684,7 @@ mod tests {
             expansion.domain().expect("domain").as_str(),
             "es-fluent-lang"
         );
-        assert_eq!(
-            target.label_key().expect("label key").as_str(),
-            "language_variants_label"
-        );
+        assert_eq!(target.label_key().as_str(), "language_variants_label");
         assert_eq!(
             target.variants()[0].message_entry().message_id().as_str(),
             "language_variants-English"
@@ -1673,11 +1696,26 @@ mod tests {
     }
 
     #[test]
+    fn variants_expansion_generates_label_key_without_label_derive() {
+        let input: syn::DeriveInput = parse_quote! {
+            struct LoginForm {
+                username: String,
+            }
+        };
+
+        let expansion = EsFluentVariantsExpansion::from_derive_input(&input)
+            .expect("variants expansion should infer label output");
+        let target = expansion.targets().first().expect("target");
+
+        assert_eq!(target.label_key().as_str(), "login_form_variants_label");
+    }
+
+    #[test]
     fn variants_expansion_rejects_conflicting_namespace_sources() {
         let input: syn::DeriveInput = parse_quote! {
             #[fluent(namespace = "parent_ns")]
             #[fluent_variants(namespace = "variant_ns")]
-            #[fluent_label(variants, namespace = "label_ns")]
+            #[fluent_label(namespace = "label_ns")]
             struct NamespaceHolder {
                 field: String,
             }

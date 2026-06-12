@@ -159,11 +159,7 @@ mod tests {
     impl FluentMessage for RefreshableMessage {
         fn to_fluent_string_with(
             &self,
-            localize: &mut dyn for<'a> FnMut(
-                es_fluent::registry::StaticFluentDomain,
-                es_fluent::registry::StaticFluentEntryId,
-                Option<&es_fluent::FluentArgs<'a>>,
-            ) -> String,
+            localize: &mut es_fluent::FluentMessageLookup<'_>,
         ) -> String {
             localize(
                 es_fluent::registry::__macro::static_domain("registration-test"),
@@ -189,11 +185,7 @@ mod tests {
     impl FluentMessage for PlainMessage {
         fn to_fluent_string_with(
             &self,
-            localize: &mut dyn for<'a> FnMut(
-                es_fluent::registry::StaticFluentDomain,
-                es_fluent::registry::StaticFluentEntryId,
-                Option<&es_fluent::FluentArgs<'a>>,
-            ) -> String,
+            localize: &mut es_fluent::FluentMessageLookup<'_>,
         ) -> String {
             localize(
                 es_fluent::registry::__macro::static_domain("registration-test"),

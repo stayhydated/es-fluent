@@ -34,25 +34,8 @@ fn emit_variants_expansion(
     context: &CodegenContext,
     expansion: &EsFluentVariantsExpansion,
 ) -> TokenStream {
-    let origin_requirement = expansion.requires_label_origin().then(|| {
-        crate::macros::utils::generate_variants_origin_requirement_impl(
-            context,
-            expansion.origin_ident(),
-            expansion.generics(),
-        )
-    });
-    let variants_label_marker = crate::macros::utils::generate_variants_label_marker_impl(
-        context,
-        expansion.origin_ident(),
-        expansion.generics(),
-        expansion.provides_variants_label(),
-    );
-
     if expansion.targets().is_empty() {
-        return quote! {
-            #origin_requirement
-            #variants_label_marker
-        };
+        return quote! {};
     }
 
     let items = expansion.targets().iter().map(|target| {
@@ -69,14 +52,14 @@ fn emit_variants_expansion(
                 origin_ident: expansion.origin_ident(),
                 key_name: target.key_name(),
                 model: target.generated_model(),
+                choice: target.choice(),
+                label_entry: target.label_entry(),
                 variants: &variant_entries,
             },
         )
     });
 
     quote! {
-        #origin_requirement
-        #variants_label_marker
         #(#items)*
     }
 }
@@ -119,6 +102,22 @@ mod tests {
 
         assert!(tokens.contains("compile_error"));
         assert!(tokens.contains("variantz"));
+    }
+
+    #[test]
+    fn expand_es_fluent_variants_rejects_manual_es_fluent_choice_derive() {
+        let input: syn::DeriveInput = parse_quote! {
+            #[fluent_variants(derive(EsFluentChoice))]
+            struct LoginForm {
+                username: String,
+            }
+        };
+
+        let tokens = super::expand_es_fluent_variants(input).to_string();
+
+        assert!(tokens.contains("compile_error"));
+        assert!(tokens.contains("implement EsFluentChoice automatically"));
+        assert!(tokens.contains("remove EsFluentChoice"));
     }
 
     #[test]
@@ -178,7 +177,6 @@ mod tests {
     fn process_enum_emits_variants_label_registration() {
         let input: syn::DeriveInput = parse_quote! {
             #[fluent(namespace = "ui")]
-            #[fluent_label(variants)]
             enum Status {
                 Ready,
                 Failed,
@@ -194,7 +192,6 @@ mod tests {
     fn process_enum_uses_parent_domain_for_generated_variants_and_label() {
         let input: syn::DeriveInput = parse_quote! {
             #[fluent(domain = "es-fluent-lang", namespace = "languages")]
-            #[fluent_label(variants)]
             enum Language {
                 English,
                 French,
@@ -209,10 +206,11 @@ mod tests {
         assert!(tokens.contains("static_entry_id"));
         assert!(tokens.contains("\"language_variants-English\""));
         assert!(tokens.contains("\"language_variants-French\""));
-        assert!(tokens.contains("::es_fluent::__private::localize_label"));
+        assert!(tokens.contains("fn fluent_label_domain"));
+        assert!(tokens.contains("fn fluent_label_id"));
         assert!(tokens.contains("static_domain"));
         assert!(tokens.contains("\"es-fluent-lang\""));
-        assert!(tokens.contains(".as_str()"));
+        assert!(!tokens.contains(".as_str()"));
         assert!(tokens.contains("\"language_variants_label\""));
         assert!(!tokens.contains("CARGO_PKG_NAME"));
     }
@@ -222,7 +220,7 @@ mod tests {
         let input: syn::DeriveInput = parse_quote! {
             #[fluent(namespace = "parent_ns")]
             #[fluent_variants(namespace = "variant_ns")]
-            #[fluent_label(variants, namespace = "label_ns")]
+            #[fluent_label(namespace = "label_ns")]
             struct NamespaceHolder {
                 field: String,
             }

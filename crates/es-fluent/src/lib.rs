@@ -27,7 +27,8 @@ pub use unic_langid;
 
 mod traits;
 pub use traits::{
-    EsFluentChoice, FluentArgs, FluentLabel, FluentLocalizer, FluentLocalizerExt, FluentMessage,
+    EsFluentChoice, FluentArgs, FluentLabel, FluentLocalizer, FluentLocalizerExt,
+    FluentLocalizerLookup, FluentMessage, FluentMessageLookup,
 };
 
 #[doc(hidden)]
@@ -36,15 +37,4 @@ pub mod __private {
         FluentArgumentValue, FluentBorrowedArgumentValue, FluentLocalizerExt,
         FluentOptionalArgumentValue, IntoFluentArgumentValue, IntoFluentValue, localize_label,
     };
-
-    pub trait EsFluentLabelOriginWasDerived {}
-
-    pub trait EsFluentVariantsOriginRequiresEsFluentLabel: EsFluentLabelOriginWasDerived {}
-
-    pub trait EsFluentVariantsLabelWasDerived {}
-
-    pub trait EsFluentLabelVariantsRequiresEsFluentVariants:
-        EsFluentVariantsLabelWasDerived
-    {
-    }
 }

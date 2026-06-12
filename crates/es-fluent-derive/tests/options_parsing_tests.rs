@@ -462,7 +462,13 @@ fn enum_fluent_with_namespace_literal() {
     let opts = EnumOpts::from_derive_input(&input).expect("EnumOpts should parse");
     assert_eq!(opts.ident().to_string(), "ApiError");
     assert_no_generics(opts.generics());
-    assert_eq!(opts.base_key(), "api_error");
+    assert_eq!(
+        opts.base_message_id(es_fluent_derive_core::error::AttrContext::MessageContainer)
+            .expect("base message id")
+            .value()
+            .as_str(),
+        "api_error"
+    );
     assert_eq!(opts.variants().len(), 2);
     assert!(matches!(
         opts.attr_args().namespace(),

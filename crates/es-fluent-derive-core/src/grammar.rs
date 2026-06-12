@@ -98,7 +98,6 @@ pub enum AttributeKey {
     Arg,
     Value,
     Selector,
-    Optional,
     Skip,
     Key,
     Id,
@@ -106,10 +105,9 @@ pub enum AttributeKey {
     Namespace,
     Derive,
     Keys,
-    Origin,
-    Variants,
     RenameAll,
-    Mode,
+    Builtin,
+    Custom,
     Locale,
 }
 
@@ -131,8 +129,6 @@ impl AttributeKey {
             Some(Self::Value)
         } else if path.is_ident("selector") {
             Some(Self::Selector)
-        } else if path.is_ident("optional") {
-            Some(Self::Optional)
         } else if path.is_ident("skip") {
             Some(Self::Skip)
         } else if path.is_ident("key") {
@@ -147,14 +143,12 @@ impl AttributeKey {
             Some(Self::Derive)
         } else if path.is_ident("keys") {
             Some(Self::Keys)
-        } else if path.is_ident("origin") {
-            Some(Self::Origin)
-        } else if path.is_ident("variants") {
-            Some(Self::Variants)
         } else if path.is_ident("rename_all") {
             Some(Self::RenameAll)
-        } else if path.is_ident("mode") {
-            Some(Self::Mode)
+        } else if path.is_ident("builtin") {
+            Some(Self::Builtin)
+        } else if path.is_ident("custom") {
+            Some(Self::Custom)
         } else if path.is_ident("locale") {
             Some(Self::Locale)
         } else {
@@ -180,7 +174,6 @@ pub enum AttributeValueShape {
     PathList,
     GeneratedKeyList,
     ChoiceCaseStyle,
-    LanguageMode,
     Marker,
 }
 
@@ -198,9 +191,7 @@ impl AttributeValueShape {
         match self {
             Self::Flag => matches!(meta, Meta::Path(_)),
             Self::Marker => matches!(meta, Meta::Path(_)),
-            Self::StringLiteral | Self::ChoiceCaseStyle | Self::LanguageMode => {
-                is_name_value_string_literal(meta)
-            },
+            Self::StringLiteral | Self::ChoiceCaseStyle => is_name_value_string_literal(meta),
             Self::RustExpression => {
                 matches!(meta, Meta::NameValue(_)) && !is_name_value_string_literal(meta)
             },
@@ -245,9 +236,8 @@ impl AttributeValueShape {
                 format!("use a string array, for example `{key_name} = [\"label\"]`")
             },
             Self::ChoiceCaseStyle => {
-                format!("use a case style string, for example `{key_name} = \"snake_case\"`")
+                format!("use a case style string, for example `{key_name} = \"kebab-case\"`")
             },
-            Self::LanguageMode => "use `mode = \"builtin\"` or `mode = \"custom\"`".to_string(),
         }
     }
 }
@@ -371,18 +361,15 @@ impl AttributeSpec for LanguageSpec {
         _owner: Option<&syn::Ident>,
         span: Span,
     ) -> AttrError {
-        let help = if item.key_name() == "custom" {
-            "use #[es_fluent_language(mode = \"custom\")]".to_string()
-        } else {
-            "use #[es_fluent_language(mode = \"builtin\")] or #[es_fluent_language(mode = \"custom\")]"
-                .to_string()
-        };
         AttrError {
             context: location.context(),
             message: format!("{} is not accepted", item.syntax()),
             span: Some(span),
             note: None,
-            help: Some(help),
+            help: Some(
+                "use #[es_fluent_language] for builtin mode or #[es_fluent_language(custom)] for custom mode"
+                    .to_string(),
+            ),
         }
     }
 }
@@ -655,13 +642,13 @@ const FLUENT_STRUCT_HELP: &str = "accepted key here is namespace";
 const FLUENT_ENUM_HELP: &str = "accepted keys here are id, domain, and namespace";
 const FLUENT_STRUCT_PARENT_HELP: &str = "accepted parent key here is namespace";
 const FLUENT_ENUM_PARENT_HELP: &str = "accepted parent keys here are domain and namespace";
-const FLUENT_FIELD_HELP: &str = "accepted keys here are skip, selector, optional, arg, and value";
-const FLUENT_VARIANT_HELP: &str = "move field-only attributes to a field inside the variant; accepted variant keys are skip and key";
+const FLUENT_FIELD_HELP: &str = "accepted keys here are skip, selector, arg, and value";
+const FLUENT_VARIANT_HELP: &str = "move field-only attributes to a field inside the variant; accepted variant keys are skip and key, but they cannot be combined";
 const VARIANTS_CONTAINER_HELP: &str = "accepted keys here are keys, derive, and namespace";
 const VARIANTS_FIELD_HELP: &str = "accepted key here is skip";
-const LABEL_CONTAINER_HELP: &str = "accepted keys here are origin, variants, and namespace";
+const LABEL_CONTAINER_HELP: &str = "accepted key here is namespace";
 const CHOICE_CONTAINER_HELP: &str = "accepted key here is rename_all";
-const LANGUAGE_CONTAINER_HELP: &str = "accepted key here is mode";
+const LANGUAGE_CONTAINER_HELP: &str = "accepted flags here are builtin and custom";
 const LOCALE_FIELD_HELP: &str = "use #[locale] on a named struct field or named enum variant field";
 const LOCALE_TUPLE_FIELD_HELP: &str =
     "move #[locale] to a named struct field or named enum variant field";
@@ -754,13 +741,6 @@ pub(crate) const ATTRIBUTE_RULES: &[AttributeRule] = &[
     AttributeRule {
         family: AttributeFamily::Fluent,
         location: AttributeLocation::MessageField,
-        key: AttributeKey::Optional,
-        shape: AttributeValueShape::Flag,
-        location_help: FLUENT_FIELD_HELP,
-    },
-    AttributeRule {
-        family: AttributeFamily::Fluent,
-        location: AttributeLocation::MessageField,
         key: AttributeKey::Arg,
         shape: AttributeValueShape::StringLiteral,
         location_help: FLUENT_FIELD_HELP,
@@ -824,20 +804,6 @@ pub(crate) const ATTRIBUTE_RULES: &[AttributeRule] = &[
     AttributeRule {
         family: AttributeFamily::FluentLabel,
         location: AttributeLocation::LabelContainer,
-        key: AttributeKey::Origin,
-        shape: AttributeValueShape::Flag,
-        location_help: LABEL_CONTAINER_HELP,
-    },
-    AttributeRule {
-        family: AttributeFamily::FluentLabel,
-        location: AttributeLocation::LabelContainer,
-        key: AttributeKey::Variants,
-        shape: AttributeValueShape::Flag,
-        location_help: LABEL_CONTAINER_HELP,
-    },
-    AttributeRule {
-        family: AttributeFamily::FluentLabel,
-        location: AttributeLocation::LabelContainer,
         key: AttributeKey::Namespace,
         shape: AttributeValueShape::NamespaceRule,
         location_help: LABEL_CONTAINER_HELP,
@@ -852,8 +818,15 @@ pub(crate) const ATTRIBUTE_RULES: &[AttributeRule] = &[
     AttributeRule {
         family: AttributeFamily::EsFluentLanguage,
         location: AttributeLocation::LanguageContainer,
-        key: AttributeKey::Mode,
-        shape: AttributeValueShape::LanguageMode,
+        key: AttributeKey::Builtin,
+        shape: AttributeValueShape::Flag,
+        location_help: LANGUAGE_CONTAINER_HELP,
+    },
+    AttributeRule {
+        family: AttributeFamily::EsFluentLanguage,
+        location: AttributeLocation::LanguageContainer,
+        key: AttributeKey::Custom,
+        shape: AttributeValueShape::Flag,
         location_help: LANGUAGE_CONTAINER_HELP,
     },
     AttributeRule {
@@ -888,7 +861,7 @@ impl LanguageMode {
             .parse2(attr)
             .map_err(|err| {
                 language_attr_error(
-                    "#[es_fluent_language] expects `mode = \"builtin\"` or `mode = \"custom\"`",
+                    "#[es_fluent_language] expects no arguments, `builtin`, or `custom`",
                     Some(err.span()),
                 )
             })?;
@@ -899,43 +872,23 @@ impl LanguageMode {
             None,
         )?;
 
-        let mut items = items.into_iter();
-        let Some(meta) = items.next() else {
+        if items.is_empty() {
             return Ok(Self::Builtin);
-        };
+        }
 
-        if let Some(extra) = items.next() {
+        if let Some(extra) = items.iter().nth(1) {
             return Err(language_attr_error(
-                "#[es_fluent_language] expects `mode = \"builtin\"` or `mode = \"custom\"`",
+                "#[es_fluent_language] accepts at most one mode flag",
                 Some(extra.span()),
             ));
         }
 
-        match meta {
-            Meta::NameValue(name_value) => {
-                let Expr::Lit(ExprLit {
-                    lit: Lit::Str(mode),
-                    ..
-                }) = name_value.value
-                else {
-                    return Err(language_attr_error(
-                        "#[es_fluent_language] expects `mode` to be a string literal",
-                        Some(name_value.value.span()),
-                    ));
-                };
-
-                match mode.value().as_str() {
-                    "builtin" => Ok(Self::Builtin),
-                    "custom" => Ok(Self::Custom),
-                    _ => Err(language_attr_error(
-                        "#[es_fluent_language] mode must be \"builtin\" or \"custom\"",
-                        Some(mode.span()),
-                    )),
-                }
-            },
+        match items.first() {
+            Some(Meta::Path(path)) if path.is_ident("builtin") => Ok(Self::Builtin),
+            Some(Meta::Path(path)) if path.is_ident("custom") => Ok(Self::Custom),
             other => Err(language_attr_error(
-                "#[es_fluent_language] expects `mode = \"builtin\"` or `mode = \"custom\"`",
-                Some(other.span()),
+                "#[es_fluent_language] expects no arguments, `builtin`, or `custom`",
+                other.map(|meta| meta.span()),
             )),
         }
     }
@@ -1073,7 +1026,6 @@ mod tests {
             AttributeKey::Arg,
             AttributeKey::Value,
             AttributeKey::Selector,
-            AttributeKey::Optional,
             AttributeKey::Skip,
             AttributeKey::Key,
             AttributeKey::Id,
@@ -1081,10 +1033,9 @@ mod tests {
             AttributeKey::Namespace,
             AttributeKey::Derive,
             AttributeKey::Keys,
-            AttributeKey::Origin,
-            AttributeKey::Variants,
             AttributeKey::RenameAll,
-            AttributeKey::Mode,
+            AttributeKey::Builtin,
+            AttributeKey::Custom,
         ] {
             assert_eq!(AttributeValueShape::for_key(key), shapes[&key]);
         }
@@ -1100,11 +1051,15 @@ mod tests {
             AttributeFamily::Fluent,
             AttributeLocation::VariantsContainer
         ));
-        assert!(AttributeKey::Mode.is_allowed_in(
+        assert!(AttributeKey::Builtin.is_allowed_in(
             AttributeFamily::EsFluentLanguage,
             AttributeLocation::LanguageContainer
         ));
-        assert!(!AttributeKey::Mode.is_allowed_in(
+        assert!(AttributeKey::Custom.is_allowed_in(
+            AttributeFamily::EsFluentLanguage,
+            AttributeLocation::LanguageContainer
+        ));
+        assert!(!AttributeKey::Custom.is_allowed_in(
             AttributeFamily::FluentChoice,
             AttributeLocation::LanguageContainer
         ));

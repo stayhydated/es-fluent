@@ -17,13 +17,6 @@ pub fn mark_generated_route_cache(public_dir: &Path) -> std::io::Result<()> {
     site::routing::mark_generated_route_cache(public_dir)
 }
 
-pub fn route_cache() -> stayhydated_site::RouteCacheHooks {
-    stayhydated_site::RouteCacheHooks::new(
-        cleanup_generated_route_cache,
-        mark_generated_route_cache,
-    )
-}
-
 #[cfg(test)]
 mod tests {
     use crate::site::i18n::SiteLanguage;
@@ -45,6 +38,9 @@ mod tests {
         assert!(html.contains("href=\"/demos/\""));
         assert!(html.contains("href=\"/book/\""));
         assert!(html.contains("href=\"https://crates.io/crates/es-fluent-manager-dioxus\""));
+        assert!(html.contains("Skill install command"));
+        assert!(html.contains("skills"));
+        assert!(html.contains("stayhydated"));
         assert!(html.contains("Project selector"));
         assert!(html.contains("Rust localization"));
         assert!(html.contains(">es-fluent<"));
