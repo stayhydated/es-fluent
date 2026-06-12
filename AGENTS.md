@@ -7,7 +7,8 @@ Use it to decide:
 
 1. whether a crate or surface is user-facing, public integration, or internal,
 2. where documentation and durable source-of-truth details belong,
-3. which related docs, examples, and skills must change together,
+3. which related code docs, user docs, examples, generated outputs, and skills
+   must change together,
 4. which validation command should run before handoff.
 
 For most application code, start with `crates/es-fluent`.
@@ -32,10 +33,13 @@ Before editing, classify the change:
 2. **Keep source-of-truth details close to the thing they describe.** Use code,
    tests, Rust docs, module docs, local comments, examples, READMEs, and the
    book instead of standalone architecture documents.
-3. **Sync public workflow changes.** If behavior, commands, generated output,
+3. **Assert code/docs sync before handoff.** For any API, CLI, generated-output,
+   or workflow change, check the implementation, tests, Rust docs/module docs,
+   user-facing docs, examples, and skill guidance that describe the same behavior.
+4. **Sync public workflow changes.** If behavior, commands, generated output,
    or recommended usage changes, update the relevant example, README, book page,
    and `skills/use-es-fluent` guidance in the same change when applicable.
-4. **Validate narrowly.** Run the smallest command that proves the edited
+5. **Validate narrowly.** Run the smallest command that proves the edited
    behavior or documentation surface is still sound.
 
 ## Audience Labels
@@ -71,7 +75,11 @@ prose-only explanations when showing behavior changes.
 Use code and its associated documentation as the source of truth:
 
 - API contracts belong in Rust docs and public examples.
-- Internal invariants belong in tests, module docs, or focused code comments.
+- Public crate READMEs are often included as crate docs with
+  `#![doc = include_str!("../README.md")]`; keep README content, Rust docs, and
+  examples aligned when public APIs change.
+- Internal invariants belong in tests, snapshots, module docs, or focused code
+  comments.
 - Maintenance workflow guidance belongs in this file or the relevant tool docs.
 - Public workflows belong in READMEs, `examples/readme`, the book, and
   `skills/use-es-fluent` when applicable.
@@ -94,13 +102,28 @@ integration patterns, or recommended usage change.
 When a substantive change modifies a public workflow, public feature, or
 user-visible API shape:
 
-1. Update the executable example in `examples/readme` when relevant.
-2. Update the affected user-facing `README.md` files.
-3. Update the matching `book/src/*.md` pages.
-4. Update `skills/use-es-fluent` when public usage guidance changes.
-5. Keep these surfaces aligned in the same change unless there is a documented reason not to.
+1. Update the implementation and the Rust docs/module docs that own the API
+   contract.
+2. Update the executable example in `examples/readme` when relevant.
+3. Update the affected user-facing `README.md` files.
+4. Update the matching `book/src/*.md` pages.
+5. Update `skills/use-es-fluent` when public usage guidance changes.
+6. Keep these surfaces aligned in the same change unless there is a documented reason not to.
 
 `examples/readme` is the canonical source of truth for usage examples.
+
+For CLI behavior, keep `crates/es-fluent-cli/README.md`, `book/src/cli.md`,
+`skills/use-es-fluent/references/cli-workflow.md`, and the relevant root README
+sections in sync. `crates/es-fluent-cli/tests/main_smoke.rs` contains tests that
+assert parts of this public documentation contract.
+
+Generated outputs are not independent source-of-truth files. Update their
+sources or generator first:
+
+- `.ftl` files and `.es-fluent/metadata` come from es-fluent CLI discovery and
+  generation.
+- `book/book`, `web/public/book`, `web/public/llms*`, demo bundles under
+  `web/public`, and `web/dist` come from `xtask`/web build commands.
 
 ## Workspace Map
 
@@ -198,7 +221,8 @@ user-visible API shape:
 
 - `web`
   Audience: **User-facing**
-  Role: Dioxus-rendered GitHub Pages site hosting WASM demos and the mdBook; also an example for `es-fluent-manager-dioxus`.
+  Role: Dioxus-rendered GitHub Pages site hosting WASM demos, `llms.txt`, and
+  the mdBook; also an example for `es-fluent-manager-dioxus`.
 
 - `book`
   Audience: **User-facing**
@@ -213,6 +237,13 @@ user-visible API shape:
   affected crate, docs, example, or web surface.
 - Prefer targeted crate, example, docs, or web checks before full-workspace validation.
 - Use `just check`, `just test`, or a more specific `justfile` recipe when the change spans multiple surfaces.
+- Use `cargo es-fluent-local check --path . --all` or the relevant
+  `cargo es-fluent-local` subcommand when proving generated FTL output or
+  locale metadata is current in this repository.
+- Use `just test-docs` for Rust documentation builds, `cargo xtask build book`
+  for mdBook output, `cargo xtask build llms-txt` for `llms.txt` output, and
+  `cargo xtask build web`/`just web-build` for published web artifacts when
+  those surfaces are affected.
 - If validation cannot be run, state why and what remains unvalidated.
 - Do not claim a change works unless it was validated, generated from a source of truth, or the remaining risk is explicitly documented.
 
