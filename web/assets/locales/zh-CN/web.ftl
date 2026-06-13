@@ -39,6 +39,9 @@ page_metadata_message-BevyTitle = Bevy 示例
 page_metadata_message-DemosTitle = 演示
 page_metadata_message-GpuiTitle = GPUI 示例
 page_metadata_message-HomeTitle = 首页
+project_message-Description = Rust 本地化
+# es-fluent: same-as-fallback
+project_message-Name = es-fluent
 site_chrome_message-NavDemos = 演示
 site_chrome_message-NavDocs = 手册
 site_chrome_message-NavHome = 首页

@@ -5,7 +5,7 @@ out_dir = "dist"
 
 [web.app]
 base_path = "es-fluent"
-title = "es-fluent"
+title = "es-fluent | Home"
 
 [web.watcher]
 index_on_404 = true

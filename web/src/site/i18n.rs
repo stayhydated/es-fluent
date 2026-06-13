@@ -44,6 +44,12 @@ pub(crate) enum SiteChromeMessage {
 }
 
 #[derive(Clone, Copy, Debug, EsFluent)]
+pub(crate) enum ProjectMessage {
+    Name,
+    Description,
+}
+
+#[derive(Clone, Copy, Debug, EsFluent)]
 pub(crate) enum HomeHeroMessage {
     Eyebrow,
     Title,

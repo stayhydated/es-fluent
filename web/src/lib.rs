@@ -76,7 +76,7 @@ mod tests {
         assert!(html.contains("href=\"/zh/bevy-example/\""));
         assert!(html.contains("href=\"/zh/gpui-example/\""));
         assert!(html.contains("Project selector"));
-        assert!(html.contains("Rust localization"));
+        assert!(html.contains("Rust 本地化"));
         assert!(html.contains("打开演示"));
         assert!(!html.contains("Lancer la démo"));
     }

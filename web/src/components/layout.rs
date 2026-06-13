@@ -1,12 +1,12 @@
 use crate::components::LanguageSelect;
-use crate::site::constants::ES_FLUENT_MANAGER_DIOXUS_CRATES_URL;
-use crate::site::i18n::{SiteChromeMessage, SiteFooterMessage, SiteLanguage};
+use crate::site::constants::{ES_FLUENT_MANAGER_DIOXUS_CRATES_URL, ES_FLUENT_SOURCE_URL};
+use crate::site::i18n::{ProjectMessage, SiteChromeMessage, SiteFooterMessage, SiteLanguage};
 use crate::site::routing::{PageKind, app_route};
 use dioxus::prelude::*;
 use dioxus::router::{navigator, try_router};
 use stayhydated_dioxus::{
-    FooterPanel as SharedFooterPanel, LinkTarget, ProjectChromeHeader, ProjectId, ProjectNavConfig,
-    ProjectNavLabels,
+    FooterPanel as SharedFooterPanel, LinkTarget, ProjectChromeHeader, ProjectId, ProjectMark,
+    ProjectNavConfig, ProjectNavLabels, ProjectOption,
 };
 
 #[component]
@@ -19,12 +19,19 @@ pub(crate) fn PageHeader(locale: SiteLanguage, current_page: PageKind) -> Elemen
     let nav_demos = i18n.localize_message(&SiteChromeMessage::NavDemos);
     let nav_docs = i18n.localize_message(&SiteChromeMessage::NavDocs);
     let nav_source = i18n.localize_message(&SiteChromeMessage::NavSource);
+    let project = ProjectOption::with_description(
+        ProjectId::new("es-fluent"),
+        ProjectMark::new("EF"),
+        i18n.localize_message(&ProjectMessage::Name),
+        i18n.localize_message(&ProjectMessage::Description),
+        crate::site::routing::page_href(locale, PageKind::Home).into_string(),
+    );
     let nav = ProjectNavConfig::new(
-        ProjectId::EsFluent,
-        crate::site::routing::page_href(locale, PageKind::Home).as_str(),
+        project,
         LinkTarget::route(app_route(locale, PageKind::Home)),
         LinkTarget::route(app_route(locale, PageKind::Demos)),
         crate::site::routing::book_href().as_str(),
+        ES_FLUENT_SOURCE_URL,
         ProjectNavLabels::new(nav_home, nav_demos, nav_docs, nav_source),
         current_page.project_nav_item(),
     );

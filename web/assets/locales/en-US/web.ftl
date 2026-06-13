@@ -57,6 +57,11 @@ page_metadata_message-DemosTitle = Demos
 page_metadata_message-GpuiTitle = GPUI Example
 page_metadata_message-HomeTitle = Home
 
+## ProjectMessage
+
+project_message-Description = Rust localization
+project_message-Name = es-fluent
+
 ## SiteChromeMessage
 
 site_chrome_message-NavDemos = Demos

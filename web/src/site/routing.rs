@@ -8,7 +8,7 @@ use dioxus::prelude::*;
 use dioxus::router as dioxus_router;
 use es_fluent_lang::LanguageIdentifier;
 use es_fluent_manager_dioxus::DioxusAssetI18nHandle;
-use stayhydated_dioxus::ProjectNavItem;
+use stayhydated_dioxus::{ProjectNavItem, ProjectPageMetadata};
 use stayhydated_site::routing::{BaseHref, BasePath, Href, OutputDir, RoutePath};
 use std::fmt::{self, Display};
 use std::path::Path;
@@ -309,18 +309,15 @@ fn route_element(route: SiteRoute) -> Element {
     match i18n_result {
         Ok(i18n) => {
             let _ = i18n.requested_language();
-            let title = format!(
-                "{} | {}",
-                i18n.localize_message(&SiteChromeMessage::SiteName),
-                route.page.title(&i18n)
-            );
+            let site_name = i18n.localize_message(&SiteChromeMessage::SiteName);
+            let page_title = route.page.title(&i18n);
             let description = route.page.description(&i18n);
 
             rsx! {
-                Title { "{title}" }
-                Meta {
-                    name: "description",
-                    content: description,
+                ProjectPageMetadata {
+                    site_name,
+                    page_title,
+                    description,
                 }
                 {crate::pages::route_content(route)}
             }

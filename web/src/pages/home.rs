@@ -86,7 +86,7 @@ pub(crate) fn HomePage(locale: SiteLanguage) -> Element {
             SkillSurfaceSection {
                 title: workflow_title,
                 lead: workflow_lead,
-                repo: SkillRepo::EsFluent,
+                repo: SkillRepo::new("es-fluent"),
                 style: workflow_style,
                 FeatureCard {
                     label: workflow_one_label,
