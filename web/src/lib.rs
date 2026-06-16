@@ -22,6 +22,7 @@ mod tests {
     use crate::site::i18n::SiteLanguage;
     use crate::site::routing::{PageKind, SiteRoute};
     use serial_test::serial;
+    use stayhydated_dioxus::StayhydatedSiteLanguage;
     use std::fs;
 
     #[test]
@@ -54,7 +55,7 @@ mod tests {
     fn localizes_language_select_labels() {
         let runtime = es_fluent_manager_dioxus::ssr::SsrI18nRuntime::discovered();
         let i18n = runtime
-            .request_blocking(SiteLanguage::EnUs.lang())
+            .request_blocking(SiteLanguage::EnUs.language_identifier())
             .expect("SSR i18n should initialize");
 
         let english = i18n.localize_message(&SiteLanguage::EnUs);
@@ -75,7 +76,7 @@ mod tests {
         .expect("page should render");
         assert!(html.contains("href=\"/zh/bevy-example/\""));
         assert!(html.contains("href=\"/zh/gpui-example/\""));
-        assert!(html.contains("Project selector"));
+        assert!(html.contains("项目选择器"));
         assert!(html.contains("Rust 本地化"));
         assert!(html.contains("打开演示"));
         assert!(!html.contains("Lancer la démo"));

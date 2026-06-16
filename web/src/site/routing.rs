@@ -1,18 +1,19 @@
 use crate::pages::DevErrorPage;
 use crate::site::i18n::{
     BevyPageMessage, DemosPageMessage, GpuiPageMessage, HomeHeroMessage, PageMetadataMessage,
-    SiteChromeMessage, SiteLanguage,
+    SiteLanguage,
 };
 use dioxus::cli_config;
 use dioxus::prelude::*;
 use dioxus::router as dioxus_router;
 use es_fluent_lang::LanguageIdentifier;
 use es_fluent_manager_dioxus::DioxusAssetI18nHandle;
-use stayhydated_dioxus::{ProjectNavItem, ProjectPageMetadata};
+use stayhydated_dioxus::{
+    LocalizedRouteSegment, Project, ProjectNavItem, StayhydatedProjectPageMetadata,
+    StayhydatedSiteLanguage,
+};
 use stayhydated_site::routing::{BaseHref, BasePath, Href, OutputDir, RoutePath};
-use std::fmt::{self, Display};
 use std::path::Path;
-use std::str::FromStr;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum PageKind {
@@ -85,7 +86,7 @@ impl SiteRoute {
 pub(crate) fn all_routes() -> Vec<SiteRoute> {
     let mut routes = Vec::new();
 
-    for locale in SiteLanguage::all() {
+    for locale in SiteLanguage::all_languages() {
         for page in PageKind::all() {
             routes.push(SiteRoute::new(locale, page));
         }
@@ -112,33 +113,7 @@ pub(crate) fn site_root_prefix(output_dir: &OutputDir) -> String {
     stayhydated_site::routing::site_root_prefix(output_dir)
 }
 
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub(crate) struct LocaleSegment(SiteLanguage);
-
-impl LocaleSegment {
-    fn language(&self) -> SiteLanguage {
-        self.0
-    }
-}
-
-impl Display for LocaleSegment {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self.0.route_slug() {
-            Some(slug) => f.write_str(&slug),
-            None => Err(fmt::Error),
-        }
-    }
-}
-
-impl FromStr for LocaleSegment {
-    type Err = String;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        SiteLanguage::from_route_slug(s)
-            .map(Self)
-            .ok_or_else(|| format!("unsupported locale route segment: {s}"))
-    }
-}
+pub(crate) type LocaleSegment = LocalizedRouteSegment<SiteLanguage>;
 
 #[derive(Clone, Debug, Eq, PartialEq, Routable)]
 #[rustfmt::skip]
@@ -168,16 +143,16 @@ pub(crate) fn app_route(locale: SiteLanguage, page: PageKind) -> AppRoute {
         (None, PageKind::Bevy) => AppRoute::Bevy {},
         (None, PageKind::Gpui) => AppRoute::Gpui {},
         (Some(_), PageKind::Home) => AppRoute::LocalizedHome {
-            locale: LocaleSegment(locale),
+            locale: LocaleSegment::new(locale),
         },
         (Some(_), PageKind::Demos) => AppRoute::LocalizedDemos {
-            locale: LocaleSegment(locale),
+            locale: LocaleSegment::new(locale),
         },
         (Some(_), PageKind::Bevy) => AppRoute::LocalizedBevy {
-            locale: LocaleSegment(locale),
+            locale: LocaleSegment::new(locale),
         },
         (Some(_), PageKind::Gpui) => AppRoute::LocalizedGpui {
-            locale: LocaleSegment(locale),
+            locale: LocaleSegment::new(locale),
         },
     }
 }
@@ -248,23 +223,10 @@ pub(crate) fn mark_generated_route_cache(public_dir: &Path) -> std::io::Result<(
 }
 
 pub(crate) fn cleanup_generated_route_cache(public_dir: &Path) -> std::io::Result<()> {
-    let generated_top_level_dirs = all_routes()
-        .into_iter()
-        .filter_map(|route| {
-            route
-                .output_dir()
-                .as_str()
-                .split('/')
-                .next()
-                .filter(|segment| !segment.is_empty())
-                .map(str::to_string)
-        })
-        .collect::<Vec<_>>();
-
-    stayhydated_site::route_cache::cleanup_generated_route_cache(
+    stayhydated_site::route_cache::cleanup_generated_route_cache_for_outputs(
         public_dir,
         GENERATED_ROUTE_CACHE_MARKER,
-        generated_top_level_dirs,
+        all_routes().into_iter().map(SiteRoute::output_dir),
         |path, name| is_locale_route_dir(name) && contains_generated_route_cache(path),
     )
 }
@@ -292,7 +254,7 @@ fn route_element(route: SiteRoute) -> Element {
             });
         },
     };
-    let route_language = route.locale.lang();
+    let route_language = route.locale.language_identifier();
     let i18n_result = if i18n.peek_requested_language() == route_language {
         Ok(i18n)
     } else {
@@ -309,13 +271,12 @@ fn route_element(route: SiteRoute) -> Element {
     match i18n_result {
         Ok(i18n) => {
             let _ = i18n.requested_language();
-            let site_name = i18n.localize_message(&SiteChromeMessage::SiteName);
             let page_title = route.page.title(&i18n);
             let description = route.page.description(&i18n);
 
             rsx! {
-                ProjectPageMetadata {
-                    site_name,
+                StayhydatedProjectPageMetadata {
+                    project: Project::EsFluent,
                     page_title,
                     description,
                 }

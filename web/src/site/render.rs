@@ -1,7 +1,7 @@
 #![cfg_attr(not(test), allow(dead_code))]
 
 use crate::site::constants::SITE_URL;
-use stayhydated_site::routing::{Href, SiteUrl};
+use stayhydated_site::routing::SiteUrl;
 
 #[cfg(test)]
 use crate::site::routing::SiteRoute;
@@ -11,6 +11,8 @@ use anyhow::{Context as _, Result};
 use dioxus::prelude::*;
 #[cfg(test)]
 use es_fluent_manager_dioxus::ssr::{SsrI18n, SsrI18nRuntime};
+#[cfg(test)]
+use stayhydated_dioxus::StayhydatedSiteLanguage;
 
 #[cfg(test)]
 #[component]
@@ -23,7 +25,7 @@ fn SsrI18nProvider(i18n: SsrI18n, children: Element) -> Element {
 pub(crate) fn render_route_body(route: SiteRoute) -> Result<String> {
     let runtime = SsrI18nRuntime::discovered();
     let i18n = runtime
-        .request_blocking(route.locale.lang())
+        .request_blocking(route.locale.language_identifier())
         .context("failed to initialize the Dioxus SSR localizer")?;
 
     Ok(i18n.render_element(rsx! {
@@ -35,15 +37,10 @@ pub(crate) fn render_route_body(route: SiteRoute) -> Result<String> {
 }
 
 pub(crate) fn render_sitemap() -> String {
-    let mut paths = crate::site::routing::all_routes()
+    let paths = crate::site::routing::all_routes()
         .into_iter()
         .map(|route| route.path())
         .collect::<Vec<_>>();
-    paths.extend([
-        Href::new("/book/"),
-        Href::new("/llms.txt"),
-        Href::new("/llms-full.txt"),
-    ]);
 
-    stayhydated_site::sitemap::render(&SiteUrl::new(SITE_URL), paths)
+    stayhydated_site::sitemap::render_project(&SiteUrl::new(SITE_URL), paths)
 }

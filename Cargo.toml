@@ -145,6 +145,9 @@ web = { path = "web" }
 web-sys = "0.3"
 
 [replace]
+"es-fluent-build:0.16.0" = { path = "crates/es-fluent-build" }
+"es-fluent-manager-dioxus:0.7.0" = { path = "crates/es-fluent-manager-dioxus" }
+"es-fluent:0.16.0" = { path = "crates/es-fluent" }
 "https://github.com/zed-industries/zed#gpui@0.2.2" = { git = "https://github.com/zed-industries/zed", rev = "b077f41a9f26ae5ed7fadfea55a501d34afb25de" }
 
 [profile.dev]

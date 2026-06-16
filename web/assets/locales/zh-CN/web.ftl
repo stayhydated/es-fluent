@@ -39,15 +39,6 @@ page_metadata_message-BevyTitle = Bevy 示例
 page_metadata_message-DemosTitle = 演示
 page_metadata_message-GpuiTitle = GPUI 示例
 page_metadata_message-HomeTitle = 首页
-project_message-Description = Rust 本地化
-# es-fluent: same-as-fallback
-project_message-Name = es-fluent
-site_chrome_message-NavDemos = 演示
-site_chrome_message-NavDocs = 手册
-site_chrome_message-NavHome = 首页
-site_chrome_message-NavSource = 源码
-# es-fluent: same-as-fallback
-site_chrome_message-SiteName = es-fluent
 # es-fluent: same-as-fallback
 site_footer_message-BodyLinkLabel = es-fluent-manager-dioxus
 site_footer_message-BodyPrefix = 由 Dioxus 构建，本地化使用

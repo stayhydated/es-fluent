@@ -1,19 +1,15 @@
-use crate::components::{FeatureCard, FooterPanel, PageHeader};
+use crate::components::{FooterPanel, PageHeader};
 use crate::site::i18n::{HomeHeroMessage, HomeWorkflowMessage, SiteLanguage};
 use crate::site::routing::PageKind;
 use dioxus::prelude::*;
 use stayhydated_dioxus::{
-    ButtonLink, ButtonRouteLink, ButtonVariant, HeroSidePanel, LinkTarget, ProjectHero,
-    ProjectHomeShell, SkillRepo, SkillSurfaceSection,
+    FeatureCardItem, HeroListPanel, HeroPanelItem, LinkTarget, Project, ProjectHero,
+    ProjectHeroActions, ProjectHomeShell, SkillFeatureSection, hero_reveal_style,
 };
 
 #[component]
 pub(crate) fn HomePage(locale: SiteLanguage) -> Element {
-    let hero_style = crate::components::use_reveal_style(0, 24.0);
-    let workflow_style = crate::components::use_reveal_style(90, 18.0);
-    let first_card_style = crate::components::use_reveal_style(160, 16.0);
-    let second_card_style = crate::components::use_reveal_style(230, 16.0);
-    let third_card_style = crate::components::use_reveal_style(300, 16.0);
+    let hero_style = hero_reveal_style();
     let i18n = match es_fluent_manager_dioxus::use_i18n() {
         Ok(i18n) => i18n,
         Err(error) => return rsx! { div { class: "page-shell", "failed: {error}" } },
@@ -52,60 +48,42 @@ pub(crate) fn HomePage(locale: SiteLanguage) -> Element {
                 body: hero_body,
                 style: hero_style,
                 side: Some(rsx! {
-                    HeroSidePanel { class: "hero-panel",
-                        h2 { class: "panel-label", "{hero_panel_label}" }
-                        ul { class: "hero-list",
-                            li {
-                                strong { "{hero_panel_one_title}" }
-                                span { class: "feature-copy", "{hero_panel_one_body}" }
-                            }
-                            li {
-                                strong { "{hero_panel_two_title}" }
-                                span { class: "feature-copy", "{hero_panel_two_body}" }
-                            }
-                            li {
-                                strong { "{hero_panel_three_title}" }
-                                span { class: "feature-copy", "{hero_panel_three_body}" }
-                            }
-                        }
+                    HeroListPanel {
+                        label: hero_panel_label,
+                        class: "hero-panel",
+                        list_class: "hero-list",
+                        body_class: "feature-copy",
+                        label_heading: true,
+                        items: vec![
+                            HeroPanelItem::new(hero_panel_one_title, hero_panel_one_body),
+                            HeroPanelItem::new(hero_panel_two_title, hero_panel_two_body),
+                            HeroPanelItem::new(hero_panel_three_title, hero_panel_three_body),
+                        ],
                     }
                 }),
                 actions: Some(rsx! {
-                    ButtonLink {
-                        href: crate::site::routing::book_href().as_str(),
-                        label: hero_primary_action,
-                    }
-                    ButtonRouteLink::<crate::site::routing::AppRoute> {
-                        target: LinkTarget::route(crate::site::routing::app_route(locale, PageKind::Demos)),
-                        label: hero_secondary_action,
-                        variant: ButtonVariant::Secondary,
+                    ProjectHeroActions::<crate::site::routing::AppRoute> {
+                        book: crate::site::routing::book_href().as_str(),
+                        demos: LinkTarget::route(crate::site::routing::app_route(locale, PageKind::Demos)),
+                        primary_label: hero_primary_action,
+                        secondary_label: hero_secondary_action,
                     }
                 }),
             }
 
-            SkillSurfaceSection {
+            SkillFeatureSection {
                 title: workflow_title,
                 lead: workflow_lead,
-                repo: SkillRepo::new("es-fluent"),
-                style: workflow_style,
-                FeatureCard {
-                    label: workflow_one_label,
-                    title: workflow_one_title,
-                    body: workflow_one_body,
-                    style: first_card_style,
-                }
-                FeatureCard {
-                    label: workflow_two_label,
-                    title: workflow_two_title,
-                    body: workflow_two_body,
-                    style: second_card_style,
-                }
-                FeatureCard {
-                    label: workflow_three_label,
-                    title: workflow_three_title,
-                    body: workflow_three_body,
-                    style: third_card_style,
-                }
+                repo: Project::EsFluent,
+                items: vec![
+                    FeatureCardItem::new(workflow_one_label, workflow_one_title, workflow_one_body),
+                    FeatureCardItem::new(workflow_two_label, workflow_two_title, workflow_two_body),
+                    FeatureCardItem::new(
+                        workflow_three_label,
+                        workflow_three_title,
+                        workflow_three_body,
+                    ),
+                ],
             }
         }
     }

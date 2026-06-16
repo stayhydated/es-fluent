@@ -1,22 +1,15 @@
 use crate::site::i18n::SiteLanguage;
 use crate::site::routing::AppRoute;
-use dioxus::{document, prelude::*};
-use es_fluent_manager_dioxus::DioxusAssetI18nProvider;
+use dioxus::prelude::*;
+use stayhydated_dioxus::StayhydatedLocalizedRouterApp;
 
 #[component]
 pub fn App() -> Element {
     let base_href = crate::site::routing::app_base_href();
-    let stylesheet_href = format!("{base_href}assets/site.css");
-    let components_theme_href = format!("{base_href}dx-components-theme.css");
 
     rsx! {
-        stayhydated_dioxus::SharedStyles {}
-        document::Stylesheet { href: stylesheet_href }
-        document::Stylesheet { href: components_theme_href }
-        stayhydated_dioxus::ShaderBackground {}
-        DioxusAssetI18nProvider {
-            initial_language: SiteLanguage::default().lang(),
-            Router::<AppRoute> {}
+        StayhydatedLocalizedRouterApp::<SiteLanguage, AppRoute> {
+            base_href: base_href.to_string(),
         }
     }
 }

@@ -57,19 +57,6 @@ page_metadata_message-DemosTitle = Demos
 page_metadata_message-GpuiTitle = GPUI Example
 page_metadata_message-HomeTitle = Home
 
-## ProjectMessage
-
-project_message-Description = Rust localization
-project_message-Name = es-fluent
-
-## SiteChromeMessage
-
-site_chrome_message-NavDemos = Demos
-site_chrome_message-NavDocs = Book
-site_chrome_message-NavHome = Home
-site_chrome_message-NavSource = Source
-site_chrome_message-SiteName = es-fluent
-
 ## SiteFooterMessage
 
 site_footer_message-BodyLinkLabel = es-fluent-manager-dioxus

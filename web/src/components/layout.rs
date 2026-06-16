@@ -1,12 +1,9 @@
-use crate::components::LanguageSelect;
-use crate::site::constants::{ES_FLUENT_MANAGER_DIOXUS_CRATES_URL, ES_FLUENT_SOURCE_URL};
-use crate::site::i18n::{ProjectMessage, SiteChromeMessage, SiteFooterMessage, SiteLanguage};
+use crate::site::i18n::{SiteFooterMessage, SiteLanguage};
 use crate::site::routing::{PageKind, app_route};
 use dioxus::prelude::*;
-use dioxus::router::{navigator, try_router};
 use stayhydated_dioxus::{
-    FooterPanel as SharedFooterPanel, LinkTarget, ProjectChromeHeader, ProjectId, ProjectMark,
-    ProjectNavConfig, ProjectNavLabels, ProjectOption,
+    LinkTarget, Project, ProjectPackage, ProjectPackageFooterLink, ProjectPackagesFooterPanel,
+    RouteLocalizedLanguageSelect, StayhydatedProjectHeader, StayhydatedProjectHeaderConfig,
 };
 
 #[component]
@@ -15,30 +12,19 @@ pub(crate) fn PageHeader(locale: SiteLanguage, current_page: PageKind) -> Elemen
         Ok(i18n) => i18n,
         Err(error) => return rsx! { header { class: "page-header", "failed: {error}" } },
     };
-    let nav_home = i18n.localize_message(&SiteChromeMessage::NavHome);
-    let nav_demos = i18n.localize_message(&SiteChromeMessage::NavDemos);
-    let nav_docs = i18n.localize_message(&SiteChromeMessage::NavDocs);
-    let nav_source = i18n.localize_message(&SiteChromeMessage::NavSource);
-    let project = ProjectOption::with_description(
-        ProjectId::new("es-fluent"),
-        ProjectMark::new("EF"),
-        i18n.localize_message(&ProjectMessage::Name),
-        i18n.localize_message(&ProjectMessage::Description),
+    let config = StayhydatedProjectHeaderConfig::localized_with_i18n(
+        Project::EsFluent,
         crate::site::routing::page_href(locale, PageKind::Home).into_string(),
-    );
-    let nav = ProjectNavConfig::new(
-        project,
         LinkTarget::route(app_route(locale, PageKind::Home)),
         LinkTarget::route(app_route(locale, PageKind::Demos)),
         crate::site::routing::book_href().as_str(),
-        ES_FLUENT_SOURCE_URL,
-        ProjectNavLabels::new(nav_home, nav_demos, nav_docs, nav_source),
         current_page.project_nav_item(),
+        &i18n,
     );
 
     rsx! {
-        ProjectChromeHeader::<crate::site::routing::AppRoute> {
-            nav,
+        StayhydatedProjectHeader::<crate::site::routing::AppRoute> {
+            config,
             LocaleSwitcher { locale, current_page }
         }
     }
@@ -50,27 +36,11 @@ fn LocaleSwitcher(locale: SiteLanguage, current_page: PageKind) -> Element {
         Ok(i18n) => i18n,
         Err(error) => return rsx! { div { class: "locale-switcher-dropdown", "failed: {error}" } },
     };
-    let language_links = SiteLanguage::all()
-        .map(|candidate| {
-            let label = i18n.localize_message(&candidate);
-            (candidate, label)
-        })
-        .collect::<Vec<_>>();
-    let on_locale_changed = move |next_locale: SiteLanguage| {
-        if next_locale == locale {
-            return;
-        }
-
-        if try_router().is_some() {
-            let _ = navigator().push(app_route(next_locale, current_page));
-        }
-    };
-
     rsx! {
-        LanguageSelect::<SiteLanguage> {
+        RouteLocalizedLanguageSelect::<SiteLanguage, _, crate::site::routing::AppRoute> {
+            localizer: i18n,
             selected: locale,
-            options: language_links,
-            on_change: on_locale_changed,
+            route_for_language: move |next_locale| app_route(next_locale, current_page),
         }
     }
 }
@@ -82,25 +52,20 @@ pub(crate) fn FooterPanel() -> Element {
         Err(error) => return rsx! { footer { class: "site-footer", "failed: {error}" } },
     };
     let label = i18n.localize_message(&SiteFooterMessage::Label);
-    let body_prefix = i18n.localize_message(&SiteFooterMessage::BodyPrefix);
+    let prefix = format!("{} ", i18n.localize_message(&SiteFooterMessage::BodyPrefix));
     let body_link_label = i18n.localize_message(&SiteFooterMessage::BodyLinkLabel);
+    let packages = vec![
+        ProjectPackageFooterLink::new(ProjectPackage::ES_FLUENT_MANAGER_DIOXUS)
+            .with_label(body_link_label)
+            .with_class("footer-link"),
+    ];
 
     rsx! {
-        SharedFooterPanel {
-            p { class: "footer-copy",
-                span { class: "footer-label", "{label}" }
-                span { class: "footer-text",
-                    "{body_prefix} "
-                    a {
-                        class: "footer-link",
-                        href: ES_FLUENT_MANAGER_DIOXUS_CRATES_URL,
-                        target: "_blank",
-                        rel: "noreferrer",
-                        "{body_link_label}"
-                    }
-                    "."
-                }
-            }
+        ProjectPackagesFooterPanel {
+            label,
+            packages,
+            prefix,
+            suffix: ".",
         }
     }
 }

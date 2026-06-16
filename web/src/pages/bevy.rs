@@ -1,7 +1,7 @@
 use crate::site::i18n::{BevyPageMessage, SiteLanguage};
 use crate::site::routing::{PageKind, SiteRoute};
 use dioxus::prelude::*;
-use stayhydated_dioxus::{BackLink, LinkTarget};
+use stayhydated_dioxus::{FullscreenDemoPage, LinkTarget};
 
 #[component]
 pub(crate) fn BevyPage(locale: SiteLanguage) -> Element {
@@ -18,17 +18,11 @@ pub(crate) fn BevyPage(locale: SiteLanguage) -> Element {
     let title = i18n.localize_message(&BevyPageMessage::Title);
 
     rsx! {
-        div { class: "fullscreen-demo",
-            BackLink::<crate::site::routing::AppRoute> {
-                target: LinkTarget::route(crate::site::routing::app_route(locale, PageKind::Demos)),
-                label: back_to_demos,
-            }
-            iframe {
-                class: "fullscreen-demo-frame",
-                src: demo_src,
-                title,
-                allowfullscreen: true,
-            }
+        FullscreenDemoPage::<crate::site::routing::AppRoute> {
+            back_target: LinkTarget::route(crate::site::routing::app_route(locale, PageKind::Demos)),
+            back_label: back_to_demos,
+            src: demo_src,
+            title,
         }
     }
 }
