@@ -12,7 +12,7 @@ Use this reference to choose the crate or integration surface before writing cod
 | General Rust runtime, CLI, TUI, desktop, GPUI-style apps | `es-fluent-manager-embedded` | Embeds FTL files and returns explicit `EmbeddedI18n` handles. |
 | Dioxus client UI | `es-fluent-manager-dioxus` with `client` | Use `define_i18n_module!`, let `DioxusAssetI18nProvider` load inventory-discovered asset modules, pass `DioxusI18nAssetModules::new(...)` only for explicit subsets, and localize through `use_i18n()`. |
 | Dioxus SSR | `es-fluent-manager-dioxus` with `ssr` | Create `SsrI18nRuntime::discovered()`, then one `SsrI18n` per request. |
-| Bevy ECS/assets | `es-fluent-manager-bevy` | Add `I18nPlugin`, use `FluentText<T>`, `BevyFluentText`, and `BevyI18n`. |
+| Bevy ECS/assets | `es-fluent-manager-bevy` | Add `I18nPlugin`, use `FluentText<T>`, `BevyFluentText`, and `BevyI18n`; generated modules load FTL from the owning crate. |
 | Typed language picker | `es-fluent-lang` | Use `#[es_fluent_language]` on an empty enum discovered from locale folders. |
 
 ## Version Lines
@@ -181,7 +181,12 @@ fn main() {
 }
 ```
 
-If the Bevy asset root is `assets` but translations live in `assets/i18n`, configure the path relative to the asset root:
+Generated Bevy module registrations provide the owning crate's `.ftl` content
+from that crate's configured `assets_dir`; consuming apps should not copy
+dependency-owned domain files into their own asset tree. `asset_path` is only
+used for custom metadata-only registrations that do not provide owner
+resources. If the Bevy asset root is `assets` but those custom resources live
+in `assets/i18n`, configure the path relative to the asset root:
 
 ```rust
 use es_fluent_manager_bevy::{I18nPlugin, I18nPluginConfig};

@@ -50,13 +50,13 @@ login_form_combined_label_variants-username = 用户名
 
 ## LoginFormVariantsDescriptionVariants
 
-login_form_variants_description_variants_label = Login Form Variants Description Variants
+login_form_variants_description_variants_label = 登录表单变体描述变体
 login_form_variants_description_variants-password = 密码
 login_form_variants_description_variants-username = 用户名
 
 ## LoginFormVariantsLabelVariants
 
-login_form_variants_label_variants_label = Login Form Variants Label Variants
+login_form_variants_label_variants_label = 登录表单变体标签变体
 login_form_variants_label_variants-password = 密码
 login_form_variants_label_variants-username = 用户名
 
@@ -66,7 +66,7 @@ network_error-ApiUnavailable = API 不可用
 
 ## SettingsTabVariants
 
-settings_tab_variants_label = Settings Tab Variants
+settings_tab_variants_label = 设置选项卡变体
 settings_tab_variants-General = 常规
 settings_tab_variants-Notifications = 通知
 settings_tab_variants-Privacy = 隐私

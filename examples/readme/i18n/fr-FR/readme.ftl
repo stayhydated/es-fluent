@@ -50,13 +50,13 @@ login_form_combined_label_variants-username = Nom d'utilisateur
 
 ## LoginFormVariantsDescriptionVariants
 
-login_form_variants_description_variants_label = Login Form Variants Description Variants
+login_form_variants_description_variants_label = Variantes de description du formulaire de connexion
 login_form_variants_description_variants-password = Mot de passe
 login_form_variants_description_variants-username = Nom d'utilisateur
 
 ## LoginFormVariantsLabelVariants
 
-login_form_variants_label_variants_label = Login Form Variants Label Variants
+login_form_variants_label_variants_label = Variantes de libellé du formulaire de connexion
 login_form_variants_label_variants-password = Mot de passe
 login_form_variants_label_variants-username = Nom d'utilisateur
 
@@ -66,7 +66,7 @@ network_error-ApiUnavailable = API indisponible
 
 ## SettingsTabVariants
 
-settings_tab_variants_label = Settings Tab Variants
+settings_tab_variants_label = Variantes d’onglets de paramètres
 settings_tab_variants-General = Général
 # es-fluent: same-as-fallback
 settings_tab_variants-Notifications = Notifications

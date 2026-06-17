@@ -27,14 +27,14 @@ country-USA = États-Unis { $f0 }
 
 ## CountryDescriptionVariants
 
-country_description_variants_label = Country Description Variants
+country_description_variants_label = Variantes de description de pays
 # es-fluent: same-as-fallback
 country_description_variants-Canada = Canada
 country_description_variants-USA = États-Unis
 
 ## CountryLabelVariants
 
-country_label_variants_label = Country Label Variants
+country_label_variants_label = Variantes de libellé de pays
 # es-fluent: same-as-fallback
 country_label_variants-Canada = Canada
 country_label_variants-USA = États-Unis

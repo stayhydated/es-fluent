@@ -168,7 +168,10 @@ locale when possible.
 For Bevy, systems that need direct localization can request `BevyI18n` as a
 `SystemParam` and call `localize_message(...)` on it. The plugin also exposes
 `RequestedLanguageId` and `ActiveLanguageId` for systems that need to
-distinguish user intent from the currently published locale.
+distinguish user intent from the currently published locale. Generated Bevy
+module registrations load FTL from the crate that owns each localization
+domain, so apps should not copy dependency-owned domain files into their own
+asset tree.
 
 ## Project configuration
 

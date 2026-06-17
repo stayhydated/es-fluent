@@ -7,7 +7,9 @@ mod registry;
 #[cfg(test)]
 mod tests;
 
-use crate::asset_localization::{I18nModuleDescriptor, ModuleResourceSpec, StaticModuleDescriptor};
+use crate::asset_localization::{
+    I18nModuleDescriptor, ModuleResourceSpec, ResourceKey, StaticModuleDescriptor,
+};
 use es_fluent_shared::registry::{StaticFluentArgumentName, StaticFluentEntryId};
 use fluent_bundle::FluentValue;
 use std::collections::HashMap;
@@ -91,6 +93,21 @@ pub trait I18nModuleRegistration: I18nModuleDescriptor {
         &self,
         _lang: &LanguageIdentifier,
     ) -> Option<Vec<ModuleResourceSpec>> {
+        None
+    }
+
+    /// Returns owner-provided Fluent source for a locale resource, when this
+    /// registration owns loadable resource bytes.
+    ///
+    /// Asset-driven integrations may return `None` and let the host asset
+    /// pipeline load the resource. Generated registrations that can embed their
+    /// owner crate's FTL files should return `Some` so consumers do not need
+    /// app-local copies of dependency-owned domain files.
+    fn resource_content_for_language(
+        &self,
+        _lang: &LanguageIdentifier,
+        _resource_key: &ResourceKey,
+    ) -> Option<&'static str> {
         None
     }
 }

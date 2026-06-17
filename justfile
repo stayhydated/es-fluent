@@ -17,6 +17,9 @@ clippy:
 check:
     cargo check --workspace --all-features
 
+ftl-ownership:
+    cargo xtask check ftl-ownership
+
 test: test-dioxus-manager-feature-matrix
     cargo test --workspace --all-features --all-targets
 
@@ -36,7 +39,7 @@ test-publish:
 test-docs:
     cargo doc --workspace --all-features --no-deps --open
 
-ci: fmt check clippy test cov
+ci: fmt check ftl-ownership clippy test cov
     cargo machete
 
 book:

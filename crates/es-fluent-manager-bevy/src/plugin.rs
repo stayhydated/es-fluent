@@ -8,16 +8,17 @@ use unic_langid::LanguageIdentifier;
 
 /// Configuration for [`I18nPlugin`].
 ///
-/// `asset_path` is interpreted by Bevy's [`AssetServer`], so it is relative to
-/// the configured Bevy asset root. With the default Bevy asset root `assets`
-/// and the standard `i18n.toml` layout `assets_dir = "assets/locales"`, the
-/// plugin asset path should be `locales`.
+/// `asset_path` is interpreted by Bevy's [`AssetServer`] for custom
+/// metadata-only registrations that do not provide owner resource content, so
+/// it is relative to the configured Bevy asset root. Generated Bevy module
+/// registrations load resources from the owning crate's configured
+/// `assets_dir`.
 #[derive(bon::Builder, Clone, Debug)]
 #[builder(on(String, into))]
 pub struct I18nPluginConfig {
     /// Initial locale requested during plugin startup.
     pub initial_language: LanguageIdentifier,
-    /// Locale asset path relative to Bevy's asset root.
+    /// Locale asset path relative to Bevy's asset root for custom asset-backed resources.
     pub asset_path: String,
 }
 

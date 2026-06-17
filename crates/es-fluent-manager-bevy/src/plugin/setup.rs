@@ -184,6 +184,15 @@ pub(super) fn build_i18n_assets(
             };
 
             for spec in &resource_plan {
+                if let Some(content) = module.resource_content_for_language(lang, &spec.key) {
+                    i18n_assets.add_resource_content(lang.clone(), spec.clone(), content);
+                    debug!(
+                        "Loaded owner-provided i18n resource: {}/{}",
+                        lang, spec.locale_relative_path
+                    );
+                    continue;
+                }
+
                 let path = format!("{}/{}/{}", asset_path, lang, spec.locale_relative_path);
                 let handle: Handle<FtlAsset> = asset_server.load(&path);
                 if spec.required {
@@ -273,6 +282,7 @@ mod tests {
 
     struct SetupTestModule;
     struct SetupTestAssetModule;
+    struct SetupOwnedResourceModule;
     struct SetupTestLocalizer;
     struct SetupFollowerModule;
     struct SetupFollowerLocalizer;
@@ -324,6 +334,12 @@ mod tests {
     }
 
     impl es_fluent_manager_core::I18nModuleDescriptor for SetupTestAssetModule {
+        fn data(&self) -> &'static ModuleData {
+            &TEST_MODULE_DATA
+        }
+    }
+
+    impl es_fluent_manager_core::I18nModuleDescriptor for SetupOwnedResourceModule {
         fn data(&self) -> &'static ModuleData {
             &TEST_MODULE_DATA
         }
@@ -382,6 +398,35 @@ mod tests {
         }
     }
 
+    impl I18nModuleRegistration for SetupOwnedResourceModule {
+        fn registration_kind(&self) -> ModuleRegistrationKind {
+            ModuleRegistrationKind::MetadataOnly
+        }
+
+        fn resource_plan_for_language(
+            &self,
+            lang: &LanguageIdentifier,
+        ) -> Option<Vec<ModuleResourceSpec>> {
+            setup_test_resource_plan(lang)
+        }
+
+        fn resource_content_for_language(
+            &self,
+            lang: &LanguageIdentifier,
+            resource_key: &ResourceKey,
+        ) -> Option<&'static str> {
+            if lang != &langid!("en") {
+                return None;
+            }
+
+            match resource_key.as_str() {
+                "setup-domain" => Some("hello = Hello from owner"),
+                "setup-domain/ui" => Some("title = Owner UI"),
+                _ => None,
+            }
+        }
+    }
+
     impl I18nModuleRegistration for SetupFollowerModule {
         fn create_localizer(&self) -> Option<Box<dyn Localizer>> {
             Some(Box::new(SetupFollowerLocalizer))
@@ -398,6 +443,7 @@ mod tests {
 
     static SETUP_TEST_MODULE: SetupTestModule = SetupTestModule;
     static SETUP_TEST_ASSET_MODULE: SetupTestAssetModule = SetupTestAssetModule;
+    static SETUP_OWNED_RESOURCE_MODULE: SetupOwnedResourceModule = SetupOwnedResourceModule;
     static SETUP_FOLLOWER_MODULE: SetupFollowerModule = SetupFollowerModule;
 
     inventory::submit! {
@@ -557,6 +603,32 @@ mod tests {
         assert!(i18n_assets.assets.contains_key(&optional_key));
         assert!(i18n_assets.resource_specs[&required_key].required);
         assert!(!i18n_assets.resource_specs[&optional_key].required);
+    }
+
+    #[test]
+    fn build_i18n_assets_loads_owner_provided_resources_without_asset_handles() {
+        let mut app = App::new();
+        app.add_plugins(MinimalPlugins);
+        app.add_plugins(AssetPlugin::default());
+        app.init_asset::<FtlAsset>();
+
+        let asset_server = app.world().resource::<AssetServer>();
+        let i18n_assets =
+            build_i18n_assets(asset_server, "localized", &[&SETUP_OWNED_RESOURCE_MODULE]);
+
+        let required_key = (langid!("en"), ResourceKey::from_static_path("setup-domain"));
+        let optional_key = (
+            langid!("en"),
+            ResourceKey::from_static_path("setup-domain/ui"),
+        );
+
+        assert!(i18n_assets.assets.is_empty());
+        assert!(i18n_assets.resource_specs.contains_key(&required_key));
+        assert!(i18n_assets.loaded_resources.contains_key(&required_key));
+        assert!(i18n_assets.loaded_resources.contains_key(&optional_key));
+        assert!(i18n_assets.load_errors.is_empty());
+        assert_eq!(i18n_assets.available_languages(), vec![langid!("en")]);
+        assert!(i18n_assets.is_language_loaded(&langid!("en")));
     }
 
     #[test]

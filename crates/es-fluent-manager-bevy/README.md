@@ -21,8 +21,9 @@ changes.
 
 ## Features
 
-- **Asset Loading**: Loads `.ftl` files via Bevy's `AssetServer`.
-- **Hot Reloading**: Supports hot-reloading of translations during development.
+- **Owner Resources**: Loads generated module resources from the crate that owns the localization domain.
+- **Asset Loading**: Custom metadata-only registrations can still load `.ftl` files via Bevy's `AssetServer`.
+- **Hot Reloading**: Supports hot-reloading for resources loaded through Bevy's asset pipeline during development.
 - **Reactive UI**: The `FluentText` component automatically refreshes text when the locale changes.
 - **Bevy-native Context**: Systems can request `BevyI18n` as a `SystemParam` for direct localization.
 - **Explicit Context**: Localization uses Bevy resources and `BevyI18n` system params.
@@ -61,10 +62,12 @@ fn main() {
 }
 ```
 
-By default, `I18nPlugin` loads locales from `locales` relative to Bevy's asset
-root, matching `assets_dir = "assets/locales"` in `i18n.toml`. If your Bevy
-asset root is `assets` but translations live in `assets/i18n`, configure the
-path explicitly:
+Generated Bevy module registrations provide the owning crate's `.ftl` content
+from that crate's configured `assets_dir`; consuming apps should not copy
+dependency-owned domain files into their own asset tree. `asset_path` is only
+used for custom metadata-only registrations that do not provide owner resources.
+If your Bevy asset root is `assets` but those custom resources live in
+`assets/i18n`, configure the path explicitly:
 
 ```rs
 use es_fluent_manager_bevy::{I18nPlugin, I18nPluginConfig};
@@ -97,9 +100,11 @@ falls back to a resolved locale, Bevy publishes the requested locale for change
 events and ECS resources while using the resolved locale for ready bundle
 lookup. Runtime fallback managers are best-effort: Bevy asks them to select the
 requested locale first, then the resolved locale, but rejection does not block
-Bevy asset-backed locale publication. Only metadata-only Bevy registrations
-create Bevy asset availability; runtime localizer registrations are reserved
-for the fallback manager and do not make a locale wait on Bevy asset bundles.
+Bevy resource-backed locale publication. Metadata-only Bevy registrations
+create Bevy resource availability either from owner-provided generated content
+or, for custom registrations, Bevy asset handles. Runtime localizer
+registrations are reserved for the fallback manager and do not make a locale
+wait on Bevy resource bundles.
 When attached, runtime fallback selection tells `FluentManager` that Bevy assets
 have already proved application locale support, so follower-only utility modules
 such as `es-fluent-lang` can be committed without making runtime-only locales

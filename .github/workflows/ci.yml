@@ -31,6 +31,9 @@ jobs:
       - name: Run local es-fluent-cli check
         run: cargo es-fluent-local check --path . --all
 
+      - name: Run FTL ownership check
+        run: cargo xtask check ftl-ownership
+
   test:
     name: test (${{ matrix.os }})
     runs-on: ${{ matrix.os }}

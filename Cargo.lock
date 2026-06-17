@@ -15764,7 +15764,11 @@ name = "xtask"
 version = "0.16.0"
 dependencies = [
  "anyhow",
+ "cargo_metadata",
  "clap",
+ "es-fluent-runner",
+ "es-fluent-shared",
+ "es-fluent-toml",
  "stayhydated-xtask",
  "web",
 ]

@@ -53,7 +53,7 @@ fn dirty_languages_for_assets(
         .collect::<HashSet<_>>();
 
     if i18n_assets.is_added() {
-        for (lang, _) in i18n_assets.assets.keys() {
+        for (lang, _) in i18n_assets.resource_specs.keys() {
             dirty_languages.insert(lang.clone());
         }
     }
@@ -74,7 +74,7 @@ fn rebuild_bundle_for_language(
         bundle_build_failures.0.remove(lang);
 
         if i18n_assets
-            .assets
+            .resource_specs
             .keys()
             .any(|(language, _)| language == lang)
             && i18n_assets.is_language_loaded(lang)

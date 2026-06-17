@@ -106,6 +106,37 @@ impl I18nAssets {
         (&mut self.loaded_resources, &mut self.load_errors)
     }
 
+    pub(crate) fn add_resource_spec(&mut self, lang: LanguageIdentifier, spec: ModuleResourceSpec) {
+        let key = (lang, spec.key.clone());
+        self.resource_specs.insert(key.clone(), spec);
+        self.load_errors.remove(&key);
+    }
+
+    pub(crate) fn add_resource_content(
+        &mut self,
+        lang: LanguageIdentifier,
+        spec: ModuleResourceSpec,
+        content: &'static str,
+    ) {
+        self.add_resource_spec(lang.clone(), spec.clone());
+        let (loaded_resources, load_errors) = self.load_state_mut();
+        if let Err(err) = es_fluent_manager_core::parse_and_store_locale_resource_content(
+            loaded_resources,
+            load_errors,
+            &lang,
+            &spec,
+            content.to_string(),
+        ) {
+            let (loaded_resources, load_errors) = self.load_state_mut();
+            es_fluent_manager_core::record_locale_resource_error(
+                loaded_resources,
+                load_errors,
+                &lang,
+                err,
+            );
+        }
+    }
+
     /// Adds an FTL asset to be managed.
     #[cfg(test)]
     pub(crate) fn add_asset(
@@ -125,9 +156,8 @@ impl I18nAssets {
         spec: ModuleResourceSpec,
         handle: Handle<FtlAsset>,
     ) {
-        let key = (lang, spec.key.clone());
-        self.resource_specs.insert(key.clone(), spec);
-        self.load_errors.remove(&key);
+        let key = (lang.clone(), spec.key.clone());
+        self.add_resource_spec(lang, spec);
         self.assets.insert(key, handle);
     }
 
@@ -150,9 +180,8 @@ impl I18nAssets {
         spec: ModuleResourceSpec,
         handle: Handle<FtlAsset>,
     ) {
-        let key = (lang, spec.key.clone());
-        self.resource_specs.insert(key.clone(), spec);
-        self.load_errors.remove(&key);
+        let key = (lang.clone(), spec.key.clone());
+        self.add_resource_spec(lang, spec);
         self.assets.insert(key, handle);
     }
 
@@ -199,9 +228,9 @@ impl I18nAssets {
         resources
     }
 
-    /// Returns the set of languages that have assets registered.
+    /// Returns the set of languages that have resources registered.
     pub fn available_languages(&self) -> Vec<LanguageIdentifier> {
-        es_fluent_manager_core::collect_available_languages(&self.assets)
+        es_fluent_manager_core::collect_available_languages(&self.resource_specs)
     }
 }
 

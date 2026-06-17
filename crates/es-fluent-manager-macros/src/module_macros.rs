@@ -223,6 +223,7 @@ fn generate_bevy_tokens(
 
     let manifest_match_arms = assets
         .resource_plan_match_arms(&manager_paths.manager_core_path, &manager_paths.langid_path);
+    let resource_content_match_arms = bevy_resource_content_match_arms(&assets, manager_paths)?;
     let manager_core_path = &manager_paths.manager_core_path;
     let langid_path = &manager_paths.langid_path;
     let manager_path = manager_paths.manager_path.tokens();
@@ -253,6 +254,17 @@ fn generate_bevy_tokens(
                     _ => None,
                 }
             }
+
+            fn resource_content_for_language(
+                &self,
+                lang: &#langid_path::LanguageIdentifier,
+                resource_key: &#manager_core_path::ResourceKey,
+            ) -> Option<&'static str> {
+                match (lang, resource_key) {
+                    #(#resource_content_match_arms,)*
+                    _ => None,
+                }
+            }
         }
 
         static #registration_instance_name: #registration_struct_name = #registration_struct_name;
@@ -263,6 +275,32 @@ fn generate_bevy_tokens(
     };
 
     Ok(expanded)
+}
+
+fn bevy_resource_content_match_arms(
+    assets: &I18nAssets,
+    manager_paths: &ManagerPaths,
+) -> syn::Result<Vec<proc_macro2::TokenStream>> {
+    let langid_path = &manager_paths.langid_path;
+    let mut tokens = Vec::new();
+
+    for (language, specs) in &assets.resource_specs_by_language {
+        let language = language.to_string();
+        for spec in specs {
+            let key = spec.key.as_str();
+            let locale_relative_path = spec.locale_relative_path.as_str();
+            let asset_path =
+                utf8_folder_literal(&assets.root_path.join(&language).join(locale_relative_path))?;
+
+            tokens.push(quote! {
+                (value, key)
+                    if value == &#langid_path::langid!(#language)
+                        && key.as_str() == #key => Some(include_str!(#asset_path))
+            });
+        }
+    }
+
+    Ok(tokens)
 }
 
 fn generate_dioxus_asset_loader_tokens(
@@ -548,6 +586,8 @@ mod tests {
         );
         assert!(bevy.contains("struct MyCrateI18nRegistration"));
         assert!(bevy.contains("resource_plan_for_language"));
+        assert!(bevy.contains("resource_content_for_language"));
+        assert!(bevy.contains("include_str"));
         assert!(bevy.contains("MetadataOnly"));
 
         temp_env::with_var("CARGO_MANIFEST_DIR", Some(temp.path()), || {

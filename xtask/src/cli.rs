@@ -19,6 +19,11 @@ pub enum Command {
         #[command(subcommand)]
         target: BuildCommand,
     },
+    /// Run focused workspace checks
+    Check {
+        #[command(subcommand)]
+        target: CheckCommand,
+    },
     /// Release workspace crates in registry dependency order
     Release {
         #[command(subcommand)]
@@ -38,6 +43,12 @@ pub enum BuildCommand {
     LlmsTxt,
     /// Build the Dioxus site into web/dist for GitHub Pages
     Web,
+}
+
+#[derive(Debug, Subcommand)]
+pub enum CheckCommand {
+    /// Verify one-owner FTL domain ownership across workspace i18n trees
+    FtlOwnership,
 }
 
 #[derive(Debug, Subcommand)]
