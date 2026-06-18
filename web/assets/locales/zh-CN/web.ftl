@@ -36,6 +36,7 @@ home_workflow_message-TwoBody = 用 `cargo es-fluent` 生成、检查并同步 F
 home_workflow_message-TwoLabel = 命令行
 home_workflow_message-TwoTitle = 检查 FTL 文件
 page_metadata_message-BevyTitle = Bevy 示例
+page_metadata_message-DemosDescription = es-fluent 运行时集成的浏览器演示。
 page_metadata_message-DemosTitle = 演示
 page_metadata_message-GpuiTitle = GPUI 示例
 page_metadata_message-HomeTitle = 首页

@@ -14182,17 +14182,14 @@ dependencies = [
 name = "web"
 version = "0.16.0"
 dependencies = [
- "anyhow",
  "dioxus",
  "es-fluent",
  "es-fluent-build",
  "es-fluent-lang",
  "es-fluent-manager-dioxus",
- "serial_test",
  "stayhydated-dioxus",
  "stayhydated-site",
  "strum 0.28.0",
- "tempfile",
 ]
 
 [[package]]

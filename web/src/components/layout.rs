@@ -4,6 +4,7 @@ use dioxus::prelude::*;
 use stayhydated_dioxus::{
     LinkTarget, Project, ProjectPackage, ProjectPackageFooterLink, ProjectPackagesFooterPanel,
     RouteLocalizedLanguageSelect, StayhydatedProjectHeader, StayhydatedProjectHeaderConfig,
+    stayhydated_project_options_for_locale,
 };
 
 #[component]
@@ -12,6 +13,8 @@ pub(crate) fn PageHeader(locale: SiteLanguage, current_page: PageKind) -> Elemen
         Ok(i18n) => i18n,
         Err(error) => return rsx! { header { class: "page-header", "failed: {error}" } },
     };
+    let project_options =
+        stayhydated_project_options_for_locale(locale, |message| i18n.localize_message(&message));
     let config = StayhydatedProjectHeaderConfig::localized_with_i18n(
         Project::EsFluent,
         crate::site::routing::page_href(locale, PageKind::Home).into_string(),
@@ -20,7 +23,8 @@ pub(crate) fn PageHeader(locale: SiteLanguage, current_page: PageKind) -> Elemen
         crate::site::routing::book_href().as_str(),
         current_page.project_nav_item(),
         &i18n,
-    );
+    )
+    .with_project_options(project_options);
 
     rsx! {
         StayhydatedProjectHeader::<crate::site::routing::AppRoute> {

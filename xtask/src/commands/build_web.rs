@@ -10,6 +10,7 @@ pub fn run() -> anyhow::Result<()> {
             .extra_file("web/public/assets/site.css", "assets/site.css")
             .extra_dir("web/public/bevy-demo", "bevy-demo")
             .extra_dir("web/public/gpui-demo", "gpui-demo")
+            .route_fallback_paths(web::route_paths())
             .sitemap_xml(web::sitemap_xml())
             .build(),
     )

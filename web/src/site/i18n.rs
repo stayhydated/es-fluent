@@ -77,6 +77,7 @@ pub(crate) enum SiteFooterMessage {
 pub(crate) enum PageMetadataMessage {
     HomeTitle,
     DemosTitle,
+    DemosDescription,
     BevyTitle,
     GpuiTitle,
 }

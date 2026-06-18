@@ -53,6 +53,7 @@ home_workflow_message-TwoTitle = Check FTL files
 ## PageMetadataMessage
 
 page_metadata_message-BevyTitle = Bevy Example
+page_metadata_message-DemosDescription = Browser demos for es-fluent runtime integrations.
 page_metadata_message-DemosTitle = Demos
 page_metadata_message-GpuiTitle = GPUI Example
 page_metadata_message-HomeTitle = Home

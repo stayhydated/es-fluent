@@ -1,19 +1,16 @@
 use crate::pages::DevErrorPage;
 use crate::site::i18n::{
-    BevyPageMessage, DemosPageMessage, GpuiPageMessage, HomeHeroMessage, PageMetadataMessage,
-    SiteLanguage,
+    BevyPageMessage, GpuiPageMessage, HomeHeroMessage, PageMetadataMessage, SiteLanguage,
 };
 use dioxus::cli_config;
 use dioxus::prelude::*;
 use dioxus::router as dioxus_router;
-use es_fluent_lang::LanguageIdentifier;
 use es_fluent_manager_dioxus::DioxusAssetI18nHandle;
 use stayhydated_dioxus::{
     LocalizedRouteSegment, Project, ProjectNavItem, StayhydatedProjectPageMetadata,
     StayhydatedSiteLanguage,
 };
 use stayhydated_site::routing::{BaseHref, BasePath, Href, OutputDir, RoutePath};
-use std::path::Path;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum PageKind {
@@ -56,7 +53,7 @@ impl PageKind {
     pub(crate) fn description(self, i18n: &DioxusAssetI18nHandle) -> String {
         match self {
             Self::Home => i18n.localize_message(&HomeHeroMessage::Body),
-            Self::Demos => i18n.localize_message(&DemosPageMessage::BevyBody),
+            Self::Demos => i18n.localize_message(&PageMetadataMessage::DemosDescription),
             Self::Bevy => i18n.localize_message(&BevyPageMessage::Lead),
             Self::Gpui => i18n.localize_message(&GpuiPageMessage::Lead),
         }
@@ -157,46 +154,6 @@ pub(crate) fn app_route(locale: SiteLanguage, page: PageKind) -> AppRoute {
     }
 }
 
-#[cfg(test)]
-pub(crate) fn site_route_from_path(path: &str) -> SiteRoute {
-    site_route_from_path_with_base_path(path, None)
-}
-
-#[cfg(test)]
-pub(crate) fn site_route_from_path_with_base_path(
-    path: &str,
-    base_path: Option<&str>,
-) -> SiteRoute {
-    let segments = normalized_path_segments(path, base_path);
-
-    let (locale, page_segments) = match segments.as_slice().split_first() {
-        Some((first, rest)) => match SiteLanguage::from_route_slug(first) {
-            Some(locale) => (locale, rest),
-            None => (SiteLanguage::default(), segments.as_slice()),
-        },
-        None => (SiteLanguage::default(), &[][..]),
-    };
-
-    SiteRoute::new(locale, page_from_segments(page_segments))
-}
-
-#[cfg(test)]
-fn normalized_path_segments<'a>(path: &'a str, base_path: Option<&str>) -> Vec<&'a str> {
-    let base_path = base_path.map(BasePath::new);
-    stayhydated_site::routing::normalized_path_segments(path, base_path.as_ref())
-}
-
-#[cfg(test)]
-fn page_from_segments(segments: &[&str]) -> PageKind {
-    match segments {
-        [] => PageKind::Home,
-        ["demos"] => PageKind::Demos,
-        ["bevy-example"] => PageKind::Bevy,
-        ["gpui-example"] => PageKind::Gpui,
-        _ => PageKind::Home,
-    }
-}
-
 fn relative_path(locale: SiteLanguage, page: PageKind) -> RoutePath {
     let mut segments = Vec::new();
 
@@ -210,38 +167,6 @@ fn relative_path(locale: SiteLanguage, page: PageKind) -> RoutePath {
     }
 
     RoutePath::new(segments.join("/"))
-}
-
-const GENERATED_ROUTE_CACHE_MARKER: &str = ".es-fluent-generated-route-cache";
-
-pub(crate) fn mark_generated_route_cache(public_dir: &Path) -> std::io::Result<()> {
-    stayhydated_site::route_cache::mark_generated_route_cache(
-        public_dir,
-        GENERATED_ROUTE_CACHE_MARKER,
-        "Generated route cache owned by es-fluent web server.\n",
-    )
-}
-
-pub(crate) fn cleanup_generated_route_cache(public_dir: &Path) -> std::io::Result<()> {
-    stayhydated_site::route_cache::cleanup_generated_route_cache_for_outputs(
-        public_dir,
-        GENERATED_ROUTE_CACHE_MARKER,
-        all_routes().into_iter().map(SiteRoute::output_dir),
-        |path, name| is_locale_route_dir(name) && contains_generated_route_cache(path),
-    )
-}
-
-fn is_locale_route_dir(name: &str) -> bool {
-    name.parse::<LanguageIdentifier>().is_ok()
-}
-
-fn contains_generated_route_cache(dir: &Path) -> bool {
-    dir.join("index.html").is_file()
-        || PageKind::all()
-            .into_iter()
-            .map(PageKind::route)
-            .filter(|route| !route.is_empty())
-            .any(|route| dir.join(route).is_dir())
 }
 
 fn route_element(route: SiteRoute) -> Element {
