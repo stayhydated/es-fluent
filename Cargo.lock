@@ -5038,7 +5038,6 @@ dependencies = [
  "toml 1.1.2+spec-1.1.0",
  "toml_edit 0.25.12+spec-1.1.0",
  "treelog",
- "unic-langid",
  "walkdir",
 ]
 
@@ -5076,15 +5075,12 @@ dependencies = [
  "es-fluent-derive-core",
  "es-fluent-shared",
  "fs-err",
- "heck 0.5.0",
  "insta",
  "prettyplease",
- "proc-macro-crate",
  "proc-macro-error2",
  "proc-macro2",
  "quote",
  "serial_test",
- "strum 0.28.0",
  "syn 2.0.117",
  "temp-env",
  "tempfile",
@@ -5118,7 +5114,6 @@ dependencies = [
 name = "es-fluent-generate"
 version = "0.16.0"
 dependencies = [
- "clap",
  "colored",
  "es-fluent-shared",
  "fluent-syntax",
@@ -5128,7 +5123,6 @@ dependencies = [
  "insta",
  "proc-macro2",
  "similar 3.1.1",
- "strum 0.28.0",
  "syn 2.0.117",
  "tempfile",
  "tracing",
@@ -5159,7 +5153,6 @@ dependencies = [
  "insta",
  "path-slash",
  "prettyplease",
- "proc-macro-crate",
  "proc-macro-error2",
  "proc-macro2",
  "quote",

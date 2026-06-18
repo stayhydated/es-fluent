@@ -512,8 +512,8 @@ fn watch_embedded_i18n_asset_changes(
 mod tests {
     use super::*;
     use crate::{
-        ActiveLanguageId, BundleBuildFailures, I18nBundle, I18nDomainBundles, LocaleChangeEvent,
-        PendingLanguageChange,
+        ActiveLanguageId, BevyI18nEmbeddedAsset, BundleBuildFailures, I18nBundle,
+        I18nDomainBundles, LocaleChangeEvent, PendingLanguageChange,
     };
     use bevy::asset::AssetPlugin;
     use bevy::ecs::message::Messages;
