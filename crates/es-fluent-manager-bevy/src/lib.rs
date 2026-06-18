@@ -45,6 +45,10 @@ pub use registration::FluentTextRegistration;
 
 #[doc(hidden)]
 pub use registration::BevyFluentTextRegistration;
+#[doc(hidden)]
+pub use registration::BevyI18nAssetRegistration;
+#[doc(hidden)]
+pub use registration::BevyI18nEmbeddedAsset;
 
 pub(crate) use assets::{
     BundleBuildFailures, FtlAsset, FtlAssetLoader, I18nAssets, I18nBundle, I18nDomainBundles,

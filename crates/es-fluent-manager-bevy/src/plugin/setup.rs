@@ -1,17 +1,199 @@
 use super::runtime::{
     build_fluent_bundles, handle_asset_loading, handle_locale_changes, sync_locale_state,
 };
+#[cfg(feature = "file_watcher")]
+use crate::BevyI18nEmbeddedAsset;
 use crate::{
-    ActiveLanguageId, BevyFluentTextRegistration, FtlAsset, I18nAssets, I18nResource,
-    LocaleChangeEvent, LocaleChangedEvent, PendingLanguageChange, RequestedLanguageId,
+    ActiveLanguageId, BevyFluentTextRegistration, BevyI18nAssetRegistration, FtlAsset, I18nAssets,
+    I18nResource, LocaleChangeEvent, LocaleChangedEvent, PendingLanguageChange,
+    RequestedLanguageId,
 };
 use bevy::prelude::*;
 use es_fluent_manager_core::{
-    FluentManager, I18nModuleRegistration, LocalizationError, ModuleDiscoveryError,
-    ModuleRegistrationKind,
+    FluentManager, I18nModuleRegistration, LocalizationError, ModuleData, ModuleDiscoveryError,
+    ModuleRegistrationKind, ResourceKey,
 };
 use std::{collections::HashSet, sync::Arc};
+#[cfg(feature = "file_watcher")]
+use std::{
+    fs,
+    path::{Path, PathBuf},
+    time::{Duration, Instant, SystemTime},
+};
 use unic_langid::LanguageIdentifier;
+
+#[cfg(feature = "file_watcher")]
+const EMBEDDED_ASSET_POLL_INTERVAL: Duration = Duration::from_millis(300);
+
+#[cfg(feature = "file_watcher")]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+struct SourceFileStamp {
+    modified: Option<SystemTime>,
+    len: u64,
+    content_hash: u64,
+}
+
+#[cfg(feature = "file_watcher")]
+#[derive(Debug)]
+struct WatchedEmbeddedI18nAsset {
+    source_path: PathBuf,
+    embedded_path: PathBuf,
+    asset_path: &'static str,
+    stamp: Option<SourceFileStamp>,
+}
+
+#[cfg(feature = "file_watcher")]
+impl WatchedEmbeddedI18nAsset {
+    fn from_asset(asset: BevyI18nEmbeddedAsset) -> Self {
+        let source_path = PathBuf::from(asset.source_path);
+        Self::new(
+            source_path,
+            PathBuf::from(asset.embedded_path),
+            asset.asset_path,
+        )
+    }
+
+    fn new(source_path: PathBuf, embedded_path: PathBuf, asset_path: &'static str) -> Self {
+        let stamp = read_source_asset(&source_path)
+            .map(|(_, stamp)| stamp)
+            .inspect_err(|error| {
+                debug!(
+                    "Could not stat embedded i18n asset source '{}': {}",
+                    source_path.display(),
+                    error
+                );
+            })
+            .ok();
+
+        Self {
+            source_path,
+            embedded_path,
+            asset_path,
+            stamp,
+        }
+    }
+
+    fn reload_if_changed(
+        &mut self,
+        embedded: &bevy::asset::io::embedded::EmbeddedAssetRegistry,
+        asset_server: &AssetServer,
+    ) -> bool {
+        let (bytes, stamp) = match read_source_asset(&self.source_path) {
+            Ok(source_asset) => source_asset,
+            Err(error) => {
+                warn!(
+                    "Could not reload embedded i18n asset source '{}': {}",
+                    self.source_path.display(),
+                    error
+                );
+                return false;
+            },
+        };
+
+        if self.stamp == Some(stamp) {
+            return false;
+        }
+
+        embedded.insert_asset(
+            self.source_path.clone(),
+            self.embedded_path.as_path(),
+            bytes,
+        );
+        asset_server.reload(self.asset_path);
+        self.stamp = Some(stamp);
+        debug!(
+            "Reloaded embedded i18n asset source '{}' as '{}'",
+            self.source_path.display(),
+            self.asset_path
+        );
+        true
+    }
+}
+
+#[cfg(feature = "file_watcher")]
+#[derive(Debug, Resource)]
+struct WatchedEmbeddedI18nAssets {
+    assets: Vec<WatchedEmbeddedI18nAsset>,
+    last_check: Option<Instant>,
+    poll_interval: Duration,
+}
+
+#[cfg(feature = "file_watcher")]
+impl Default for WatchedEmbeddedI18nAssets {
+    fn default() -> Self {
+        Self {
+            assets: Vec::new(),
+            last_check: None,
+            poll_interval: EMBEDDED_ASSET_POLL_INTERVAL,
+        }
+    }
+}
+
+#[cfg(feature = "file_watcher")]
+impl WatchedEmbeddedI18nAssets {
+    fn extend_from_registration(&mut self, registration: &dyn BevyI18nAssetRegistration) {
+        self.assets.extend(
+            registration
+                .embedded_assets()
+                .iter()
+                .copied()
+                .map(WatchedEmbeddedI18nAsset::from_asset),
+        );
+    }
+
+    fn should_poll(&mut self, now: Instant) -> bool {
+        if self.assets.is_empty() {
+            return false;
+        }
+
+        if self
+            .last_check
+            .is_some_and(|last_check| now.duration_since(last_check) < self.poll_interval)
+        {
+            return false;
+        }
+
+        self.last_check = Some(now);
+        true
+    }
+
+    fn reload_changed(
+        &mut self,
+        embedded: &bevy::asset::io::embedded::EmbeddedAssetRegistry,
+        asset_server: &AssetServer,
+    ) -> usize {
+        let mut reloaded_count = 0;
+        for asset in &mut self.assets {
+            if asset.reload_if_changed(embedded, asset_server) {
+                reloaded_count += 1;
+            }
+        }
+        reloaded_count
+    }
+}
+
+#[cfg(feature = "file_watcher")]
+fn read_source_asset(path: &Path) -> std::io::Result<(Vec<u8>, SourceFileStamp)> {
+    let bytes = fs::read(path)?;
+    let metadata = fs::metadata(path)?;
+    let stamp = SourceFileStamp {
+        modified: metadata.modified().ok(),
+        len: metadata.len(),
+        content_hash: hash_bytes(&bytes),
+    };
+
+    Ok((bytes, stamp))
+}
+
+#[cfg(feature = "file_watcher")]
+fn hash_bytes(bytes: &[u8]) -> u64 {
+    let mut hash = 0xcbf29ce484222325_u64;
+    for byte in bytes {
+        hash ^= u64::from(*byte);
+        hash = hash.wrapping_mul(0x100000001b3);
+    }
+    hash
+}
 
 pub(super) struct ModuleDiscovery {
     pub(super) modules: Vec<&'static dyn I18nModuleRegistration>,
@@ -184,6 +366,18 @@ pub(super) fn build_i18n_assets(
             };
 
             for spec in &resource_plan {
+                if let Some(path) = embedded_asset_path_for_module(data, lang, &spec.key) {
+                    let handle: Handle<FtlAsset> = asset_server.load(path);
+                    if spec.required {
+                        i18n_assets.add_asset_spec(lang.clone(), spec.clone(), handle);
+                        debug!("Loading required embedded i18n asset: {}", path);
+                    } else {
+                        i18n_assets.add_optional_asset_spec(lang.clone(), spec.clone(), handle);
+                        debug!("Loading optional embedded i18n asset: {}", path);
+                    }
+                    continue;
+                }
+
                 if let Some(content) = module.resource_content_for_language(lang, &spec.key) {
                     i18n_assets.add_resource_content(lang.clone(), spec.clone(), content);
                     debug!(
@@ -213,6 +407,34 @@ pub(super) fn build_i18n_assets(
     i18n_assets
 }
 
+fn embedded_asset_path_for_module(
+    data: &'static ModuleData,
+    lang: &LanguageIdentifier,
+    resource_key: &ResourceKey,
+) -> Option<&'static str> {
+    inventory::iter::<&'static dyn BevyI18nAssetRegistration>()
+        .find(|registration| std::ptr::eq(registration.data(), data))
+        .and_then(|registration| registration.asset_path_for_language(lang, resource_key))
+}
+
+pub(super) fn register_discovered_i18n_assets(app: &mut App) -> usize {
+    let mut registered_count = 0;
+    #[cfg(feature = "file_watcher")]
+    let mut watched_assets = WatchedEmbeddedI18nAssets::default();
+
+    for registration in inventory::iter::<&'static dyn BevyI18nAssetRegistration>() {
+        registration.register_assets(app);
+        #[cfg(feature = "file_watcher")]
+        watched_assets.extend_from_registration(*registration);
+        registered_count += 1;
+    }
+
+    #[cfg(feature = "file_watcher")]
+    app.insert_resource(watched_assets);
+
+    registered_count
+}
+
 pub(super) fn register_discovered_fluent_text(app: &mut App) -> usize {
     let mut registered_count = 0;
     for registration in inventory::iter::<&'static dyn BevyFluentTextRegistration>() {
@@ -235,17 +457,55 @@ pub(super) fn configure_app(
         .insert_resource(ActiveLanguageId(active_language))
         .insert_resource(PendingLanguageChange::default())
         .add_message::<LocaleChangeEvent>()
-        .add_message::<LocaleChangedEvent>()
-        .add_systems(
-            Update,
-            (
-                handle_asset_loading,
-                build_fluent_bundles,
-                handle_locale_changes,
-                sync_locale_state,
-            )
-                .chain(),
-        );
+        .add_message::<LocaleChangedEvent>();
+
+    #[cfg(feature = "file_watcher")]
+    app.init_resource::<WatchedEmbeddedI18nAssets>();
+
+    #[cfg(feature = "file_watcher")]
+    app.add_systems(
+        Update,
+        (
+            watch_embedded_i18n_asset_changes,
+            handle_asset_loading,
+            build_fluent_bundles,
+            handle_locale_changes,
+            sync_locale_state,
+        )
+            .chain(),
+    );
+
+    #[cfg(not(feature = "file_watcher"))]
+    app.add_systems(
+        Update,
+        (
+            handle_asset_loading,
+            build_fluent_bundles,
+            handle_locale_changes,
+            sync_locale_state,
+        )
+            .chain(),
+    );
+}
+
+#[cfg(feature = "file_watcher")]
+fn watch_embedded_i18n_asset_changes(
+    mut watched_assets: ResMut<WatchedEmbeddedI18nAssets>,
+    embedded: Res<bevy::asset::io::embedded::EmbeddedAssetRegistry>,
+    asset_server: Res<AssetServer>,
+) {
+    if !asset_server.watching_for_changes() {
+        return;
+    }
+
+    if !watched_assets.should_poll(Instant::now()) {
+        return;
+    }
+
+    let reloaded_count = watched_assets.reload_changed(&embedded, &asset_server);
+    if reloaded_count > 0 {
+        debug!("Reloaded {reloaded_count} embedded i18n assets");
+    }
 }
 
 #[cfg(test)]
@@ -261,6 +521,8 @@ mod tests {
         FluentArgumentMap, LocaleRelativeFtlPath, LocalizationError, Localizer, ModuleData,
         ModuleRegistrationKind, ModuleResourceSpec, ResourceKey, StaticFluentEntryId,
     };
+    #[cfg(feature = "file_watcher")]
+    use std::path::PathBuf;
     use std::{collections::HashSet, sync::Arc};
     use unic_langid::langid;
 
@@ -279,9 +541,21 @@ mod tests {
         supported_languages: TEST_FOLLOWER_LANGUAGES,
         namespaces: &[],
     };
+    static TEST_EMBEDDED_ASSET_DATA: ModuleData = ModuleData {
+        name: "setup-embedded-asset-module",
+        domain: es_fluent_manager_core::__macro::static_domain("setup-embedded-domain"),
+        supported_languages: TEST_MODULE_LANGUAGES,
+        namespaces: &[],
+    };
+    static TEST_EMBEDDED_ASSETS: &[BevyI18nEmbeddedAsset] = &[BevyI18nEmbeddedAsset {
+        source_path: "tests/fixtures/setup-embedded-domain.ftl",
+        embedded_path: "setup-embedded-asset-module/locales/en/setup-embedded-domain.ftl",
+        asset_path: "embedded://setup-embedded-asset-module/locales/en/setup-embedded-domain.ftl",
+    }];
 
     struct SetupTestModule;
     struct SetupTestAssetModule;
+    struct SetupEmbeddedAssetModule;
     struct SetupOwnedResourceModule;
     struct SetupTestLocalizer;
     struct SetupFollowerModule;
@@ -342,6 +616,12 @@ mod tests {
     impl es_fluent_manager_core::I18nModuleDescriptor for SetupOwnedResourceModule {
         fn data(&self) -> &'static ModuleData {
             &TEST_MODULE_DATA
+        }
+    }
+
+    impl es_fluent_manager_core::I18nModuleDescriptor for SetupEmbeddedAssetModule {
+        fn data(&self) -> &'static ModuleData {
+            &TEST_EMBEDDED_ASSET_DATA
         }
     }
 
@@ -427,6 +707,41 @@ mod tests {
         }
     }
 
+    impl I18nModuleRegistration for SetupEmbeddedAssetModule {
+        fn registration_kind(&self) -> ModuleRegistrationKind {
+            ModuleRegistrationKind::MetadataOnly
+        }
+    }
+
+    impl BevyI18nAssetRegistration for SetupEmbeddedAssetModule {
+        fn register_assets(&self, app: &mut App) {
+            let embedded = app
+                .world_mut()
+                .resource_mut::<bevy::asset::io::embedded::EmbeddedAssetRegistry>();
+            embedded.insert_asset(
+                std::path::PathBuf::from("tests/fixtures/setup-embedded-domain.ftl"),
+                std::path::Path::new(
+                    "setup-embedded-asset-module/locales/en/setup-embedded-domain.ftl",
+                ),
+                &b"hello = Hello from embedded asset"[..],
+            );
+        }
+
+        fn asset_path_for_language(
+            &self,
+            lang: &LanguageIdentifier,
+            resource_key: &ResourceKey,
+        ) -> Option<&'static str> {
+            (lang == &langid!("en") && resource_key.as_str() == "setup-embedded-domain").then_some(
+                "embedded://setup-embedded-asset-module/locales/en/setup-embedded-domain.ftl",
+            )
+        }
+
+        fn embedded_assets(&self) -> &'static [BevyI18nEmbeddedAsset] {
+            TEST_EMBEDDED_ASSETS
+        }
+    }
+
     impl I18nModuleRegistration for SetupFollowerModule {
         fn create_localizer(&self) -> Option<Box<dyn Localizer>> {
             Some(Box::new(SetupFollowerLocalizer))
@@ -443,6 +758,7 @@ mod tests {
 
     static SETUP_TEST_MODULE: SetupTestModule = SetupTestModule;
     static SETUP_TEST_ASSET_MODULE: SetupTestAssetModule = SetupTestAssetModule;
+    static SETUP_EMBEDDED_ASSET_MODULE: SetupEmbeddedAssetModule = SetupEmbeddedAssetModule;
     static SETUP_OWNED_RESOURCE_MODULE: SetupOwnedResourceModule = SetupOwnedResourceModule;
     static SETUP_FOLLOWER_MODULE: SetupFollowerModule = SetupFollowerModule;
 
@@ -452,6 +768,10 @@ mod tests {
 
     inventory::submit! {
         &SETUP_FOLLOWER_MODULE as &dyn I18nModuleRegistration
+    }
+
+    inventory::submit! {
+        &SETUP_EMBEDDED_ASSET_MODULE as &dyn BevyI18nAssetRegistration
     }
 
     #[test]
@@ -632,6 +952,122 @@ mod tests {
     }
 
     #[test]
+    fn build_i18n_assets_loads_generated_owner_resources_as_embedded_asset_handles() {
+        let mut app = App::new();
+        app.add_plugins(MinimalPlugins);
+        app.add_plugins(AssetPlugin::default());
+        app.init_asset::<FtlAsset>();
+
+        register_discovered_i18n_assets(&mut app);
+        let asset_server = app.world().resource::<AssetServer>();
+        let i18n_assets =
+            build_i18n_assets(asset_server, "localized", &[&SETUP_EMBEDDED_ASSET_MODULE]);
+
+        let required_key = (
+            langid!("en"),
+            ResourceKey::from_static_path("setup-embedded-domain"),
+        );
+        let handle = i18n_assets
+            .assets
+            .get(&required_key)
+            .expect("embedded owner resource should be loaded through AssetServer");
+        let path = asset_server
+            .get_path(handle.id().untyped())
+            .expect("asset server should track the embedded asset path");
+
+        assert_eq!(
+            path.to_string(),
+            "embedded://setup-embedded-asset-module/locales/en/setup-embedded-domain.ftl"
+        );
+        assert!(i18n_assets.loaded_resources.is_empty());
+        assert!(i18n_assets.resource_specs[&required_key].required);
+    }
+
+    #[cfg(feature = "file_watcher")]
+    #[test]
+    fn watched_embedded_i18n_assets_reload_changed_source_files() {
+        let temp = unique_temp_dir("watched-embedded-i18n-assets");
+        let source_path = temp.join("example-shared-lib.ftl");
+        std::fs::write(&source_path, "button_state-Normal = Normal\n")
+            .expect("write initial ftl source");
+
+        let mut watched_assets = WatchedEmbeddedI18nAssets {
+            assets: vec![WatchedEmbeddedI18nAsset::new(
+                source_path.clone(),
+                PathBuf::from("example-shared-lib/i18n/en/example-shared-lib.ftl"),
+                "embedded://example-shared-lib/i18n/en/example-shared-lib.ftl",
+            )],
+            ..Default::default()
+        };
+
+        let mut app = App::new();
+        app.add_plugins(MinimalPlugins);
+        app.add_plugins(AssetPlugin::default());
+
+        let embedded = app
+            .world()
+            .resource::<bevy::asset::io::embedded::EmbeddedAssetRegistry>();
+        let asset_server = app.world().resource::<AssetServer>();
+        assert_eq!(watched_assets.reload_changed(embedded, asset_server), 0);
+
+        std::fs::write(&source_path, "button_state-Normal = Hot Normal\n")
+            .expect("write changed ftl source");
+
+        assert_eq!(watched_assets.reload_changed(embedded, asset_server), 1);
+        assert_eq!(watched_assets.reload_changed(embedded, asset_server), 0);
+
+        std::fs::remove_dir_all(temp).expect("remove temp dir");
+    }
+
+    #[cfg(feature = "file_watcher")]
+    #[test]
+    fn watch_embedded_i18n_asset_changes_respects_asset_server_watch_toggle() {
+        let temp = unique_temp_dir("watch-toggle");
+        let source_path = temp.join("example-shared-lib.ftl");
+        std::fs::write(&source_path, "button_state-Normal = Normal\n")
+            .expect("write initial ftl source");
+
+        let watched_assets = WatchedEmbeddedI18nAssets {
+            assets: vec![WatchedEmbeddedI18nAsset::new(
+                source_path.clone(),
+                PathBuf::from("example-shared-lib/i18n/en/example-shared-lib.ftl"),
+                "embedded://example-shared-lib/i18n/en/example-shared-lib.ftl",
+            )],
+            ..Default::default()
+        };
+        let initial_stamp = watched_assets.assets[0].stamp;
+
+        let mut app = App::new();
+        app.add_plugins(MinimalPlugins);
+        app.add_plugins(AssetPlugin {
+            watch_for_changes_override: Some(false),
+            ..Default::default()
+        });
+        app.insert_resource(watched_assets);
+
+        std::fs::write(&source_path, "button_state-Normal = Hot Normal\n")
+            .expect("write changed ftl source");
+
+        let mut system_state = bevy::ecs::system::SystemState::<(
+            ResMut<WatchedEmbeddedI18nAssets>,
+            Res<bevy::asset::io::embedded::EmbeddedAssetRegistry>,
+            Res<AssetServer>,
+        )>::new(app.world_mut());
+        {
+            let (watched_assets, embedded, asset_server) = system_state.get_mut(app.world_mut());
+            watch_embedded_i18n_asset_changes(watched_assets, embedded, asset_server);
+        }
+        system_state.apply(app.world_mut());
+
+        assert_eq!(
+            app.world().resource::<WatchedEmbeddedI18nAssets>().assets[0].stamp,
+            initial_stamp
+        );
+
+        std::fs::remove_dir_all(temp).expect("remove temp dir");
+    }
+
+    #[test]
     fn build_i18n_assets_ignores_runtime_localizer_modules() {
         let mut app = App::new();
         app.add_plugins(MinimalPlugins);
@@ -711,5 +1147,17 @@ mod tests {
         );
         assert_eq!(&app.world().resource::<RequestedLanguageId>().0, &requested);
         assert_eq!(&app.world().resource::<ActiveLanguageId>().0, &requested);
+    }
+
+    #[cfg(feature = "file_watcher")]
+    fn unique_temp_dir(name: &str) -> PathBuf {
+        let mut path = std::env::temp_dir();
+        let unique = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .expect("system clock should be after unix epoch")
+            .as_nanos();
+        path.push(format!("es-fluent-{name}-{}-{unique}", std::process::id()));
+        std::fs::create_dir_all(&path).expect("create temp dir");
+        path
     }
 }

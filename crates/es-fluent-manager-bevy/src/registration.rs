@@ -1,5 +1,7 @@
 use bevy::prelude::*;
+use es_fluent_manager_core::{I18nModuleDescriptor, ResourceKey};
 use std::{any::TypeId, collections::HashSet};
+use unic_langid::LanguageIdentifier;
 
 #[derive(Default, Resource)]
 pub(crate) struct RegisteredFluentTextTypes {
@@ -63,6 +65,31 @@ pub trait BevyFluentTextRegistration: Send + Sync {
 }
 
 inventory::collect!(&'static dyn BevyFluentTextRegistration);
+
+#[doc(hidden)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct BevyI18nEmbeddedAsset {
+    pub source_path: &'static str,
+    pub embedded_path: &'static str,
+    pub asset_path: &'static str,
+}
+
+#[doc(hidden)]
+pub trait BevyI18nAssetRegistration: I18nModuleDescriptor {
+    fn register_assets(&self, app: &mut App);
+
+    fn asset_path_for_language(
+        &self,
+        lang: &LanguageIdentifier,
+        resource_key: &ResourceKey,
+    ) -> Option<&'static str>;
+
+    fn embedded_assets(&self) -> &'static [BevyI18nEmbeddedAsset] {
+        &[]
+    }
+}
+
+inventory::collect!(&'static dyn BevyI18nAssetRegistration);
 
 /// An extension trait for `App` to simplify the registration of `FluentText` components.
 pub trait FluentTextRegistration {

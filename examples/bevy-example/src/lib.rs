@@ -37,7 +37,7 @@ pub fn run() {
 
     #[cfg(not(target_arch = "wasm32"))]
     app.add_plugins(DefaultPlugins.set(AssetPlugin {
-        watch_for_changes_override: Some(true),
+        watch_for_changes_override: Some(cfg!(debug_assertions)),
         file_path: concat!(env!("CARGO_MANIFEST_DIR"), "/assets").to_string(),
         ..default()
     }));

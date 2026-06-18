@@ -181,12 +181,13 @@ fn main() {
 }
 ```
 
-Generated Bevy module registrations provide the owning crate's `.ftl` content
-from that crate's configured `assets_dir`; consuming apps should not copy
-dependency-owned domain files into their own asset tree. `asset_path` is only
-used for custom metadata-only registrations that do not provide owner
-resources. If the Bevy asset root is `assets` but those custom resources live
-in `assets/i18n`, configure the path relative to the asset root:
+Generated Bevy module registrations register the owning crate's `.ftl` files
+from that crate's configured `assets_dir` as Bevy embedded assets; consuming
+apps should not copy dependency-owned domain files into their own asset tree.
+`asset_path` is only used for custom metadata-only registrations that do not
+provide owner embedded assets. If the Bevy asset root is `assets` but those
+custom resources live in `assets/i18n`, configure the path relative to the
+asset root:
 
 ```rust
 use es_fluent_manager_bevy::{I18nPlugin, I18nPluginConfig};

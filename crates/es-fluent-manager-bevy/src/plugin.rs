@@ -145,6 +145,8 @@ impl Plugin for I18nPlugin {
                 return;
             },
         };
+        let embedded_asset_count = setup::register_discovered_i18n_assets(app);
+        debug!("Registered {embedded_asset_count} embedded i18n asset modules");
         let i18n_assets = {
             let asset_server = app.world().resource::<AssetServer>();
             setup::build_i18n_assets(asset_server, &self.config.asset_path, &discovery.modules)

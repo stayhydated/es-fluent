@@ -8,7 +8,7 @@ your own asset pipeline.
 | ---------------------------- | ------------------------ | ------------------------------------------------------------ |
 | `es-fluent-manager-embedded` | CLIs, TUIs, desktop apps | Compiles FTL files into the binary                           |
 | `es-fluent-manager-dioxus`   | Dioxus apps              | Uses Dioxus `asset!` loading plus hooks or request-scoped SSR |
-| `es-fluent-manager-bevy`     | Bevy games and apps      | Loads owner-provided generated FTL resources and custom Bevy assets |
+| `es-fluent-manager-bevy`     | Bevy games and apps      | Uses Bevy embedded assets for generated FTL and Bevy assets for custom resources |
 
 ---
 
@@ -384,10 +384,11 @@ fn main() {
 }
 ```
 
-Generated Bevy module registrations provide the owning crate's `.ftl` content
-from that crate's configured `assets_dir`; consuming apps should not copy
-dependency-owned domain files into their own asset tree. `asset_path` is only
-used for custom metadata-only registrations that do not provide owner resources.
+Generated Bevy module registrations register the owning crate's `.ftl` files
+from that crate's configured `assets_dir` as Bevy embedded assets; consuming
+apps should not copy dependency-owned domain files into their own asset tree.
+`asset_path` is only used for custom metadata-only registrations that do not
+provide owner embedded assets.
 If your Bevy asset root is `assets` but those custom resources live in
 `assets/i18n`, configure the path explicitly:
 
@@ -426,8 +427,8 @@ events and ECS resources while using the resolved locale for ready bundle
 lookup. Runtime fallback managers are best-effort: Bevy asks them to select the
 requested locale first, then the resolved locale, but rejection does not block
 Bevy resource-backed locale publication. Metadata-only Bevy registrations
-create Bevy resource availability either from owner-provided generated content
-or, for custom registrations, Bevy asset handles. Runtime localizer
+create Bevy resource availability either from owner-provided embedded asset
+handles or, for custom registrations, Bevy asset handles. Runtime localizer
 registrations are reserved for the fallback manager and do not make a locale
 wait on Bevy resource bundles.
 When attached, runtime fallback selection tells `FluentManager` that Bevy assets
