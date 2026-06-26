@@ -1,6 +1,6 @@
 //! This module provides types for naming Fluent keys and documentation.
 
-use derive_more::{Debug, Deref, Display};
+use derive_more::{Debug, Deref, Display, From};
 use heck::ToSnakeCase as _;
 use quote::format_ident;
 
@@ -9,14 +9,10 @@ pub fn rust_ident_name(ident: &syn::Ident) -> String {
     name.strip_prefix("r#").unwrap_or(&name).to_string()
 }
 
-#[derive(Clone, Debug, Deref, Display, Eq, Hash, Ord, PartialEq, PartialOrd, serde::Serialize)]
+#[derive(
+    Clone, Debug, Deref, Display, Eq, From, Hash, Ord, PartialEq, PartialOrd, serde::Serialize,
+)]
 pub struct FluentKey(pub String);
-
-impl From<String> for FluentKey {
-    fn from(s: String) -> Self {
-        Self(s)
-    }
-}
 
 impl From<&str> for FluentKey {
     fn from(s: &str) -> Self {
@@ -73,25 +69,13 @@ impl quote::ToTokens for FluentDoc {
     }
 }
 
+#[derive(Display, From)]
+#[display("f{}", _0)]
 pub struct UnnamedItem(usize);
 
-impl std::fmt::Display for UnnamedItem {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}{}", Self::UNNAMED_PREFIX, self.0)
-    }
-}
-
 impl UnnamedItem {
-    const UNNAMED_PREFIX: &str = "f";
-
     pub fn to_ident(&self) -> syn::Ident {
         format_ident!("{}", self.to_string())
-    }
-}
-
-impl From<usize> for UnnamedItem {
-    fn from(index: usize) -> Self {
-        Self(index)
     }
 }
 

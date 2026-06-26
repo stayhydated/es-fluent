@@ -3,7 +3,10 @@
 use std::fmt;
 
 /// Source file path recorded in generated inventory metadata.
-#[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+#[derive(
+    Clone, Debug, derive_more::AsRef, derive_more::Display, Eq, Hash, Ord, PartialEq, PartialOrd,
+)]
+#[as_ref(str)]
 pub struct SourceFile(String);
 
 impl SourceFile {
@@ -20,18 +23,6 @@ impl SourceFile {
     /// Returns the source file path as a string slice.
     pub fn as_str(&self) -> &str {
         &self.0
-    }
-}
-
-impl AsRef<str> for SourceFile {
-    fn as_ref(&self) -> &str {
-        self.as_str()
-    }
-}
-
-impl fmt::Display for SourceFile {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str(self.as_str())
     }
 }
 

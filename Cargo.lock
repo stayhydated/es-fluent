@@ -5264,6 +5264,7 @@ dependencies = [
 name = "es-fluent-runner"
 version = "0.16.0"
 dependencies = [
+ "derive_more",
  "es-fluent-shared",
  "fs-err",
  "serde",

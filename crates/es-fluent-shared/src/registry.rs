@@ -8,11 +8,11 @@ use crate::meta::TypeKind;
 pub use crate::namespace::{NamespacePathError, NamespaceRule, ResolvedNamespace};
 use crate::source::{SourceFile, SourceLine, SourceLocation};
 use std::borrow::Borrow;
-use std::convert::AsRef;
 use std::path::Path;
 
 /// Static Fluent domain emitted by derive macros.
-#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+#[derive(Clone, Copy, Debug, derive_more::AsRef, derive_more::Display, Eq, Hash, PartialEq)]
+#[as_ref(str)]
 pub struct StaticFluentDomain(&'static str);
 
 impl StaticFluentDomain {
@@ -54,21 +54,9 @@ impl StaticFluentDomain {
     }
 }
 
-impl AsRef<str> for StaticFluentDomain {
-    fn as_ref(&self) -> &str {
-        self.0
-    }
-}
-
 impl Borrow<str> for StaticFluentDomain {
     fn borrow(&self) -> &str {
         self.0
-    }
-}
-
-impl std::fmt::Display for StaticFluentDomain {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_str(self.0)
     }
 }
 
@@ -79,7 +67,8 @@ impl PartialEq<&str> for StaticFluentDomain {
 }
 
 /// Static Fluent message identifier emitted by derive macros.
-#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+#[derive(Clone, Copy, Debug, derive_more::AsRef, derive_more::Display, Eq, Hash, PartialEq)]
+#[as_ref(str)]
 pub struct StaticFluentEntryId(&'static str);
 
 impl StaticFluentEntryId {
@@ -110,21 +99,9 @@ impl StaticFluentEntryId {
     }
 }
 
-impl AsRef<str> for StaticFluentEntryId {
-    fn as_ref(&self) -> &str {
-        self.0
-    }
-}
-
 impl Borrow<str> for StaticFluentEntryId {
     fn borrow(&self) -> &str {
         self.0
-    }
-}
-
-impl std::fmt::Display for StaticFluentEntryId {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_str(self.0)
     }
 }
 
@@ -135,7 +112,8 @@ impl PartialEq<&str> for StaticFluentEntryId {
 }
 
 /// Static Fluent argument name emitted by derive macros.
-#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+#[derive(Clone, Copy, Debug, derive_more::AsRef, derive_more::Display, Eq, Hash, PartialEq)]
+#[as_ref(str)]
 pub struct StaticFluentArgumentName(&'static str);
 
 impl StaticFluentArgumentName {
@@ -162,21 +140,9 @@ impl StaticFluentArgumentName {
     }
 }
 
-impl AsRef<str> for StaticFluentArgumentName {
-    fn as_ref(&self) -> &str {
-        self.0
-    }
-}
-
 impl Borrow<str> for StaticFluentArgumentName {
     fn borrow(&self) -> &str {
         self.0
-    }
-}
-
-impl std::fmt::Display for StaticFluentArgumentName {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_str(self.0)
     }
 }
 
@@ -187,7 +153,8 @@ impl PartialEq<&str> for StaticFluentArgumentName {
 }
 
 /// Static Fluent select variant key emitted by derive macros.
-#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+#[derive(Clone, Copy, Debug, derive_more::AsRef, derive_more::Display, Eq, Hash, PartialEq)]
+#[as_ref(str)]
 pub struct StaticFluentVariantKey(&'static str);
 
 impl StaticFluentVariantKey {
@@ -214,21 +181,9 @@ impl StaticFluentVariantKey {
     }
 }
 
-impl AsRef<str> for StaticFluentVariantKey {
-    fn as_ref(&self) -> &str {
-        self.0
-    }
-}
-
 impl Borrow<str> for StaticFluentVariantKey {
     fn borrow(&self) -> &str {
         self.0
-    }
-}
-
-impl std::fmt::Display for StaticFluentVariantKey {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_str(self.0)
     }
 }
 

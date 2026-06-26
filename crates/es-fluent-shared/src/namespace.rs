@@ -2,7 +2,6 @@
 use darling::FromMeta;
 use std::{
     borrow::Cow,
-    fmt,
     path::{Component, Path},
 };
 
@@ -50,7 +49,10 @@ impl NamespacePathError {
 }
 
 /// A namespace path that has been validated for locale-relative resource use.
-#[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+#[derive(
+    Clone, Debug, derive_more::AsRef, derive_more::Display, Eq, Hash, Ord, PartialEq, PartialOrd,
+)]
+#[as_ref(str)]
 pub struct ResolvedNamespace(Cow<'static, str>);
 
 impl ResolvedNamespace {
@@ -92,18 +94,6 @@ impl PartialEq<str> for ResolvedNamespace {
 impl PartialEq<ResolvedNamespace> for &str {
     fn eq(&self, other: &ResolvedNamespace) -> bool {
         *self == other.as_str()
-    }
-}
-
-impl AsRef<str> for ResolvedNamespace {
-    fn as_ref(&self) -> &str {
-        self.as_str()
-    }
-}
-
-impl fmt::Display for ResolvedNamespace {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str(self.as_str())
     }
 }
 

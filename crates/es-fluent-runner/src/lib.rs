@@ -34,7 +34,8 @@ pub struct InventoryData {
     pub expected_keys: Vec<ExpectedKey>,
 }
 
-#[derive(Clone, Debug, Eq, Hash, PartialEq)]
+#[derive(Clone, Debug, derive_more::AsRef, derive_more::Display, Eq, Hash, PartialEq)]
+#[as_ref(str)]
 pub struct PackageName(String);
 
 impl PackageName {
@@ -63,18 +64,6 @@ impl PackageName {
 
     pub fn rust_module_prefix(&self) -> RustModulePrefix {
         RustModulePrefix(self.0.replace('-', "_"))
-    }
-}
-
-impl AsRef<str> for PackageName {
-    fn as_ref(&self) -> &str {
-        self.as_str()
-    }
-}
-
-impl std::fmt::Display for PackageName {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_str(self.as_str())
     }
 }
 
@@ -109,24 +98,13 @@ impl<'de> serde::Deserialize<'de> for PackageName {
     }
 }
 
-#[derive(Clone, Debug, Eq, Hash, PartialEq)]
+#[derive(Clone, Debug, derive_more::AsRef, derive_more::Display, Eq, Hash, PartialEq)]
+#[as_ref(str)]
 pub struct RustModulePrefix(String);
 
 impl RustModulePrefix {
     pub fn as_str(&self) -> &str {
         &self.0
-    }
-}
-
-impl AsRef<str> for RustModulePrefix {
-    fn as_ref(&self) -> &str {
-        self.as_str()
-    }
-}
-
-impl std::fmt::Display for RustModulePrefix {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_str(self.as_str())
     }
 }
 

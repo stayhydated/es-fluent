@@ -1,7 +1,6 @@
 //! Shared Fluent identifier and domain newtypes.
 
 use std::borrow::Borrow;
-use std::fmt;
 
 /// Error returned when a Fluent identifier-like value is invalid.
 #[derive(Clone, Debug, Eq, thiserror::Error, PartialEq)]
@@ -32,7 +31,18 @@ impl FluentIdentifierError {
 
 macro_rules! fluent_string_type {
     ($name:ident, $label:literal) => {
-        #[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+        #[derive(
+            Clone,
+            Debug,
+            derive_more::AsRef,
+            derive_more::Display,
+            Eq,
+            Hash,
+            Ord,
+            PartialEq,
+            PartialOrd,
+        )]
+        #[as_ref(str)]
         pub struct $name(String);
 
         impl $name {
@@ -59,21 +69,9 @@ macro_rules! fluent_string_type {
             }
         }
 
-        impl AsRef<str> for $name {
-            fn as_ref(&self) -> &str {
-                self.as_str()
-            }
-        }
-
         impl Borrow<str> for $name {
             fn borrow(&self) -> &str {
                 self.as_str()
-            }
-        }
-
-        impl fmt::Display for $name {
-            fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-                f.write_str(self.as_str())
             }
         }
 
@@ -104,7 +102,10 @@ fluent_string_type!(FluentDomain, "Fluent domain");
 fluent_string_type!(FluentMessageId, "Fluent message id");
 
 /// A Fluent entry identifier, covering both message IDs and term IDs.
-#[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+#[derive(
+    Clone, Debug, derive_more::AsRef, derive_more::Display, Eq, Hash, Ord, PartialEq, PartialOrd,
+)]
+#[as_ref(str)]
 pub struct FluentEntryId(String);
 
 impl FluentEntryId {
@@ -134,21 +135,9 @@ impl FluentEntryId {
     }
 }
 
-impl AsRef<str> for FluentEntryId {
-    fn as_ref(&self) -> &str {
-        self.as_str()
-    }
-}
-
 impl Borrow<str> for FluentEntryId {
     fn borrow(&self) -> &str {
         self.as_str()
-    }
-}
-
-impl fmt::Display for FluentEntryId {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str(self.as_str())
     }
 }
 

@@ -1,8 +1,6 @@
 //! Shared resource planning types used by managers and generation tooling.
 
 use std::collections::{BTreeMap, BTreeSet, HashSet};
-use std::fmt;
-use std::ops::Deref;
 use std::path::{Path, PathBuf};
 
 use crate::CanonicalLanguageIdentifierError;
@@ -174,7 +172,10 @@ pub struct ResourceKeyError(#[from] NamespacePathError);
 /// Keys use the canonical shape:
 /// - `{domain}` for base files
 /// - `{domain}/{namespace}` for namespaced files
-#[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+#[derive(
+    Clone, Debug, derive_more::AsRef, derive_more::Display, Eq, Hash, Ord, PartialEq, PartialOrd,
+)]
+#[as_ref(str)]
 pub struct ResourceKey(String);
 
 impl ResourceKey {
@@ -233,18 +234,6 @@ impl ResourceKey {
     }
 }
 
-impl AsRef<str> for ResourceKey {
-    fn as_ref(&self) -> &str {
-        self.as_str()
-    }
-}
-
-impl fmt::Display for ResourceKey {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str(self.as_str())
-    }
-}
-
 impl serde::Serialize for ResourceKey {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
@@ -268,7 +257,20 @@ impl<'de> serde::Deserialize<'de> for ResourceKey {
 ///
 /// Paths use the canonical shape `{domain}.ftl` or
 /// `{domain}/{namespace}.ftl` and are relative to a locale root.
-#[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+#[derive(
+    Clone,
+    Debug,
+    derive_more::AsRef,
+    derive_more::Deref,
+    derive_more::Display,
+    Eq,
+    Hash,
+    Ord,
+    PartialEq,
+    PartialOrd,
+)]
+#[as_ref(str)]
+#[deref(forward)]
 pub struct LocaleRelativeFtlPath(String);
 
 impl LocaleRelativeFtlPath {
@@ -300,20 +302,6 @@ impl LocaleRelativeFtlPath {
     }
 }
 
-impl AsRef<str> for LocaleRelativeFtlPath {
-    fn as_ref(&self) -> &str {
-        self.as_str()
-    }
-}
-
-impl Deref for LocaleRelativeFtlPath {
-    type Target = str;
-
-    fn deref(&self) -> &Self::Target {
-        self.as_str()
-    }
-}
-
 impl PartialEq<&str> for LocaleRelativeFtlPath {
     fn eq(&self, other: &&str) -> bool {
         self.as_str() == *other
@@ -323,12 +311,6 @@ impl PartialEq<&str> for LocaleRelativeFtlPath {
 impl PartialEq<LocaleRelativeFtlPath> for &str {
     fn eq(&self, other: &LocaleRelativeFtlPath) -> bool {
         *self == other.as_str()
-    }
-}
-
-impl fmt::Display for LocaleRelativeFtlPath {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str(self.as_str())
     }
 }
 
