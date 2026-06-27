@@ -11,7 +11,7 @@ use std::borrow::Borrow;
 use std::path::Path;
 
 /// Static Fluent domain emitted by derive macros.
-#[derive(Clone, Copy, Debug, derive_more::AsRef, derive_more::Display, Eq, Hash, PartialEq)]
+#[derive(derive_more::AsRef, Clone, Copy, Debug, derive_more::Display, Eq, Hash, PartialEq)]
 #[as_ref(str)]
 pub struct StaticFluentDomain(&'static str);
 
@@ -67,7 +67,7 @@ impl PartialEq<&str> for StaticFluentDomain {
 }
 
 /// Static Fluent message identifier emitted by derive macros.
-#[derive(Clone, Copy, Debug, derive_more::AsRef, derive_more::Display, Eq, Hash, PartialEq)]
+#[derive(derive_more::AsRef, Clone, Copy, Debug, derive_more::Display, Eq, Hash, PartialEq)]
 #[as_ref(str)]
 pub struct StaticFluentEntryId(&'static str);
 
@@ -112,7 +112,7 @@ impl PartialEq<&str> for StaticFluentEntryId {
 }
 
 /// Static Fluent argument name emitted by derive macros.
-#[derive(Clone, Copy, Debug, derive_more::AsRef, derive_more::Display, Eq, Hash, PartialEq)]
+#[derive(derive_more::AsRef, Clone, Copy, Debug, derive_more::Display, Eq, Hash, PartialEq)]
 #[as_ref(str)]
 pub struct StaticFluentArgumentName(&'static str);
 
@@ -153,7 +153,7 @@ impl PartialEq<&str> for StaticFluentArgumentName {
 }
 
 /// Static Fluent select variant key emitted by derive macros.
-#[derive(Clone, Copy, Debug, derive_more::AsRef, derive_more::Display, Eq, Hash, PartialEq)]
+#[derive(derive_more::AsRef, Clone, Copy, Debug, derive_more::Display, Eq, Hash, PartialEq)]
 #[as_ref(str)]
 pub struct StaticFluentVariantKey(&'static str);
 

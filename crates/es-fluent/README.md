@@ -551,7 +551,16 @@ use es_fluent::FluentLabel;
 let _ = GenderLabelOnly::localize_label(&i18n);
 let _ = GenderLabelOnly::try_localize_label(&i18n);
 let _ = GenderLabelOnly::fluent_label_id();
+let _ = GenderLabelOnly::fallback_label();
+let _ = es_fluent::fallback_label::<GenderLabelOnly>();
 ```
+
+Use `fallback_label::<T>()` only when generated metadata, tests, or integration
+scaffolding cannot access a runtime localization context. It keeps the input
+typed through `FluentLabel`, then renders the generated label id as readable
+fallback text. UI code that has an `EmbeddedI18n`, `FluentManager`, or framework
+manager should continue to call `T::localize_label(&i18n)` so labels follow the
+active locale.
 
 `#[derive(EsFluentVariants)]` also gives each generated variant enum a label
 key inferred from the generated enum name.

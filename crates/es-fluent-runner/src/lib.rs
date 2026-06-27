@@ -34,7 +34,7 @@ pub struct InventoryData {
     pub expected_keys: Vec<ExpectedKey>,
 }
 
-#[derive(Clone, Debug, derive_more::AsRef, derive_more::Display, Eq, Hash, PartialEq)]
+#[derive(derive_more::AsRef, Clone, Debug, derive_more::Display, Eq, Hash, PartialEq)]
 #[as_ref(str)]
 pub struct PackageName(String);
 
@@ -98,7 +98,7 @@ impl<'de> serde::Deserialize<'de> for PackageName {
     }
 }
 
-#[derive(Clone, Debug, derive_more::AsRef, derive_more::Display, Eq, Hash, PartialEq)]
+#[derive(derive_more::AsRef, Clone, Debug, derive_more::Display, Eq, Hash, PartialEq)]
 #[as_ref(str)]
 pub struct RustModulePrefix(String);
 

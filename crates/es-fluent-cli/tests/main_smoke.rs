@@ -551,7 +551,7 @@ fn binary_fmt_json_invalid_path_includes_requested_path() {
 
 #[test]
 fn binary_fmt_path_inside_workspace_member_scopes_to_that_member() {
-    let temp = assert_fs::TempDir::new().expect("tempdir");
+    let temp = fixtures::tempdir();
     std::fs::write(
         temp.path().join("Cargo.toml"),
         "[workspace]\nmembers = [\"a\", \"b\"]\nresolver = \"2\"\n",
@@ -617,7 +617,7 @@ fn binary_fmt_path_inside_workspace_member_scopes_to_that_member() {
 
     #[cfg(unix)]
     {
-        let outside = assert_fs::TempDir::new().expect("outside tempdir");
+        let outside = fixtures::tempdir();
         let symlinked_member_path = temp.path().join("a/src/external");
         std::os::unix::fs::symlink(outside.path(), &symlinked_member_path)
             .expect("create symlink inside member");
@@ -756,7 +756,7 @@ fn binary_fmt_path_inside_workspace_member_scopes_to_that_member() {
 }
 
 fn create_workspace_with_invalid_i18n_sibling() -> assert_fs::TempDir {
-    let temp = assert_fs::TempDir::new().expect("workspace tempdir");
+    let temp = fixtures::tempdir();
     std::fs::write(
         temp.path().join("Cargo.toml"),
         "[workspace]\nmembers = [\"a\", \"b\"]\nresolver = \"2\"\n",
@@ -822,7 +822,7 @@ fn binary_member_path_ignores_invalid_i18n_toml_in_unselected_sibling() {
 }
 
 fn create_workspace_with_shared_locale_root() -> assert_fs::TempDir {
-    let temp = assert_fs::TempDir::new().expect("workspace tempdir");
+    let temp = fixtures::tempdir();
     std::fs::write(
         temp.path().join("Cargo.toml"),
         "[workspace]\nmembers = [\"a\", \"b\"]\nresolver = \"2\"\n",
@@ -896,7 +896,7 @@ fn binary_clean_orphaned_package_filter_preserves_unselected_sibling_files() {
 
 #[test]
 fn binary_generate_package_filter_does_not_link_unselected_crates() {
-    let temp = assert_fs::TempDir::new().expect("workspace tempdir");
+    let temp = fixtures::tempdir();
     std::fs::write(
         temp.path().join("Cargo.toml"),
         "[workspace]\nmembers = [\"a\", \"b\"]\nresolver = \"2\"\n",
@@ -946,7 +946,7 @@ fn binary_generate_package_filter_does_not_link_unselected_crates() {
 
 #[test]
 fn binary_status_package_filter_does_not_link_unselected_crates() {
-    let temp = assert_fs::TempDir::new().expect("workspace tempdir");
+    let temp = fixtures::tempdir();
     std::fs::write(
         temp.path().join("Cargo.toml"),
         "[workspace]\nmembers = [\"a\", \"b\"]\nresolver = \"2\"\n",
@@ -1004,7 +1004,7 @@ fn binary_status_package_filter_does_not_link_unselected_crates() {
 
 #[test]
 fn binary_status_all_json_counts_same_sync_locale_in_multiple_workspace_crates() {
-    let temp = assert_fs::TempDir::new().expect("workspace tempdir");
+    let temp = fixtures::tempdir();
     std::fs::write(
         temp.path().join("Cargo.toml"),
         "[workspace]\nmembers = [\"a\", \"b\"]\nresolver = \"2\"\n",
@@ -1102,7 +1102,7 @@ fn binary_fmt_dry_run_json_reports_preview_mode_without_writing() {
 
 #[test]
 fn binary_fmt_reports_binary_only_crate_as_notice_without_skipping() {
-    let temp = assert_fs::TempDir::new().expect("tempdir");
+    let temp = fixtures::tempdir();
     std::fs::create_dir_all(temp.path().join("src")).expect("create src");
     std::fs::create_dir_all(temp.path().join("i18n/en")).expect("create i18n");
     std::fs::write(
@@ -1143,7 +1143,7 @@ fn binary_fmt_reports_binary_only_crate_as_notice_without_skipping() {
 
 #[test]
 fn binary_fmt_all_json_reports_noncanonical_locale_directory() {
-    let temp = assert_fs::TempDir::new().expect("tempdir");
+    let temp = fixtures::tempdir();
     std::fs::create_dir_all(temp.path().join("src")).expect("create src");
     std::fs::create_dir_all(temp.path().join("i18n/en")).expect("create fallback locale");
     std::fs::create_dir_all(temp.path().join("i18n/en-us")).expect("create bad locale");
@@ -1244,7 +1244,7 @@ fn binary_generate_rejects_assets_dir_path_as_file() {
 #[test]
 fn binary_generate_rejects_symlinked_runner_metadata_dir_without_writing_target() {
     let temp = fixtures::create_workspace();
-    let outside = assert_fs::TempDir::new().expect("outside tempdir");
+    let outside = fixtures::tempdir();
     std::os::unix::fs::symlink(outside.path(), temp.path().join(".es-fluent"))
         .expect("create .es-fluent symlink");
 
@@ -1303,8 +1303,8 @@ fn binary_generate_rejects_fallback_ftl_path_as_directory_before_runner() {
 
 #[cfg(unix)]
 fn create_symlinked_custom_library_workspace() -> (assert_fs::TempDir, assert_fs::TempDir) {
-    let temp = assert_fs::TempDir::new().expect("workspace tempdir");
-    let outside = assert_fs::TempDir::new().expect("outside tempdir");
+    let temp = fixtures::tempdir();
+    let outside = fixtures::tempdir();
     std::fs::create_dir_all(temp.path().join("i18n/en")).expect("create fallback locale");
     std::fs::create_dir_all(outside.path().join("libsrc")).expect("create outside lib src");
     std::fs::write(
@@ -1363,8 +1363,8 @@ fn binary_generate_rejects_symlinked_custom_library_parent_path_before_runner() 
 #[cfg(unix)]
 #[test]
 fn binary_generate_rejects_symlinked_i18n_module_before_runner() {
-    let temp = assert_fs::TempDir::new().expect("workspace tempdir");
-    let outside = assert_fs::TempDir::new().expect("outside tempdir");
+    let temp = fixtures::tempdir();
+    let outside = fixtures::tempdir();
     std::fs::create_dir_all(temp.path().join("src")).expect("create src");
     std::fs::create_dir_all(temp.path().join("i18n/en")).expect("create fallback locale");
     std::fs::write(
@@ -1420,7 +1420,7 @@ fn binary_generate_rejects_symlinked_i18n_module_before_runner() {
 
 #[test]
 fn binary_status_json_reports_locale_named_asset_path_without_all() {
-    let temp = assert_fs::TempDir::new().expect("workspace tempdir");
+    let temp = fixtures::tempdir();
     std::fs::create_dir_all(temp.path().join("src")).expect("create src");
     std::fs::create_dir_all(temp.path().join("i18n/en")).expect("create fallback locale");
     std::fs::write(
@@ -1475,7 +1475,7 @@ fn binary_status_json_reports_locale_named_asset_path_without_all() {
 
 #[test]
 fn binary_status_json_reports_locale_named_asset_path_as_setup_error() {
-    let temp = assert_fs::TempDir::new().expect("workspace tempdir");
+    let temp = fixtures::tempdir();
     std::fs::create_dir_all(temp.path().join("src")).expect("create src");
     std::fs::create_dir_all(temp.path().join("i18n/en")).expect("create fallback locale");
     std::fs::write(
@@ -1610,7 +1610,7 @@ fn binary_status_json_reports_symlinked_library_target_path_as_setup_error() {
 
 #[test]
 fn binary_status_json_reports_undeclared_i18n_module_as_setup_error() {
-    let temp = assert_fs::TempDir::new().expect("workspace tempdir");
+    let temp = fixtures::tempdir();
     std::fs::create_dir_all(temp.path().join("src")).expect("create src");
     std::fs::create_dir_all(temp.path().join("i18n/en")).expect("create fallback locale");
     std::fs::write(
@@ -1669,8 +1669,8 @@ fn binary_status_json_reports_undeclared_i18n_module_as_setup_error() {
 #[cfg(unix)]
 #[test]
 fn binary_status_json_reports_symlinked_i18n_module_as_setup_error() {
-    let temp = assert_fs::TempDir::new().expect("workspace tempdir");
-    let outside = assert_fs::TempDir::new().expect("outside tempdir");
+    let temp = fixtures::tempdir();
+    let outside = fixtures::tempdir();
     std::fs::create_dir_all(temp.path().join("src")).expect("create src");
     std::fs::create_dir_all(temp.path().join("i18n/en")).expect("create fallback locale");
     std::fs::write(
@@ -1734,7 +1734,7 @@ fn binary_status_json_reports_symlinked_i18n_module_as_setup_error() {
 
 #[test]
 fn binary_status_json_reports_missing_fallback_locale_as_setup_error() {
-    let temp = assert_fs::TempDir::new().expect("workspace tempdir");
+    let temp = fixtures::tempdir();
     std::fs::create_dir_all(temp.path().join("src")).expect("create src");
     std::fs::create_dir_all(temp.path().join("i18n")).expect("create assets dir");
     std::fs::write(
@@ -1784,7 +1784,7 @@ fn binary_status_json_reports_missing_fallback_locale_as_setup_error() {
 
 #[test]
 fn binary_status_json_reports_ftl_path_directory_as_setup_error() {
-    let temp = assert_fs::TempDir::new().expect("workspace tempdir");
+    let temp = fixtures::tempdir();
     std::fs::create_dir_all(temp.path().join("src")).expect("create src");
     std::fs::create_dir_all(temp.path().join("i18n/en/test-app.ftl"))
         .expect("create ftl directory");
@@ -1839,7 +1839,7 @@ fn binary_status_json_reports_ftl_path_directory_as_setup_error() {
 
 #[test]
 fn binary_status_json_reports_binary_only_crate_as_setup_error() {
-    let temp = assert_fs::TempDir::new().expect("workspace tempdir");
+    let temp = fixtures::tempdir();
     std::fs::create_dir_all(temp.path().join("src")).expect("create src");
     std::fs::create_dir_all(temp.path().join("i18n/en")).expect("create fallback locale");
     std::fs::write(
@@ -1896,7 +1896,7 @@ fn binary_status_json_reports_binary_only_crate_as_setup_error() {
 
 #[test]
 fn binary_status_json_reports_invalid_i18n_config_as_setup_error() {
-    let temp = assert_fs::TempDir::new().expect("workspace tempdir");
+    let temp = fixtures::tempdir();
     let outside_name = format!(
         "{}-status-outside-assets",
         temp.path()
@@ -1956,7 +1956,7 @@ fn binary_status_json_reports_invalid_i18n_config_as_setup_error() {
 
 #[test]
 fn binary_json_read_commands_report_invalid_i18n_config_as_json() {
-    let temp = assert_fs::TempDir::new().expect("workspace tempdir");
+    let temp = fixtures::tempdir();
     let outside_name = format!(
         "{}-read-json-outside-assets",
         temp.path()
@@ -2044,7 +2044,7 @@ fn binary_json_read_commands_report_invalid_i18n_config_as_json() {
 
 #[test]
 fn binary_status_all_json_reports_noncanonical_locale_directory_as_setup_error() {
-    let temp = assert_fs::TempDir::new().expect("workspace tempdir");
+    let temp = fixtures::tempdir();
     std::fs::create_dir_all(temp.path().join("src")).expect("create src");
     std::fs::create_dir_all(temp.path().join("i18n/en")).expect("create fallback locale");
     std::fs::create_dir_all(temp.path().join("i18n/en-us")).expect("create bad locale");
@@ -2098,7 +2098,7 @@ fn binary_status_all_json_reports_noncanonical_locale_directory_as_setup_error()
 
 #[test]
 fn binary_status_all_json_reports_orphans_outside_validation_errors() {
-    let temp = assert_fs::TempDir::new().expect("workspace tempdir");
+    let temp = fixtures::tempdir();
     std::fs::create_dir_all(temp.path().join("src")).expect("create src");
     std::fs::create_dir_all(temp.path().join("i18n/en")).expect("create fallback locale");
     std::fs::create_dir_all(temp.path().join("i18n/fr")).expect("create target locale");
@@ -2147,7 +2147,7 @@ fn binary_status_all_json_reports_orphans_outside_validation_errors() {
 
 #[test]
 fn binary_check_json_reports_locale_named_asset_path_without_all() {
-    let temp = assert_fs::TempDir::new().expect("workspace tempdir");
+    let temp = fixtures::tempdir();
     std::fs::create_dir_all(temp.path().join("src")).expect("create src");
     std::fs::create_dir_all(temp.path().join("i18n/en")).expect("create fallback locale");
     std::fs::write(
@@ -2194,7 +2194,7 @@ fn binary_check_json_reports_locale_named_asset_path_without_all() {
 
 #[test]
 fn binary_check_all_json_reports_locale_named_asset_path_as_error() {
-    let temp = assert_fs::TempDir::new().expect("workspace tempdir");
+    let temp = fixtures::tempdir();
     std::fs::create_dir_all(temp.path().join("src")).expect("create src");
     std::fs::create_dir_all(temp.path().join("i18n/en")).expect("create fallback locale");
     std::fs::write(
@@ -2315,7 +2315,7 @@ fn binary_check_json_reports_symlinked_library_target_path_as_setup_issue() {
 
 #[test]
 fn binary_check_json_reports_undeclared_i18n_module_as_setup_issue() {
-    let temp = assert_fs::TempDir::new().expect("workspace tempdir");
+    let temp = fixtures::tempdir();
     std::fs::create_dir_all(temp.path().join("src")).expect("create src");
     std::fs::create_dir_all(temp.path().join("i18n/en")).expect("create fallback locale");
     std::fs::write(
@@ -2376,8 +2376,8 @@ fn binary_check_json_reports_undeclared_i18n_module_as_setup_issue() {
 #[cfg(unix)]
 #[test]
 fn binary_check_json_reports_symlinked_i18n_module_as_setup_issue() {
-    let temp = assert_fs::TempDir::new().expect("workspace tempdir");
-    let outside = assert_fs::TempDir::new().expect("outside tempdir");
+    let temp = fixtures::tempdir();
+    let outside = fixtures::tempdir();
     std::fs::create_dir_all(temp.path().join("src")).expect("create src");
     std::fs::create_dir_all(temp.path().join("i18n/en")).expect("create fallback locale");
     std::fs::write(
@@ -2443,7 +2443,7 @@ fn binary_check_json_reports_symlinked_i18n_module_as_setup_issue() {
 
 #[test]
 fn binary_check_json_reports_setup_error_before_uncompilable_rust() {
-    let temp = assert_fs::TempDir::new().expect("workspace tempdir");
+    let temp = fixtures::tempdir();
     std::fs::create_dir_all(temp.path().join("src")).expect("create src");
     std::fs::write(
         temp.path().join("Cargo.toml"),
@@ -2494,7 +2494,7 @@ fn binary_check_json_reports_setup_error_before_uncompilable_rust() {
 
 #[test]
 fn binary_check_json_reports_ftl_path_directory_before_runner() {
-    let temp = assert_fs::TempDir::new().expect("workspace tempdir");
+    let temp = fixtures::tempdir();
     std::fs::create_dir_all(temp.path().join("src")).expect("create src");
     std::fs::create_dir_all(temp.path().join("i18n/en/bad-check-ftl.ftl"))
         .expect("create ftl directory");
@@ -2550,7 +2550,7 @@ fn binary_check_json_reports_ftl_path_directory_before_runner() {
 
 #[test]
 fn binary_check_all_json_reports_noncanonical_locale_dir_before_uncompilable_rust() {
-    let temp = assert_fs::TempDir::new().expect("workspace tempdir");
+    let temp = fixtures::tempdir();
     std::fs::create_dir_all(temp.path().join("src")).expect("create src");
     std::fs::create_dir_all(temp.path().join("i18n/en")).expect("create fallback locale");
     std::fs::create_dir_all(temp.path().join("i18n/en-us")).expect("create bad locale");
@@ -2621,7 +2621,7 @@ fn binary_check_all_json_reports_noncanonical_locale_dir_before_uncompilable_rus
 
 #[test]
 fn binary_check_json_reports_valid_crate_orphans_with_other_setup_errors() {
-    let temp = assert_fs::TempDir::new().expect("workspace tempdir");
+    let temp = fixtures::tempdir();
     std::fs::write(
         temp.path().join("Cargo.toml"),
         "[workspace]\nmembers = [\"a\", \"b\"]\nresolver = \"2\"\n",
@@ -2749,7 +2749,7 @@ fn binary_check_json_reports_missing_fallback_locale_as_json() {
 #[test]
 fn binary_check_json_reports_symlinked_fallback_locale_as_json() {
     let temp = fixtures::create_workspace();
-    let outside = assert_fs::TempDir::new().expect("outside tempdir");
+    let outside = fixtures::tempdir();
     std::fs::remove_dir_all(temp.path().join("i18n/en")).expect("remove fallback locale");
     std::fs::create_dir_all(outside.path().join("en")).expect("create outside locale");
     std::os::unix::fs::symlink(outside.path().join("en"), temp.path().join("i18n/en"))
@@ -2783,7 +2783,7 @@ fn binary_check_json_reports_symlinked_fallback_locale_as_json() {
 
 #[test]
 fn binary_fmt_rejects_configured_assets_dir_outside_crate() {
-    let temp = assert_fs::TempDir::new().expect("workspace tempdir");
+    let temp = fixtures::tempdir();
     let outside_name = format!(
         "{}-configured-outside-assets",
         temp.path()
@@ -2857,8 +2857,8 @@ fn binary_fmt_rejects_configured_assets_dir_outside_crate() {
 #[cfg(unix)]
 #[test]
 fn binary_fmt_rejects_symlinked_assets_dir_outside_crate() {
-    let temp = assert_fs::TempDir::new().expect("workspace tempdir");
-    let outside = assert_fs::TempDir::new().expect("outside tempdir");
+    let temp = fixtures::tempdir();
+    let outside = fixtures::tempdir();
     std::fs::create_dir_all(temp.path().join("src")).expect("create src");
     std::fs::create_dir_all(outside.path().join("en")).expect("create outside fallback");
     std::fs::write(
@@ -2910,7 +2910,7 @@ fn binary_fmt_rejects_symlinked_assets_dir_outside_crate() {
 #[cfg(unix)]
 #[test]
 fn binary_fmt_rejects_symlinked_assets_dir_inside_crate_without_formatting_target() {
-    let temp = assert_fs::TempDir::new().expect("workspace tempdir");
+    let temp = fixtures::tempdir();
     std::fs::create_dir_all(temp.path().join("src")).expect("create src");
     std::fs::create_dir_all(temp.path().join("real-i18n/en")).expect("create real fallback");
     std::fs::write(
@@ -2958,8 +2958,8 @@ fn binary_fmt_rejects_symlinked_assets_dir_inside_crate_without_formatting_targe
 #[cfg(unix)]
 #[test]
 fn binary_fmt_rejects_symlinked_fallback_locale_without_formatting_external_file() {
-    let temp = assert_fs::TempDir::new().expect("workspace tempdir");
-    let outside = assert_fs::TempDir::new().expect("outside tempdir");
+    let temp = fixtures::tempdir();
+    let outside = fixtures::tempdir();
     std::fs::create_dir_all(temp.path().join("src")).expect("create src");
     std::fs::create_dir_all(temp.path().join("i18n")).expect("create assets dir");
     std::fs::create_dir_all(outside.path().join("en")).expect("create outside fallback");
@@ -3009,7 +3009,7 @@ fn binary_fmt_rejects_symlinked_fallback_locale_without_formatting_external_file
 
 #[test]
 fn binary_fmt_json_rejects_fallback_locale_path_as_file() {
-    let temp = assert_fs::TempDir::new().expect("workspace tempdir");
+    let temp = fixtures::tempdir();
     std::fs::create_dir_all(temp.path().join("src")).expect("create src");
     std::fs::create_dir_all(temp.path().join("i18n")).expect("create assets dir");
     std::fs::write(
@@ -3068,7 +3068,7 @@ fn binary_fmt_json_rejects_fallback_locale_path_as_file() {
 
 #[test]
 fn binary_fmt_json_reports_file_parse_errors_in_top_level_errors() {
-    let temp = assert_fs::TempDir::new().expect("workspace tempdir");
+    let temp = fixtures::tempdir();
     std::fs::create_dir_all(temp.path().join("src")).expect("create src");
     std::fs::create_dir_all(temp.path().join("i18n/en")).expect("create fallback locale");
     std::fs::write(
@@ -3125,7 +3125,7 @@ fn binary_fmt_json_reports_file_parse_errors_in_top_level_errors() {
 
 #[test]
 fn binary_fmt_json_rejects_ftl_path_as_directory() {
-    let temp = assert_fs::TempDir::new().expect("workspace tempdir");
+    let temp = fixtures::tempdir();
     std::fs::create_dir_all(temp.path().join("src")).expect("create src");
     std::fs::create_dir_all(temp.path().join("i18n/en/test-app.ftl"))
         .expect("create ftl directory");
@@ -3251,7 +3251,7 @@ fn binary_fmt_all_json_rejects_locale_named_asset_path_as_file() {
 
 #[test]
 fn binary_fmt_json_keeps_successful_files_with_mixed_workspace_errors() {
-    let temp = assert_fs::TempDir::new().expect("workspace tempdir");
+    let temp = fixtures::tempdir();
     std::fs::write(
         temp.path().join("Cargo.toml"),
         "[workspace]\nmembers = [\"a\", \"b\"]\nresolver = \"2\"\n",
@@ -3482,7 +3482,7 @@ fn binary_sync_dry_run_json_reports_preview_mode_without_writing() {
 
 #[test]
 fn binary_sync_and_add_locale_support_binary_only_file_workflows_without_runner() {
-    let temp = assert_fs::TempDir::new().expect("workspace tempdir");
+    let temp = fixtures::tempdir();
     std::fs::create_dir_all(temp.path().join("src")).expect("create src");
     std::fs::create_dir_all(temp.path().join("i18n/en")).expect("create fallback locale");
     std::fs::create_dir_all(temp.path().join("i18n/fr")).expect("create target locale");
@@ -3582,7 +3582,7 @@ fn binary_sync_and_add_locale_support_binary_only_file_workflows_without_runner(
 
 #[test]
 fn binary_tree_json_rejects_fallback_locale_path_as_file() {
-    let temp = assert_fs::TempDir::new().expect("workspace tempdir");
+    let temp = fixtures::tempdir();
     std::fs::create_dir_all(temp.path().join("src")).expect("create src");
     std::fs::create_dir_all(temp.path().join("i18n")).expect("create assets dir");
     std::fs::write(
@@ -3627,7 +3627,7 @@ fn binary_tree_json_rejects_fallback_locale_path_as_file() {
 
 #[test]
 fn binary_tree_all_json_rejects_missing_fallback_locale_directory() {
-    let temp = assert_fs::TempDir::new().expect("workspace tempdir");
+    let temp = fixtures::tempdir();
     std::fs::create_dir_all(temp.path().join("src")).expect("create src");
     std::fs::create_dir_all(temp.path().join("i18n/fr")).expect("create non-fallback locale");
     std::fs::write(
@@ -3678,7 +3678,7 @@ fn binary_tree_all_json_rejects_missing_fallback_locale_directory() {
 
 #[test]
 fn binary_tree_json_rejects_ftl_path_as_directory() {
-    let temp = assert_fs::TempDir::new().expect("workspace tempdir");
+    let temp = fixtures::tempdir();
     std::fs::create_dir_all(temp.path().join("src")).expect("create src");
     std::fs::create_dir_all(temp.path().join("i18n/en/test-app.ftl"))
         .expect("create ftl directory");
@@ -3723,7 +3723,7 @@ fn binary_tree_json_rejects_ftl_path_as_directory() {
 
 #[test]
 fn binary_tree_text_rust_links_rejects_ftl_path_directory_before_runner() {
-    let temp = assert_fs::TempDir::new().expect("workspace tempdir");
+    let temp = fixtures::tempdir();
     std::fs::create_dir_all(temp.path().join("src")).expect("create src");
     std::fs::create_dir_all(temp.path().join("i18n/en/test-app.ftl"))
         .expect("create ftl directory");
@@ -3801,8 +3801,8 @@ fn binary_tree_text_rust_links_rejects_symlinked_library_target_before_runner() 
 #[cfg(unix)]
 #[test]
 fn binary_tree_text_rust_links_rejects_symlinked_i18n_module_before_runner() {
-    let temp = assert_fs::TempDir::new().expect("workspace tempdir");
-    let outside = assert_fs::TempDir::new().expect("outside tempdir");
+    let temp = fixtures::tempdir();
+    let outside = fixtures::tempdir();
     std::fs::create_dir_all(temp.path().join("src")).expect("create src");
     std::fs::create_dir_all(temp.path().join("i18n/en")).expect("create fallback locale");
     std::fs::write(
@@ -3933,7 +3933,7 @@ fn binary_tree_json_rejects_symlinked_assets_dir() {
 #[test]
 fn binary_tree_json_rejects_symlinked_fallback_locale_dir() {
     let temp = fixtures::create_workspace();
-    let outside = assert_fs::TempDir::new().expect("outside tempdir");
+    let outside = fixtures::tempdir();
     std::fs::remove_dir_all(temp.path().join("i18n/en")).expect("remove fallback locale");
     std::fs::create_dir_all(outside.path().join("en")).expect("create outside locale");
     std::fs::write(outside.path().join("en/test-app.ftl"), "hello = Hello\n")
@@ -4113,7 +4113,7 @@ fn binary_tree_json_reports_ftl_parse_errors_without_failing() {
 
 #[test]
 fn binary_tree_json_is_file_only_even_with_rust_link_mode() {
-    let temp = assert_fs::TempDir::new().expect("workspace tempdir");
+    let temp = fixtures::tempdir();
     std::fs::create_dir_all(temp.path().join("src")).expect("create src");
     std::fs::create_dir_all(temp.path().join("i18n/en")).expect("create i18n");
     std::fs::write(
@@ -4199,7 +4199,7 @@ fn binary_tree_json_rejects_invalid_link_mode_before_workspace_discovery() {
 
 #[test]
 fn binary_tree_text_shows_empty_locale_directories() {
-    let temp = assert_fs::TempDir::new().expect("workspace tempdir");
+    let temp = fixtures::tempdir();
     std::fs::create_dir_all(temp.path().join("src")).expect("create src");
     std::fs::create_dir_all(temp.path().join("i18n/en")).expect("create fallback locale");
     std::fs::write(
@@ -4230,7 +4230,7 @@ fn binary_tree_text_shows_empty_locale_directories() {
 
 #[test]
 fn binary_tree_text_rust_mode_inspects_binary_only_crate_without_runner() {
-    let temp = assert_fs::TempDir::new().expect("workspace tempdir");
+    let temp = fixtures::tempdir();
     std::fs::create_dir_all(temp.path().join("src")).expect("create src");
     std::fs::create_dir_all(temp.path().join("i18n/en")).expect("create fallback locale");
     std::fs::write(
@@ -4417,7 +4417,7 @@ fn binary_sync_text_rejects_missing_target_selection_without_stdout() {
 
 #[test]
 fn binary_sync_create_rejects_target_locale_path_as_file() {
-    let temp = assert_fs::TempDir::new().expect("workspace tempdir");
+    let temp = fixtures::tempdir();
     std::fs::create_dir_all(temp.path().join("src")).expect("create src");
     std::fs::create_dir_all(temp.path().join("i18n/en")).expect("create fallback locale");
     std::fs::write(
@@ -4474,7 +4474,7 @@ fn binary_sync_create_rejects_target_locale_path_as_file() {
 
 #[test]
 fn binary_sync_rejects_target_locale_path_as_file_without_create() {
-    let temp = assert_fs::TempDir::new().expect("workspace tempdir");
+    let temp = fixtures::tempdir();
     std::fs::create_dir_all(temp.path().join("src")).expect("create src");
     std::fs::create_dir_all(temp.path().join("i18n/en")).expect("create fallback locale");
     std::fs::write(
@@ -4532,8 +4532,8 @@ fn binary_sync_rejects_target_locale_path_as_file_without_create() {
 #[cfg(unix)]
 #[test]
 fn binary_sync_rejects_symlinked_target_locale_without_fallback_files() {
-    let temp = assert_fs::TempDir::new().expect("workspace tempdir");
-    let outside = assert_fs::TempDir::new().expect("outside tempdir");
+    let temp = fixtures::tempdir();
+    let outside = fixtures::tempdir();
     std::fs::create_dir_all(temp.path().join("src")).expect("create src");
     std::fs::create_dir_all(temp.path().join("i18n/en")).expect("create fallback locale");
     std::fs::create_dir_all(outside.path().join("fr")).expect("create outside locale");
@@ -4595,7 +4595,7 @@ fn binary_sync_rejects_symlinked_target_locale_without_fallback_files() {
 
 #[test]
 fn binary_add_locale_ignores_unrelated_noncanonical_locale_dir() {
-    let temp = assert_fs::TempDir::new().expect("workspace tempdir");
+    let temp = fixtures::tempdir();
     std::fs::create_dir_all(temp.path().join("src")).expect("create src");
     std::fs::create_dir_all(temp.path().join("i18n/en")).expect("create fallback locale");
     std::fs::create_dir_all(temp.path().join("i18n/en-us"))
@@ -4638,7 +4638,7 @@ fn binary_add_locale_ignores_unrelated_noncanonical_locale_dir() {
 
 #[test]
 fn binary_add_locale_rejects_root_assets_locales_hidden_by_project_dir_ignores() {
-    let temp = assert_fs::TempDir::new().expect("workspace tempdir");
+    let temp = fixtures::tempdir();
     std::fs::create_dir_all(temp.path().join("src")).expect("create src");
     std::fs::create_dir_all(temp.path().join("en")).expect("create fallback locale");
     std::fs::write(
@@ -4676,7 +4676,7 @@ fn binary_add_locale_rejects_root_assets_locales_hidden_by_project_dir_ignores()
 
 #[test]
 fn binary_clean_orphaned_rejects_missing_fallback_locale_directory() {
-    let temp = assert_fs::TempDir::new().expect("workspace tempdir");
+    let temp = fixtures::tempdir();
     std::fs::create_dir_all(temp.path().join("src")).expect("create src");
     std::fs::create_dir_all(temp.path().join("i18n/fr")).expect("create fr locale");
     std::fs::write(
@@ -4725,7 +4725,7 @@ fn binary_clean_orphaned_rejects_missing_fallback_locale_directory() {
 
 #[test]
 fn binary_clean_orphaned_rejects_fallback_locale_path_as_file() {
-    let temp = assert_fs::TempDir::new().expect("workspace tempdir");
+    let temp = fixtures::tempdir();
     std::fs::create_dir_all(temp.path().join("src")).expect("create src");
     std::fs::create_dir_all(temp.path().join("i18n/fr")).expect("create fr locale");
     std::fs::write(
@@ -4774,8 +4774,8 @@ fn binary_clean_orphaned_rejects_fallback_locale_path_as_file() {
 #[cfg(unix)]
 #[test]
 fn binary_clean_orphaned_rejects_symlinked_fallback_locale_directory() {
-    let temp = assert_fs::TempDir::new().expect("workspace tempdir");
-    let outside = assert_fs::TempDir::new().expect("outside tempdir");
+    let temp = fixtures::tempdir();
+    let outside = fixtures::tempdir();
     std::fs::create_dir_all(temp.path().join("src")).expect("create src");
     std::fs::create_dir_all(temp.path().join("i18n/fr")).expect("create fr locale");
     std::fs::create_dir_all(outside.path().join("en")).expect("create outside fallback");
@@ -4826,7 +4826,7 @@ fn binary_clean_orphaned_rejects_symlinked_fallback_locale_directory() {
 
 #[test]
 fn binary_clean_orphaned_rejects_ftl_path_directory_before_runner() {
-    let temp = assert_fs::TempDir::new().expect("workspace tempdir");
+    let temp = fixtures::tempdir();
     std::fs::create_dir_all(temp.path().join("src")).expect("create src");
     std::fs::create_dir_all(temp.path().join("i18n/en/test-app.ftl"))
         .expect("create ftl directory");
@@ -4875,8 +4875,8 @@ fn binary_clean_orphaned_rejects_ftl_path_directory_before_runner() {
 #[cfg(unix)]
 #[test]
 fn binary_clean_orphaned_rejects_symlinked_namespace_without_removing_external_file() {
-    let temp = assert_fs::TempDir::new().expect("workspace tempdir");
-    let outside = assert_fs::TempDir::new().expect("outside tempdir");
+    let temp = fixtures::tempdir();
+    let outside = fixtures::tempdir();
     std::fs::create_dir_all(temp.path().join("src")).expect("create src");
     std::fs::create_dir_all(temp.path().join("i18n/en")).expect("create en locale");
     std::fs::create_dir_all(temp.path().join("i18n/fr")).expect("create fr locale");
@@ -4947,14 +4947,15 @@ fn binary_clean_orphaned_rejects_locale_named_asset_path_as_file() {
         .failure()
         .stderr(predicate::str::contains("locale path"))
         .stderr(predicate::str::contains("fr for test-app"))
-        .stderr(predicate::str::contains("refusing to scan orphaned files"));
+        .stderr(predicate::str::contains("refusing to scan"))
+        .stderr(predicate::str::contains("orphaned files"));
 
     assert!(temp.path().join("i18n/fr").is_file());
 }
 
 #[test]
 fn binary_clean_orphaned_binary_only_does_not_prepare_runner() {
-    let temp = assert_fs::TempDir::new().expect("workspace tempdir");
+    let temp = fixtures::tempdir();
     std::fs::create_dir_all(temp.path().join("src")).expect("create src");
     std::fs::create_dir_all(temp.path().join("i18n/en")).expect("create en locale");
     std::fs::create_dir_all(temp.path().join("i18n/fr")).expect("create fr locale");
@@ -5002,7 +5003,7 @@ fn binary_clean_orphaned_binary_only_does_not_prepare_runner() {
 
 #[test]
 fn binary_clean_orphaned_all_binary_only_fails_before_file_cleanup() {
-    let temp = assert_fs::TempDir::new().expect("workspace tempdir");
+    let temp = fixtures::tempdir();
     std::fs::create_dir_all(temp.path().join("src")).expect("create src");
     std::fs::create_dir_all(temp.path().join("i18n/en")).expect("create en locale");
     std::fs::create_dir_all(temp.path().join("i18n/fr")).expect("create fr locale");
@@ -5146,7 +5147,7 @@ fn binary_clean_uses_clean_header() {
 
 #[test]
 fn binary_clean_package_filter_does_not_link_unselected_crates() {
-    let temp = assert_fs::TempDir::new().expect("workspace tempdir");
+    let temp = fixtures::tempdir();
     std::fs::write(
         temp.path().join("Cargo.toml"),
         "[workspace]\nmembers = [\"a\", \"b\"]\nresolver = \"2\"\n",
@@ -5267,7 +5268,7 @@ fn binary_clean_orphaned_rejects_assets_dir_path_as_file_before_runner() {
 
 #[test]
 fn binary_sync_requires_locale_in_every_selected_crate() {
-    let temp = assert_fs::TempDir::new().expect("workspace tempdir");
+    let temp = fixtures::tempdir();
     std::fs::create_dir_all(temp.path().join("a/src")).expect("create a src");
     std::fs::create_dir_all(temp.path().join("a/i18n/en")).expect("create a en");
     std::fs::create_dir_all(temp.path().join("a/i18n/fr")).expect("create a fr");
@@ -5358,7 +5359,7 @@ fn binary_sync_requires_locale_in_every_selected_crate() {
 
 #[test]
 fn binary_sync_json_preflights_workspace_before_reporting_successful_results() {
-    let temp = assert_fs::TempDir::new().expect("workspace tempdir");
+    let temp = fixtures::tempdir();
     std::fs::write(
         temp.path().join("Cargo.toml"),
         "[workspace]\nmembers = [\"a\", \"b\"]\nresolver = \"2\"\n",
@@ -5444,7 +5445,7 @@ fn binary_sync_json_preflights_workspace_before_reporting_successful_results() {
 
 #[test]
 fn binary_sync_rejects_target_namespace_parent_file_before_partial_write() {
-    let temp = assert_fs::TempDir::new().expect("workspace tempdir");
+    let temp = fixtures::tempdir();
     std::fs::create_dir_all(temp.path().join("src")).expect("create src");
     std::fs::create_dir_all(temp.path().join("i18n/en/test-app")).expect("create en namespace");
     std::fs::create_dir_all(temp.path().join("i18n/fr")).expect("create fr");
@@ -5501,7 +5502,7 @@ fn binary_sync_rejects_target_namespace_parent_file_before_partial_write() {
 
 #[test]
 fn binary_sync_rejects_target_ftl_directory_before_partial_write() {
-    let temp = assert_fs::TempDir::new().expect("workspace tempdir");
+    let temp = fixtures::tempdir();
     std::fs::create_dir_all(temp.path().join("src")).expect("create src");
     std::fs::create_dir_all(temp.path().join("i18n/en/test-app")).expect("create en namespace");
     std::fs::create_dir_all(temp.path().join("i18n/fr/test-app")).expect("create fr namespace");
@@ -5559,8 +5560,8 @@ fn binary_sync_rejects_target_ftl_directory_before_partial_write() {
 #[cfg(unix)]
 #[test]
 fn binary_sync_rejects_target_ftl_symlink_without_writing_external_file() {
-    let temp = assert_fs::TempDir::new().expect("workspace tempdir");
-    let outside = assert_fs::TempDir::new().expect("outside tempdir");
+    let temp = fixtures::tempdir();
+    let outside = fixtures::tempdir();
     std::fs::create_dir_all(temp.path().join("src")).expect("create src");
     std::fs::create_dir_all(temp.path().join("i18n/en")).expect("create en");
     std::fs::create_dir_all(temp.path().join("i18n/fr")).expect("create fr");
@@ -5612,7 +5613,7 @@ fn binary_sync_rejects_target_ftl_symlink_without_writing_external_file() {
 
 #[test]
 fn binary_sync_json_counts_same_locale_in_multiple_workspace_crates() {
-    let temp = assert_fs::TempDir::new().expect("workspace tempdir");
+    let temp = fixtures::tempdir();
     std::fs::write(
         temp.path().join("Cargo.toml"),
         "[workspace]\nmembers = [\"a\", \"b\"]\nresolver = \"2\"\n",
@@ -5772,7 +5773,7 @@ fn binary_json_commands_reject_empty_package_filter_before_workspace_discovery()
 
 #[test]
 fn binary_package_filter_existing_unconfigured_package_reports_configured_crate_selection() {
-    let temp = assert_fs::TempDir::new().expect("workspace tempdir");
+    let temp = fixtures::tempdir();
     std::fs::create_dir_all(temp.path().join("plain/src")).expect("create plain src");
     std::fs::create_dir_all(temp.path().join("localized/src")).expect("create localized src");
     std::fs::create_dir_all(temp.path().join("localized/i18n/en")).expect("create fallback locale");
@@ -5969,7 +5970,7 @@ fn binary_check_reports_when_all_selected_crates_are_ignored() {
 
 #[test]
 fn binary_check_accepts_comma_separated_ignore_with_spaces() {
-    let temp = assert_fs::TempDir::new().expect("workspace tempdir");
+    let temp = fixtures::tempdir();
     std::fs::create_dir_all(temp.path().join("a/src")).expect("create a src");
     std::fs::create_dir_all(temp.path().join("a/i18n/en")).expect("create a en");
     std::fs::create_dir_all(temp.path().join("b/src")).expect("create b src");
@@ -6514,7 +6515,7 @@ fn binary_add_locale_rejects_missing_package_filter() {
 
 #[test]
 fn binary_add_locale_creates_empty_locale_directory() {
-    let temp = assert_fs::TempDir::new().expect("tempdir");
+    let temp = fixtures::tempdir();
     std::fs::create_dir_all(temp.path().join("src")).expect("create src");
     std::fs::create_dir_all(temp.path().join("i18n/en")).expect("create fallback locale");
     std::fs::write(temp.path().join("src/lib.rs"), "pub fn marker() {}\n").expect("write lib");
@@ -6573,7 +6574,7 @@ fn binary_add_locale_rerun_reports_add_locale_noop() {
 
 #[test]
 fn binary_add_locale_rejects_missing_fallback_locale_directory() {
-    let temp = assert_fs::TempDir::new().expect("tempdir");
+    let temp = fixtures::tempdir();
     std::fs::create_dir_all(temp.path().join("src")).expect("create src");
     std::fs::create_dir_all(temp.path().join("i18n/fr")).expect("create non-fallback locale");
     std::fs::write(temp.path().join("src/lib.rs"), "pub fn marker() {}\n").expect("write lib");
@@ -6633,7 +6634,7 @@ fn binary_add_locale_rejects_assets_dir_path_as_file() {
 
 #[test]
 fn binary_add_locale_rejects_fallback_locale_path_as_file() {
-    let temp = assert_fs::TempDir::new().expect("tempdir");
+    let temp = fixtures::tempdir();
     std::fs::create_dir_all(temp.path().join("src")).expect("create src");
     std::fs::create_dir_all(temp.path().join("i18n")).expect("create assets dir");
     std::fs::write(temp.path().join("src/lib.rs"), "pub fn marker() {}\n").expect("write lib");
@@ -6668,7 +6669,7 @@ fn binary_add_locale_rejects_fallback_locale_path_as_file() {
 
 #[test]
 fn binary_add_locale_rejects_requested_locale_path_as_file() {
-    let temp = assert_fs::TempDir::new().expect("tempdir");
+    let temp = fixtures::tempdir();
     std::fs::create_dir_all(temp.path().join("src")).expect("create src");
     std::fs::create_dir_all(temp.path().join("i18n/en")).expect("create fallback locale");
     std::fs::write(temp.path().join("src/lib.rs"), "pub fn marker() {}\n").expect("write lib");
@@ -6711,7 +6712,7 @@ fn binary_add_locale_rejects_requested_locale_path_as_file() {
 
 #[test]
 fn binary_add_locale_reports_requested_locale_ftl_for_target_ftl_directories() {
-    let temp = assert_fs::TempDir::new().expect("tempdir");
+    let temp = fixtures::tempdir();
     std::fs::create_dir_all(temp.path().join("src")).expect("create src");
     std::fs::create_dir_all(temp.path().join("i18n/en")).expect("create fallback locale");
     std::fs::create_dir_all(temp.path().join("i18n/fr-FR/test-app.ftl"))
@@ -6743,7 +6744,9 @@ fn binary_add_locale_reports_requested_locale_ftl_for_target_ftl_directories() {
         .failure()
         .stdout(predicate::str::contains("Fluent FTL Add Locale"))
         .stderr(predicate::str::contains("Refusing to add locale data"))
-        .stderr(predicate::str::contains("requested-locale FTL path"))
+        .stderr(predicate::str::contains("requested"))
+        .stderr(predicate::str::contains("locale FTL path"))
+        .stderr(predicate::str::contains("FTL path"))
         .stderr(predicate::str::contains("not a"))
         .stderr(predicate::str::contains("file"))
         .stderr(predicate::str::contains("Refusing to sync").not())
@@ -6754,7 +6757,7 @@ fn binary_add_locale_reports_requested_locale_ftl_for_target_ftl_directories() {
 
 #[test]
 fn binary_add_locale_reports_requested_locale_parent_for_namespace_parent_files() {
-    let temp = assert_fs::TempDir::new().expect("tempdir");
+    let temp = fixtures::tempdir();
     std::fs::create_dir_all(temp.path().join("src")).expect("create src");
     std::fs::create_dir_all(temp.path().join("i18n/en/test-app"))
         .expect("create fallback namespace");

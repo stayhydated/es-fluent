@@ -32,6 +32,16 @@ pub trait FluentLabel {
             Self::fluent_label_id(),
         )
     }
+
+    /// Returns deterministic fallback text for this type label without a
+    /// runtime localization context.
+    ///
+    /// Prefer [`Self::localize_label`] when UI code has a runtime manager.
+    /// This helper is intended for generated metadata, tests, and integration
+    /// scaffolding that cannot access app state.
+    fn fallback_label() -> String {
+        fallback_label::<Self>()
+    }
 }
 
 #[doc(hidden)]
@@ -59,6 +69,39 @@ pub fn localize_label<L: FluentLocalizer + ?Sized>(
             );
             id.as_str().to_string()
         })
+}
+
+/// Returns deterministic fallback text for a typed label without a runtime
+/// localization context.
+///
+/// The fallback is derived from the generated label id. Prefer
+/// [`FluentLabel::localize_label`] for user-facing UI that should follow the
+/// active locale.
+pub fn fallback_label<T: FluentLabel + ?Sized>() -> String {
+    humanize_fluent_entry_id(T::fluent_label_id())
+}
+
+/// Converts a validated static Fluent entry id into readable fallback text.
+///
+/// This strips a trailing `_label`, splits on `_` and `-`, drops empty
+/// segments, and uppercases the first character of each remaining segment.
+pub fn humanize_fluent_entry_id(id: StaticFluentEntryId) -> String {
+    humanize_fluent_entry_key(id.as_str())
+}
+
+fn humanize_fluent_entry_key(id: &str) -> String {
+    let id = id.strip_suffix("_label").unwrap_or(id);
+    id.split(['_', '-'])
+        .filter(|part| !part.is_empty())
+        .map(|part| {
+            let mut chars = part.chars();
+            match chars.next() {
+                Some(first) => first.to_uppercase().chain(chars).collect::<String>(),
+                None => String::new(),
+            }
+        })
+        .collect::<Vec<_>>()
+        .join(" ")
 }
 
 #[cfg(test)]
@@ -157,6 +200,16 @@ mod tests {
                 static_entry("missing-id")
             ),
             "missing-id"
+        );
+    }
+
+    #[test]
+    fn fallback_label_helpers_humanize_typed_label_ids_without_a_localizer() {
+        assert_eq!(TestLabel::fallback_label(), "Label Id");
+        assert_eq!(fallback_label::<TestLabel>(), "Label Id");
+        assert_eq!(
+            humanize_fluent_entry_id(static_entry("sales-order_status_label")),
+            "Sales Order Status"
         );
     }
 }
