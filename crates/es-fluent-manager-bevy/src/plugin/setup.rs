@@ -1131,7 +1131,7 @@ mod tests {
         configure_app(
             &mut app,
             I18nAssets::new(),
-            I18nResource::new_with_resolved_language(requested.clone(), resolved.clone()),
+            I18nResource::new_with_resolved_language(requested.clone(), resolved),
             requested.clone(),
         );
 
