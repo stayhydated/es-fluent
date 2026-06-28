@@ -30,7 +30,7 @@ This framework gives you:
 | :------------------------------------------------ | :----------- | :------------- |
 | `es-fluent`, CLI, embedded manager, language enum | `0.16.x`     | General Rust   |
 | `es-fluent-manager-dioxus`                        | `0.7.x`      | Dioxus `0.7.x` |
-| `es-fluent-manager-bevy`                          | `0.18.x`     | Bevy `0.18.x`  |
+| `es-fluent-manager-bevy`                          | `0.19.x`     | Bevy `0.19.x`  |
 
 ## Installation
 
@@ -51,7 +51,7 @@ es-fluent-manager-embedded = "0.16"
 # es-fluent-manager-dioxus = { version = "0.7", features = ["client", "ssr"] }
 
 # For Bevy integration, use `es-fluent-manager-bevy`.
-# es-fluent-manager-bevy = "0.18.13"
+# es-fluent-manager-bevy = "0.19.0"
 ```
 
 `es_fluent_manager_embedded::EmbeddedI18n::try_new_with_language(...)` is the simplest embedded startup path:

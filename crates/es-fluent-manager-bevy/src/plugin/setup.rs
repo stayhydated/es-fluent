@@ -1054,7 +1054,9 @@ mod tests {
             Res<AssetServer>,
         )>::new(app.world_mut());
         {
-            let (watched_assets, embedded, asset_server) = system_state.get_mut(app.world_mut());
+            let (watched_assets, embedded, asset_server) = system_state
+                .get_mut(app.world_mut())
+                .expect("watched embedded i18n asset system params should be valid");
             watch_embedded_i18n_asset_changes(watched_assets, embedded, asset_server);
         }
         system_state.apply(app.world_mut());

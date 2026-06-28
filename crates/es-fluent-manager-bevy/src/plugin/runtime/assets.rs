@@ -308,10 +308,8 @@ mod tests {
                 id: handle.id(),
                 path: AssetPath::from("i18n/en/app.ftl"),
                 error: AssetLoadError::MissingAssetLoader {
-                    loader_name: None,
                     asset_type_id: None,
-                    extension: Some("ftl".to_string()),
-                    asset_path: Some("i18n/en/app.ftl".to_string()),
+                    asset_path: "i18n/en/app.ftl".to_string(),
                 },
             },
         );
@@ -354,11 +352,11 @@ mod tests {
                 .contains_key(&(lang.clone(), resource_spec.key.clone()))
         );
 
-        app.world_mut()
-            .resource_mut::<Assets<FtlAsset>>()
-            .get_mut(handle.id())
-            .expect("asset should exist")
-            .content = "hello = {".to_string();
+        {
+            let mut ftl_assets = app.world_mut().resource_mut::<Assets<FtlAsset>>();
+            let mut asset = ftl_assets.get_mut(handle.id()).expect("asset should exist");
+            asset.content = "hello = {".to_string();
+        }
         app.world_mut()
             .write_message(AssetEvent::Modified { id: handle.id() });
         app.update();
@@ -389,10 +387,8 @@ mod tests {
             id: handle.id(),
             path: AssetPath::from("i18n/en/app.ftl"),
             error: AssetLoadError::MissingAssetLoader {
-                loader_name: None,
                 asset_type_id: None,
-                extension: Some("ftl".to_string()),
-                asset_path: Some("i18n/en/app.ftl".to_string()),
+                asset_path: "i18n/en/app.ftl".to_string(),
             },
         });
         app.update();

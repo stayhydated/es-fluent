@@ -31,7 +31,7 @@ es-fluent-manager-embedded = "0.16"
 # es-fluent-manager-dioxus = { version = "0.7", features = ["client", "ssr"] }
 
 # For Bevy integration, use `es-fluent-manager-bevy`.
-# es-fluent-manager-bevy = "0.18.13"
+# es-fluent-manager-bevy = "0.19.0"
 
 [build-dependencies]
 es-fluent-build = "0.16"
