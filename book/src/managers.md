@@ -349,6 +349,7 @@ Seamless [Bevy](https://bevyengine.org/) integration for `es-fluent`. This plugi
 - **Reactive UI**: The `FluentText` component automatically refreshes text when the locale changes.
 - **Bevy-native Context**: Systems can request `BevyI18n` as a `SystemParam` for direct localization.
 - **Explicit Context**: Localization uses Bevy resources and `BevyI18n` system params.
+- **Composable Scheduling**: Runtime and text-refresh systems are labeled with `I18nSet` for normal Bevy ordering.
 
 ### Quick Start
 
@@ -458,6 +459,21 @@ fn update_title(i18n: BevyI18n) {
     // apply `title` to your Bevy UI, window, or gameplay state
     // use `section_title` for an `EsFluentLabel` type label
 }
+```
+
+#### Schedule Ordering
+
+`I18nPlugin` labels its systems with `I18nSet` so app systems can use Bevy's standard `.before(...)` and `.after(...)` ordering APIs. `AssetWatch`, `AssetLoading`, `BundleRebuild`, `LocaleChange`, and `LocaleSync` run in `Update`. `TextUpdate` runs in `PostUpdate` after locale-aware `FluentText` values have refreshed and Bevy `Text` components have been written.
+
+```rust
+use bevy::prelude::*;
+use es_fluent_manager_bevy::I18nSet;
+
+fn persist_locale_choice() {}
+fn sync_window_title() {}
+
+app.add_systems(Update, persist_locale_choice.after(I18nSet::LocaleSync));
+app.add_systems(PostUpdate, sync_window_title.after(I18nSet::TextUpdate));
 ```
 
 #### 3. Define Localizable Components (Recommended)

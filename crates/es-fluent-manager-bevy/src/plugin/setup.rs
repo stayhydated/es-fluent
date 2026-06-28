@@ -5,7 +5,7 @@ use super::runtime::{
 use crate::BevyI18nEmbeddedAsset;
 use crate::{
     ActiveLanguageId, BevyFluentTextRegistration, BevyI18nAssetRegistration, FtlAsset, I18nAssets,
-    I18nResource, LocaleChangeEvent, LocaleChangedEvent, PendingLanguageChange,
+    I18nResource, I18nSet, LocaleChangeEvent, LocaleChangedEvent, PendingLanguageChange,
     RequestedLanguageId,
 };
 use bevy::prelude::*;
@@ -459,6 +459,18 @@ pub(super) fn configure_app(
         .add_message::<LocaleChangeEvent>()
         .add_message::<LocaleChangedEvent>();
 
+    app.configure_sets(
+        Update,
+        (
+            I18nSet::AssetWatch,
+            I18nSet::AssetLoading,
+            I18nSet::BundleRebuild,
+            I18nSet::LocaleChange,
+            I18nSet::LocaleSync,
+        )
+            .chain(),
+    );
+
     #[cfg(feature = "file_watcher")]
     app.init_resource::<WatchedEmbeddedI18nAssets>();
 
@@ -466,25 +478,23 @@ pub(super) fn configure_app(
     app.add_systems(
         Update,
         (
-            watch_embedded_i18n_asset_changes,
-            handle_asset_loading,
-            build_fluent_bundles,
-            handle_locale_changes,
-            sync_locale_state,
-        )
-            .chain(),
+            watch_embedded_i18n_asset_changes.in_set(I18nSet::AssetWatch),
+            handle_asset_loading.in_set(I18nSet::AssetLoading),
+            build_fluent_bundles.in_set(I18nSet::BundleRebuild),
+            handle_locale_changes.in_set(I18nSet::LocaleChange),
+            sync_locale_state.in_set(I18nSet::LocaleSync),
+        ),
     );
 
     #[cfg(not(feature = "file_watcher"))]
     app.add_systems(
         Update,
         (
-            handle_asset_loading,
-            build_fluent_bundles,
-            handle_locale_changes,
-            sync_locale_state,
-        )
-            .chain(),
+            handle_asset_loading.in_set(I18nSet::AssetLoading),
+            build_fluent_bundles.in_set(I18nSet::BundleRebuild),
+            handle_locale_changes.in_set(I18nSet::LocaleChange),
+            sync_locale_state.in_set(I18nSet::LocaleSync),
+        ),
     );
 }
 
@@ -761,6 +771,16 @@ mod tests {
     static SETUP_EMBEDDED_ASSET_MODULE: SetupEmbeddedAssetModule = SetupEmbeddedAssetModule;
     static SETUP_OWNED_RESOURCE_MODULE: SetupOwnedResourceModule = SetupOwnedResourceModule;
     static SETUP_FOLLOWER_MODULE: SetupFollowerModule = SetupFollowerModule;
+
+    #[derive(Default, Resource)]
+    struct ActiveLanguageAfterLocaleSync(Option<LanguageIdentifier>);
+
+    fn capture_active_language_after_locale_sync(
+        active_language: Res<ActiveLanguageId>,
+        mut captured: ResMut<ActiveLanguageAfterLocaleSync>,
+    ) {
+        captured.0 = Some(active_language.0.clone());
+    }
 
     inventory::submit! {
         &SETUP_TEST_MODULE as &dyn I18nModuleRegistration
@@ -1149,6 +1169,43 @@ mod tests {
         );
         assert_eq!(&app.world().resource::<RequestedLanguageId>().0, &requested);
         assert_eq!(&app.world().resource::<ActiveLanguageId>().0, &requested);
+    }
+
+    #[test]
+    fn runtime_sets_allow_user_systems_to_run_after_locale_sync() {
+        let en = langid!("en");
+        let fr = langid!("fr");
+        let mut app = App::new();
+        app.add_plugins(MinimalPlugins);
+        app.add_plugins(AssetPlugin::default());
+        app.init_asset::<FtlAsset>();
+        app.init_resource::<I18nBundle>()
+            .init_resource::<I18nDomainBundles>()
+            .init_resource::<BundleBuildFailures>()
+            .insert_resource(ActiveLanguageAfterLocaleSync::default())
+            .add_message::<bevy::window::RequestRedraw>()
+            .add_systems(
+                Update,
+                capture_active_language_after_locale_sync.after(I18nSet::LocaleSync),
+            );
+
+        configure_app(
+            &mut app,
+            I18nAssets::new(),
+            I18nResource::new(en.clone()),
+            en,
+        );
+        app.world_mut()
+            .resource_mut::<I18nBundle>()
+            .mark_ready_without_unscoped_bundle(fr.clone());
+        app.world_mut().write_message(LocaleChangeEvent(fr.clone()));
+
+        app.update();
+
+        assert_eq!(
+            app.world().resource::<ActiveLanguageAfterLocaleSync>().0,
+            Some(fr)
+        );
     }
 
     #[cfg(feature = "file_watcher")]
