@@ -12088,9 +12088,6 @@ version = "0.1.0"
 dependencies = [
  "derive_more",
  "dioxus",
- "es-fluent",
- "es-fluent-build",
- "es-fluent-manager-dioxus",
  "stayhydated-dioxus-core",
  "strum 0.28.0",
  "unic-langid",
