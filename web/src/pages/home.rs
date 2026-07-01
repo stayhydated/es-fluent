@@ -2,8 +2,8 @@ use crate::components::{FooterPanel, PageHeader};
 use crate::site::routing::PageKind;
 use dioxus::prelude::*;
 use stayhydated_dioxus::{
-    FeatureCardItem, HeroListPanel, HeroPanelItem, LinkTarget, Project, ProjectHero,
-    ProjectHeroActions, ProjectHomeShell, SkillFeatureSection, hero_reveal_style,
+    FeatureCard, HeroListPanel, HeroPanelItem, LinkTarget, ProjectHero, ProjectHeroActions,
+    ProjectHomeShell, ProjectSurfaceSection, feature_card_reveal_style, hero_reveal_style,
 };
 
 #[component]
@@ -43,27 +43,27 @@ pub(crate) fn HomePage() -> Element {
                 }),
             }
 
-            SkillFeatureSection {
+            ProjectSurfaceSection {
                 title: "es-fluent workflow",
                 lead: "For more detail, read the book.",
-                repo: Project::EsFluent,
-                items: vec![
-                    FeatureCardItem::new(
-                        "Rust derives",
-                        "Define messages",
-                        "Derive message keys and arguments from Rust types.",
-                    ),
-                    FeatureCardItem::new(
-                        "CLI",
-                        "Check FTL files",
-                        "Run `cargo es-fluent` to generate, check, and sync FTL.",
-                    ),
-                    FeatureCardItem::new(
-                        "Runtime managers",
-                        "Use one manager",
-                        "Reuse one message model across supported runtimes.",
-                    ),
-                ],
+                FeatureCard {
+                    label: "Rust derives",
+                    title: "Define messages",
+                    body: "Derive message keys and arguments from Rust types.",
+                    style: feature_card_reveal_style(0),
+                }
+                FeatureCard {
+                    label: "CLI",
+                    title: "Check FTL files",
+                    body: "Run `cargo es-fluent` to generate, check, and sync FTL.",
+                    style: feature_card_reveal_style(1),
+                }
+                FeatureCard {
+                    label: "Runtime managers",
+                    title: "Use one manager",
+                    body: "Reuse one message model across supported runtimes.",
+                    style: feature_card_reveal_style(2),
+                }
             }
         }
     }

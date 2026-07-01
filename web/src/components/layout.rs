@@ -1,8 +1,8 @@
 use crate::site::routing::PageKind;
 use dioxus::prelude::*;
 use stayhydated_dioxus::{
-    LinkTarget, Project, ProjectPackage, ProjectPackageFooterLink, ProjectPackagesFooterPanel,
-    StayhydatedProjectHeader, StayhydatedProjectHeaderConfig, stayhydated_header_labels,
+    LinkTarget, Project, ProjectFooterPanelForProject, StayhydatedProjectHeader,
+    StayhydatedProjectHeaderConfig, stayhydated_header_labels,
 };
 
 #[component]
@@ -26,18 +26,9 @@ pub(crate) fn PageHeader(current_page: PageKind) -> Element {
 
 #[component]
 pub(crate) fn FooterPanel() -> Element {
-    let packages = vec![
-        ProjectPackageFooterLink::new(ProjectPackage::ES_FLUENT_MANAGER_DIOXUS)
-            .with_label("es-fluent-manager-dioxus")
-            .with_class("footer-link"),
-    ];
-
     rsx! {
-        ProjectPackagesFooterPanel {
-            label: "This site",
-            packages,
-            prefix: "Built with Dioxus. Demo localization uses ",
-            suffix: ".",
+        ProjectFooterPanelForProject {
+            project: Project::EsFluent,
         }
     }
 }

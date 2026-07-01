@@ -121,9 +121,9 @@ serde = "1.0"
 serde_json = "1.0"
 serial_test = "3.4"
 similar = "3.1"
-stayhydated-dioxus = { path = "../stayhydated/crates/stayhydated-dioxus" }
-stayhydated-site = { path = "../stayhydated/crates/stayhydated-site" }
-stayhydated-xtask = { path = "../stayhydated/crates/stayhydated-xtask" }
+stayhydated-dioxus = { path = "../stayhydated/crates/stayhydated-dioxus", version = "0.1.0" }
+stayhydated-site = { path = "../stayhydated/crates/stayhydated-site", version = "0.1.0" }
+stayhydated-xtask = { path = "../stayhydated/crates/stayhydated-xtask", version = "0.1.0" }
 strum = "0.28"
 syn = "2.0"
 temp-env = "0.3"
