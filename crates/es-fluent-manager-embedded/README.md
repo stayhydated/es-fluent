@@ -13,9 +13,10 @@ This crate is for standard Rust applications such as CLIs, TUIs, and desktop app
 - **Explicit Context**: Keep an `EmbeddedI18n` handle in application state and pass it to code that localizes messages.
 - **Thread Safe**: Safe to clone and share after initialization.
 
-Enable the `debug-embed` Cargo feature for debug targets that cannot read
-locale files from the filesystem. It forwards `rust-embed`'s debug embedding
-mode through the manager crate.
+WASM builds embed debug assets automatically because browser targets cannot
+read locale files from the filesystem. For other debug targets with the same
+constraint, enable the `debug-embed` Cargo feature; it forwards `rust-embed`'s
+debug embedding mode through the manager crate.
 
 ## Quick Start
 

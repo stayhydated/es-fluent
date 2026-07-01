@@ -53,14 +53,11 @@ crossterm = "0.29"
 darling = "0.23"
 derive_more = "2.1"
 dioxus = { default-features = false, version = "0.7" }
-dioxus-core = "0.7"
-dioxus-core-macro = "0.7"
-dioxus-hooks = "0.7"
-dioxus-html = "0.7"
-dioxus-primitives = { default-features = false, features = [
-  "router",
-], git = "https://github.com/DioxusLabs/components", version = "0.0.1" }
-dioxus-signals = "0.7"
+dioxus-core = { default-features = false, version = "0.7" }
+dioxus-core-macro = { default-features = false, version = "0.7" }
+dioxus-hooks = { default-features = false, version = "0.7" }
+dioxus-html = { default-features = false, version = "0.7" }
+dioxus-signals = { default-features = false, version = "0.7" }
 dioxus-ssr = { default-features = false, version = "0.7" }
 es-fluent = { path = "crates/es-fluent", version = "0.16.0" }
 es-fluent-build = { path = "crates/es-fluent-build", version = "0.16.0" }
