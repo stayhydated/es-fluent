@@ -91,7 +91,7 @@ mod tests {
         let component = FluentText::new(FakeMessage("hello"));
         let cloned = component.clone();
 
-        assert_eq!(cloned.value.0, "hello");
+        assert_eq!(component.value.0, cloned.value.0);
     }
 
     #[test]

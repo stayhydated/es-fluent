@@ -31,7 +31,7 @@ es-fluent-manager-embedded = "0.16"
 # es-fluent-manager-dioxus = { version = "0.7", features = ["client", "ssr"] }
 
 # For Bevy integration, use `es-fluent-manager-bevy`.
-# es-fluent-manager-bevy = "0.18.13"
+# es-fluent-manager-bevy = "0.19.0"
 
 [build-dependencies]
 es-fluent-build = "0.16"
@@ -216,6 +216,10 @@ fn spawn_menu(mut commands: Commands) {
 ```
 
 For direct localization in systems, request `BevyI18n` as a `SystemParam` and call `localize_message(...)`.
+
+Use `I18nSet` when app systems need to run before or after Bevy localization
+phases. `AssetWatch`, `AssetLoading`, `BundleRebuild`, `LocaleChange`, and
+`LocaleSync` run in `Update`; `TextUpdate` runs in `PostUpdate`.
 
 When using `#[locale]` with `BevyFluentText`, mark only named struct fields or
 named enum variant fields whose types implement `TryFrom<&LanguageIdentifier>`.

@@ -7,9 +7,6 @@ pub use bevy;
 pub use inventory;
 
 #[doc(hidden)]
-pub use es_fluent::__rust_embed;
-
-#[doc(hidden)]
 pub use es_fluent_manager_core as __manager_core;
 
 #[doc(hidden)]
@@ -32,6 +29,7 @@ mod context;
 mod locale;
 mod plugin;
 mod registration;
+mod schedule;
 mod systems;
 
 pub use components::FluentText;
@@ -42,6 +40,7 @@ pub use locale::{
 };
 pub use plugin::{I18nPlugin, I18nPluginConfig, I18nPluginStartupError};
 pub use registration::FluentTextRegistration;
+pub use schedule::I18nSet;
 
 #[doc(hidden)]
 pub use registration::BevyFluentTextRegistration;

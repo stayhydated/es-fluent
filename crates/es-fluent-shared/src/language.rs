@@ -1,6 +1,6 @@
 //! Shared language-identifier parsing helpers.
 
-use icu::locale::{Locale, LocaleCanonicalizer};
+use icu_locale::{Locale, LocaleCanonicalizer};
 use thiserror::Error;
 pub use unic_langid::LanguageIdentifier;
 use unic_langid::LanguageIdentifierError;

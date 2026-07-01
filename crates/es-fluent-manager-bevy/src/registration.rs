@@ -43,6 +43,10 @@ fn mark_locale_refresh_registered<T: 'static>(app: &mut App) -> bool {
         .register_locale_refresh::<T>()
 }
 
+fn configure_text_update_set(app: &mut App) {
+    app.configure_sets(PostUpdate, crate::I18nSet::TextUpdate);
+}
+
 /// A plugin that initializes the `es-fluent` Bevy integration.
 #[cfg(test)]
 pub struct EsFluentBevyPlugin;
@@ -114,13 +118,15 @@ impl FluentTextRegistration for App {
         &mut self,
     ) -> &mut Self {
         if mark_text_systems_registered::<T>(self) {
+            configure_text_update_set(self);
             self.add_systems(
                 PostUpdate,
                 (
                     crate::systems::update_all_fluent_text_on_locale_change::<T>,
                     crate::systems::update_fluent_text_system::<T>,
                 )
-                    .chain(),
+                    .chain()
+                    .in_set(crate::I18nSet::TextUpdate),
             );
         }
         self
@@ -136,6 +142,7 @@ impl FluentTextRegistration for App {
 
         match (should_register_locale_refresh, should_register_text_systems) {
             (true, true) => {
+                configure_text_update_set(self);
                 self.add_systems(
                     PostUpdate,
                     (
@@ -143,24 +150,29 @@ impl FluentTextRegistration for App {
                         crate::systems::update_all_fluent_text_on_locale_change::<T>,
                         crate::systems::update_fluent_text_system::<T>,
                     )
-                        .chain(),
+                        .chain()
+                        .in_set(crate::I18nSet::TextUpdate),
                 );
             },
             (true, false) => {
+                configure_text_update_set(self);
                 self.add_systems(
                     PostUpdate,
                     crate::update_values_on_locale_change::<T>
+                        .in_set(crate::I18nSet::TextUpdate)
                         .before(crate::systems::update_all_fluent_text_on_locale_change::<T>),
                 );
             },
             (false, true) => {
+                configure_text_update_set(self);
                 self.add_systems(
                     PostUpdate,
                     (
                         crate::systems::update_all_fluent_text_on_locale_change::<T>,
                         crate::systems::update_fluent_text_system::<T>,
                     )
-                        .chain(),
+                        .chain()
+                        .in_set(crate::I18nSet::TextUpdate),
                 );
             },
             (false, false) => {},
@@ -198,6 +210,19 @@ mod tests {
 
     #[derive(Clone)]
     struct PlainMessage(&'static str);
+
+    #[derive(Component)]
+    struct ObservedText;
+
+    #[derive(Default, Resource)]
+    struct TextAfterI18nSet(Option<String>);
+
+    fn capture_text_after_i18n_set(
+        query: Query<&Text, With<ObservedText>>,
+        mut captured: ResMut<TextAfterI18nSet>,
+    ) {
+        captured.0 = query.iter().next().map(|text| text.0.clone());
+    }
 
     impl RefreshForLocale for PlainMessage {
         fn refresh_for_locale(&mut self, lang: &LanguageIdentifier) {
@@ -270,5 +295,44 @@ mod tests {
             .get::<FluentText<PlainMessage>>(entity)
             .expect("plain message FluentText should remain inserted");
         assert_eq!(component.value.0, "bonjour");
+    }
+
+    #[test]
+    fn text_update_set_allows_user_systems_to_run_after_fluent_text_refresh() {
+        let en = langid!("en");
+        let fr = langid!("fr");
+        let mut app = App::new();
+        app.insert_resource(crate::I18nAssets::new());
+        app.insert_resource(crate::I18nResource::new(en.clone()));
+        app.insert_resource(crate::RequestedLanguageId(en.clone()));
+        app.insert_resource(crate::ActiveLanguageId(en));
+        app.insert_resource(crate::I18nBundle::default());
+        app.insert_resource(crate::I18nDomainBundles::default());
+        app.insert_resource(TextAfterI18nSet::default());
+        app.add_message::<LocaleChangedEvent>();
+        app.add_systems(
+            PostUpdate,
+            capture_text_after_i18n_set.after(crate::I18nSet::TextUpdate),
+        );
+        app.register_fluent_text_from_locale::<PlainMessage>();
+
+        let entity = app
+            .world_mut()
+            .spawn((
+                FluentText::new(PlainMessage("hello")),
+                Text::new("old"),
+                ObservedText,
+            ))
+            .id();
+        app.world_mut().write_message(LocaleChangedEvent(fr));
+
+        app.update();
+
+        let text = app.world().get::<Text>(entity).expect("text");
+        assert_eq!(text.0, "bonjour");
+        assert_eq!(
+            app.world().resource::<TextAfterI18nSet>().0.as_deref(),
+            Some("bonjour")
+        );
     }
 }

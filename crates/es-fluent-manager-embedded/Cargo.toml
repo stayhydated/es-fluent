@@ -12,16 +12,24 @@ rust-version.workspace = true
 readme = "README.md"
 
 [features]
-debug-embed = [ "es-fluent/debug-embed" ]
+debug-embed = [
+  "es-fluent-manager-core/debug-embed",
+  "es-fluent/debug-embed",
+  "rust-embed/debug-embed",
+]
 default = [ "macros" ]
 macros = [ "es-fluent-manager-macros" ]
 
 [dependencies]
 es-fluent = { workspace = true }
-es-fluent-manager-core = { workspace = true }
+es-fluent-manager-core = { features = [ "embedded" ], workspace = true }
 es-fluent-manager-macros = { optional = true, workspace = true }
+rust-embed = { workspace = true }
 tracing = { workspace = true }
 unic-langid = { workspace = true }
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+rust-embed = { features = [ "debug-embed" ], workspace = true }
 
 [dev-dependencies]
 tempfile = { workspace = true }

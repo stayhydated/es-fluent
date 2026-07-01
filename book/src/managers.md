@@ -22,9 +22,10 @@ Bundles your translations directly into the binary and returns an explicit manag
 - **Explicit Context**: Keep the manager handle in application state and pass it to code that localizes messages.
 - **Thread Safe**: Safe to use from multiple threads after initialization.
 
-Enable the `debug-embed` Cargo feature for debug targets that cannot read
-locale files from the filesystem. It forwards `rust-embed`'s debug embedding
-mode through the manager crate.
+WASM builds embed debug assets automatically because browser targets cannot
+read locale files from the filesystem. For other debug targets with the same
+constraint, enable the `debug-embed` Cargo feature; it forwards `rust-embed`'s
+debug embedding mode through the manager crate.
 
 ### Quick Start
 
@@ -349,6 +350,7 @@ Seamless [Bevy](https://bevyengine.org/) integration for `es-fluent`. This plugi
 - **Reactive UI**: The `FluentText` component automatically refreshes text when the locale changes.
 - **Bevy-native Context**: Systems can request `BevyI18n` as a `SystemParam` for direct localization.
 - **Explicit Context**: Localization uses Bevy resources and `BevyI18n` system params.
+- **Composable Scheduling**: Runtime and text-refresh systems are labeled with `I18nSet` for normal Bevy ordering.
 
 ### Quick Start
 
@@ -458,6 +460,21 @@ fn update_title(i18n: BevyI18n) {
     // apply `title` to your Bevy UI, window, or gameplay state
     // use `section_title` for an `EsFluentLabel` type label
 }
+```
+
+#### Schedule Ordering
+
+`I18nPlugin` labels its systems with `I18nSet` so app systems can use Bevy's standard `.before(...)` and `.after(...)` ordering APIs. `AssetWatch`, `AssetLoading`, `BundleRebuild`, `LocaleChange`, and `LocaleSync` run in `Update`. `TextUpdate` runs in `PostUpdate` after locale-aware `FluentText` values have refreshed and Bevy `Text` components have been written.
+
+```rust
+use bevy::prelude::*;
+use es_fluent_manager_bevy::I18nSet;
+
+fn persist_locale_choice() {}
+fn sync_window_title() {}
+
+app.add_systems(Update, persist_locale_choice.after(I18nSet::LocaleSync));
+app.add_systems(PostUpdate, sync_window_title.after(I18nSet::TextUpdate));
 ```
 
 #### 3. Define Localizable Components (Recommended)

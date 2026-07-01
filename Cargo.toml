@@ -40,7 +40,7 @@ anyhow = "1.0"
 askama = "0.16"
 assert_cmd = "2.1"
 assert_fs = "1.1"
-bevy = "0.18"
+bevy = "0.19"
 blake3 = "1.8"
 bon = "3.9"
 camino = "1.2"
@@ -53,14 +53,11 @@ crossterm = "0.29"
 darling = "0.23"
 derive_more = "2.1"
 dioxus = { default-features = false, version = "0.7" }
-dioxus-core = "0.7"
-dioxus-core-macro = "0.7"
-dioxus-hooks = "0.7"
-dioxus-html = "0.7"
-dioxus-primitives = { default-features = false, features = [
-  "router",
-], git = "https://github.com/DioxusLabs/components", version = "0.0.1" }
-dioxus-signals = "0.7"
+dioxus-core = { default-features = false, version = "0.7" }
+dioxus-core-macro = { default-features = false, version = "0.7" }
+dioxus-hooks = { default-features = false, version = "0.7" }
+dioxus-html = { default-features = false, version = "0.7" }
+dioxus-signals = { default-features = false, version = "0.7" }
 dioxus-ssr = { default-features = false, version = "0.7" }
 es-fluent = { path = "crates/es-fluent", version = "0.16.0" }
 es-fluent-build = { path = "crates/es-fluent-build", version = "0.16.0" }
@@ -69,8 +66,8 @@ es-fluent-derive-core = { path = "crates/es-fluent-derive-core", version = "0.16
 es-fluent-generate = { path = "crates/es-fluent-generate", version = "0.16.0" }
 es-fluent-lang = { path = "crates/es-fluent-lang", version = "0.16.0" }
 es-fluent-lang-macro = { path = "crates/es-fluent-lang-macro", version = "0.16.0" }
-es-fluent-manager-bevy = { default-features = false, path = "crates/es-fluent-manager-bevy", version = "0.18.13" }
-es-fluent-manager-core = { path = "crates/es-fluent-manager-core", version = "0.16.0" }
+es-fluent-manager-bevy = { default-features = false, path = "crates/es-fluent-manager-bevy", version = "0.19.0" }
+es-fluent-manager-core = { default-features = false, path = "crates/es-fluent-manager-core", version = "0.16.0" }
 es-fluent-manager-dioxus = { default-features = false, path = "crates/es-fluent-manager-dioxus", version = "0.7.0" }
 es-fluent-manager-embedded = { path = "crates/es-fluent-manager-embedded", version = "0.16.0" }
 es-fluent-manager-macros = { path = "crates/es-fluent-manager-macros", version = "0.16.0" }
@@ -92,7 +89,6 @@ gpui_platform = { features = [
   "runtime_shaders",
 ], git = "https://github.com/zed-industries/zed", rev = "b077f41a9f26ae5ed7fadfea55a501d34afb25de" }
 heck = "0.5"
-icu = "2.2"
 icu_experimental = "0.5"
 icu_locale = "2.2"
 icu_locale_core = "2.2"
@@ -122,9 +118,9 @@ serde = "1.0"
 serde_json = "1.0"
 serial_test = "3.4"
 similar = "3.1"
-stayhydated-dioxus = { path = "../stayhydated/crates/stayhydated-dioxus" }
-stayhydated-site = { path = "../stayhydated/crates/stayhydated-site" }
-stayhydated-xtask = { path = "../stayhydated/crates/stayhydated-xtask" }
+stayhydated-dioxus = { path = "../stayhydated/crates/stayhydated-dioxus", version = "0.1.0" }
+stayhydated-site = { path = "../stayhydated/crates/stayhydated-site", version = "0.1.0" }
+stayhydated-xtask = { path = "../stayhydated/crates/stayhydated-xtask", version = "0.1.0" }
 strum = "0.28"
 syn = "2.0"
 temp-env = "0.3"

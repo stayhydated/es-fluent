@@ -467,10 +467,9 @@ mod tests {
         });
         let mut i18n_assets = I18nAssets::new();
         i18n_assets.add_asset_spec(lang.clone(), resource_spec.clone(), handle.clone());
-        i18n_assets.loaded_resources.insert(
-            (lang.clone(), resource_spec.key.clone()),
-            resource("hello = Hello"),
-        );
+        i18n_assets
+            .loaded_resources
+            .insert((lang.clone(), resource_spec.key), resource("hello = Hello"));
 
         let mut app = App::new();
         app.add_message::<AssetEvent<FtlAsset>>()
@@ -594,7 +593,7 @@ mod tests {
         i18n_assets.add_optional_asset_spec(lang.clone(), optional_spec.clone(), Handle::default());
         i18n_assets.add_asset_spec(lang.clone(), required_spec, Handle::default());
         i18n_assets.loaded_resources.insert(
-            (lang.clone(), optional_spec.key.clone()),
+            (lang.clone(), optional_spec.key),
             resource("app-title = App"),
         );
 
@@ -623,7 +622,7 @@ mod tests {
         let mut bundle_build_failures = BundleBuildFailures::default();
         let old_bundle = empty_bundle(&lang);
 
-        i18n_bundle.set_bundle(lang.clone(), old_bundle.clone());
+        i18n_bundle.set_bundle(lang.clone(), old_bundle);
         i18n_assets.add_asset_spec(lang.clone(), app_spec.clone(), Handle::default());
         i18n_assets.add_asset_spec(lang.clone(), admin_spec.clone(), Handle::default());
         i18n_assets
