@@ -7,9 +7,6 @@ pub use bevy;
 pub use inventory;
 
 #[doc(hidden)]
-pub use es_fluent::__rust_embed;
-
-#[doc(hidden)]
 pub use es_fluent_manager_core as __manager_core;
 
 #[doc(hidden)]

@@ -67,7 +67,7 @@ es-fluent-generate = { path = "crates/es-fluent-generate", version = "0.16.0" }
 es-fluent-lang = { path = "crates/es-fluent-lang", version = "0.16.0" }
 es-fluent-lang-macro = { path = "crates/es-fluent-lang-macro", version = "0.16.0" }
 es-fluent-manager-bevy = { default-features = false, path = "crates/es-fluent-manager-bevy", version = "0.19.0" }
-es-fluent-manager-core = { path = "crates/es-fluent-manager-core", version = "0.16.0" }
+es-fluent-manager-core = { default-features = false, path = "crates/es-fluent-manager-core", version = "0.16.0" }
 es-fluent-manager-dioxus = { default-features = false, path = "crates/es-fluent-manager-dioxus", version = "0.7.0" }
 es-fluent-manager-embedded = { path = "crates/es-fluent-manager-embedded", version = "0.16.0" }
 es-fluent-manager-macros = { path = "crates/es-fluent-manager-macros", version = "0.16.0" }

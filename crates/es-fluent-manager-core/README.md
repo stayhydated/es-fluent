@@ -50,6 +50,11 @@ runtime integrations.
   use `try_new(...)` for dynamic values, or `from_static_path(...)` for
   validated static literals before constructing a `ModuleResourceSpec`
 
+The embedded asset APIs are behind the default `embedded` feature, which carries
+the `rust-embed` dependency. Asset managers that do not need `RustEmbed`, such
+as Bevy and Dioxus integrations, can depend on this crate with default features
+disabled.
+
 ## Who should use it
 
 Most applications should use a concrete manager crate instead:

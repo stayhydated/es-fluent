@@ -13,7 +13,7 @@ use unic_langid::LanguageIdentifier;
 pub use es_fluent::__inventory;
 
 #[doc(hidden)]
-pub use es_fluent::__rust_embed;
+pub use rust_embed as __rust_embed;
 
 #[doc(hidden)]
 pub use es_fluent_manager_core as __manager_core;
