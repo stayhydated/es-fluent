@@ -38,7 +38,6 @@ impl LabelNamespacedAttributeArgs {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use darling::FromDeriveInput;
     use es_fluent_shared::meta::TypeKind;
     use syn::{DeriveInput, parse_quote};
 

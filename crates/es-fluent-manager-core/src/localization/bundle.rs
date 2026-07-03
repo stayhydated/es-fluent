@@ -208,7 +208,6 @@ pub fn fallback_errors_are_fatal(errors: &[FallbackLocalizationError]) -> bool {
 mod tests {
     use super::*;
     use fluent_bundle::FluentValue;
-    use fluent_fallback::{env::LocalesProvider, generator::BundleGenerator};
     use rustc_hash::FxHashSet;
     use unic_langid::langid;
 
@@ -270,7 +269,7 @@ mod tests {
 
         let iter_results = generator
             .bundles_iter(
-                vec![langid!("de"), en.clone(), fr.clone()].into_iter(),
+                vec![langid!("de"), en, fr].into_iter(),
                 empty_resource_ids(),
             )
             .collect::<Vec<_>>();

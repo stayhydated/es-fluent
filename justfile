@@ -12,7 +12,7 @@ fmt:
     rumdl fmt .
 
 clippy:
-    cargo clippy --workspace --all-features
+    cargo clippy --workspace --all-features --all-targets -- -D warnings
 
 check:
     cargo check --workspace --all-features

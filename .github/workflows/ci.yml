@@ -167,7 +167,7 @@ jobs:
         uses: ./.github/actions/install-linux-deps
 
       - name: Lint code
-        run: cargo clippy --workspace --all-features
+        run: cargo clippy --workspace --all-features --all-targets -- -D warnings
 
   machete:
     runs-on: ubuntu-latest

@@ -3,11 +3,8 @@ use crate::pages::i18n::{DemoLanguage, DioxusDemoMessage};
 use crate::site::routing::PageKind;
 use dioxus::prelude::*;
 use es_fluent_manager_dioxus::{DioxusAssetI18nProvider, use_i18n};
-use stayhydated_dioxus::{
-    LanguageSelect, ProjectPageShell, StayhydatedSiteLanguage as _,
-    stayhydated_all_language_options, stayhydated_selected_language_or_default,
-    surface_reveal_style,
-};
+use stayhydated_dioxus::{ProjectPageShell, select, surface_reveal_style};
+use strum::IntoEnumIterator as _;
 
 const OSMOSE_IMAGE_URL: &str = "https://www.expressivee.com/img/products/osmose/osmose2.png";
 
@@ -15,7 +12,7 @@ const OSMOSE_IMAGE_URL: &str = "https://www.expressivee.com/img/products/osmose/
 pub(crate) fn DioxusPage() -> Element {
     rsx! {
         DioxusAssetI18nProvider {
-            initial_language: DemoLanguage::default().language_identifier(),
+            initial_language: DemoLanguage::default().into(),
             DioxusDemoContent {}
         }
     }
@@ -43,14 +40,21 @@ fn DioxusDemoContent() -> Element {
         },
     };
 
-    let selected =
-        stayhydated_selected_language_or_default::<DemoLanguage>(i18n.requested_language());
-    let options = stayhydated_all_language_options::<DemoLanguage>(|language| {
-        i18n.localize_message(&language)
+    let selected = use_memo({
+        let i18n = i18n.clone();
+        move || Some(DemoLanguage::try_from(i18n.requested_language()).unwrap_or_default())
     });
+    let selected_label = i18n.localize_message(&selected().unwrap_or_default());
+    let options = DemoLanguage::iter()
+        .map(|language| (language, i18n.localize_message(&language)))
+        .collect::<Vec<_>>();
     let i18n_for_select = i18n.clone();
-    let on_change = move |next_language: DemoLanguage| {
-        let _ = i18n_for_select.select_language(next_language.language_identifier());
+    let on_change = move |next_language: Option<DemoLanguage>| {
+        let Some(next_language) = next_language else {
+            return;
+        };
+
+        let _ = i18n_for_select.select_language(next_language);
     };
 
     let panel_label = i18n.localize_message(&DioxusDemoMessage::PanelLabel);
@@ -76,11 +80,32 @@ fn DioxusDemoContent() -> Element {
                         p { "{body}" }
                     }
                     div { class: "dioxus-demo-card-controls",
-                        LanguageSelect::<DemoLanguage> {
-                            label: "Language",
-                            selected,
-                            options,
-                            on_change,
+                        select::Select::<DemoLanguage> {
+                            value: Some(selected.into()),
+                            on_value_change: on_change,
+                            select::SelectTrigger {
+                                aria_label: "Language",
+                                select::SelectValue { placeholder: selected_label }
+                            }
+                            select::SelectList { aria_label: "Languages",
+                                for (index, (language, label)) in options.iter().enumerate() {
+                                    {
+                                        let active = Some(*language) == selected();
+                                        rsx! {
+                                            select::SelectOption::<DemoLanguage> {
+                                                key: "{language:?}",
+                                                index,
+                                                value: *language,
+                                                text_value: Some(label.clone()),
+                                                "{label}"
+                                                if active {
+                                                    select::SelectItemIndicator {}
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
                         }
                     }
                 }

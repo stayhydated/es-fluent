@@ -2,6 +2,7 @@
 name = "xtask"
 version.workspace = true
 edition.workspace = true
+rust-version.workspace = true
 publish = false
 
 [dependencies]
@@ -13,3 +14,6 @@ es-fluent-shared = { workspace = true }
 es-fluent-toml = { workspace = true }
 stayhydated-xtask = { workspace = true }
 web = { workspace = true }
+
+[lints]
+workspace = true

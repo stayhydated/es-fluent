@@ -1,6 +1,6 @@
 use std::{fs, path::Path, process::Command};
 
-use anyhow::{Context, bail};
+use anyhow::{Context as _, bail};
 
 const EXAMPLE_DIR: &str = "examples/gpui-example";
 const OUTPUT_ROOT: &str = "web/public/gpui-demo";

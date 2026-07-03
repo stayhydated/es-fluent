@@ -3,7 +3,7 @@ use std::{
     path::{Component, Path, PathBuf},
 };
 
-use anyhow::{Context, bail};
+use anyhow::{Context as _, bail};
 use cargo_metadata::MetadataCommand;
 use es_fluent_runner::{PackageName, RunnerMetadataStore};
 use es_fluent_shared::resource::ResourcePlan;

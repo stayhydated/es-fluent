@@ -456,11 +456,7 @@ mod tests {
         let required = spec("app", true);
         let optional_missing = spec("app/optional", false);
         let optional_error = spec("app/broken", false);
-        let plan = vec![
-            required.clone(),
-            optional_missing.clone(),
-            optional_error.clone(),
-        ];
+        let plan = vec![required.clone(), optional_missing.clone(), optional_error];
         let loaded = Arc::new(
             FluentResource::try_new("hello = Hello".to_string()).expect("valid fluent resource"),
         );
@@ -547,7 +543,7 @@ mod tests {
         let resource_specs = HashMap::from([
             ((en.clone(), app.key.clone()), app.clone()),
             ((en.clone(), optional.key.clone()), optional.clone()),
-            ((fr.clone(), other.key.clone()), other.clone()),
+            ((fr, other.key.clone()), other.clone()),
         ]);
         let loaded_resources = HashMap::from([((en.clone(), app.key.clone()), resource)]);
         let load_errors = HashMap::from([(

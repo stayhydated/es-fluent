@@ -128,7 +128,7 @@ pub type EsFluentResult<T> = Result<T, EsFluentError>;
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::error::Error;
+    use std::error::Error as _;
 
     #[test]
     fn helper_constructors_build_expected_variants() {

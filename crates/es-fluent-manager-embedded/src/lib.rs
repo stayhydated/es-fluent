@@ -509,7 +509,7 @@ mod tests {
     #[test]
     fn embedded_init_error_display_and_source_match_error_kind() {
         use es_fluent_manager_core::{ModuleDiscoveryError, ModuleRegistrationKind};
-        use std::error::Error;
+        use std::error::Error as _;
 
         let discovery = EmbeddedInitError::ModuleDiscovery(vec![
             ModuleDiscoveryError::DuplicateModuleRegistration {
