@@ -4,7 +4,6 @@ use crate::core::{
     UnexpectedVariableError, UntranslatedMessageWarning, ValidationIssue,
 };
 use miette::{NamedSource, SourceSpan};
-use std::fs;
 use std::path::Path;
 use terminal_link::Link;
 
@@ -24,19 +23,7 @@ impl ValidationContext<'_> {
     }
 
     pub(super) fn to_relative_path(&self, path: &Path) -> String {
-        let path_canon = fs::canonicalize(path).unwrap_or_else(|_| path.to_path_buf());
-        let base_canon = fs::canonicalize(self.workspace_root)
-            .unwrap_or_else(|_| self.workspace_root.to_path_buf());
-
-        if let Ok(rel) = path_canon.strip_prefix(&base_canon) {
-            return rel.display().to_string();
-        }
-
-        if let Ok(rel) = path.strip_prefix(self.workspace_root) {
-            return rel.display().to_string();
-        }
-
-        path.display().to_string()
+        crate::utils::paths::relative_slash_path(path, self.workspace_root)
     }
 
     pub(super) fn missing_file_issues(&self, locale: &str, ftl_path: &str) -> Vec<ValidationIssue> {

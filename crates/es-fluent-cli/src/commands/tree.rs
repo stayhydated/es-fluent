@@ -853,7 +853,7 @@ fn build_crate_tree_json(
             .iter()
             .map(|file_info| {
                 build_file_tree_json(
-                    &file_info.relative_path.display().to_string(),
+                    &crate::utils::paths::slash_path(&file_info.relative_path),
                     &file_info.abs_path,
                     include_attributes,
                     include_variables,
@@ -947,26 +947,7 @@ fn validate_tree_locale_setup(ctx: &LocaleContext, all_locales: bool) -> Result<
 }
 
 fn relative_tree_message(message: &str, base: &Path) -> String {
-    let base_canon = std::fs::canonicalize(base).unwrap_or_else(|_| base.to_path_buf());
-    let base_canon = base_canon.display().to_string();
-    let base = base.display().to_string();
-    let mut normalized = replace_tree_path_prefix(message, &base_canon);
-    if base != base_canon {
-        normalized = replace_tree_path_prefix(&normalized, &base);
-    }
-    normalized
-}
-
-fn replace_tree_path_prefix(message: &str, base: &str) -> String {
-    if base.is_empty() {
-        return message.to_string();
-    }
-
-    let slash_prefix = format!("{base}/");
-    let separator_prefix = format!("{base}{}", std::path::MAIN_SEPARATOR);
-    message
-        .replace(&slash_prefix, "")
-        .replace(&separator_prefix, "")
+    crate::utils::paths::relative_slash_message(message, base)
 }
 
 fn build_file_tree_json(
@@ -1090,7 +1071,7 @@ fn print_crate_tree(
             .iter()
             .map(|file_info| {
                 renderer.build_file_tree(
-                    &file_info.relative_path.display().to_string(),
+                    &crate::utils::paths::slash_path(&file_info.relative_path),
                     &file_info.abs_path,
                 )
             })

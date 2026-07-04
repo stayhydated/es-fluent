@@ -29,12 +29,14 @@ pub(crate) fn discover_workspace_scoped(
     root_dir: &Path,
     scope: DiscoveryScope<'_>,
 ) -> Result<WorkspaceInfo> {
-    let root_dir = root_dir.canonicalize().with_context(|| {
-        format!(
-            "Failed to canonicalize root directory {}",
-            root_dir.display()
-        )
-    })?;
+    let root_dir = crate::utils::paths::normalize_windows_verbatim_path(
+        &root_dir.canonicalize().with_context(|| {
+            format!(
+                "Failed to canonicalize root directory {}",
+                root_dir.display()
+            )
+        })?,
+    );
 
     let metadata = MetadataCommand::new()
         .current_dir(&root_dir)
@@ -42,8 +44,11 @@ pub(crate) fn discover_workspace_scoped(
         .exec()
         .context("Failed to get cargo metadata")?;
 
-    let workspace_root: PathBuf = metadata.workspace_root.clone().into();
-    let target_dir: PathBuf = metadata.target_directory.clone().into();
+    let workspace_root_raw: PathBuf = metadata.workspace_root.clone().into();
+    let target_dir_raw: PathBuf = metadata.target_directory.clone().into();
+    let workspace_root: PathBuf =
+        crate::utils::paths::normalize_windows_verbatim_path(&workspace_root_raw);
+    let target_dir: PathBuf = crate::utils::paths::normalize_windows_verbatim_path(&target_dir_raw);
     let path_scope = match scope {
         DiscoveryScope::RequestedPaths { lexical, canonical } => requested_path_scope(
             &[lexical, canonical],
@@ -56,7 +61,9 @@ pub(crate) fn discover_workspace_scoped(
     let mut crates = Vec::new();
 
     for package in metadata.workspace_packages() {
-        let manifest_dir: PathBuf = package.manifest_path.parent().unwrap().into();
+        let manifest_dir_raw: PathBuf = package.manifest_path.parent().unwrap().into();
+        let manifest_dir: PathBuf =
+            crate::utils::paths::normalize_windows_verbatim_path(&manifest_dir_raw);
         let include_package = match scope {
             DiscoveryScope::All => true,
             DiscoveryScope::Package(package_filter) => package.name == package_filter,
@@ -97,7 +104,13 @@ pub(crate) fn discover_workspace_scoped(
             })
         });
         let src_dir = lib_target
-            .and_then(|target| target.src_path.parent().map(PathBuf::from))
+            .and_then(|target| {
+                target
+                    .src_path
+                    .parent()
+                    .map(PathBuf::from)
+                    .map(|path| crate::utils::paths::normalize_windows_verbatim_path(&path))
+            })
             .unwrap_or_else(|| manifest_dir.join("src"));
         let has_lib_rs = lib_target.is_some();
 
@@ -109,7 +122,9 @@ pub(crate) fn discover_workspace_scoped(
             manifest_dir: ManifestDir::from_discovered(manifest_dir),
             src_dir: SourceDir::from_discovered(src_dir),
             i18n_config_path: DiscoveredI18nConfigPath::from_discovered(i18n_config_path),
-            ftl_output_dir: DiscoveredFtlOutputDir::from_discovered(ftl_output_dir),
+            ftl_output_dir: DiscoveredFtlOutputDir::from_discovered(
+                crate::utils::paths::normalize_windows_verbatim_path(&ftl_output_dir),
+            ),
             has_lib_rs,
             fluent_features,
         });
@@ -126,12 +141,14 @@ pub(crate) fn discover_workspace_scoped(
 }
 
 pub(crate) fn discover_i18n_package_names(root_dir: &Path) -> Result<Vec<String>> {
-    let root_dir = root_dir.canonicalize().with_context(|| {
-        format!(
-            "Failed to canonicalize root directory {}",
-            root_dir.display()
-        )
-    })?;
+    let root_dir = crate::utils::paths::normalize_windows_verbatim_path(
+        &root_dir.canonicalize().with_context(|| {
+            format!(
+                "Failed to canonicalize root directory {}",
+                root_dir.display()
+            )
+        })?,
+    );
 
     let metadata = MetadataCommand::new()
         .current_dir(&root_dir)
@@ -143,7 +160,9 @@ pub(crate) fn discover_i18n_package_names(root_dir: &Path) -> Result<Vec<String>
         .workspace_packages()
         .iter()
         .filter(|package| {
-            let manifest_dir: PathBuf = package.manifest_path.parent().unwrap().into();
+            let manifest_dir_raw: PathBuf = package.manifest_path.parent().unwrap().into();
+            let manifest_dir: PathBuf =
+                crate::utils::paths::normalize_windows_verbatim_path(&manifest_dir_raw);
             manifest_dir.join("i18n.toml").exists()
         })
         .map(|package| package.name.to_string())
@@ -163,12 +182,18 @@ fn requested_path_scope(
     workspace_root: &Path,
     packages: &[&cargo_metadata::Package],
 ) -> RequestedPathScope {
+    let requested_paths = requested_paths
+        .iter()
+        .map(|path| crate::utils::paths::normalize_windows_verbatim_path(path))
+        .collect::<Vec<_>>();
+    let workspace_root = crate::utils::paths::normalize_windows_verbatim_path(workspace_root);
+
     if requested_paths.iter().any(|requested_path| {
         let is_workspace_manifest = requested_path
             .file_name()
             .is_some_and(|name| name == "Cargo.toml")
-            && requested_path.parent() == Some(workspace_root);
-        *requested_path == workspace_root || is_workspace_manifest
+            && requested_path.parent() == Some(workspace_root.as_path());
+        requested_path == &workspace_root || is_workspace_manifest
     }) {
         return RequestedPathScope::All;
     }
@@ -176,7 +201,9 @@ fn requested_path_scope(
     let selected_manifest_dir = packages
         .iter()
         .filter_map(|package| {
-            let manifest_dir: PathBuf = package.manifest_path.parent()?.into();
+            let manifest_dir_raw: PathBuf = package.manifest_path.parent()?.into();
+            let manifest_dir: PathBuf =
+                crate::utils::paths::normalize_windows_verbatim_path(&manifest_dir_raw);
             requested_paths
                 .iter()
                 .any(|requested_path| requested_path.starts_with(&manifest_dir))
@@ -190,7 +217,7 @@ fn requested_path_scope(
 
     if requested_paths
         .iter()
-        .any(|requested_path| requested_path.starts_with(workspace_root))
+        .any(|requested_path| requested_path.starts_with(&workspace_root))
     {
         return RequestedPathScope::None;
     }
@@ -206,10 +233,7 @@ pub fn discover_crates(root_dir: &Path) -> Result<Vec<CrateInfo>> {
 }
 
 fn workspace_relative_path(path: &Path, workspace_root: &Path) -> String {
-    path.strip_prefix(workspace_root)
-        .unwrap_or(path)
-        .display()
-        .to_string()
+    crate::utils::paths::relative_slash_path(path, workspace_root)
 }
 
 /// Counts the number of FTL resources (message keys) for a specific crate.
@@ -313,7 +337,9 @@ mod tests {
         .expect("write i18n.toml");
 
         let ws = discover_workspace(temp.path()).expect("discover workspace");
-        let expected_src_dir = temp.path().canonicalize().expect("canonical tempdir");
+        let expected_src_dir = crate::utils::paths::normalize_windows_verbatim_path(
+            &temp.path().canonicalize().expect("canonical tempdir"),
+        );
 
         assert_eq!(ws.crates.len(), 1);
         assert!(ws.crates[0].has_lib_rs);

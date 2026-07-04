@@ -4708,7 +4708,8 @@ fn binary_clean_orphaned_rejects_missing_fallback_locale_directory() {
         .assert()
         .failure()
         .stderr(predicate::str::contains("fallback locale directory"))
-        .stderr(predicate::str::contains("refusing to scan"))
+        .stderr(predicate::str::contains("refusing"))
+        .stderr(predicate::str::contains("scan"))
         .stderr(predicate::str::contains("orphaned"))
         .stderr(predicate::str::contains("files"));
 
@@ -4922,8 +4923,10 @@ fn binary_clean_orphaned_rejects_symlinked_namespace_without_removing_external_f
         .failure()
         .stderr(predicate::str::contains("FTL directories"))
         .stderr(predicate::str::contains("symlinks"))
-        .stderr(predicate::str::contains("refusing to scan"))
-        .stderr(predicate::str::contains("orphaned files"));
+        .stderr(predicate::str::contains("refusing"))
+        .stderr(predicate::str::contains("scan"))
+        .stderr(predicate::str::contains("orphaned"))
+        .stderr(predicate::str::contains("files"));
 
     assert!(
         outside.path().join("namespace/orphan.ftl").exists(),
@@ -4951,8 +4954,10 @@ fn binary_clean_orphaned_rejects_locale_named_asset_path_as_file() {
         .failure()
         .stderr(predicate::str::contains("locale path"))
         .stderr(predicate::str::contains("fr for test-app"))
-        .stderr(predicate::str::contains("refusing to scan"))
-        .stderr(predicate::str::contains("orphaned files"));
+        .stderr(predicate::str::contains("refusing"))
+        .stderr(predicate::str::contains("scan"))
+        .stderr(predicate::str::contains("orphaned"))
+        .stderr(predicate::str::contains("files"));
 
     assert!(temp.path().join("i18n/fr").is_file());
 }

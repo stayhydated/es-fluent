@@ -679,5 +679,5 @@ fn to_relative_path_uses_non_canonical_strip_fallback() {
 
     let outside = temp.path().join("outside.ftl");
     let outside_rel = ctx.to_relative_path(&outside);
-    assert_eq!(outside_rel, outside.display().to_string());
+    assert_eq!(outside_rel, crate::utils::paths::slash_path(&outside));
 }

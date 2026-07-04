@@ -195,26 +195,7 @@ fn sync_json_error_with_results_for_workspace(
 }
 
 fn relative_sync_message(message: &str, base: &Path) -> String {
-    let base_canon = std::fs::canonicalize(base).unwrap_or_else(|_| base.to_path_buf());
-    let base_canon = base_canon.display().to_string();
-    let base = base.display().to_string();
-    let mut normalized = replace_sync_path_prefix(message, &base_canon);
-    if base != base_canon {
-        normalized = replace_sync_path_prefix(&normalized, &base);
-    }
-    normalized
-}
-
-fn replace_sync_path_prefix(message: &str, base: &str) -> String {
-    if base.is_empty() {
-        return message.to_string();
-    }
-
-    let slash_prefix = format!("{base}/");
-    let separator_prefix = format!("{base}{}", std::path::MAIN_SEPARATOR);
-    message
-        .replace(&slash_prefix, "")
-        .replace(&separator_prefix, "")
+    crate::utils::paths::relative_slash_message(message, base)
 }
 
 pub(crate) fn canonical_locale(locale: &str) -> Result<String, CliError> {

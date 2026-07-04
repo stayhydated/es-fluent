@@ -2,6 +2,7 @@
 
 mod discovery;
 mod helpers;
+pub(crate) mod paths;
 pub mod ui;
 
 pub use discovery::count_ftl_resources;

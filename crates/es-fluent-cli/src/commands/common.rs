@@ -68,10 +68,14 @@ impl WorkspaceCrates {
         let WorkspaceArgs { path, package } = normalize_workspace_args(args)?;
         let path = path.unwrap_or_else(|| PathBuf::from("."));
         let package_filter = package.clone();
-        let requested_path = path
-            .canonicalize()
-            .with_context(|| format!("Failed to canonicalize root directory {}", path.display()))
-            .map_err(CliError::from)?;
+        let requested_path = crate::utils::paths::normalize_windows_verbatim_path(
+            &path
+                .canonicalize()
+                .with_context(|| {
+                    format!("Failed to canonicalize root directory {}", path.display())
+                })
+                .map_err(CliError::from)?,
+        );
         let lexical_requested_path = lexical_absolute_path(&path).map_err(CliError::from)?;
         let metadata_dir =
             workspace_metadata_dir(&lexical_requested_path, requested_path.as_path());
@@ -243,7 +247,7 @@ fn normalize_lexical_path(path: &Path) -> PathBuf {
     if normalized.as_os_str().is_empty() {
         normalized.push(".");
     }
-    normalized
+    crate::utils::paths::normalize_windows_verbatim_path(&normalized)
 }
 
 fn workspace_metadata_dir(
@@ -262,16 +266,18 @@ fn workspace_metadata_dir(
         .ancestors()
         .find(|ancestor| ancestor.join("Cargo.toml").is_file())
     {
-        return manifest_ancestor.to_path_buf();
+        return crate::utils::paths::normalize_windows_verbatim_path(manifest_ancestor);
     }
 
     if canonical_requested_path.is_file() {
         canonical_requested_path
             .parent()
-            .map(Path::to_path_buf)
-            .unwrap_or_else(|| canonical_requested_path.to_path_buf())
+            .map(|path| crate::utils::paths::normalize_windows_verbatim_path(path))
+            .unwrap_or_else(|| {
+                crate::utils::paths::normalize_windows_verbatim_path(canonical_requested_path)
+            })
     } else {
-        canonical_requested_path.to_path_buf()
+        crate::utils::paths::normalize_windows_verbatim_path(canonical_requested_path)
     }
 }
 
@@ -610,12 +616,19 @@ fn crates_for_requested_path(
     workspace_info: &WorkspaceInfo,
     requested_paths: &[&std::path::Path],
 ) -> Vec<CrateInfo> {
+    let requested_paths = requested_paths
+        .iter()
+        .map(|path| crate::utils::paths::normalize_windows_verbatim_path(path))
+        .collect::<Vec<_>>();
+    let workspace_root =
+        crate::utils::paths::normalize_windows_verbatim_path(&workspace_info.root_dir);
+
     if requested_paths.iter().any(|requested_path| {
         let is_workspace_manifest = requested_path
             .file_name()
             .is_some_and(|name| name == "Cargo.toml")
-            && requested_path.parent() == Some(workspace_info.root_dir.as_path());
-        *requested_path == workspace_info.root_dir.as_path() || is_workspace_manifest
+            && requested_path.parent() == Some(workspace_root.as_path());
+        requested_path == &workspace_root || is_workspace_manifest
     }) {
         return crates;
     }
@@ -623,22 +636,29 @@ fn crates_for_requested_path(
     if let Some(manifest_dir) = crates
         .iter()
         .filter(|krate| {
+            let manifest_dir =
+                crate::utils::paths::normalize_windows_verbatim_path(krate.manifest_dir.as_path());
             requested_paths
                 .iter()
-                .any(|requested_path| requested_path.starts_with(krate.manifest_dir.as_path()))
+                .any(|requested_path| requested_path.starts_with(&manifest_dir))
         })
-        .map(|krate| krate.manifest_dir.as_path().to_path_buf())
+        .map(|krate| {
+            crate::utils::paths::normalize_windows_verbatim_path(krate.manifest_dir.as_path())
+        })
         .max_by_key(|path| path.components().count())
     {
         return crates
             .into_iter()
-            .filter(|krate| krate.manifest_dir.as_path() == manifest_dir)
+            .filter(|krate| {
+                crate::utils::paths::normalize_windows_verbatim_path(krate.manifest_dir.as_path())
+                    == manifest_dir
+            })
             .collect();
     }
 
     if requested_paths
         .iter()
-        .any(|requested_path| requested_path.starts_with(&workspace_info.root_dir))
+        .any(|requested_path| requested_path.starts_with(&workspace_root))
     {
         return Vec::new();
     }
@@ -990,10 +1010,7 @@ fn existing_components_escape_root(root: &Path, path: &Path) -> bool {
 }
 
 fn relative_to_crate(krate: &CrateInfo, path: &Path) -> String {
-    path.strip_prefix(krate.manifest_dir.as_path())
-        .unwrap_or(path)
-        .to_string_lossy()
-        .replace('\\', "/")
+    crate::utils::paths::relative_slash_path(path, krate.manifest_dir.as_path())
 }
 
 /// Execute a generation-like command that uses the monolithic runner.

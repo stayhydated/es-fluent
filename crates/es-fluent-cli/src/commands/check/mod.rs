@@ -762,41 +762,11 @@ pub fn run_check(args: CheckArgs) -> Result<(), CliError> {
 }
 
 fn relative_path(path: &Path, base: &Path) -> String {
-    let path_canon = std::fs::canonicalize(path).unwrap_or_else(|_| path.to_path_buf());
-    let base_canon = std::fs::canonicalize(base).unwrap_or_else(|_| base.to_path_buf());
-
-    if let Ok(rel) = path_canon.strip_prefix(&base_canon) {
-        return rel.display().to_string();
-    }
-
-    if let Ok(rel) = path.strip_prefix(base) {
-        return rel.display().to_string();
-    }
-
-    path.display().to_string()
+    crate::utils::paths::relative_slash_path(path, base)
 }
 
 fn relative_check_message(message: &str, base: &Path) -> String {
-    let base_canon = std::fs::canonicalize(base).unwrap_or_else(|_| base.to_path_buf());
-    let base_canon = base_canon.display().to_string();
-    let base = base.display().to_string();
-    let mut normalized = replace_check_path_prefix(message, &base_canon);
-    if base != base_canon {
-        normalized = replace_check_path_prefix(&normalized, &base);
-    }
-    normalized
-}
-
-fn replace_check_path_prefix(message: &str, base: &str) -> String {
-    if base.is_empty() {
-        return message.to_string();
-    }
-
-    let slash_prefix = format!("{base}/");
-    let separator_prefix = format!("{base}{}", std::path::MAIN_SEPARATOR);
-    message
-        .replace(&slash_prefix, "")
-        .replace(&separator_prefix, "")
+    crate::utils::paths::relative_slash_message(message, base)
 }
 
 #[cfg(test)]
