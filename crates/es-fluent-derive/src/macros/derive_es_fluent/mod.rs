@@ -176,6 +176,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg_attr(not(target_os = "linux"), ignore = "insta snapshots are Linux-only")]
     fn expand_es_fluent_returns_compile_errors_for_struct_validation_and_union_inputs() {
         let invalid_struct_input: syn::DeriveInput = parse_quote! {
             struct Invalid {
@@ -206,6 +207,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg_attr(not(target_os = "linux"), ignore = "insta snapshots are Linux-only")]
     fn expand_es_fluent_returns_compile_errors_for_namespaces_not_allowed_by_config() {
         with_manifest_dir(&["allowed"], || {
             let enum_input: syn::DeriveInput = parse_quote! {

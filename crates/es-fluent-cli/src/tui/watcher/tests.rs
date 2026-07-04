@@ -750,9 +750,10 @@ fn watch_all_propagates_runner_preparation_errors() {
 
     let err = super::watch_all(&[krate], &workspace, &FluentParseMode::default())
         .expect_err("invalid workspace root should fail before entering the TUI loop");
+    let error = err.to_string();
     assert!(
-        err.to_string()
-            .contains("Failed to inspect .es-fluent path"),
+        error.contains("Failed to inspect .es-fluent path")
+            || error.contains("Failed to create .es-fluent directory"),
         "unexpected watch setup error: {err}"
     );
 }

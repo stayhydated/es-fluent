@@ -122,8 +122,16 @@ pub fn acquire_monolithic_runner_lock(workspace_root: &Path) -> Result<Monolithi
     loop {
         match fs::create_dir(&lock_dir) {
             Ok(()) => return Ok(MonolithicRunnerLock { lock_dir }),
-            Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {
-                validate_existing_runner_lock(&lock_dir)?;
+            Err(error) => {
+                if !is_runner_lock_contention(&error, &lock_dir)? {
+                    return Err(error).with_context(|| {
+                        format!(
+                            "Failed to acquire .es-fluent runner lock {}",
+                            lock_dir.display()
+                        )
+                    });
+                }
+
                 if start.elapsed() >= RUNNER_LOCK_TIMEOUT {
                     bail!(
                         "Timed out waiting for .es-fluent runner lock: {}",
@@ -132,15 +140,41 @@ pub fn acquire_monolithic_runner_lock(workspace_root: &Path) -> Result<Monolithi
                 }
                 thread::sleep(RUNNER_LOCK_POLL);
             },
-            Err(error) => {
-                return Err(error).with_context(|| {
-                    format!(
-                        "Failed to acquire .es-fluent runner lock {}",
-                        lock_dir.display()
-                    )
-                });
-            },
         }
+    }
+}
+
+fn is_runner_lock_contention(error: &std::io::Error, lock_dir: &Path) -> Result<bool> {
+    if error.kind() == std::io::ErrorKind::AlreadyExists {
+        validate_existing_runner_lock(lock_dir)?;
+        return Ok(true);
+    }
+
+    if !cfg!(windows) || error.kind() != std::io::ErrorKind::PermissionDenied {
+        return Ok(false);
+    }
+
+    match fs::symlink_metadata(lock_dir) {
+        Ok(metadata) if metadata.file_type().is_symlink() => {
+            bail!(
+                ".es-fluent runner lock must be a real directory, not a symlink: {}",
+                lock_dir.display()
+            );
+        },
+        Ok(metadata) if !metadata.is_dir() => {
+            bail!(
+                ".es-fluent runner lock exists but is not a directory: {}",
+                lock_dir.display()
+            );
+        },
+        Ok(_) => Ok(true),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(false),
+        Err(error) => Err(error).with_context(|| {
+            format!(
+                "Failed to inspect .es-fluent runner lock {}",
+                lock_dir.display()
+            )
+        }),
     }
 }
 

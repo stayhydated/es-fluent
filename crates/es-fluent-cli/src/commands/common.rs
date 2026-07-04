@@ -272,7 +272,7 @@ fn workspace_metadata_dir(
     if canonical_requested_path.is_file() {
         canonical_requested_path
             .parent()
-            .map(|path| crate::utils::paths::normalize_windows_verbatim_path(path))
+            .map(crate::utils::paths::normalize_windows_verbatim_path)
             .unwrap_or_else(|| {
                 crate::utils::paths::normalize_windows_verbatim_path(canonical_requested_path)
             })
