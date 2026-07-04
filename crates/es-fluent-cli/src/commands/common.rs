@@ -1368,19 +1368,20 @@ mod tests {
     #[test]
     fn workspace_discover_scopes_symlinked_member_path_by_lexical_location() {
         let temp = tempfile::tempdir().expect("tempdir");
+        let workspace_root = temp.path().canonicalize().expect("canonical tempdir");
         let outside = tempfile::tempdir().expect("outside tempdir");
         fs::write(
-            temp.path().join("Cargo.toml"),
+            workspace_root.join("Cargo.toml"),
             "[workspace]\nmembers = [\"a\", \"b\"]\nresolver = \"2\"\n",
         )
         .expect("write workspace manifest");
-        write_i18n_workspace_member(temp.path(), "a");
-        write_i18n_workspace_member(temp.path(), "b");
-        std::os::unix::fs::symlink(outside.path(), temp.path().join("a/src/external"))
+        write_i18n_workspace_member(&workspace_root, "a");
+        write_i18n_workspace_member(&workspace_root, "b");
+        std::os::unix::fs::symlink(outside.path(), workspace_root.join("a/src/external"))
             .expect("create symlink inside member");
 
         let selected = WorkspaceCrates::discover(WorkspaceArgs {
-            path: Some(temp.path().join("a/src/external")),
+            path: Some(workspace_root.join("a/src/external")),
             package: None,
         })
         .expect("discover symlinked path inside workspace member");

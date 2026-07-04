@@ -313,10 +313,11 @@ mod tests {
         .expect("write i18n.toml");
 
         let ws = discover_workspace(temp.path()).expect("discover workspace");
+        let expected_src_dir = temp.path().canonicalize().expect("canonical tempdir");
 
         assert_eq!(ws.crates.len(), 1);
         assert!(ws.crates[0].has_lib_rs);
-        assert_eq!(ws.crates[0].src_dir.as_path(), temp.path());
+        assert_eq!(ws.crates[0].src_dir.as_path(), expected_src_dir.as_path());
     }
 
     #[test]

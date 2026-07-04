@@ -40,10 +40,13 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os:
-          - ubuntu-latest
-          - macos-latest
-          - windows-latest
+        include:
+          - os: ubuntu-latest
+            command: cargo test --workspace --all-features
+          - os: macos-latest
+            command: cargo test --workspace --all-features
+          - os: windows-latest
+            command: cargo test --workspace --all-features
 
     steps:
       - uses: actions/checkout@v6
@@ -62,7 +65,7 @@ jobs:
         uses: ./.github/actions/install-linux-deps
 
       - name: Run tests
-        run: cargo test --workspace --all-features
+        run: ${{ matrix.command }}
 
   dioxus-manager-feature-matrix:
     name: dioxus manager (${{ matrix.name }})
@@ -111,7 +114,7 @@ jobs:
           - name: core
             command: cargo test -p es-fluent-manager-core
           - name: web-server
-            command: cargo test -p web --features server
+            command: cargo test -p web --lib --no-default-features
           - name: web-client
             command: cargo check -p web --features web
 

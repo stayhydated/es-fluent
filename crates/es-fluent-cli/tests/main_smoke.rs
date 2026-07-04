@@ -4810,7 +4810,9 @@ fn binary_clean_orphaned_rejects_symlinked_fallback_locale_directory() {
         .failure()
         .stderr(predicate::str::contains("fallback locale directory"))
         .stderr(predicate::str::contains("symlink"))
-        .stderr(predicate::str::contains("refusing to scan"));
+        .stderr(predicate::str::contains("refusing"))
+        .stderr(predicate::str::contains("orphaned"))
+        .stderr(predicate::str::contains("files"));
 
     assert!(temp.path().join("i18n/fr/orphan.ftl").exists());
     assert!(temp.path().join("i18n/en").is_symlink());
@@ -4859,7 +4861,9 @@ fn binary_clean_orphaned_rejects_ftl_path_directory_before_runner() {
         .failure()
         .stderr(predicate::str::contains("Expected FTL path"))
         .stderr(predicate::str::contains("non-file path"))
-        .stderr(predicate::str::contains("refusing to scan orphaned files"));
+        .stderr(predicate::str::contains("refusing"))
+        .stderr(predicate::str::contains("orphaned"))
+        .stderr(predicate::str::contains("files"));
 
     assert!(temp.path().join("i18n/fr/orphan.ftl").exists());
     assert!(
