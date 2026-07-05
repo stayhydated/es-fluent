@@ -178,6 +178,9 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
+      - name: Setup sccache
+        uses: mozilla-actions/sccache-action@v0.0.10
+
       - name: Machete
         uses: bnjbvr/cargo-machete@main
 

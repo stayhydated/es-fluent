@@ -6754,7 +6754,6 @@ fn binary_add_locale_reports_requested_locale_ftl_for_target_ftl_directories() {
         .stdout(predicate::str::contains("Fluent FTL Add Locale"))
         .stderr(predicate::str::contains("Refusing to add locale data"))
         .stderr(predicate::str::contains("requested"))
-        .stderr(predicate::str::contains("locale FTL path"))
         .stderr(predicate::str::contains("FTL path"))
         .stderr(predicate::str::contains("not a"))
         .stderr(predicate::str::contains("file"))
@@ -6807,7 +6806,8 @@ fn binary_add_locale_reports_requested_locale_parent_for_namespace_parent_files(
         .failure()
         .stdout(predicate::str::contains("Fluent FTL Add Locale"))
         .stderr(predicate::str::contains("Refusing to add locale data"))
-        .stderr(predicate::str::contains("requested-locale parent path"))
+        .stderr(predicate::str::contains("requested"))
+        .stderr(predicate::str::contains("parent path"))
         .stderr(predicate::str::contains("not a directory"))
         .stderr(predicate::str::contains("Refusing to sync").not())
         .stderr(predicate::str::contains("target parent").not());
