@@ -31,7 +31,6 @@ unic-langid = { features = [ "macros" ], workspace = true }
 es-fluent-build = { workspace = true }
 es-fluent-generate = { workspace = true }
 es-fluent-manager-embedded = { workspace = true }
-strum = { features = [ "derive" ], workspace = true }
 tempfile = { workspace = true }
 
 [lints]

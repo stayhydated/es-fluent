@@ -1,8 +1,6 @@
 #![doc = include_str!("../README.md")]
 #![cfg_attr(not(test), deny(clippy::panic, clippy::unwrap_used))]
 
-use proc_macro_error2::proc_macro_error;
-
 mod macros;
 #[cfg(test)]
 mod snapshot_support;
@@ -45,7 +43,6 @@ mod snapshot_support;
 /// - `#[fluent(arg = "value")]`: On a field, renames that exposed Fluent argument (works on struct fields, enum named fields, and enum tuple fields).
 /// - `#[fluent_choice(rename_all = "...")]`: On a unit-only enum deriving `EsFluent`, changes the inferred selector value casing.
 #[proc_macro_derive(EsFluent, attributes(fluent, fluent_choice))]
-#[proc_macro_error]
 pub fn derive_es_fluent(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     macros::derive_es_fluent::from(input)
 }
@@ -78,7 +75,6 @@ pub fn derive_es_fluent(input: proc_macro::TokenStream) -> proc_macro::TokenStre
 /// - `#[fluent(namespace = "...")]`: Routes generated registrations to a namespaced FTL file.
 /// - Generated enums infer `EsFluentChoice`; do not include `EsFluentChoice` in `derive(...)`.
 #[proc_macro_derive(EsFluentVariants, attributes(fluent_variants, fluent_label, fluent))]
-#[proc_macro_error]
 pub fn derive_es_fluent_variants(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     macros::derive_es_fluent_variants::from(input)
 }
@@ -114,7 +110,6 @@ pub fn derive_es_fluent_variants(input: proc_macro::TokenStream) -> proc_macro::
 /// - `#[fluent_choice(rename_all = "...")]`: Overrides the default kebab-case variant serialization.
 /// - Derived variants return validated `StaticFluentVariantKey` values instead of raw selector strings.
 #[proc_macro_derive(EsFluentChoice, attributes(fluent_choice))]
-#[proc_macro_error]
 pub fn derive_fluent_choice(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     macros::derive_fluent_choice::from(input)
 }
@@ -148,7 +143,6 @@ pub fn derive_fluent_choice(input: proc_macro::TokenStream) -> proc_macro::Token
 /// - `#[derive(EsFluentVariants)]` generated variant enums get label keys inferred from their generated enum names.
 /// - `#[fluent(namespace = "...")]`: Routes generated registrations to a namespaced FTL file.
 #[proc_macro_derive(EsFluentLabel, attributes(fluent_label, fluent))]
-#[proc_macro_error]
 pub fn derive_es_fluent_label(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     macros::derive_es_fluent_label::from(input)
 }

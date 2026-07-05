@@ -4934,7 +4934,6 @@ dependencies = [
  "es-fluent-shared",
  "fluent-bundle",
  "inventory",
- "strum 0.28.0",
  "tempfile",
  "tracing",
  "unic-langid",
@@ -4976,7 +4975,6 @@ dependencies = [
  "fs-err",
  "indexmap",
  "indicatif",
- "insta",
  "jiff",
  "miette",
  "notify 8.2.0",
@@ -5036,7 +5034,6 @@ dependencies = [
  "insta",
  "path-slash",
  "prettyplease",
- "proc-macro-error2",
  "proc-macro2",
  "quote",
  "serial_test",
@@ -5112,7 +5109,6 @@ dependencies = [
  "insta",
  "path-slash",
  "prettyplease",
- "proc-macro-error2",
  "proc-macro2",
  "quote",
  "serial_test",
@@ -5165,7 +5161,6 @@ dependencies = [
  "dioxus-core",
  "dioxus-core-macro",
  "dioxus-hooks",
- "dioxus-html",
  "dioxus-signals",
  "dioxus-ssr",
  "es-fluent",
@@ -5193,7 +5188,6 @@ dependencies = [
  "es-fluent-manager-core",
  "es-fluent-manager-macros",
  "rust-embed",
- "tempfile",
  "tracing",
  "trybuild",
  "unic-langid",
@@ -12033,7 +12027,7 @@ checksum = "a2eb9349b6444b326872e140eb1cf5e7c522154d69e7a0ffb0fb81c06b37543f"
 [[package]]
 name = "stayhydated-dioxus"
 version = "0.1.0"
-source = "git+https://github.com/stayhydated/stayhydated#3ca5cf9fe5b144135b875ba2ed19d6eecd1f6754"
+source = "git+https://github.com/stayhydated/shared#364c895edc532a88c1b43dca481aa203b9858f11"
 dependencies = [
  "derive_more",
  "dioxus",
@@ -12044,7 +12038,7 @@ dependencies = [
 [[package]]
 name = "stayhydated-dioxus-core"
 version = "0.1.0"
-source = "git+https://github.com/stayhydated/stayhydated#3ca5cf9fe5b144135b875ba2ed19d6eecd1f6754"
+source = "git+https://github.com/stayhydated/shared#364c895edc532a88c1b43dca481aa203b9858f11"
 dependencies = [
  "bon",
  "bytemuck",
@@ -12060,7 +12054,7 @@ dependencies = [
 [[package]]
 name = "stayhydated-site"
 version = "0.1.0"
-source = "git+https://github.com/stayhydated/stayhydated#3ca5cf9fe5b144135b875ba2ed19d6eecd1f6754"
+source = "git+https://github.com/stayhydated/shared#364c895edc532a88c1b43dca481aa203b9858f11"
 dependencies = [
  "bon",
  "dioxus",
@@ -12070,7 +12064,7 @@ dependencies = [
 [[package]]
 name = "stayhydated-xtask"
 version = "0.1.0"
-source = "git+https://github.com/stayhydated/stayhydated#3ca5cf9fe5b144135b875ba2ed19d6eecd1f6754"
+source = "git+https://github.com/stayhydated/shared#364c895edc532a88c1b43dca481aa203b9858f11"
 dependencies = [
  "anyhow",
  "bon",

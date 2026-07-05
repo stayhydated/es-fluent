@@ -56,7 +56,6 @@ dioxus = { default-features = false, version = "0.7" }
 dioxus-core = { default-features = false, version = "0.7" }
 dioxus-core-macro = { default-features = false, version = "0.7" }
 dioxus-hooks = { default-features = false, version = "0.7" }
-dioxus-html = { default-features = false, version = "0.7" }
 dioxus-signals = { default-features = false, version = "0.7" }
 dioxus-ssr = { default-features = false, version = "0.7" }
 es-fluent = { path = "crates/es-fluent", version = "0.16.0" }
@@ -91,7 +90,6 @@ gpui_platform = { features = [
 heck = "0.5"
 icu_experimental = "0.5"
 icu_locale = "2.2"
-icu_locale_core = "2.2"
 indexmap = "2.14"
 indicatif = "0.18"
 insta = "1.48"
@@ -106,21 +104,19 @@ path-slash = "0.2"
 predicates = "3.1"
 prettyplease = "0.2"
 proc-macro-crate = "3.5"
-proc-macro-error2 = "2.0"
 proc-macro2 = "1.0"
 quote = "1.0"
 ratatui = "0.30"
 rstest = "0.26"
 rust-embed = "8.11"
 rustc-hash = "2.1"
-schemars = "1.2"
 serde = "1.0"
 serde_json = "1.0"
 serial_test = "3.5"
 similar = "3.1"
-stayhydated-dioxus = { git = "https://github.com/stayhydated/stayhydated" }
-stayhydated-site = { git = "https://github.com/stayhydated/stayhydated" }
-stayhydated-xtask = { git = "https://github.com/stayhydated/stayhydated" }
+stayhydated-dioxus = { git = "https://github.com/stayhydated/shared" }
+stayhydated-site = { git = "https://github.com/stayhydated/shared" }
+stayhydated-xtask = { git = "https://github.com/stayhydated/shared" }
 strum = "0.28"
 syn = "2.0"
 temp-env = "0.3"
@@ -160,12 +156,6 @@ opt-level = 3
 [profile.wasm-dev]
 inherits = "dev"
 opt-level = 1
-
-[profile.server-dev]
-inherits = "dev"
-
-[profile.android-dev]
-inherits = "dev"
 
 [workspace.lints.rust]
 unexpected_cfgs = { check-cfg = [ "cfg(coverage)" ], level = "deny" }
