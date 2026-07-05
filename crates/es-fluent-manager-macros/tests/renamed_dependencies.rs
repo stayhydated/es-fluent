@@ -1,6 +1,11 @@
 use std::process::Command;
 
+use path_slash::PathExt as _;
 use tempfile::TempDir;
+
+fn toml_path(path: &std::path::Path) -> String {
+    path.to_slash_lossy().into_owned()
+}
 
 #[test]
 fn manager_macros_compile_when_runtime_dependencies_are_renamed() {
@@ -36,11 +41,11 @@ bevy_runtime = {{ package = "es-fluent-manager-bevy", path = "{}", default-featu
 dioxus_runtime = {{ package = "es-fluent-manager-dioxus", path = "{}" }}
 language_pack = {{ package = "es-fluent-lang", path = "{}" }}
 "#,
-            facade_path.display(),
-            embedded_path.display(),
-            bevy_path.display(),
-            dioxus_path.display(),
-            lang_path.display()
+            toml_path(&facade_path),
+            toml_path(&embedded_path),
+            toml_path(&bevy_path),
+            toml_path(&dioxus_path),
+            toml_path(&lang_path)
         ),
     )
     .expect("write Cargo.toml");

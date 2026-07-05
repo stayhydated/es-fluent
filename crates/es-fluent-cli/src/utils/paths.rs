@@ -1,4 +1,4 @@
-use path_slash::PathExt as _;
+use path_slash::{PathBufExt as _, PathExt as _};
 use std::path::{Path, PathBuf};
 
 pub(crate) fn slash_path(path: &Path) -> String {
@@ -38,7 +38,9 @@ pub(crate) fn relative_slash_message(message: &str, base: &Path) -> String {
     for prefix in [&raw_base_canon, &base_canon, &raw_base, &base] {
         normalized = replace_path_prefix(&normalized, prefix);
     }
-    normalized.replace('\\', "/")
+    PathBuf::from_backslash(&normalized)
+        .to_slash_lossy()
+        .into_owned()
 }
 
 pub(crate) fn normalize_windows_verbatim_path(path: &Path) -> PathBuf {
@@ -128,6 +130,17 @@ mod tests {
 
         assert_eq!(
             relative_slash_message(&message, temp.path()),
+            "failed at i18n/en/test-app.ftl"
+        );
+    }
+
+    #[test]
+    fn relative_slash_message_normalizes_backslash_paths() {
+        let workspace = Path::new(r"C:\workspace");
+        let message = r"failed at C:\workspace\i18n\en\test-app.ftl";
+
+        assert_eq!(
+            relative_slash_message(message, workspace),
             "failed at i18n/en/test-app.ftl"
         );
     }

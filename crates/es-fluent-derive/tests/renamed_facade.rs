@@ -1,7 +1,12 @@
 use std::process::Command;
 
 use fs_err as fs;
+use path_slash::PathExt as _;
 use tempfile::TempDir;
+
+fn toml_path(path: &std::path::Path) -> String {
+    path.to_slash_lossy().into_owned()
+}
 
 #[test]
 fn derives_compile_when_es_fluent_dependency_is_renamed() {
@@ -28,7 +33,7 @@ edition = "2024"
 [dependencies]
 localized = {{ package = "es-fluent", path = "{}" }}
 "#,
-            facade_path.display()
+            toml_path(&facade_path)
         ),
     )
     .expect("write Cargo.toml");

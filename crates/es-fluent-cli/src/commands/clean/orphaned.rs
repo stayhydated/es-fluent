@@ -133,11 +133,11 @@ fn orphaned_display_path(
     abs_path: &Path,
     fallback_relative_path: &Path,
 ) -> String {
-    abs_path
-        .strip_prefix(workspace.workspace_info.root_dir.as_path())
-        .unwrap_or(fallback_relative_path)
-        .to_string_lossy()
-        .replace('\\', "/")
+    crate::utils::paths::slash_path(
+        abs_path
+            .strip_prefix(workspace.workspace_info.root_dir.as_path())
+            .unwrap_or(fallback_relative_path),
+    )
 }
 
 pub(super) fn validate_orphaned_scan_setup(

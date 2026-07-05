@@ -1,6 +1,11 @@
 use std::process::Command;
 
+use path_slash::PathExt as _;
 use tempfile::TempDir;
+
+fn toml_path(path: &std::path::Path) -> String {
+    path.to_slash_lossy().into_owned()
+}
 
 #[test]
 fn language_macro_compiles_when_runtime_dependencies_are_renamed() {
@@ -30,8 +35,8 @@ edition = "2024"
 localized = {{ package = "es-fluent", path = "{}" }}
 language_pack = {{ package = "es-fluent-lang", path = "{}" }}
 "#,
-            facade_path.display(),
-            lang_path.display()
+            toml_path(&facade_path),
+            toml_path(&lang_path)
         ),
     )
     .expect("write Cargo.toml");

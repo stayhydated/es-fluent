@@ -27,6 +27,7 @@ syn = { features = [ "full" ], workspace = true }
 es-fluent = { workspace = true }
 fs-err = { workspace = true }
 insta = { workspace = true }
+path-slash = { workspace = true }
 prettyplease = { workspace = true }
 serial_test = { workspace = true }
 temp-env = { workspace = true }

@@ -41,7 +41,7 @@ pub(super) fn collect_fallback_keys(loaded_files: &[LoadedFtlFile]) -> FallbackK
 
             if let Entry::Vacant(slot) = fallback_keys.entry(key) {
                 slot.insert(FallbackKeyInfo {
-                    locale_relative_path: file.relative_path.to_string_lossy().replace('\\', "/"),
+                    locale_relative_path: crate::utils::paths::slash_path(&file.relative_path),
                     translation_fingerprint: message_translation_fingerprint(msg),
                 });
             }
@@ -184,10 +184,9 @@ fn collect_actual_keys(
                         ActualKeyInfo {
                             variables: collect_actual_variables(ctx, msg, locale, &file, issues),
                             file_path: relative_path.clone(),
-                            locale_relative_path: file
-                                .relative_path
-                                .to_string_lossy()
-                                .replace('\\', "/"),
+                            locale_relative_path: crate::utils::paths::slash_path(
+                                &file.relative_path,
+                            ),
                             header_link: header_link.clone(),
                             translation_fingerprint: message_translation_fingerprint(msg),
                             allow_same_as_fallback,
