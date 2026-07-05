@@ -27,6 +27,18 @@ pub enum EsFluentError {
     #[error("Invalid language identifier '{identifier}': {reason}")]
     InvalidLanguageIdentifier { identifier: String, reason: String },
 
+    /// Invalid Fluent metadata identifier.
+    #[error("Invalid Fluent metadata '{identifier}': {reason}")]
+    InvalidFluentIdentifier { identifier: String, reason: String },
+
+    /// Duplicate generated Fluent key metadata.
+    #[error("Duplicate generated FTL key '{key}' from {first} and {second}")]
+    DuplicateGeneratedFtlKey {
+        key: String,
+        first: String,
+        second: String,
+    },
+
     /// Language not supported.
     #[error("Language '{0}' is not supported")]
     LanguageNotSupported(LanguageIdentifier),
@@ -78,6 +90,30 @@ impl EsFluentError {
         }
     }
 
+    /// Creates an invalid Fluent metadata identifier error.
+    pub fn invalid_fluent_identifier(
+        identifier: impl Into<String>,
+        reason: impl Into<String>,
+    ) -> Self {
+        Self::InvalidFluentIdentifier {
+            identifier: identifier.into(),
+            reason: reason.into(),
+        }
+    }
+
+    /// Creates a duplicate generated FTL key error.
+    pub fn duplicate_generated_ftl_key(
+        key: impl Into<String>,
+        first: impl Into<String>,
+        second: impl Into<String>,
+    ) -> Self {
+        Self::DuplicateGeneratedFtlKey {
+            key: key.into(),
+            first: first.into(),
+            second: second.into(),
+        }
+    }
+
     /// Creates a fallback language not found error.
     pub fn fallback_language_not_found(language: impl Into<String>) -> Self {
         Self::FallbackLanguageNotFound {
@@ -92,7 +128,7 @@ pub type EsFluentResult<T> = Result<T, EsFluentError>;
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::error::Error;
+    use std::error::Error as _;
 
     #[test]
     fn helper_constructors_build_expected_variants() {
@@ -106,6 +142,12 @@ mod tests {
         assert!(matches!(
             invalid,
             EsFluentError::InvalidLanguageIdentifier { .. }
+        ));
+
+        let invalid_fluent = EsFluentError::invalid_fluent_identifier("bad key", "parse failure");
+        assert!(matches!(
+            invalid_fluent,
+            EsFluentError::InvalidFluentIdentifier { .. }
         ));
 
         let fallback = EsFluentError::fallback_language_not_found("en-US");

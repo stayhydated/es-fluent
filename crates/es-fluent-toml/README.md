@@ -6,16 +6,29 @@
 **Internal Crate**: Configuration parser and path resolver for `i18n.toml`.
 
 `es-fluent-toml` is the single source of truth for workspace localization
-configuration. It parses `i18n.toml`, resolves asset paths relative to the config
-file, and discovers available locales for macros, the build-helper crate, and
-custom tooling.
+configuration. It parses `i18n.toml`, resolves asset paths relative to the
+crate root, rejects asset paths that escape the crate or use existing symlinked
+path components, and discovers available locales for macros, the build-helper
+crate, and custom tooling.
+Locale discovery is strict inside a dedicated asset directory. When
+`assets_dir = "."`, discovery treats canonical locale-named directories as
+locales, ignores common project directories such as `src`, `target`, `bin`,
+and `lib`, and still reports noncanonical locale-looking names such as `en-us`.
+CLI commands with explicit locale targets can still use an existing ignored-name
+directory. Use a dedicated asset directory instead of `.` if all-locale
+discovery must include a locale whose tag matches an ignored project directory
+name.
 
 ## Key API
 
-- `I18nConfig`: raw deserialized configuration
+- `RawI18nConfig`: TOML shape before validation
+- `I18nConfig`: validated configuration with typed fallback locale and
+  namespace allowlist values
 - `ResolvedI18nLayout`: config plus resolved absolute paths and locale helpers
-- `FluentFeature`: supports `fluent_feature = "name"` and
-  `fluent_feature = ["name", "other"]`
+- `fluent_feature`: optional array of Cargo features to enable while collecting
+  derive inventory, such as `fluent_feature = ["name", "other"]`
+- `check_fallback_copies`: optional boolean for CLI fallback-copy validation,
+  such as `check_fallback_copies = false`
 
 ## Typical direct use
 

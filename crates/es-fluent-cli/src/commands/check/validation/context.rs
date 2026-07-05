@@ -1,16 +1,14 @@
-use super::super::inventory::KeyInfo;
+use super::super::inventory::ExpectedKeys;
 use crate::core::{
     DuplicateKeyError, FtlSyntaxError, MissingKeyError, MissingVariableWarning,
-    UnexpectedVariableError, ValidationIssue,
+    UnexpectedVariableError, UntranslatedMessageWarning, ValidationIssue,
 };
-use indexmap::IndexMap;
 use miette::{NamedSource, SourceSpan};
-use std::fs;
 use std::path::Path;
 use terminal_link::Link;
 
 pub(super) struct ValidationContext<'a> {
-    pub(super) expected_keys: &'a IndexMap<String, KeyInfo>,
+    pub(super) expected_keys: &'a ExpectedKeys,
     pub(super) workspace_root: &'a Path,
     pub(super) manifest_dir: &'a Path,
 }
@@ -25,30 +23,18 @@ impl ValidationContext<'_> {
     }
 
     pub(super) fn to_relative_path(&self, path: &Path) -> String {
-        let path_canon = fs::canonicalize(path).unwrap_or_else(|_| path.to_path_buf());
-        let base_canon = fs::canonicalize(self.workspace_root)
-            .unwrap_or_else(|_| self.workspace_root.to_path_buf());
-
-        if let Ok(rel) = path_canon.strip_prefix(&base_canon) {
-            return rel.display().to_string();
-        }
-
-        if let Ok(rel) = path.strip_prefix(self.workspace_root) {
-            return rel.display().to_string();
-        }
-
-        path.display().to_string()
+        crate::utils::paths::relative_slash_path(path, self.workspace_root)
     }
 
     pub(super) fn missing_file_issues(&self, locale: &str, ftl_path: &str) -> Vec<ValidationIssue> {
         self.expected_keys
-            .keys()
-            .cloned()
-            .map(|key| {
-                let help = format!("Add translation for '{}' in {}", key, ftl_path);
+            .iter()
+            .map(|(key, key_info)| {
+                let expected_path = self.expected_resource_path(locale, key_info);
+                let help = format!("Add translation for '{}' in {}", key, expected_path);
                 ValidationIssue::MissingKey(MissingKeyError {
                     src: NamedSource::new(ftl_path, String::new()),
-                    key,
+                    key: key.to_string(),
                     locale: locale.to_string(),
                     help,
                 })
@@ -69,6 +55,14 @@ impl ValidationContext<'_> {
             locale: locale.to_string(),
             help: format!("Add translation for '{}' in {}", key, file_path),
         })
+    }
+
+    pub(super) fn expected_resource_path(
+        &self,
+        locale: &str,
+        key_info: &super::super::inventory::KeyInfo,
+    ) -> String {
+        format!("{locale}/{}", key_info.resource.locale_relative_path)
     }
 
     pub(super) fn missing_variable_issue(
@@ -104,6 +98,25 @@ impl ValidationContext<'_> {
             key: key.to_string(),
             locale: locale.to_string(),
             help: format!("Remove variable '${variable}' from '{key}' or declare it in Rust code"),
+        })
+    }
+
+    pub(super) fn untranslated_message_issue(
+        &self,
+        key: &str,
+        locale: &str,
+        fallback_locale: &str,
+        header_link: &str,
+    ) -> ValidationIssue {
+        ValidationIssue::UntranslatedMessage(UntranslatedMessageWarning {
+            src: NamedSource::new(header_link, String::new()),
+            span: SourceSpan::new(0_usize.into(), 1_usize),
+            key: key.to_string(),
+            locale: locale.to_string(),
+            fallback_locale: fallback_locale.to_string(),
+            help: format!(
+                "Translate '{key}' for locale '{locale}' instead of copying '{fallback_locale}', or add '# es-fluent: same-as-fallback' immediately before it if the text is intentionally invariant"
+            ),
         })
     }
 

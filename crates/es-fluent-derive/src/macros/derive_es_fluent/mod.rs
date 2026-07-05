@@ -1,61 +1,39 @@
 mod r#enum;
 mod r#struct;
 
-use darling::FromDeriveInput as _;
-use es_fluent_derive_core::{
-    options::{r#enum::EnumOpts, r#struct::StructOpts},
-    validation,
-};
-use es_fluent_shared::namespace::NamespaceRule;
-use syn::{Data, DeriveInput, parse_macro_input};
+use es_fluent_derive_core::expansion::{EsFluentExpansion, ExpansionError};
+use syn::{DeriveInput, parse_macro_input};
+
+use crate::macros::utils::CodegenContext;
 
 pub fn from(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let input = parse_macro_input!(input as DeriveInput);
-    expand_es_fluent(input).into()
+    let context = CodegenContext::resolve();
+    expand_es_fluent_with_context(input, &context).into()
 }
 
-fn validate_namespace(namespace: Option<&NamespaceRule>, span: proc_macro2::Span) {
-    if let Some(ns) = namespace
-        && let Err(err) = validation::validate_namespace(ns, Some(span))
-    {
-        err.abort();
+#[cfg(test)]
+fn expand_es_fluent(input: DeriveInput) -> proc_macro2::TokenStream {
+    let context = CodegenContext::fallback();
+    expand_es_fluent_with_context(input, &context)
+}
+
+fn expand_es_fluent_with_context(
+    input: DeriveInput,
+    context: &CodegenContext,
+) -> proc_macro2::TokenStream {
+    match EsFluentExpansion::from_derive_input(&input) {
+        Ok(EsFluentExpansion::Struct(expansion)) => r#struct::process_struct(context, &expansion),
+        Ok(EsFluentExpansion::Enum(expansion)) => r#enum::process_enum(context, &expansion),
+        Err(error) => expansion_error_to_tokens(error),
     }
 }
 
-fn expand_es_fluent(input: DeriveInput) -> proc_macro2::TokenStream {
-    match &input.data {
-        Data::Enum(data) => {
-            let opts = match EnumOpts::from_derive_input(&input) {
-                Ok(opts) => opts,
-                Err(err) => return err.write_errors(),
-            };
-
-            if let Err(err) = validation::validate_enum(&opts) {
-                err.abort();
-            }
-
-            validate_namespace(opts.attr_args().namespace(), opts.ident().span());
-
-            r#enum::process_enum(&opts, data)
-        },
-        Data::Struct(data) => {
-            let opts = match StructOpts::from_derive_input(&input) {
-                Ok(opts) => opts,
-                Err(err) => return err.write_errors(),
-            };
-
-            if let Err(err) = validation::validate_struct(&opts) {
-                err.abort();
-            }
-
-            validate_namespace(opts.attr_args().namespace(), opts.ident().span());
-
-            r#struct::process_struct(&opts, data)
-        },
-        _ => proc_macro_error2::abort!(
-            input.ident.span(),
-            "EsFluent can only be derived for structs and enums"
-        ),
+fn expansion_error_to_tokens(error: ExpansionError) -> proc_macro2::TokenStream {
+    match error {
+        ExpansionError::Core(error) => crate::macros::utils::core_error_to_compile_error(error),
+        ExpansionError::Darling(error) => error.write_errors(),
+        ExpansionError::Syn(error) => error.to_compile_error(),
     }
 }
 
@@ -157,11 +135,14 @@ mod tests {
             crate::snapshot_support::pretty_file_tokens(super::expand_es_fluent(struct_input));
 
         assert!(tokens.contains("mod __es_fluent_inventory_type"));
-        assert!(tokens.contains("localize(env!(\"CARGO_PKG_NAME\"), \"type\", Some(&args))"));
-        assert!(tokens.contains("type_name: \"type\""));
-        assert!(tokens.contains("name: \"type\""));
-        assert!(tokens.contains("ftl_key: \"type\""));
-        assert!(tokens.contains("args: &[\"match\"]"));
+        assert!(tokens.contains("CARGO_PKG_NAME"));
+        assert!(tokens.contains("static_entry_id"));
+        assert!(tokens.contains("\"type\""));
+        assert!(tokens.contains("Some(&args)"));
+        assert!(tokens.contains("registry::__macro::ftl_type_info"));
+        assert!(tokens.contains("registry::__macro::ftl_variant"));
+        assert!(tokens.contains("static_argument_name"));
+        assert!(tokens.contains("\"match\""));
     }
 
     #[test]
@@ -195,19 +176,21 @@ mod tests {
     }
 
     #[test]
-    fn expand_es_fluent_panics_for_struct_validation_and_union_inputs() {
+    #[cfg_attr(not(target_os = "linux"), ignore = "insta snapshots are Linux-only")]
+    fn expand_es_fluent_returns_compile_errors_for_struct_validation_and_union_inputs() {
         let invalid_struct_input: syn::DeriveInput = parse_quote! {
             struct Invalid {
-                #[fluent(default)]
-                a: i32,
-                #[fluent(default)]
-                b: i32,
+                #[fluent(skip, arg = "value")]
+                value: i32,
             }
         };
-        let validation_panic = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-            let _ = super::expand_es_fluent(invalid_struct_input);
-        }));
-        assert!(validation_panic.is_err());
+        let validation_tokens = crate::snapshot_support::pretty_file_tokens(
+            super::expand_es_fluent(invalid_struct_input),
+        );
+        assert_snapshot!(
+            "expand_es_fluent_returns_compile_error_for_struct_validation_failure",
+            validation_tokens
+        );
 
         let union_input: syn::DeriveInput = parse_quote! {
             union NotSupported {
@@ -215,14 +198,17 @@ mod tests {
                 b: f32,
             }
         };
-        let union_panic = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-            let _ = super::expand_es_fluent(union_input);
-        }));
-        assert!(union_panic.is_err());
+        let union_tokens =
+            crate::snapshot_support::pretty_file_tokens(super::expand_es_fluent(union_input));
+        assert_snapshot!(
+            "expand_es_fluent_returns_compile_error_for_union_input",
+            union_tokens
+        );
     }
 
     #[test]
-    fn expand_es_fluent_panics_for_namespaces_not_allowed_by_config() {
+    #[cfg_attr(not(target_os = "linux"), ignore = "insta snapshots are Linux-only")]
+    fn expand_es_fluent_returns_compile_errors_for_namespaces_not_allowed_by_config() {
         with_manifest_dir(&["allowed"], || {
             let enum_input: syn::DeriveInput = parse_quote! {
                 #[fluent(namespace = "blocked")]
@@ -230,10 +216,12 @@ mod tests {
                     A
                 }
             };
-            let enum_panic = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-                let _ = super::expand_es_fluent(enum_input);
-            }));
-            assert!(enum_panic.is_err());
+            let enum_tokens =
+                crate::snapshot_support::pretty_file_tokens(super::expand_es_fluent(enum_input));
+            assert_snapshot!(
+                "expand_es_fluent_returns_compile_error_for_blocked_enum_namespace",
+                enum_tokens
+            );
 
             let struct_input: syn::DeriveInput = parse_quote! {
                 #[fluent(namespace = "blocked")]
@@ -241,40 +229,42 @@ mod tests {
                     value: i32
                 }
             };
-            let struct_panic = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-                let _ = super::expand_es_fluent(struct_input);
-            }));
-            assert!(struct_panic.is_err());
+            let struct_tokens =
+                crate::snapshot_support::pretty_file_tokens(super::expand_es_fluent(struct_input));
+            assert_snapshot!(
+                "expand_es_fluent_returns_compile_error_for_blocked_struct_namespace",
+                struct_tokens
+            );
         });
     }
 
     #[test]
     #[cfg_attr(not(target_os = "linux"), ignore = "insta snapshots are Linux-only")]
-    fn expand_es_fluent_emits_field_level_tuple_arg_name() {
+    fn expand_es_fluent_emits_field_level_tuple_arg() {
         let enum_input: syn::DeriveInput = parse_quote! {
             enum LoginError {
-                Something(#[fluent(arg_name = "value")] String),
+                Something(#[fluent(arg = "value")] String),
             }
         };
 
         let tokens =
             crate::snapshot_support::pretty_file_tokens(super::expand_es_fluent(enum_input));
-        assert_snapshot!("expand_es_fluent_emits_field_level_tuple_arg_name", tokens);
+        assert_snapshot!("expand_es_fluent_emits_field_level_tuple_arg", tokens);
     }
 
     #[test]
     #[cfg_attr(not(target_os = "linux"), ignore = "insta snapshots are Linux-only")]
-    fn expand_es_fluent_keeps_later_tuple_default_names_after_field_arg_name_override() {
+    fn expand_es_fluent_keeps_later_tuple_default_names_after_field_arg_override() {
         let enum_input: syn::DeriveInput = parse_quote! {
             enum LoginError {
-                Something(String, #[fluent(arg_name = "f1")] String, String),
+                Something(String, #[fluent(arg = "f1")] String, String),
             }
         };
 
         let tokens =
             crate::snapshot_support::pretty_file_tokens(super::expand_es_fluent(enum_input));
         assert_snapshot!(
-            "expand_es_fluent_keeps_later_tuple_default_names_after_field_arg_name_override",
+            "expand_es_fluent_keeps_later_tuple_default_names_after_field_arg_override",
             tokens
         );
     }
@@ -283,7 +273,7 @@ mod tests {
     #[cfg_attr(not(target_os = "linux"), ignore = "insta snapshots are Linux-only")]
     fn expand_es_fluent_uses_explicit_domain_override_for_enum_lookup() {
         let enum_input: syn::DeriveInput = parse_quote! {
-            #[fluent(resource = "es-fluent-lang", domain = "es-fluent-lang")]
+            #[fluent(id = "es-fluent-lang", domain = "es-fluent-lang")]
             enum Languages {
                 #[fluent(key = "en")]
                 En,
@@ -296,6 +286,21 @@ mod tests {
             "expand_es_fluent_uses_explicit_domain_override_for_enum_lookup",
             tokens
         );
+    }
+
+    #[test]
+    fn expand_es_fluent_returns_compile_error_for_invalid_enum_resource_override() {
+        let enum_input: syn::DeriveInput = parse_quote! {
+            #[fluent(id = "bad key")]
+            enum BadResource {
+                Ready,
+            }
+        };
+
+        let tokens = super::expand_es_fluent(enum_input).to_string();
+
+        assert!(tokens.contains("compile_error"));
+        assert!(tokens.contains("Fluent message id"));
     }
 
     #[test]
@@ -331,5 +336,47 @@ mod tests {
             "expand_es_fluent_delegates_skipped_single_field_variant",
             tokens
         );
+    }
+
+    #[test]
+    fn skipped_variant_fallback_respects_skipped_fields() {
+        let single_skipped_tuple: syn::DeriveInput = parse_quote! {
+            enum LoginError {
+                #[fluent(skip)]
+                Network(#[fluent(skip)] NetworkError),
+            }
+        };
+        let tokens = crate::snapshot_support::pretty_file_tokens(super::expand_es_fluent(
+            single_skipped_tuple,
+        ));
+        assert!(tokens.contains("Self::Network(_) => \"Network\".to_string()"));
+
+        let tuple_with_delegate: syn::DeriveInput = parse_quote! {
+            enum LoginError {
+                #[fluent(skip)]
+                Network(#[fluent(skip)] u16, NetworkError),
+            }
+        };
+        let tokens = crate::snapshot_support::pretty_file_tokens(super::expand_es_fluent(
+            tuple_with_delegate,
+        ));
+        assert!(tokens.contains("Self::Network(_, f1)"));
+        assert!(tokens.contains("f1.to_fluent_string_with(localize)"));
+
+        let struct_with_delegate: syn::DeriveInput = parse_quote! {
+            enum LoginError {
+                #[fluent(skip)]
+                Network {
+                    #[fluent(skip)]
+                    code: u16,
+                    source: NetworkError,
+                },
+            }
+        };
+        let tokens = crate::snapshot_support::pretty_file_tokens(super::expand_es_fluent(
+            struct_with_delegate,
+        ));
+        assert!(tokens.contains("Self::Network { source, .. }"));
+        assert!(tokens.contains("source.to_fluent_string_with(localize)"));
     }
 }

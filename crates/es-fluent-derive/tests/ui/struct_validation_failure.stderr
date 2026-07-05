@@ -1,0 +1,5 @@
+error: Attribute error in message field: Cannot use #[fluent(arg = "...")] on a skipped field
+ --> tests/ui/struct_validation_failure.rs:5:5
+  |
+5 |     #[fluent(skip, arg = "value")]
+  |     ^

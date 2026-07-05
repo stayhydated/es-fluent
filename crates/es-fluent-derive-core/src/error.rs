@@ -1,9 +1,85 @@
 //! This module provides the error types for `es-fluent-derive-core`.
 
-use proc_macro_error2::{abort, abort_call_site, emit_error};
 use proc_macro2::Span;
+use std::fmt;
 
 pub use es_fluent_shared::error::{EsFluentError, EsFluentResult};
+
+/// Attribute parsing context used for diagnostics.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum AttrContext {
+    MessageContainer,
+    MessageStructContainer,
+    MessageEnumContainer,
+    MessageField,
+    EnumVariant,
+    VariantsContainer,
+    VariantsField,
+    VariantsVariant,
+    LabelContainer,
+    ChoiceContainer,
+    LanguageContainer,
+    LocaleField,
+}
+
+impl fmt::Display for AttrContext {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let label = match self {
+            Self::MessageContainer => "message container",
+            Self::MessageStructContainer => "message struct container",
+            Self::MessageEnumContainer => "message enum container",
+            Self::MessageField => "message field",
+            Self::EnumVariant => "enum variant",
+            Self::VariantsContainer => "variants container",
+            Self::VariantsField => "variants field",
+            Self::VariantsVariant => "variants variant",
+            Self::LabelContainer => "label container",
+            Self::ChoiceContainer => "choice container",
+            Self::LanguageContainer => "language container",
+            Self::LocaleField => "locale field",
+        };
+        f.write_str(label)
+    }
+}
+
+/// Structured attribute diagnostic data.
+#[derive(Clone, Debug)]
+pub struct AttrError {
+    pub context: AttrContext,
+    pub message: String,
+    pub span: Option<Span>,
+    pub note: Option<String>,
+    pub help: Option<String>,
+}
+
+impl AttrError {
+    pub fn new(context: AttrContext, message: impl Into<String>, span: Option<Span>) -> Self {
+        Self {
+            context,
+            message: message.into(),
+            span,
+            note: None,
+            help: None,
+        }
+    }
+
+    pub fn message_mut(&mut self) -> &mut String {
+        &mut self.message
+    }
+}
+
+impl fmt::Display for AttrError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "Attribute error in {}: {}", self.context, self.message)?;
+        if let Some(note) = &self.note {
+            write!(f, "\nnote: {note}")?;
+        }
+        if let Some(help) = &self.help {
+            write!(f, "\nhelp: {help}")?;
+        }
+        Ok(())
+    }
+}
 
 /// An error that can occur when parsing `es-fluent` attributes.
 #[derive(Clone, Debug, thiserror::Error)]
@@ -11,6 +87,14 @@ pub enum EsFluentCoreError {
     /// An error related to Fluent attribute parsing.
     #[error("Attribute error: {message}")]
     AttributeError { message: String, span: Option<Span> },
+
+    /// A structured error related to Fluent attribute parsing.
+    #[error("{0}")]
+    StructuredAttributeError(AttrError),
+
+    /// Multiple structured errors related to one parsed attribute list.
+    #[error("{}", attr_errors_fmt(.0))]
+    StructuredAttributeErrors(Vec<AttrError>),
 
     /// An error related to variant consistency.
     #[error("Variant '{variant_name}' error: {message}")]
@@ -45,6 +129,10 @@ impl EsFluentCoreError {
     pub fn span(&self) -> Option<Span> {
         match self {
             EsFluentCoreError::AttributeError { span, .. } => *span,
+            EsFluentCoreError::StructuredAttributeError(error) => error.span,
+            EsFluentCoreError::StructuredAttributeErrors(errors) => {
+                errors.first().and_then(|error| error.span)
+            },
             EsFluentCoreError::VariantError { span, .. } => *span,
             EsFluentCoreError::FieldError { span, .. } => *span,
             EsFluentCoreError::TransformError { span, .. } => *span,
@@ -55,29 +143,24 @@ impl EsFluentCoreError {
     pub fn message_mut(&mut self) -> &mut String {
         match self {
             EsFluentCoreError::AttributeError { message, .. } => message,
+            EsFluentCoreError::StructuredAttributeError(error) => error.message_mut(),
+            EsFluentCoreError::StructuredAttributeErrors(errors) => errors
+                .first_mut()
+                .map(AttrError::message_mut)
+                .expect("structured attribute error list is non-empty"),
             EsFluentCoreError::VariantError { message, .. } => message,
             EsFluentCoreError::FieldError { message, .. } => message,
             EsFluentCoreError::TransformError { message, .. } => message,
         }
     }
+}
 
-    /// Aborts the macro execution with the error.
-    pub fn abort(self) -> ! {
-        let msg = self.to_string();
-        match self.span() {
-            Some(span) => abort!(span, "{}", msg),
-            None => abort_call_site!("{}", msg),
-        }
-    }
-
-    /// Emits the error as a compiler error.
-    pub fn emit(&self) {
-        let msg = self.to_string();
-        match self.span() {
-            Some(span) => emit_error!(span, "{}", msg),
-            None => emit_error!("{}", msg),
-        }
-    }
+fn attr_errors_fmt(errors: &[AttrError]) -> String {
+    errors
+        .iter()
+        .map(ToString::to_string)
+        .collect::<Vec<_>>()
+        .join("\n")
 }
 
 /// A trait for adding notes and help messages to an error.
@@ -90,12 +173,34 @@ pub trait ErrorExt {
 
 impl ErrorExt for EsFluentCoreError {
     fn with_note(mut self, note_msg: String) -> Self {
+        if let EsFluentCoreError::StructuredAttributeError(error) = &mut self {
+            error.note = Some(note_msg);
+            return self;
+        }
+        if let EsFluentCoreError::StructuredAttributeErrors(errors) = &mut self {
+            if let Some(error) = errors.first_mut() {
+                error.note = Some(note_msg);
+            }
+            return self;
+        }
+
         let message = self.message_mut();
         *message = format!("{}\nnote: {}", message, note_msg);
         self
     }
 
     fn with_help(mut self, help_msg: String) -> Self {
+        if let EsFluentCoreError::StructuredAttributeError(error) = &mut self {
+            error.help = Some(help_msg);
+            return self;
+        }
+        if let EsFluentCoreError::StructuredAttributeErrors(errors) = &mut self {
+            if let Some(error) = errors.first_mut() {
+                error.help = Some(help_msg);
+            }
+            return self;
+        }
+
         let message = self.message_mut();
         *message = format!("{}\nhelp: {}", message, help_msg);
         self
@@ -176,42 +281,18 @@ mod tests {
     }
 
     #[test]
-    fn emit_and_abort_paths_cover_spans_and_call_site() {
-        let span = proc_macro2::Span::call_site();
-        let emit_with_span = std::panic::catch_unwind(|| {
-            EsFluentCoreError::AttributeError {
-                message: "emit with span".to_string(),
-                span: Some(span),
-            }
-            .emit();
-        });
-        assert!(emit_with_span.is_err());
+    fn structured_attribute_error_includes_context_note_and_help() {
+        let err = EsFluentCoreError::StructuredAttributeError(AttrError::new(
+            AttrContext::MessageField,
+            "Fluent argument name must not be empty",
+            None,
+        ))
+        .with_note("field-level argument parsing".to_string())
+        .with_help("use #[fluent(arg = \"name\")]".to_string());
 
-        let emit_without_span = std::panic::catch_unwind(|| {
-            EsFluentCoreError::AttributeError {
-                message: "emit without span".to_string(),
-                span: None,
-            }
-            .emit();
-        });
-        assert!(emit_without_span.is_err());
-
-        let abort_with_span = std::panic::catch_unwind(|| {
-            EsFluentCoreError::AttributeError {
-                message: "abort with span".to_string(),
-                span: Some(span),
-            }
-            .abort();
-        });
-        assert!(abort_with_span.is_err());
-
-        let abort_without_span = std::panic::catch_unwind(|| {
-            EsFluentCoreError::AttributeError {
-                message: "abort without span".to_string(),
-                span: None,
-            }
-            .abort();
-        });
-        assert!(abort_without_span.is_err());
+        assert_eq!(
+            err.to_string(),
+            "Attribute error in message field: Fluent argument name must not be empty\nnote: field-level argument parsing\nhelp: use #[fluent(arg = \"name\")]"
+        );
     }
 }

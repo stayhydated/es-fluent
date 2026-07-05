@@ -1,23 +1,69 @@
+use crate::options::{
+    EnumDataOptions, FilteredEnumDataOptions, GeneratedVariantDirective, GeneratedVariantsOptions,
+    KeyedVariant, MessageVariantDirective, Skippable, VariantFields,
+};
+use crate::{
+    error::{AttrContext, EsFluentCoreResult},
+    semantic::{
+        DomainName, FluentMessageId, SpannedValue, VariantKey, spanned_message_id_from_value,
+    },
+};
 use bon::Builder;
 use darling::{FromDeriveInput, FromMeta, FromVariant};
 use es_fluent_shared::{namer, namespace::NamespaceRule};
 use getset::Getters;
 
-use crate::options::{
-    EnumDataOptions, FilteredEnumDataOptions, GeneratedVariantsOptions, KeyedVariant, Skippable,
-    VariantFields,
-};
-
 /// Options for an enum variant.
+#[derive(Clone, Debug, Getters)]
+pub struct VariantOpts {
+    /// The identifier of the variant.
+    #[getset(get = "pub")]
+    ident: syn::Ident,
+    fields: darling::ast::Fields<super::FluentFieldOpts>,
+    directive: MessageVariantDirective,
+}
+
 #[derive(Clone, Debug, FromVariant, Getters)]
 #[darling(attributes(fluent))]
-pub struct VariantOpts {
+struct RawVariantOpts {
     /// The identifier of the variant.
     #[getset(get = "pub")]
     ident: syn::Ident,
     fields: darling::ast::Fields<super::FluentFieldOpts>,
     #[darling(flatten)]
     attr_args: super::KeyedVariantAttributeArgs,
+}
+
+impl FromVariant for VariantOpts {
+    fn from_variant(variant: &syn::Variant) -> darling::Result<Self> {
+        let raw = RawVariantOpts::from_variant(variant)?;
+        if raw.attr_args.is_skipped() && raw.attr_args.key().is_some() {
+            return Err(darling::Error::custom(
+                "Cannot use #[fluent(key = \"...\")] on a skipped variant",
+            )
+            .with_span(variant));
+        }
+
+        Ok(Self {
+            ident: raw.ident,
+            fields: raw.fields,
+            directive: raw.attr_args.directive(),
+        })
+    }
+}
+
+impl VariantOpts {
+    /// Returns the explicit variant key suffix as a typed value if provided.
+    pub fn variant_key(
+        &self,
+        context: AttrContext,
+    ) -> EsFluentCoreResult<Option<SpannedValue<VariantKey>>> {
+        self.directive.variant_key(context)
+    }
+
+    pub fn directive(&self) -> &MessageVariantDirective {
+        &self.directive
+    }
 }
 
 impl VariantFields for VariantOpts {
@@ -29,14 +75,16 @@ impl VariantFields for VariantOpts {
 }
 
 impl KeyedVariant for VariantOpts {
-    fn key(&self) -> Option<&str> {
-        self.attr_args.key()
+    fn directive(&self) -> &MessageVariantDirective {
+        &self.directive
     }
 }
 
 impl Skippable for VariantOpts {
-    fn is_skipped(&self) -> bool {
-        self.attr_args.is_skipped()
+    type Directive = MessageVariantDirective;
+
+    fn skip_directive(&self) -> &Self::Directive {
+        &self.directive
     }
 }
 
@@ -55,13 +103,20 @@ pub struct EnumOpts {
 }
 
 impl EnumOpts {
-    /// Returns the base localization key used for this enum.
-    pub fn base_key(&self) -> String {
-        if let Some(resource) = self.attr_args().resource() {
-            resource.to_string()
-        } else {
-            namer::FluentKey::from(self.ident()).to_string()
+    /// Returns the base localization key as a typed Fluent message id.
+    pub fn base_message_id(
+        &self,
+        context: AttrContext,
+    ) -> EsFluentCoreResult<SpannedValue<FluentMessageId>> {
+        if let Some(id) = self.attr_args().id_message_id() {
+            return Ok(id.clone());
         }
+
+        spanned_message_id_from_value(
+            namer::FluentKey::from(self.ident()).to_string(),
+            self.ident().span(),
+            context,
+        )
     }
 }
 
@@ -77,71 +132,69 @@ impl EnumDataOptions for EnumOpts {
 #[derive(Builder, Clone, Debug, Default, FromMeta, Getters)]
 pub struct FluentEnumAttributeArgs {
     #[darling(default)]
-    resource: Option<String>,
+    id: Option<SpannedValue<FluentMessageId>>,
     #[darling(default)]
-    domain: Option<String>,
-    /// Whether to skip inventory registration for this enum.
-    /// Used by `#[es_fluent_language]` to prevent language enums from being registered.
-    #[darling(default)]
-    skip_inventory: Option<bool>,
+    domain: Option<SpannedValue<DomainName>>,
     #[darling(flatten)]
     namespace_args: super::NamespacedAttributeArgs,
 }
 
 impl FluentEnumAttributeArgs {
-    /// Returns the explicit resource base key if provided.
-    pub fn resource(&self) -> Option<&str> {
-        self.resource.as_deref()
+    /// Returns the span of the explicit enum base id if provided.
+    pub fn id_span(&self) -> Option<proc_macro2::Span> {
+        self.id.as_ref().map(SpannedValue::span)
     }
 
-    /// Returns the explicit lookup domain override if provided.
-    pub fn domain(&self) -> Option<&str> {
-        self.domain.as_deref()
+    /// Returns the typed explicit enum base id if provided.
+    pub fn id_message_id(&self) -> Option<&SpannedValue<FluentMessageId>> {
+        self.id.as_ref()
     }
 
-    /// Returns `true` if inventory registration should be skipped.
-    pub fn skip_inventory(&self) -> bool {
-        self.skip_inventory.unwrap_or(false)
+    /// Returns the typed explicit lookup domain if provided.
+    pub fn domain_name(&self) -> Option<&SpannedValue<DomainName>> {
+        self.domain.as_ref()
     }
 
     /// Returns the namespace value if provided.
     pub fn namespace(&self) -> Option<&NamespaceRule> {
         self.namespace_args.namespace()
     }
-}
 
-/// Options for an enum that can be used as a choice.
-#[derive(Clone, Debug, FromDeriveInput, Getters)]
-#[darling(supports(enum_unit), attributes(fluent_choice))]
-#[getset(get = "pub")]
-pub struct EnumChoiceOpts {
-    /// The identifier of the enum.
-    ident: syn::Ident,
-    /// The generics of the enum.
-    generics: syn::Generics,
-    data: darling::ast::Data<darling::util::Ignored, darling::util::Ignored>,
-    #[darling(flatten)]
-    attr_args: EnumChoiceAttributeArgs,
-}
-
-/// Attribute arguments for an enum that can be used as a choice.
-#[derive(Builder, Clone, Debug, Default, FromMeta, Getters)]
-#[getset(get = "pub")]
-pub struct EnumChoiceAttributeArgs {
-    #[darling(default)]
-    serialize_all: Option<String>,
+    /// Returns the span of the namespace value if provided.
+    pub fn namespace_span(&self) -> Option<proc_macro2::Span> {
+        self.namespace_args.namespace_span()
+    }
 }
 
 /// Options for an enum variant in EsFluentVariants context.
-#[derive(Clone, Debug, FromVariant, Getters)]
-#[darling(attributes(fluent_variants))]
+#[derive(Clone, Debug, Getters)]
 pub struct EnumVariantOpts {
     /// The identifier of the variant.
     #[getset(get = "pub")]
     ident: syn::Ident,
     fields: darling::ast::Fields<darling::util::Ignored>,
+    directive: GeneratedVariantDirective,
+}
+
+#[derive(Clone, Debug, FromVariant, Getters)]
+#[darling(attributes(fluent_variants))]
+struct RawEnumVariantOpts {
+    #[getset(get = "pub")]
+    ident: syn::Ident,
+    fields: darling::ast::Fields<darling::util::Ignored>,
     #[darling(flatten)]
     attr_args: super::SkippedVariantAttributeArgs,
+}
+
+impl FromVariant for EnumVariantOpts {
+    fn from_variant(variant: &syn::Variant) -> darling::Result<Self> {
+        let raw = RawEnumVariantOpts::from_variant(variant)?;
+        Ok(Self {
+            ident: raw.ident,
+            fields: raw.fields,
+            directive: raw.attr_args.directive(),
+        })
+    }
 }
 
 impl VariantFields for EnumVariantOpts {
@@ -153,8 +206,10 @@ impl VariantFields for EnumVariantOpts {
 }
 
 impl Skippable for EnumVariantOpts {
-    fn is_skipped(&self) -> bool {
-        self.attr_args.is_skipped()
+    type Directive = GeneratedVariantDirective;
+
+    fn skip_directive(&self) -> &Self::Directive {
+        &self.directive
     }
 }
 
@@ -196,7 +251,7 @@ impl GeneratedVariantsOptions for EnumVariantsOpts {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::options::FluentField as _;
+    use crate::options::{FieldValueDirective, FluentField as _, SkipDirective as _};
     use es_fluent_shared::namespace::NamespaceRule;
     use quote::quote;
     use syn::{DeriveInput, parse_quote};
@@ -205,24 +260,41 @@ mod tests {
     fn enum_opts_cover_base_key_variant_helpers_and_field_flags() {
         let input: DeriveInput = parse_quote! {
             #[derive(EsFluent)]
-            #[fluent(resource = "custom_error", skip_inventory, namespace = "errors")]
+            #[fluent(id = "custom_error", namespace = "errors")]
             enum StatusCode {
                 Data {
-                    #[fluent(choice, value = "|x: &String| x.len()")]
+                    #[fluent(selector)]
                     label: String,
+                    #[fluent(value = |x: &String| x.len())]
+                    display: String,
                     #[fluent(skip)]
                     hidden: bool,
                 },
                 Tuple(#[fluent(skip)] u8, String),
-                #[fluent(skip, key = "skipped")]
+                #[fluent(skip)]
                 Skipped,
+                #[fluent(key = "visible")]
+                Visible,
             }
         };
 
         let opts = EnumOpts::from_derive_input(&input).expect("EnumOpts should parse");
-        assert_eq!(opts.base_key(), "custom_error");
-        assert_eq!(opts.attr_args().domain(), None);
-        assert!(opts.attr_args().skip_inventory());
+        assert_eq!(
+            opts.base_message_id(AttrContext::MessageContainer)
+                .expect("base message id")
+                .value()
+                .as_str(),
+            "custom_error"
+        );
+        assert_eq!(
+            opts.attr_args()
+                .id_message_id()
+                .expect("id")
+                .value()
+                .as_str(),
+            "custom_error"
+        );
+        assert!(opts.attr_args().domain_name().is_none());
         assert!(matches!(
             opts.attr_args().namespace(),
             Some(NamespaceRule::Literal(value)) if value == "errors"
@@ -233,13 +305,24 @@ mod tests {
             .iter()
             .find(|variant| *variant.ident() == "Data")
             .expect("Data variant should exist");
-        assert_eq!(data.fields().len(), 1);
-        assert_eq!(data.all_fields().len(), 2);
-        assert!(data.fields()[0].is_choice());
+        assert_eq!(data.fields().len(), 2);
+        assert_eq!(data.all_fields().len(), 3);
+        assert!(matches!(
+            data.fields()[0]
+                .directive()
+                .argument()
+                .map(|arg| arg.value()),
+            Some(FieldValueDirective::Choice { .. })
+        ));
 
-        let value_expr = data.fields()[0]
-            .value()
-            .expect("value expression should be present");
+        let Some(FieldValueDirective::Transform(transform)) = data.fields()[1]
+            .directive()
+            .argument()
+            .map(|arg| arg.value())
+        else {
+            panic!("value expression should be present");
+        };
+        let value_expr = transform.expr();
         assert_eq!(
             quote!(#value_expr).to_string(),
             "| x : & String | x . len ()"
@@ -257,8 +340,39 @@ mod tests {
             .iter()
             .find(|variant| *variant.ident() == "Skipped")
             .expect("Skipped variant should exist");
-        assert!(skipped.is_skipped());
-        assert_eq!(skipped.key(), Some("skipped"));
+        assert!(skipped.directive().is_skipped());
+        assert!(skipped.directive().key().is_none());
+
+        let visible = variants
+            .iter()
+            .find(|variant| *variant.ident() == "Visible")
+            .expect("Visible variant should exist");
+        assert_eq!(
+            visible.directive().key().expect("key").value().as_str(),
+            "visible"
+        );
+        assert_eq!(
+            visible
+                .variant_key(crate::error::AttrContext::EnumVariant)
+                .expect("variant key")
+                .expect("key")
+                .value()
+                .as_str(),
+            "visible"
+        );
+
+        let invalid_input: DeriveInput = parse_quote! {
+            enum Invalid {
+                #[fluent(skip, key = "hidden")]
+                Hidden,
+            }
+        };
+        let err =
+            EnumOpts::from_derive_input(&invalid_input).expect_err("skip and key should conflict");
+        assert!(
+            err.to_string()
+                .contains("Cannot use #[fluent(key = \"...\")] on a skipped variant")
+        );
 
         let no_resource_input: DeriveInput = parse_quote! {
             enum HttpStatus {
@@ -267,17 +381,39 @@ mod tests {
         };
         let no_resource_opts =
             EnumOpts::from_derive_input(&no_resource_input).expect("EnumOpts should parse");
-        assert_eq!(no_resource_opts.base_key(), "http_status");
+        assert_eq!(
+            no_resource_opts
+                .base_message_id(AttrContext::MessageContainer)
+                .expect("base message id")
+                .value()
+                .as_str(),
+            "http_status"
+        );
 
         let domain_input: DeriveInput = parse_quote! {
-            #[fluent(resource = "custom_error", domain = "shared-errors")]
+            #[fluent(id = "custom_error", domain = "shared-errors")]
             enum DomainLinked {
                 A
             }
         };
         let domain_opts = EnumOpts::from_derive_input(&domain_input).expect("domain parse");
-        assert_eq!(domain_opts.base_key(), "custom_error");
-        assert_eq!(domain_opts.attr_args().domain(), Some("shared-errors"));
+        assert_eq!(
+            domain_opts
+                .base_message_id(AttrContext::MessageContainer)
+                .expect("base message id")
+                .value()
+                .as_str(),
+            "custom_error"
+        );
+        assert_eq!(
+            domain_opts
+                .attr_args()
+                .domain_name()
+                .expect("domain")
+                .value()
+                .as_str(),
+            "shared-errors"
+        );
     }
 
     #[test]
@@ -323,10 +459,14 @@ mod tests {
             keyed_base_idents,
             vec!["StatusPrimaryKey", "StatusSecondaryKey"]
         );
-        assert_eq!(
-            opts.attr_args().key_strings(),
-            Some(vec!["primary_key".to_string(), "secondary_key".to_string()])
-        );
+        let key_names: Vec<_> = opts
+            .attr_args()
+            .keys()
+            .expect("typed keys")
+            .iter()
+            .map(|key| key.value().as_str())
+            .collect();
+        assert_eq!(key_names, vec!["primary_key", "secondary_key"]);
         assert!(matches!(
             opts.attr_args().namespace(),
             Some(NamespaceRule::Literal(value)) if value == "ui"
@@ -382,22 +522,24 @@ mod tests {
                 A
             }
         };
-        let invalid_opts =
-            EnumVariantsOpts::from_derive_input(&invalid_key_input).expect("input should parse");
+        let err = EnumVariantsOpts::from_derive_input(&invalid_key_input)
+            .expect_err("invalid key should fail during parsing");
+        assert!(err.to_string().contains("lowercase snake_case"));
 
-        let idents_err = invalid_opts
-            .keyed_idents()
-            .expect_err("invalid key should fail");
-        assert!(idents_err.to_string().contains("lowercase snake_case"));
-
-        let base_err = invalid_opts
-            .keyed_base_idents()
-            .expect_err("invalid key should fail");
-        assert!(base_err.to_string().contains("lowercase snake_case"));
+        let duplicate_key_input: DeriveInput = parse_quote! {
+            #[derive(EsFluentVariants)]
+            #[fluent_variants(keys = ["label", "label"])]
+            enum Duplicate {
+                A
+            }
+        };
+        let err = EnumVariantsOpts::from_derive_input(&duplicate_key_input)
+            .expect_err("duplicate keys should fail during parsing");
+        assert!(err.to_string().contains("duplicate key 'label'"));
     }
 
     #[test]
-    fn enum_methods_panic_on_unexpected_internal_shapes() {
+    fn lowered_enum_models_reject_unexpected_internal_shapes() {
         let enum_input: DeriveInput = parse_quote! {
             enum InternalShape {
                 A
@@ -409,10 +551,9 @@ mod tests {
             Vec::<darling::util::Ignored>::new(),
         ));
 
-        let variants_result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-            let _ = enum_opts.variants();
-        }));
-        assert!(variants_result.is_err());
+        let err = crate::lowered::MessageEnumModel::from_options(&enum_opts)
+            .expect_err("lowering rejects wrong data shape");
+        assert!(err.to_string().contains("must contain enum data"));
 
         let variants_input: DeriveInput = parse_quote! {
             #[derive(EsFluentVariants)]
@@ -427,18 +568,17 @@ mod tests {
             Vec::<darling::util::Ignored>::new(),
         ));
 
-        let filtered_result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-            let _ = variants_opts.variants();
-        }));
-        assert!(filtered_result.is_err());
+        let err = crate::lowered::GeneratedVariantsEnumModel::from_options(&variants_opts)
+            .expect_err("lowering rejects wrong data shape");
+        assert!(err.to_string().contains("must contain enum data"));
     }
 
     #[test]
-    fn enum_field_arg_name_parse_for_single_tuple_variant() {
+    fn enum_field_arg_parse_for_single_tuple_variant() {
         let input: DeriveInput = parse_quote! {
             #[derive(EsFluent)]
             enum TupleNames {
-                Something(#[fluent(arg_name = "value")] String),
+                Something(#[fluent(arg = "value")] String),
             }
         };
 
@@ -450,22 +590,7 @@ mod tests {
             .expect("Something variant should exist");
 
         let fields = variant.all_fields();
-        let field_arg_name = fields[0].arg_name().expect("field arg_name should parse");
-        assert_eq!(field_arg_name, "value".to_string());
-    }
-
-    #[test]
-    fn enum_variant_arg_name_is_rejected() {
-        let input: DeriveInput = parse_quote! {
-            #[derive(EsFluent)]
-            enum TupleNames {
-                #[fluent(arg_name = "value")]
-                Something(String),
-            }
-        };
-
-        let err =
-            EnumOpts::from_derive_input(&input).expect_err("variant-level arg_name is removed");
-        assert!(err.to_string().contains("arg_name"));
+        let field_arg = fields[0].arg_name().expect("field arg");
+        assert_eq!(field_arg.value().as_str(), "value");
     }
 }

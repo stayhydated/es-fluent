@@ -1,14 +1,22 @@
 //! Shared runtime-safe types and helpers for the es-fluent ecosystem.
+#![cfg_attr(not(test), deny(clippy::panic, clippy::unwrap_used))]
 
 pub mod error;
+pub mod fluent;
 pub mod language;
 pub mod meta;
+pub mod mode;
 pub mod namer;
 pub mod namespace;
 mod namespace_resolver;
 pub mod path_utils;
 pub mod registry;
+pub mod resource;
+pub mod source;
 
 pub use error::{EsFluentError, EsFluentResult};
-pub use language::{CanonicalLanguageIdentifierError, parse_canonical_language_identifier};
+pub use language::{
+    CanonicalLanguageIdentifierError, LanguageIdentifier, parse_canonical_language_identifier,
+};
+pub use mode::FluentParseMode;
 pub use path_utils::{parse_language_entry, validate_assets_dir};

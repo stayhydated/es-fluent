@@ -1,0 +1,39 @@
+---
+source: crates/es-fluent-derive/src/macros/derive_es_fluent_label/mod.rs
+expression: tokens
+---
+impl ::es_fluent::FluentLabel for LoginForm {
+    fn fluent_label_domain() -> ::es_fluent::registry::StaticFluentDomain {
+        ::es_fluent::registry::StaticFluentDomain::from_package_name(
+            env!("CARGO_PKG_NAME"),
+        )
+    }
+    fn fluent_label_id() -> ::es_fluent::registry::StaticFluentEntryId {
+        ::es_fluent::registry::__macro::static_entry_id("login_form_label")
+    }
+}
+#[doc(hidden)]
+#[allow(non_snake_case)]
+mod __es_fluent_label_inventory_LoginForm {
+    use super::*;
+    static VARIANTS: &[::es_fluent::registry::FtlVariant] = &[
+        ::es_fluent::registry::__macro::ftl_variant(
+            "LoginForm",
+            ::es_fluent::registry::__macro::static_entry_id("login_form_label"),
+            &[],
+            module_path!(),
+            line!(),
+        ),
+    ];
+    static TYPE_INFO: ::es_fluent::registry::FtlTypeInfo = ::es_fluent::registry::__macro::ftl_type_info(
+        ::es_fluent::meta::TypeKind::Struct,
+        "LoginForm",
+        VARIANTS,
+        file!(),
+        module_path!(),
+        Some(::es_fluent::registry::__macro::namespace_literal("ui")),
+    );
+    ::es_fluent::__inventory::submit!(
+        ::es_fluent::registry::RegisteredFtlType(& TYPE_INFO)
+    );
+}

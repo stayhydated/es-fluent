@@ -1,8 +1,16 @@
 use assert_cmd::Command;
 use assert_fs::{TempDir, prelude::*};
-use es_fluent_runner::{RunnerParseMode, RunnerRequest};
+use es_fluent_runner::{FluentParseMode, I18nTomlPath, PackageName, RunnerRequest};
 use predicates::prelude::*;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
+
+fn package(name: &str) -> PackageName {
+    PackageName::try_new(name).expect("valid package name")
+}
+
+fn i18n_path(path: impl AsRef<Path>) -> I18nTomlPath {
+    I18nTomlPath::new(path.as_ref().to_path_buf()).expect("valid i18n.toml path")
+}
 
 fn write_basic_manifest(temp: &TempDir) -> PathBuf {
     temp.child("i18n/en-US")
@@ -22,7 +30,8 @@ fn run_entrypoint_dispatches_check_generate_clean_and_unknown() {
     let i18n_toml = write_basic_manifest(&temp);
 
     let check_request = RunnerRequest::Check {
-        crate_name: "unknown-crate".to_string(),
+        crate_name: package("unknown-crate"),
+        manifest_dir: temp.path().to_path_buf(),
     };
     Command::cargo_bin("cli_helpers_run")
         .expect("binary exists")
@@ -34,9 +43,9 @@ fn run_entrypoint_dispatches_check_generate_clean_and_unknown() {
         .assert(predicate::path::exists());
 
     let generate_request = RunnerRequest::Generate {
-        crate_name: "unknown-crate".to_string(),
-        i18n_toml_path: i18n_toml.to_str().expect("path").to_string(),
-        mode: RunnerParseMode::Aggressive,
+        crate_name: package("unknown-crate"),
+        i18n_toml_path: i18n_path(&i18n_toml),
+        mode: FluentParseMode::Aggressive,
         dry_run: true,
     };
     Command::cargo_bin("cli_helpers_run")
@@ -49,8 +58,8 @@ fn run_entrypoint_dispatches_check_generate_clean_and_unknown() {
         .assert(predicate::path::exists());
 
     let clean_request = RunnerRequest::Clean {
-        crate_name: "unknown-crate".to_string(),
-        i18n_toml_path: i18n_toml.to_str().expect("path").to_string(),
+        crate_name: package("unknown-crate"),
+        i18n_toml_path: i18n_path(&i18n_toml),
         all_locales: true,
         dry_run: true,
     };
@@ -134,9 +143,9 @@ fn run_entrypoint_reports_invalid_config_without_panicking() {
     let i18n_toml = temp.path().join("i18n.toml");
 
     let generate_request = RunnerRequest::Generate {
-        crate_name: "unknown-crate".to_string(),
-        i18n_toml_path: i18n_toml.to_str().expect("path").to_string(),
-        mode: RunnerParseMode::Aggressive,
+        crate_name: package("unknown-crate"),
+        i18n_toml_path: i18n_path(&i18n_toml),
+        mode: FluentParseMode::Aggressive,
         dry_run: true,
     };
 

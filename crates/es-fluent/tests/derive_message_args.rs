@@ -1,6 +1,9 @@
 #![cfg(feature = "derive")]
 
-use es_fluent::{EsFluent, FluentMessage, FluentValue};
+use es_fluent::registry::{StaticFluentDomain, StaticFluentEntryId};
+use es_fluent::{
+    EsFluent, EsFluentChoice as _, EsFluentVariants, FluentArgs, FluentMessage, FluentValue,
+};
 use std::collections::HashMap;
 
 #[derive(EsFluent)]
@@ -35,6 +38,32 @@ enum DerivedBorrowedBoolEnum<'a> {
     Tuple(&'a bool, Option<&'a bool>),
 }
 
+#[derive(EsFluent)]
+enum DerivedTone {
+    VeryFriendly,
+    #[fluent(key = "serious")]
+    Serious,
+}
+
+#[derive(EsFluent)]
+struct OptionalSelector {
+    #[fluent(selector)]
+    tone: Option<DerivedTone>,
+}
+
+#[derive(EsFluentVariants)]
+#[allow(dead_code)]
+struct GeneratedChoiceForm {
+    username: String,
+    password: String,
+}
+
+#[derive(EsFluent)]
+struct GeneratedVariantSelector {
+    #[fluent(selector)]
+    field: GeneratedChoiceFormVariants,
+}
+
 fn describe_arg(value: &FluentValue<'_>) -> String {
     match value {
         FluentValue::String(value) => value.as_ref().to_string(),
@@ -46,16 +75,17 @@ fn describe_arg(value: &FluentValue<'_>) -> String {
 fn render_args(message: &impl FluentMessage) -> HashMap<String, String> {
     let mut rendered = HashMap::new();
     {
-        let mut localize =
-            |_domain: &str, _id: &str, args: Option<&HashMap<&str, FluentValue<'_>>>| {
-                if let Some(args) = args {
-                    for (name, value) in args {
-                        rendered.insert((*name).to_string(), describe_arg(value));
-                    }
+        let mut localize = |_domain: StaticFluentDomain,
+                            _id: StaticFluentEntryId,
+                            args: Option<&FluentArgs<'_>>| {
+            if let Some(args) = args {
+                for (name, value) in args.as_raw() {
+                    rendered.insert((*name).to_string(), describe_arg(value));
                 }
+            }
 
-                "rendered".to_string()
-            };
+            "rendered".to_string()
+        };
 
         message.to_fluent_string_with(&mut localize);
     }
@@ -158,4 +188,42 @@ fn derived_enum_tuple_borrowed_bool_and_optional_borrowed_bool_fields_compile_an
 
     assert!(missing.values().any(|value| value == "false"));
     assert!(missing.values().any(|value| value == "<none>"));
+}
+
+#[test]
+fn es_fluent_unit_enum_infers_choice_and_optional_selector_renders() {
+    assert_eq!(
+        DerivedTone::VeryFriendly.as_fluent_choice().as_str(),
+        "very-friendly"
+    );
+    assert_eq!(DerivedTone::Serious.as_fluent_choice().as_str(), "serious");
+
+    let args = render_args(&OptionalSelector {
+        tone: Some(DerivedTone::VeryFriendly),
+    });
+    assert_eq!(args["tone"], "very-friendly");
+
+    let missing = render_args(&OptionalSelector { tone: None });
+    assert_eq!(missing["tone"], "<none>");
+}
+
+#[test]
+fn es_fluent_variants_generated_enums_infer_choice_and_render_as_selectors() {
+    assert_eq!(
+        GeneratedChoiceFormVariants::Username
+            .as_fluent_choice()
+            .as_str(),
+        "username"
+    );
+    assert_eq!(
+        GeneratedChoiceFormVariants::Password
+            .as_fluent_choice()
+            .as_str(),
+        "password"
+    );
+
+    let args = render_args(&GeneratedVariantSelector {
+        field: GeneratedChoiceFormVariants::Username,
+    });
+    assert_eq!(args["field"], "username");
 }

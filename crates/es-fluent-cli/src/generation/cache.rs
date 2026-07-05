@@ -4,17 +4,39 @@
 //! - Cargo metadata results
 //! - Runner binary staleness detection via content hashing
 
+use es_fluent_runner::PackageName;
 use fs_err as fs;
 use indexmap::IndexMap;
 use path_slash::PathExt as _;
 use serde::{Deserialize, Serialize};
-use std::path::Path;
+use std::path::{Component, Path};
 
-fn hash_rs_sources(hasher: &mut blake3::Hasher, src_dir: &Path) {
+const GENERATED_ROOT_SOURCE_DIRS: &[&str] = &[".es-fluent", "target"];
+
+fn is_ignored_root_source_entry(src_dir: &Path, path: &Path, ignored_root_dirs: &[&str]) -> bool {
+    let Ok(relative_path) = path.strip_prefix(src_dir) else {
+        return false;
+    };
+
+    relative_path
+        .components()
+        .next()
+        .and_then(|component| match component {
+            Component::Normal(name) => Some(name),
+            _ => None,
+        })
+        .is_some_and(|name| ignored_root_dirs.iter().any(|ignored| name == *ignored))
+}
+
+fn hash_rs_sources(hasher: &mut blake3::Hasher, src_dir: &Path, ignored_root_dirs: &[&str]) {
     let mut files: Vec<std::path::PathBuf> = Vec::new();
 
     if src_dir.exists() {
-        let walker = walkdir::WalkDir::new(src_dir);
+        let walker = walkdir::WalkDir::new(src_dir)
+            .into_iter()
+            .filter_entry(|entry| {
+                !is_ignored_root_source_entry(src_dir, entry.path(), ignored_root_dirs)
+            });
         for entry in walker.into_iter().filter_map(|e| e.ok()) {
             let path = entry.path();
             if path.is_file() && path.extension().is_some_and(|e| e == "rs") {
@@ -105,7 +127,12 @@ pub fn compute_crate_inputs_hash(
     use blake3::Hasher;
 
     let mut hasher = Hasher::new();
-    hash_rs_sources(&mut hasher, src_dir);
+    let ignored_root_dirs = if src_dir == manifest_dir {
+        GENERATED_ROOT_SOURCE_DIRS
+    } else {
+        &[]
+    };
+    hash_rs_sources(&mut hasher, src_dir, ignored_root_dirs);
 
     if let Some(toml_path) = i18n_toml_path
         && toml_path.is_file()
@@ -144,8 +171,8 @@ pub fn compute_workspace_inputs_hash(workspace_root: &Path) -> String {
 /// Stored at the workspace level since the runner is monolithic.
 #[derive(Debug, Default, Deserialize, Serialize)]
 pub struct RunnerCache {
-    /// Map of crate name -> content hash when runner was last built
-    pub crate_hashes: IndexMap<String, String>,
+    /// Map of crate name -> content hash when runner was last built.
+    pub crate_hashes: IndexMap<PackageName, String>,
     /// Mtime of runner binary when cache was created
     pub runner_mtime: u64,
     /// Version of es-fluent-cli that built this runner
@@ -180,6 +207,8 @@ mod tests {
     use super::*;
     use std::fs;
 
+    const I18N_CONFIG: &str = "fallback_language = \"en\"\nassets_dir = \"i18n\"\n";
+
     /// Compute blake3 hash of all .rs files in a source directory, plus the i18n.toml file.
     ///
     /// Used for staleness detection - saving a file without modifications
@@ -191,7 +220,7 @@ mod tests {
         use blake3::Hasher;
 
         let mut hasher = Hasher::new();
-        hash_rs_sources(&mut hasher, src_dir);
+        hash_rs_sources(&mut hasher, src_dir, &[]);
 
         // Include i18n.toml if provided and exists
         if let Some(toml_path) = i18n_toml_path
@@ -263,7 +292,7 @@ mod tests {
         fs::write(src_dir.join("lib.rs"), "fn main() {}").unwrap();
 
         let i18n_path = temp_dir.path().join("i18n.toml");
-        fs::write(&i18n_path, "default_language = \"en\"").unwrap();
+        fs::write(&i18n_path, I18N_CONFIG).unwrap();
 
         let hash_with_toml = compute_content_hash(&src_dir, Some(&i18n_path));
         let hash_without_toml = compute_content_hash(&src_dir, None);
@@ -310,6 +339,36 @@ mod tests {
     }
 
     #[test]
+    fn test_compute_crate_inputs_hash_ignores_generated_dirs_for_root_source_dir() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        fs::write(temp_dir.path().join("lib.rs"), "pub struct Demo;\n").unwrap();
+
+        let first = compute_crate_inputs_hash(temp_dir.path(), temp_dir.path(), None);
+
+        fs::create_dir_all(temp_dir.path().join(".es-fluent/src")).unwrap();
+        fs::write(
+            temp_dir.path().join(".es-fluent/src/main.rs"),
+            "fn main() {}\n",
+        )
+        .unwrap();
+        fs::create_dir_all(temp_dir.path().join("target/debug/build/demo/out")).unwrap();
+        fs::write(
+            temp_dir
+                .path()
+                .join("target/debug/build/demo/out/generated.rs"),
+            "pub fn generated() {}\n",
+        )
+        .unwrap();
+
+        let second = compute_crate_inputs_hash(temp_dir.path(), temp_dir.path(), None);
+        assert_eq!(first, second);
+
+        fs::write(temp_dir.path().join("module.rs"), "pub struct Changed;\n").unwrap();
+        let third = compute_crate_inputs_hash(temp_dir.path(), temp_dir.path(), None);
+        assert_ne!(second, third);
+    }
+
+    #[test]
     fn test_compute_content_hash_changes_when_i18n_toml_changes() {
         let temp_dir = tempfile::tempdir().unwrap();
         let src_dir = temp_dir.path().join("src");
@@ -317,14 +376,14 @@ mod tests {
         fs::write(src_dir.join("lib.rs"), "fn main() {}").unwrap();
 
         let i18n_path = temp_dir.path().join("i18n.toml");
-        fs::write(&i18n_path, "default_language = \"en\"").unwrap();
+        fs::write(&i18n_path, I18N_CONFIG).unwrap();
 
         let hash1 = compute_content_hash(&src_dir, Some(&i18n_path));
 
         // Change the i18n.toml content (e.g., changing fluent_feature)
         fs::write(
             &i18n_path,
-            "default_language = \"en\"\nfluent_feature = \"i18n\"",
+            "fallback_language = \"en\"\nassets_dir = \"i18n\"\nfluent_feature = [\"i18n\"]",
         )
         .unwrap();
 
@@ -342,13 +401,13 @@ mod tests {
         fs::write(src_dir.join("lib.rs"), "fn main() {}").unwrap();
 
         let i18n_path = temp_dir.path().join("i18n.toml");
-        fs::write(&i18n_path, "default_language = \"en\"").unwrap();
+        fs::write(&i18n_path, I18N_CONFIG).unwrap();
 
         let hash1 = compute_content_hash(&src_dir, Some(&i18n_path));
 
         // Re-write same content (simulates save without changes)
         fs::write(src_dir.join("lib.rs"), "fn main() {}").unwrap();
-        fs::write(&i18n_path, "default_language = \"en\"").unwrap();
+        fs::write(&i18n_path, I18N_CONFIG).unwrap();
 
         let hash2 = compute_content_hash(&src_dir, Some(&i18n_path));
 
@@ -380,7 +439,7 @@ mod tests {
         fs::write(src_dir.join("lib.rs"), "fn main() {}").unwrap();
 
         let i18n_path = temp_dir.path().join("i18n.toml");
-        fs::write(&i18n_path, "default_language = \"en\"").unwrap();
+        fs::write(&i18n_path, I18N_CONFIG).unwrap();
 
         let aliased_src_dir = temp_dir.path().join("src").join(".");
         let aliased_i18n_path = temp_dir.path().join(".").join("i18n.toml");
@@ -441,7 +500,10 @@ mod tests {
     fn runner_cache_save_and_load_round_trip() {
         let temp_dir = tempfile::tempdir().unwrap();
         let mut hashes = IndexMap::new();
-        hashes.insert("test-crate".to_string(), "abc123".to_string());
+        hashes.insert(
+            PackageName::try_new("test-crate").expect("valid package name"),
+            "abc123".to_string(),
+        );
 
         let cache = RunnerCache {
             crate_hashes: hashes.clone(),

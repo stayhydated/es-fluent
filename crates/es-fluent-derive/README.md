@@ -29,9 +29,9 @@ pub enum LoginError {
     UserNotFound { username: String }, // exposed as $username in the ftl file
     Something(String, String, String), // exposed as $f0, $f1, $f2 in the ftl file
     SomethingArgNamed(
-        #[fluent(arg_name = "input")] String,
-        #[fluent(arg_name = "expected")] String,
-        #[fluent(arg_name = "details")] String,
+        #[fluent(arg = "input")] String,
+        #[fluent(arg = "expected")] String,
+        #[fluent(arg = "details")] String,
     ), // exposed as $input, $expected, $details
 }
 
@@ -51,13 +51,18 @@ pub struct UserProfile<'a> {
 
 Common derive attributes:
 
-- `arg_name = "..."` on a field renames that exposed Fluent argument (works on struct fields, enum named fields, and enum tuple fields).
+- `arg = "..."` on a field renames that exposed Fluent argument (works on struct fields, enum named fields, and enum tuple fields).
 - `#[fluent(skip)]` on a field excludes that field from generated arguments.
-- `#[fluent(value = "...")]` or `#[fluent(value(...))]` transforms a field before inserting it as a Fluent argument.
-- `#[fluent(key = "...")]` on an enum variant overrides that variant's key suffix.
-- `#[fluent(resource = "...")]` on an enum overrides the base key, `domain = "..."` routes lookup to a specific manager domain, and `skip_inventory` suppresses CLI inventory registration.
-- `domain = "..."` is enum-only. Struct messages resolve in the current crate's domain.
-- Optional-argument omission is generated for direct `Option<T>` fields, including paths like `std::option::Option<T>`. Type aliases to `Option<T>` are treated like ordinary field types.
+- `#[fluent(value = |x: &String| x.len())]` transforms a field before inserting it as a Fluent argument.
+- Plain `Option<T>` fields are inferred as optional Fluent arguments and are omitted when `None`.
+- `#[fluent(selector)]` on `Option<T>` fields creates an optional selector argument.
+- `#[fluent(selector)]` and `#[fluent(value = ...)]` are mutually exclusive on the same field. Explicit value attributes override `Option<T>` inference.
+- `#[fluent(key = "...")]` on an enum variant overrides that variant's key suffix. On unit-only `EsFluent` enums, it also overrides the inferred selector value.
+- `#[fluent(skip)]` and `#[fluent(key = "...")]` cannot be combined on the same enum variant.
+- `#[fluent(id = "...")]` on an enum overrides the base key, and `domain = "..."` routes lookup to a specific manager domain.
+- `id = "..."` and `domain = "..."` are enum-only. Struct message containers accept `namespace = ...`; struct messages resolve in the current crate's domain.
+- Generated FTL keys must be unique within each output file. `generate`, `clean`, and `check` fail when two derived items produce the same key.
+- For namespaced types, `check` validates the expected namespace file; a key in `{crate}.ftl` still counts as missing if the Rust type belongs in `{crate}/{namespace}.ftl`.
 - `#[fluent_variants(skip)]` omits a struct field or enum variant from generated variant enums; `keys = [...]` values must be lowercase snake_case.
 
 Skipped single-field enum variants:
@@ -103,7 +108,7 @@ struct Button;
 struct Dialog;
 
 #[derive(EsFluent)]
-#[fluent(namespace(file(relative)))] // -> {crate}/ui/button.ftl
+#[fluent(namespace = file_relative)] // -> {crate}/ui/button.ftl
 struct Modal;
 
 #[derive(EsFluent)]
@@ -111,21 +116,30 @@ struct Modal;
 struct FolderModal;
 
 #[derive(EsFluent)]
-#[fluent(namespace(folder(relative)))] // -> {crate}/ui.ftl
+#[fluent(namespace = folder_relative)] // -> {crate}/ui.ftl
 struct FolderRelativeModal;
 ```
 
+Literal namespace strings must be safe locale-relative paths: no empty
+segments, `.`/`..`, backslashes, absolute paths, surrounding whitespace, or
+`.ftl` suffix.
+
 The same `#[fluent(namespace = ...)]` syntax also applies to `EsFluentLabel` and `EsFluentVariants`.
+Use exactly one namespace source for each generated output: either inherit a
+shared namespace from `#[fluent(namespace = ...)]` or set one on
+`#[fluent_label(...)]` / `#[fluent_variants(...)]`, but do not combine them.
 
-### `#[derive(EsFluentChoice)]`
+### Choices
 
-Allows an enum to be used _inside_ another message as a selector (e.g., for gender or status).
+Unit-only enums that derive `EsFluent` can be used _inside_ another message as selectors (e.g., for gender or status). Variants serialize as kebab-case by default, so `Gender::Male` becomes `male` and a compound variant like `VeryFriendly` becomes `very-friendly`.
+Derived choice values are emitted as validated `StaticFluentVariantKey` values.
+Use `#[fluent_choice(rename_all = "...")]` on the same enum to change selector casing. Styles that generate invalid selector values, such as values containing spaces, are rejected at compile time.
+Use standalone `#[derive(EsFluentChoice)]` only for selector enums that should not also be registered as messages.
 
 ```rs
-use es_fluent::{EsFluent, EsFluentChoice};
+use es_fluent::EsFluent;
 
-#[derive(EsFluent, EsFluentChoice)]
-#[fluent_choice(serialize_all = "snake_case")]
+#[derive(EsFluent)]
 pub enum Gender {
     Male,
     Female,
@@ -135,11 +149,11 @@ pub enum Gender {
 #[derive(EsFluent)]
 pub struct UserProfile<'a> {
     pub name: &'a str,
-    #[fluent(choice)] // Matches $gender -> [male]...
-    pub gender: &'a Gender,
+    #[fluent(selector)] // Matches $gender -> [male]...
+    pub gender: Option<&'a Gender>,
 }
 
-// usage: i18n.localize_message(&UserProfile { name: "John", gender: &Gender::Male })
+// usage: i18n.localize_message(&UserProfile { name: "John", gender: Some(&Gender::Male) })
 ```
 
 ### `#[derive(EsFluentVariants)]`
@@ -149,7 +163,7 @@ useful for generating UI labels, placeholders, or descriptions for a form
 object, and it can also expose enum variants as localizable keys.
 
 ```rs
-use es_fluent::EsFluentVariants;
+use es_fluent::{EsFluent, EsFluentVariants};
 
 #[derive(EsFluentVariants)]
 #[fluent_variants(keys = ["label", "description"])]
@@ -163,7 +177,14 @@ pub struct LoginForm {
 // LoginFormLabelVariants::{Variants} -> (login_form_label_variants-{variant})
 // LoginFormDescriptionVariants::{Variants} -> (login_form_description_variants-{variant})
 
+#[derive(EsFluent)]
+pub struct ActiveFormField {
+    #[fluent(selector)]
+    pub field: LoginFormLabelVariants,
+}
+
 // usage: i18n.localize_message(&LoginFormLabelVariants::Username)
+// usage: i18n.localize_message(&ActiveFormField { field: LoginFormLabelVariants::Username })
 
 #[derive(EsFluentVariants)]
 pub enum SettingsTab {
@@ -181,8 +202,11 @@ pub enum SettingsTab {
 
 `keys = [...]` values must be lowercase snake_case. Use
 `#[fluent_variants(skip)]` to omit a struct field or enum variant from the
-generated enums. Use `derive(Debug, Clone)` inside `#[fluent_variants(...)]` to
-add derives to the generated enums.
+generated enums. Generated enums derive `Clone`, `Copy`, `Debug`, `Eq`, `Hash`,
+and `PartialEq` automatically and implement `EsFluentChoice`, so they can be
+used directly in `#[fluent(selector)]` fields. Use `derive(...)` inside
+`#[fluent_variants(...)]` for additional traits; `EsFluentChoice` is already
+inferred.
 
 ### `#[derive(EsFluentLabel)]`
 
@@ -190,8 +214,7 @@ Generates a helper implementation of the `FluentLabel` trait and registers the
 type's name as a key. This is similar to `EsFluentVariants` (which registers
 field- or variant-derived keys), but for the parent type itself.
 
-- `origin`: Enabled by default. `#[derive(EsFluentLabel)]` and `#[derive(EsFluentLabel)] #[fluent_label(origin)]` both generate the type-level label. Use `#[fluent_label(origin = false)]` when deriving only variant labels through `EsFluentVariants`.
-- `#[fluent_label(origin)]`: Explicitly generates an implementation where `localize_label(localizer)` returns the base key for the type.
+- `#[derive(EsFluentLabel)]` generates typed label metadata plus `localize_label(localizer)` and `try_localize_label(localizer)`.
 
 ```rs
 use es_fluent::{EsFluentLabel, FluentLabel as _};
@@ -207,16 +230,19 @@ pub enum Gender {
 // Generates key:
 // (gender_label)
 
-// usage: Gender::localize_label(&i18n)
+// usage:
+// let _ = Gender::localize_label(&i18n);
+// let _ = Gender::try_localize_label(&i18n);
+// let _ = Gender::fluent_label_id();
 ```
 
-- `#[fluent_label(variants)]`: Can be combined with `EsFluentVariants` derives to generate keys for variants.
+`#[derive(EsFluentVariants)]` also gives each generated variant enum a label
+key inferred from the generated enum name.
 
 ```rs
 use es_fluent::{EsFluentLabel, EsFluentVariants, FluentLabel as _};
 
 #[derive(EsFluentVariants, EsFluentLabel)]
-#[fluent_label(origin, variants)]
 #[fluent_variants(keys = ["label", "description"])]
 #[fluent(namespace = "forms")]
 pub struct LoginForm {

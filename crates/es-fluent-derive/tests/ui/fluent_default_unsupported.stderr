@@ -1,0 +1,6 @@
+error: Attribute error in message field: `#[fluent(default)]` is not supported in message field `username`
+       help: accepted keys here are skip, selector, arg, and value
+ --> tests/ui/fluent_default_unsupported.rs:5:14
+  |
+5 |     #[fluent(default)]
+  |              ^^^^^^^

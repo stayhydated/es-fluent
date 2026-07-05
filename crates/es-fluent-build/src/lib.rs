@@ -86,7 +86,7 @@ mod tests {
     }
 
     #[test]
-    fn track_i18n_assets_does_not_create_stamp_file_for_external_assets_dir() {
+    fn track_i18n_assets_rejects_external_assets_dir_without_stamp_file() {
         let temp = tempfile::tempdir().expect("tempdir");
         let crate_dir = temp.path().join("my-crate");
         let assets_dir = temp.path().join("assets").join("i18n");
@@ -99,9 +99,16 @@ mod tests {
         )
         .expect("write config");
 
-        with_manifest_env(Some(&crate_dir), || {
-            track_i18n_assets();
-        });
+        let panic = with_manifest_env(Some(&crate_dir), || {
+            std::panic::catch_unwind(track_i18n_assets)
+        })
+        .expect_err("external assets_dir should be rejected");
+        let message = panic_message(panic.as_ref()).unwrap_or_default();
+        assert!(
+            message.contains("Failed to read i18n.toml configuration")
+                && message.contains("InvalidAssetsDir"),
+            "unexpected panic message: {message}"
+        );
 
         let stamp = temp
             .path()
@@ -193,6 +200,14 @@ es-fluent-build = {{ path = "{}" }}
             .expect("read trace file")
             .lines()
             .count()
+    }
+
+    fn panic_message(panic: &(dyn std::any::Any + Send)) -> Option<&str> {
+        if let Some(message) = panic.downcast_ref::<&str>() {
+            Some(message)
+        } else {
+            panic.downcast_ref::<String>().map(String::as_str)
+        }
     }
 
     const BUILD_SCRIPT_SOURCE: &str = r#"use std::fs::OpenOptions;

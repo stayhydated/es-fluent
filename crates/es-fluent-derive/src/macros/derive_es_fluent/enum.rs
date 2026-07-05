@@ -1,54 +1,85 @@
-use es_fluent_derive_core::options::r#enum::{EnumOpts, VariantOpts};
-use es_fluent_derive_core::options::{
-    EnumDataOptions as _, FluentField, FluentFieldOpts, KeyedVariant as _, Skippable as _,
-    VariantFields as _,
+use es_fluent_derive_core::expansion::{
+    EsFluentEnumExpansion, EsFluentEnumVariantShape, EsFluentLocalizedVariant,
+    EsFluentMessageVariant, EsFluentSkippedVariant, EsFluentTupleField,
 };
 use es_fluent_shared::namer;
 
-use crate::macros::ir::LocalizeCallSpec;
-use crate::macros::utils::InventoryModuleInput;
+use crate::macros::ir::MessageEntrySpec;
+use crate::macros::utils::{CodegenContext, InventoryOutput};
 use proc_macro2::TokenStream;
 use quote::quote;
 
-pub fn process_enum(opts: &EnumOpts, data: &syn::DataEnum) -> TokenStream {
-    generate(opts, data)
+pub fn process_enum(context: &CodegenContext, expansion: &EsFluentEnumExpansion) -> TokenStream {
+    generate(context, expansion)
 }
 
-fn skipped_variant_message_match_arm(variant_opt: &VariantOpts) -> TokenStream {
-    let variant_ident = variant_opt.ident();
+fn skipped_variant_message_match_arm(
+    context: &CodegenContext,
+    model: &EsFluentSkippedVariant,
+) -> TokenStream {
+    let variant_ident = model.ident();
     let variant_name = namer::rust_ident_name(variant_ident);
+    let es_fluent = context.facade_path().tokens();
 
-    match variant_opt.style() {
-        darling::ast::Style::Unit => {
+    match model.shape() {
+        EsFluentEnumVariantShape::Unit => {
             quote! {
                 Self::#variant_ident => #variant_name.to_string()
             }
         },
-        darling::ast::Style::Tuple => {
-            let all_fields = variant_opt.all_fields();
+        EsFluentEnumVariantShape::Tuple { fields } => {
+            let delegate_fields = fields
+                .iter()
+                .filter_map(|field| match field {
+                    EsFluentTupleField::Argument { index, .. } => Some(index),
+                    EsFluentTupleField::Skipped { .. } => None,
+                })
+                .collect::<Vec<_>>();
 
-            if all_fields.len() == 1 {
+            if let [delegate_index] = delegate_fields.as_slice() {
+                let delegate_index = **delegate_index;
+                let delegate_ident = if fields.len() == 1 {
+                    quote::format_ident!("value")
+                } else {
+                    namer::UnnamedItem::from(delegate_index.as_usize()).to_ident()
+                };
+                let field_pats: Vec<_> = fields
+                    .iter()
+                    .map(|field| {
+                        if field.index() == delegate_index {
+                            quote! { #delegate_ident }
+                        } else {
+                            quote! { _ }
+                        }
+                    })
+                    .collect();
                 quote! {
-                    Self::#variant_ident(value) => {
-                        use ::es_fluent::FluentMessage as _;
-                        value.to_fluent_string_with(localize)
+                    Self::#variant_ident(#(#field_pats),*) => {
+                        use #es_fluent::FluentMessage as _;
+                        #delegate_ident.to_fluent_string_with(localize)
                     }
                 }
             } else {
-                let wildcards: Vec<_> = (0..all_fields.len()).map(|_| quote! { _ }).collect();
+                let wildcards: Vec<_> = fields.iter().map(|_| quote! { _ }).collect();
                 quote! {
                     Self::#variant_ident(#(#wildcards),*) => #variant_name.to_string()
                 }
             }
         },
-        darling::ast::Style::Struct => {
-            let all_fields = variant_opt.all_fields();
-
-            if all_fields.len() == 1 {
-                let field_ident = all_fields[0].ident().expect("named field");
+        EsFluentEnumVariantShape::Struct {
+            fields,
+            has_skipped_fields,
+        } => {
+            if fields.len() == 1 {
+                let field_ident = fields[0].binding();
+                let pattern = if *has_skipped_fields {
+                    quote! { Self::#variant_ident { #field_ident, .. } }
+                } else {
+                    quote! { Self::#variant_ident { #field_ident } }
+                };
                 quote! {
-                    Self::#variant_ident { #field_ident } => {
-                        use ::es_fluent::FluentMessage as _;
+                    #pattern => {
+                        use #es_fluent::FluentMessage as _;
                         #field_ident.to_fluent_string_with(localize)
                     }
                 }
@@ -61,129 +92,133 @@ fn skipped_variant_message_match_arm(variant_opt: &VariantOpts) -> TokenStream {
     }
 }
 
-fn generate(opts: &EnumOpts, _data: &syn::DataEnum) -> TokenStream {
-    let original_ident = opts.ident();
-    let base_key = opts.base_key();
-    let domain_override = opts.attr_args().domain().map(str::to_owned);
+fn variant_runtime_arguments(
+    context: &CodegenContext,
+    model: &EsFluentEnumVariantShape,
+) -> Vec<crate::macros::ir::FluentArgument> {
+    match model {
+        EsFluentEnumVariantShape::Unit => Vec::new(),
+        EsFluentEnumVariantShape::Tuple { fields } => fields
+            .iter()
+            .filter_map(|field| match field {
+                EsFluentTupleField::Skipped { .. } => None,
+                EsFluentTupleField::Argument { index, argument } => Some((index, argument)),
+            })
+            .map(|field| {
+                let (index, argument) = field;
+                let binding_ident = namer::UnnamedItem::from(index.as_usize()).to_ident();
+                crate::macros::utils::generate_field_argument(
+                    context,
+                    argument.as_ref().clone(),
+                    quote! { #binding_ident },
+                    quote! { #binding_ident },
+                )
+            })
+            .collect(),
+        EsFluentEnumVariantShape::Struct { fields, .. } => fields
+            .iter()
+            .map(|field| {
+                let arg = field.binding();
+                crate::macros::utils::generate_field_argument(
+                    context,
+                    field.argument().clone(),
+                    quote! { #arg },
+                    quote! { #arg },
+                )
+            })
+            .collect(),
+    }
+}
 
-    let variants = opts.variants();
+fn variant_message_entry(
+    context: &CodegenContext,
+    model: &EsFluentLocalizedVariant,
+) -> MessageEntrySpec {
+    MessageEntrySpec::from_metadata(
+        model.message_entry().clone(),
+        variant_runtime_arguments(context, model.shape()),
+    )
+}
 
-    let fluent_message_match_arms = variants.iter().map(|variant_opt| {
-        if variant_opt.is_skipped() {
-            return skipped_variant_message_match_arm(variant_opt);
-        }
+fn localized_variant_match_arm(
+    context: &CodegenContext,
+    model: &EsFluentLocalizedVariant,
+    entry: &MessageEntrySpec,
+    domain_model: Option<&es_fluent_derive_core::semantic::DomainName>,
+) -> TokenStream {
+    let variant_ident = model.ident();
+    let body = entry.localize_with_expr(context, domain_model);
 
-        let variant_ident = variant_opt.ident();
-        let ftl_key = crate::macros::utils::variant_ftl_key(
-            base_key.as_str(),
-            variant_ident,
-            variant_opt.key(),
-        );
-
-        match variant_opt.style() {
-            darling::ast::Style::Unit => {
-                let body = LocalizeCallSpec {
-                    domain_override: domain_override.clone(),
-                    ftl_key,
-                    arguments: Vec::new(),
-                }
-                .localize_with_expr();
-                quote! {
-                    Self::#variant_ident => #body
-                }
-            },
-            darling::ast::Style::Tuple => {
-                let all_fields = variant_opt.all_fields();
-                let field_pats: Vec<_> = all_fields
-                    .iter()
-                    .enumerate()
-                    .map(|(index, field)| {
-                        if <FluentFieldOpts as FluentField>::is_skipped(*field) {
-                            quote! { _ }
-                        } else {
-                            let name = namer::UnnamedItem::from(index).to_ident();
-                            quote! { #name }
-                        }
-                    })
-                    .collect();
-
-                let arguments: Vec<_> = all_fields
-                    .into_iter()
-                    .enumerate()
-                    .filter(|(_, field)| !<FluentFieldOpts as FluentField>::is_skipped(*field))
-                    .map(|(tuple_index, field)| {
-                        let binding_ident = namer::UnnamedItem::from(tuple_index).to_ident();
-                        crate::macros::utils::generate_field_argument(
-                            field,
-                            tuple_index,
-                            quote! { #binding_ident },
-                            quote! { #binding_ident },
-                        )
-                    })
-                    .collect();
-                let body = LocalizeCallSpec {
-                    domain_override: domain_override.clone(),
-                    ftl_key,
-                    arguments,
-                }
-                .localize_with_expr();
-
-                quote! {
-                    Self::#variant_ident(#(#field_pats),*) => {
-                        #body
+    match model.shape() {
+        EsFluentEnumVariantShape::Unit => {
+            quote! {
+                Self::#variant_ident => #body
+            }
+        },
+        EsFluentEnumVariantShape::Tuple { fields } => {
+            let field_pats: Vec<_> = fields
+                .iter()
+                .map(|field| {
+                    if let EsFluentTupleField::Argument { index, .. } = field {
+                        let name = namer::UnnamedItem::from(index.as_usize()).to_ident();
+                        quote! { #name }
+                    } else {
+                        quote! { _ }
                     }
+                })
+                .collect();
+
+            quote! {
+                Self::#variant_ident(#(#field_pats),*) => {
+                    #body
                 }
+            }
+        },
+        EsFluentEnumVariantShape::Struct {
+            fields,
+            has_skipped_fields,
+        } => {
+            let field_pats: Vec<_> = fields.iter().map(|field| field.binding()).collect();
+            let pattern = if *has_skipped_fields {
+                quote! { Self::#variant_ident { #(#field_pats),*, .. } }
+            } else {
+                quote! { Self::#variant_ident { #(#field_pats),* } }
+            };
+
+            quote! {
+                #pattern => {
+                    #body
+                }
+            }
+        },
+    }
+}
+
+fn generate(context: &CodegenContext, expansion: &EsFluentEnumExpansion) -> TokenStream {
+    let original_ident = expansion.ident();
+    let message_variants = expansion
+        .variants()
+        .iter()
+        .map(|variant_model| match variant_model {
+            EsFluentMessageVariant::Skipped(model) => MessageVariantToken::Skipped(model),
+            EsFluentMessageVariant::Localized(model) => {
+                let entry = variant_message_entry(context, model);
+                MessageVariantToken::Localized { model, entry }
             },
-            darling::ast::Style::Struct => {
-                let fields = variant_opt.fields();
-                let field_pats: Vec<_> = fields
-                    .iter()
-                    .map(|f| f.ident().expect("named field"))
-                    .collect();
+        })
+        .collect::<Vec<_>>();
 
-                let arguments: Vec<_> = fields
-                    .iter()
-                    .enumerate()
-                    .map(|(index, field_opt)| {
-                        let arg_name = field_opt.ident().expect("named field");
-                        crate::macros::utils::generate_field_argument(
-                            *field_opt,
-                            index,
-                            quote! { #arg_name },
-                            quote! { #arg_name },
-                        )
-                    })
-                    .collect();
-                let body = LocalizeCallSpec {
-                    domain_override: domain_override.clone(),
-                    ftl_key,
-                    arguments,
-                }
-                .localize_with_expr();
-
-                let all_fields = variant_opt.all_fields();
-                let has_skipped_fields = all_fields.len() > fields.len();
-
-                let pattern = if has_skipped_fields {
-                    quote! { Self::#variant_ident { #(#field_pats),*, .. } }
-                } else {
-                    quote! { Self::#variant_ident { #(#field_pats),* } }
-                };
-
-                quote! {
-                    #pattern => {
-                        #body
-                    }
-                }
-            },
-        }
+    let fluent_message_match_arms = message_variants.iter().map(|variant| match variant {
+        MessageVariantToken::Skipped(model) => skipped_variant_message_match_arm(context, model),
+        MessageVariantToken::Localized { model, entry } => {
+            localized_variant_match_arm(context, model, entry, expansion.domain())
+        },
     });
 
-    let is_empty = variants.is_empty();
     // For empty enums, we need to use `match *self {}` because:
     // - `&EmptyEnum` is always inhabited (references can't be null)
     // - `EmptyEnum` (dereferenced) is uninhabited, so `match *self {}` is valid
-    let fluent_message_body = if is_empty {
+    let fluent_message_body = if expansion.is_empty() {
         quote! { match *self {} }
     } else {
         quote! {
@@ -193,71 +228,105 @@ fn generate(opts: &EnumOpts, _data: &syn::DataEnum) -> TokenStream {
         }
     };
 
-    // Generate inventory submission for all non-empty types unless skip_inventory is set
+    // Generate inventory submission for all non-empty types.
     // FTL metadata is purely structural (type name, field names, variant names)
     // and doesn't depend on generic type parameters
-    let skip_inventory = opts.attr_args().skip_inventory();
-    let inventory_submit = if !is_empty && !skip_inventory {
-        // Build static variant array from the opts
-        let static_variants: Vec<_> = opts
-            .variants()
-            .iter()
-            .filter(|v| !v.is_skipped())
-            .map(|variant_opt| {
-                let variant_ident = variant_opt.ident();
-                let ftl_key = crate::macros::utils::variant_ftl_key(
-                    base_key.as_str(),
-                    variant_ident,
-                    variant_opt.key(),
-                );
-
-                // Get args based on variant style
-                let arg_names: Vec<String> = match variant_opt.style() {
-                    darling::ast::Style::Unit => vec![],
-                    darling::ast::Style::Tuple => variant_opt
-                        .all_fields()
-                        .into_iter()
-                        .enumerate()
-                        .filter(|(_, field)| !<FluentFieldOpts as FluentField>::is_skipped(*field))
-                        .map(|(tuple_index, field)| {
-                            crate::macros::utils::inventory_arg_name(field, tuple_index)
-                        })
-                        .collect(),
-                    darling::ast::Style::Struct => variant_opt
-                        .fields()
-                        .iter()
-                        .enumerate()
-                        .map(|(index, field)| {
-                            crate::macros::utils::inventory_arg_name(*field, index)
-                        })
-                        .collect(),
-                };
-
-                crate::macros::utils::inventory_variant_tokens(
-                    namer::rust_ident_name(variant_ident),
-                    ftl_key,
-                    arg_names,
-                )
-            })
-            .collect();
-
-        crate::macros::utils::generate_inventory_module(InventoryModuleInput {
-            ident: original_ident,
-            module_name_prefix: "inventory",
-            type_kind: quote! { ::es_fluent::meta::TypeKind::Enum },
-            variants: static_variants,
-            namespace_expr: crate::macros::utils::namespace_rule_tokens(
-                opts.attr_args().namespace(),
-            ),
-        })
+    let inventory_output = if expansion.is_empty() {
+        InventoryOutput::None
     } else {
-        quote! {}
+        crate::macros::utils::message_inventory_output(
+            original_ident,
+            "inventory",
+            expansion.message_model(),
+        )
     };
 
-    crate::macros::utils::emit_message_inventory_impls(
+    let message_output = crate::macros::utils::emit_message_inventory_impls(
+        context,
         original_ident,
-        opts.generics(),
+        expansion.generics(),
         fluent_message_body,
-        inventory_submit,
-    )
+        inventory_output,
+    );
+
+    let choice_output =
+        expansion
+            .inferred_choice()
+            .map_or_else(proc_macro2::TokenStream::new, |choice| {
+                crate::macros::utils::generate_fluent_choice_impl(
+                    context,
+                    original_ident,
+                    expansion.generics(),
+                    choice,
+                )
+            });
+
+    quote! {
+        #message_output
+
+        #choice_output
+    }
+}
+
+enum MessageVariantToken<'a> {
+    Skipped(&'a EsFluentSkippedVariant),
+    Localized {
+        model: &'a EsFluentLocalizedVariant,
+        entry: MessageEntrySpec,
+    },
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::macros::ir::inventory_variant_tokens_for_model;
+    use syn::parse_quote;
+
+    #[test]
+    fn enum_message_entry_drives_runtime_and_inventory_metadata() {
+        let input: syn::DeriveInput = parse_quote! {
+            enum LoginError {
+                Failed(
+                    #[fluent(arg = "display_name")]
+                    String,
+                    u16,
+                ),
+            }
+        };
+        let expansion =
+            es_fluent_derive_core::expansion::EsFluentExpansion::from_derive_input(&input)
+                .expect("expansion");
+        let es_fluent_derive_core::expansion::EsFluentExpansion::Enum(expansion) = expansion else {
+            panic!("expected enum expansion");
+        };
+        let EsFluentMessageVariant::Localized(variant) = &expansion.variants()[0] else {
+            panic!("expected localized variant");
+        };
+        let context = CodegenContext::fallback();
+        let entry = super::variant_message_entry(&context, variant);
+
+        assert_eq!(entry.metadata.message_id().as_str(), "login_error-Failed");
+        assert_eq!(
+            entry
+                .metadata
+                .argument_names()
+                .iter()
+                .map(es_fluent_derive_core::semantic::ArgName::as_str)
+                .collect::<Vec<_>>(),
+            vec!["display_name", "f1"]
+        );
+
+        let runtime_tokens = entry.localize_with_expr(&context, None).to_string();
+        let inventory_tokens =
+            inventory_variant_tokens_for_model(&context, &entry.metadata).to_string();
+
+        assert!(runtime_tokens.contains("\"login_error-Failed\""));
+        assert!(runtime_tokens.contains("\"display_name\""));
+        assert!(runtime_tokens.contains("\"f1\""));
+        assert!(inventory_tokens.contains("static_entry_id"));
+        assert!(inventory_tokens.contains("\"login_error-Failed\""));
+        assert!(inventory_tokens.contains("static_argument_name"));
+        assert!(inventory_tokens.contains("\"display_name\""));
+        assert!(inventory_tokens.contains("\"f1\""));
+    }
 }

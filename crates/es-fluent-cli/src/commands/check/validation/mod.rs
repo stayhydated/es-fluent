@@ -5,11 +5,10 @@ mod loaded;
 mod tests;
 
 use self::context::ValidationContext;
-use super::inventory::KeyInfo;
+use super::inventory::ExpectedKeys;
 use crate::core::{CrateInfo, ValidationIssue};
 use crate::ftl::LocaleContext;
 use anyhow::Result;
-use indexmap::IndexMap;
 use std::path::Path;
 
 pub(crate) fn validate_crate(
@@ -17,22 +16,43 @@ pub(crate) fn validate_crate(
     workspace_root: &Path,
     temp_dir: &Path,
     check_all: bool,
+    check_fallback_copies: bool,
 ) -> Result<Vec<ValidationIssue>> {
     let expected_keys = super::inventory::read_inventory_file(temp_dir, &krate.name)?;
-    validate_ftl_files(krate, workspace_root, &expected_keys, check_all)
+    validate_ftl_files(
+        krate,
+        workspace_root,
+        &expected_keys,
+        check_all,
+        check_fallback_copies,
+    )
 }
 
 fn validate_ftl_files(
     krate: &CrateInfo,
     workspace_root: &Path,
-    expected_keys: &IndexMap<String, KeyInfo>,
+    expected_keys: &ExpectedKeys,
     check_all: bool,
+    check_fallback_copies: bool,
 ) -> Result<Vec<ValidationIssue>> {
     let locale_ctx = LocaleContext::from_crate(krate, check_all)?;
     let ctx = ValidationContext {
         expected_keys,
         workspace_root,
         manifest_dir: &krate.manifest_dir,
+    };
+    let check_fallback_copies =
+        check_all && check_fallback_copies && locale_ctx.check_fallback_copies;
+    let fallback_keys = if check_fallback_copies {
+        crate::ftl::discover_and_load_ftl_files(
+            &locale_ctx.assets_dir,
+            &locale_ctx.fallback,
+            &locale_ctx.crate_name,
+        )
+        .ok()
+        .map(|files| loaded::collect_fallback_keys(&files))
+    } else {
+        None
     };
 
     let mut issues = Vec::new();
@@ -62,6 +82,8 @@ fn validate_ftl_files(
                     &ctx,
                     loaded_files,
                     locale,
+                    &locale_ctx.fallback,
+                    fallback_keys.as_ref(),
                 ));
             },
             Err(error) => {

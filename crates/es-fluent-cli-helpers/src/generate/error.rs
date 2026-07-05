@@ -25,6 +25,14 @@ pub enum GeneratorError {
         allowed: Vec<String>,
     },
 
+    /// Invalid namespace path used by a registered type.
+    #[error("Invalid namespace '{namespace}' for type '{type_name}': {details}")]
+    InvalidNamespacePath {
+        namespace: String,
+        type_name: String,
+        details: es_fluent_shared::namespace::NamespacePathError,
+    },
+
     /// Failed to inspect locale directories.
     #[error("Locale discovery error: {0}")]
     RunnerIo(#[from] es_fluent_runner::RunnerIoError),

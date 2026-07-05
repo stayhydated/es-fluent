@@ -26,15 +26,26 @@ pub(super) fn spawn_generation(
     result_tx: Sender<GenerateResult>,
 ) {
     thread::spawn(move || {
-        let executor = MonolithicExecutor::new(&workspace);
-        let result = executor.execute_generation_action(
-            &krate,
-            &GenerationAction::Generate {
-                mode,
-                dry_run: false,
-            },
-            false,
-        );
+        let result = match crate::generation::acquire_monolithic_runner_lock(&workspace.root_dir)
+            .and_then(|_runner_lock| {
+                crate::generation::prepare_monolithic_runner_crate(&workspace)?;
+                let executor = MonolithicExecutor::new(&workspace);
+                Ok(executor.execute_generation_action(
+                    &krate,
+                    &GenerationAction::Generate {
+                        mode,
+                        dry_run: false,
+                    },
+                    false,
+                ))
+            }) {
+            Ok(result) => result,
+            Err(error) => GenerateResult::failure(
+                krate.name.clone(),
+                std::time::Duration::ZERO,
+                error.to_string(),
+            ),
+        };
 
         let _ = result_tx.send(result);
     });

@@ -1,14 +1,14 @@
 use crate::{BundleBuildFailures, FtlAsset, I18nAssets, I18nBundle, I18nDomainBundles};
 use bevy::asset::{AssetEvent, AssetId, AssetLoadFailedEvent};
 use bevy::prelude::*;
-use es_fluent_manager_core::{ResourceKey, SyncFluentBundle};
+use es_fluent_manager_core::{FluentDomain, ResourceKey, SyncFluentBundle};
 use fluent_bundle::{FluentError, FluentResource};
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 use unic_langid::LanguageIdentifier;
 
-type DomainBundleMap = HashMap<String, Arc<SyncFluentBundle>>;
-type DomainResourceMap = HashMap<String, Vec<Arc<FluentResource>>>;
+type DomainBundleMap = HashMap<FluentDomain, Arc<SyncFluentBundle>>;
+type DomainResourceMap = HashMap<FluentDomain, Vec<Arc<FluentResource>>>;
 
 struct BundleCaches {
     bundle: Option<Arc<SyncFluentBundle>>,
@@ -53,7 +53,7 @@ fn dirty_languages_for_assets(
         .collect::<HashSet<_>>();
 
     if i18n_assets.is_added() {
-        for (lang, _) in i18n_assets.assets.keys() {
+        for (lang, _) in i18n_assets.resource_specs.keys() {
             dirty_languages.insert(lang.clone());
         }
     }
@@ -74,7 +74,7 @@ fn rebuild_bundle_for_language(
         bundle_build_failures.0.remove(lang);
 
         if i18n_assets
-            .assets
+            .resource_specs
             .keys()
             .any(|(language, _)| language == lang)
             && i18n_assets.is_language_loaded(lang)
@@ -204,10 +204,10 @@ fn build_domain_bundles(
     lang: &LanguageIdentifier,
     accepted_resources: &[(ResourceKey, Arc<FluentResource>)],
 ) -> Result<(DomainBundleMap, DomainResourceMap), Vec<String>> {
-    let mut grouped = HashMap::<String, Vec<(ResourceKey, Arc<FluentResource>)>>::new();
+    let mut grouped = HashMap::<FluentDomain, Vec<(ResourceKey, Arc<FluentResource>)>>::new();
     for (resource_key, resource) in accepted_resources.iter().cloned() {
         grouped
-            .entry(resource_key.domain().to_string())
+            .entry(resource_key.domain_name())
             .or_default()
             .push((resource_key, resource));
     }
@@ -272,19 +272,24 @@ pub(crate) fn build_fluent_bundles(
 mod tests {
     use super::*;
     use bevy::asset::Assets;
-    use es_fluent_manager_core::ModuleResourceSpec;
+    use es_fluent_manager_core::{LocaleRelativeFtlPath, ModuleResourceSpec};
     use unic_langid::langid;
 
     fn resource(source: &str) -> Arc<FluentResource> {
         Arc::new(FluentResource::try_new(source.to_string()).expect("valid FTL"))
     }
 
+    fn domain(value: &str) -> FluentDomain {
+        FluentDomain::try_new(value)
+            .unwrap_or_else(|error| panic!("test domain '{value}' should be valid: {error}"))
+    }
+
     fn spec(key: &str, required: bool) -> ModuleResourceSpec {
-        ModuleResourceSpec {
-            key: ResourceKey::new(key),
-            locale_relative_path: format!("{key}.ftl"),
-            required,
-        }
+        let resource_key = ResourceKey::try_new(key)
+            .unwrap_or_else(|error| panic!("test resource key '{key}' should be valid: {error}"));
+        let locale_relative_path = LocaleRelativeFtlPath::try_new(format!("{key}.ftl"))
+            .unwrap_or_else(|error| panic!("test FTL path '{key}.ftl' should be valid: {error}"));
+        ModuleResourceSpec::new(resource_key, locale_relative_path, required)
     }
 
     fn empty_bundle(lang: &LanguageIdentifier) -> Arc<SyncFluentBundle> {
@@ -299,8 +304,14 @@ mod tests {
         let caches = build_bundle_caches(
             &lang,
             vec![
-                (ResourceKey::new("app"), resource("app-title = App")),
-                (ResourceKey::new("admin"), resource("admin-title = Admin")),
+                (
+                    ResourceKey::from_static_path("app"),
+                    resource("app-title = App"),
+                ),
+                (
+                    ResourceKey::from_static_path("admin"),
+                    resource("admin-title = Admin"),
+                ),
             ],
         )
         .expect("valid resources should build caches");
@@ -332,8 +343,14 @@ mod tests {
         let caches = build_bundle_caches(
             &langid!("en"),
             vec![
-                (ResourceKey::new("app"), resource("shared = First")),
-                (ResourceKey::new("admin"), resource("shared = Second")),
+                (
+                    ResourceKey::from_static_path("app"),
+                    resource("shared = First"),
+                ),
+                (
+                    ResourceKey::from_static_path("admin"),
+                    resource("shared = Second"),
+                ),
             ],
         )
         .expect("cross-domain duplicates should still build domain caches");
@@ -361,8 +378,14 @@ mod tests {
         let diagnostics = match build_bundle_from_resources(
             &langid!("en"),
             vec![
-                (ResourceKey::new("app"), resource("shared = First")),
-                (ResourceKey::new("admin"), resource("shared = Second")),
+                (
+                    ResourceKey::from_static_path("app"),
+                    resource("shared = First"),
+                ),
+                (
+                    ResourceKey::from_static_path("admin"),
+                    resource("shared = Second"),
+                ),
             ],
         ) {
             Ok(_) => panic!("duplicate message IDs should reject the cache rebuild"),
@@ -381,8 +404,14 @@ mod tests {
         let diagnostics = match build_domain_bundles(
             &langid!("en"),
             &[
-                (ResourceKey::new("app/main"), resource("shared = First")),
-                (ResourceKey::new("app/extra"), resource("shared = Second")),
+                (
+                    ResourceKey::from_static_path("app/main"),
+                    resource("shared = First"),
+                ),
+                (
+                    ResourceKey::from_static_path("app/extra"),
+                    resource("shared = Second"),
+                ),
             ],
         ) {
             Ok(_) => panic!("duplicate domain messages should reject the domain cache"),
@@ -438,10 +467,9 @@ mod tests {
         });
         let mut i18n_assets = I18nAssets::new();
         i18n_assets.add_asset_spec(lang.clone(), resource_spec.clone(), handle.clone());
-        i18n_assets.loaded_resources.insert(
-            (lang.clone(), resource_spec.key.clone()),
-            resource("hello = Hello"),
-        );
+        i18n_assets
+            .loaded_resources
+            .insert((lang.clone(), resource_spec.key), resource("hello = Hello"));
 
         let mut app = App::new();
         app.add_message::<AssetEvent<FtlAsset>>()
@@ -475,11 +503,11 @@ mod tests {
         i18n_bundle.set_locale_resources(lang.clone(), vec![resource("old = Old")]);
         i18n_domain_bundles.set_bundles(
             lang.clone(),
-            HashMap::from([("app".to_string(), empty_bundle(&lang))]),
+            HashMap::from([(domain("app"), empty_bundle(&lang))]),
         );
         i18n_domain_bundles.set_locale_resources(
             lang.clone(),
-            HashMap::from([("app".to_string(), vec![resource("old = Old")])]),
+            HashMap::from([(domain("app"), vec![resource("old = Old")])]),
         );
         bundle_build_failures
             .0
@@ -514,11 +542,11 @@ mod tests {
         i18n_bundle.set_locale_resources(lang.clone(), vec![resource("old = Old")]);
         i18n_domain_bundles.set_bundles(
             lang.clone(),
-            HashMap::from([("app".to_string(), empty_bundle(&lang))]),
+            HashMap::from([(domain("app"), empty_bundle(&lang))]),
         );
         i18n_domain_bundles.set_locale_resources(
             lang.clone(),
-            HashMap::from([("app".to_string(), vec![resource("old = Old")])]),
+            HashMap::from([(domain("app"), vec![resource("old = Old")])]),
         );
         bundle_build_failures
             .0
@@ -565,7 +593,7 @@ mod tests {
         i18n_assets.add_optional_asset_spec(lang.clone(), optional_spec.clone(), Handle::default());
         i18n_assets.add_asset_spec(lang.clone(), required_spec, Handle::default());
         i18n_assets.loaded_resources.insert(
-            (lang.clone(), optional_spec.key.clone()),
+            (lang.clone(), optional_spec.key),
             resource("app-title = App"),
         );
 
@@ -594,7 +622,7 @@ mod tests {
         let mut bundle_build_failures = BundleBuildFailures::default();
         let old_bundle = empty_bundle(&lang);
 
-        i18n_bundle.set_bundle(lang.clone(), old_bundle.clone());
+        i18n_bundle.set_bundle(lang.clone(), old_bundle);
         i18n_assets.add_asset_spec(lang.clone(), app_spec.clone(), Handle::default());
         i18n_assets.add_asset_spec(lang.clone(), admin_spec.clone(), Handle::default());
         i18n_assets
@@ -645,12 +673,14 @@ mod tests {
 
         let (old_bundle, old_resources) = build_bundle_from_resources(
             &lang,
-            vec![(ResourceKey::new("app"), old_resource.clone())],
+            vec![(ResourceKey::from_static_path("app"), old_resource.clone())],
         )
         .expect("old unscoped cache should build");
-        let (old_domain_bundles, old_domain_resources) =
-            build_domain_bundles(&lang, &[(ResourceKey::new("app"), old_resource)])
-                .expect("old domain cache should build");
+        let (old_domain_bundles, old_domain_resources) = build_domain_bundles(
+            &lang,
+            &[(ResourceKey::from_static_path("app"), old_resource)],
+        )
+        .expect("old domain cache should build");
         i18n_bundle.set_bundle(lang.clone(), old_bundle);
         i18n_bundle.set_locale_resources(
             lang.clone(),

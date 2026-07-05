@@ -3,7 +3,7 @@
 mod cli;
 mod generate;
 
-use es_fluent_runner::{RunnerMetadataStore, RunnerParseMode, RunnerRequest, RunnerResult};
+use es_fluent_runner::{PackageName, RunnerMetadataStore, RunnerRequest, RunnerResult};
 use es_fluent_toml::ResolvedI18nLayout;
 #[cfg(test)]
 use std::path::Path;
@@ -22,7 +22,7 @@ pub enum CliHelpersError {
 
 #[derive(Clone, Debug)]
 struct RunnerContext {
-    crate_name: String,
+    crate_name: PackageName,
     layout: ResolvedI18nLayout,
 }
 
@@ -35,7 +35,8 @@ enum GeneratorRun {
 impl RunnerContext {
     fn from_i18n_path(i18n_toml_path: &str, crate_name: &str) -> Result<Self, GeneratorError> {
         Ok(Self {
-            crate_name: crate_name.to_string(),
+            crate_name: PackageName::try_new(crate_name)
+                .map_err(|error| GeneratorError::CrateName(error.to_string()))?,
             layout: ResolvedI18nLayout::from_config_path(i18n_toml_path)?,
         })
     }
@@ -53,9 +54,8 @@ fn build_generator(
 ) -> generate::EsFluentGenerator {
     EsFluentGenerator::builder()
         .output_path(ctx.layout.output_dir.clone())
-        .assets_dir(ctx.layout.assets_dir.clone())
         .manifest_dir(ctx.layout.manifest_dir.clone())
-        .crate_name(&ctx.crate_name)
+        .crate_name(ctx.crate_name.as_str())
         .mode(mode)
         .dry_run(dry_run)
         .build()
@@ -79,13 +79,6 @@ fn run_generator_command(
     Ok(changed)
 }
 
-fn parse_mode(mode: RunnerParseMode) -> FluentParseMode {
-    match mode {
-        RunnerParseMode::Conservative => FluentParseMode::Conservative,
-        RunnerParseMode::Aggressive => FluentParseMode::Aggressive,
-    }
-}
-
 fn run_request(request: RunnerRequest) -> Result<(), CliHelpersError> {
     match request {
         RunnerRequest::Generate {
@@ -95,9 +88,9 @@ fn run_request(request: RunnerRequest) -> Result<(), CliHelpersError> {
             dry_run,
         } => {
             run_generator_command(
-                &i18n_toml_path,
-                &crate_name,
-                parse_mode(mode),
+                i18n_toml_path.as_path().to_string_lossy().as_ref(),
+                crate_name.as_str(),
+                mode,
                 dry_run,
                 GeneratorRun::Generate,
             )?;
@@ -109,14 +102,17 @@ fn run_request(request: RunnerRequest) -> Result<(), CliHelpersError> {
             dry_run,
         } => {
             run_generator_command(
-                &i18n_toml_path,
-                &crate_name,
+                i18n_toml_path.as_path().to_string_lossy().as_ref(),
+                crate_name.as_str(),
                 FluentParseMode::default(),
                 dry_run,
                 GeneratorRun::Clean { all_locales },
             )?;
         },
-        RunnerRequest::Check { crate_name } => run_check(&crate_name)?,
+        RunnerRequest::Check {
+            crate_name,
+            manifest_dir,
+        } => run_check_at(crate_name.as_str(), &manifest_dir)?,
     }
 
     Ok(())
@@ -164,6 +160,14 @@ pub fn run_generate_with_options(
 /// This writes the collected inventory data for the specified crate.
 pub fn run_check(crate_name: &str) -> Result<(), CliHelpersError> {
     write_inventory_for_crate(crate_name)?;
+    Ok(())
+}
+
+pub fn run_check_at(
+    crate_name: &str,
+    manifest_dir: &std::path::Path,
+) -> Result<(), CliHelpersError> {
+    cli::write_inventory_for_crate_at(crate_name, manifest_dir)?;
     Ok(())
 }
 
@@ -233,8 +237,9 @@ mod tests {
     }
 
     fn read_changed_result(base: &Path, crate_name: &str) -> bool {
+        let package_name = PackageName::try_new(crate_name).expect("valid package name");
         RunnerMetadataStore::new(base)
-            .read_result(crate_name)
+            .read_result(&package_name)
             .expect("read result json")
             .changed
     }
@@ -271,7 +276,7 @@ mod tests {
             run_check("unknown-crate").expect("run check");
 
             let value = RunnerMetadataStore::new(cwd)
-                .read_inventory("unknown-crate")
+                .read_inventory(&PackageName::try_new("unknown-crate").expect("package"))
                 .expect("read inventory");
             assert_eq!(value.expected_keys.len(), 0);
         });

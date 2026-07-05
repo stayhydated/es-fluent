@@ -15,44 +15,43 @@ es-fluent-manager-embedded = "0.16"
 # For Dioxus apps, enable only the runtime surface you use.
 # es-fluent-manager-dioxus = { version = "0.7", features = ["client"] }
 # es-fluent-manager-dioxus = { version = "0.7", features = ["ssr"] }
-# Browser WASM debug builds that use define_i18n_module! should add "debug-embed".
-# es-fluent-manager-dioxus = { version = "0.7", features = ["client", "debug-embed"] }
+# es-fluent-manager-dioxus = { version = "0.7", features = ["client", "ssr"] }
 ```
 
 ## Project Configuration
 
-For a new crate, let the CLI create the standard config and module scaffold:
+Create `i18n.toml` next to your crate's `Cargo.toml`, create the fallback
+locale directory, and expose an i18n module from your library target when you
+use manager macros:
 
-```sh
-cargo es-fluent init
+```rust
+// src/i18n.rs
+pub use es_fluent_manager_embedded::{
+    EmbeddedI18n as I18n, EmbeddedInitError, LocalizationError,
+};
+
+es_fluent_manager_embedded::define_i18n_module!();
 ```
 
-This creates `i18n.toml`, `assets/locales/en/`, `src/i18n.rs`, and a
-`pub mod i18n;` declaration in `src/lib.rs`. Pass `--manager dioxus` or
-`--manager bevy` for framework-specific scaffolding, and pass `--build-rs`
-when you want Cargo to rebuild automatically after locale file changes.
-Use `--locales fr-FR,zh-CN` to create additional locale directories up front,
-`--namespaces ui,errors` to write a namespace allowlist, and
-`--update-cargo-toml` to add the matching dependencies. When `--build-rs` is
-also passed, the manifest update includes `es-fluent-build` under
-`[build-dependencies]`. For Dioxus manifests, `--dioxus-runtime client`,
-`--dioxus-runtime ssr`, or `--dioxus-runtime client,ssr` selects the generated
-manager features; omitting it enables both.
+```rust
+// src/lib.rs
+pub mod i18n;
+```
 
-Before writing anything, `init` checks generated-file conflicts, directory
-targets, and `Cargo.toml` parseability when manifest updates are requested.
+Use the Dioxus or Bevy manager crate in that module for framework-specific
+integrations. If manager macros scan locale assets at compile time, add
+`es-fluent-build` under `[build-dependencies]` and call
+`es_fluent_build::track_i18n_assets();` from `build.rs` so Cargo rebuilds when
+locale files are added, removed, or renamed.
 
-`init` creates a library target because CLI inventory collection reads library
-targets. Put derived message types in `src/lib.rs` or another library crate;
-binary-only derived types in `src/main.rs` are not discovered by `generate`.
-
-Or create an `i18n.toml` next to your crate's `Cargo.toml` manually:
+Create an `i18n.toml` next to your crate's `Cargo.toml`:
 
 ```toml
 # Default fallback language (required)
 fallback_language = "en"
 
-# Path to FTL assets relative to the config file (required)
+# Path to FTL assets relative to the crate root; must stay inside the crate
+# and must not use existing symlinked path components or locale targets (required)
 assets_dir = "assets/locales"
 
 # Features to enable if the crate's es-fluent derives are gated behind a feature (optional)
@@ -60,11 +59,16 @@ fluent_feature = ["my-feature"]
 
 # Optional allowlist of namespace values for FTL file splitting
 namespaces = ["ui", "errors", "messages"]
+
+# Optional: disable warnings when non-fallback messages copy fallback text
+check_fallback_copies = false
 ```
 
 The CLI and build tools use this file as the single source of truth for locating `.ftl` files and validating keys.
-Locale directory names use canonical BCP-47 tags. The executable README example
-ships `en`, `fr-FR`, and `zh-CN`, with `en` as the fallback locale.
+Locale directory names use canonical BCP-47 tags. Deprecated aliases such as
+`iw` and `src` are rejected; use canonical replacements such as `he` and `sc`.
+The executable README example ships `en`, `fr-FR`, and `zh-CN`, with `en` as
+the fallback locale.
 
 ## End-to-End Example
 
@@ -136,7 +140,21 @@ When adding a new target language later, seed it from the fallback locale:
 cargo es-fluent add-locale fr-FR
 ```
 
-Before committing, `cargo es-fluent status --all` gives a read-only summary of
-generation, formatting, sync, orphan-cleanup, and validation work that remains.
+The fallback locale directory, such as `assets/locales/en`, must exist as a
+directory before syncing or adding target locales; it may be empty before
+generated keys exist. Existing target locale paths must be directories.
+If the requested locale already exists and no fallback keys are missing,
+rerunning `add-locale` is a successful no-op.
+Locale creation preflights every selected crate for setup, fallback parse, and
+requested-locale path errors before writing any selected crate. Unexpected
+write-time I/O failures after preflight succeeds are still not rolled back.
+
+Before committing, `cargo es-fluent status --all` summarizes generation,
+formatting, sync, orphan-cleanup, and validation work that remains. It does not
+edit project source or locale files, but it may prepare `.es-fluent` runner
+metadata and Cargo build output while checking valid crates. If `.es-fluent`
+already exists, it and existing entries below it must be real paths, not
+symlinks. Empty selections and setup errors are reported before that runner
+preparation.
 
 The following chapters break down each of these steps in detail.

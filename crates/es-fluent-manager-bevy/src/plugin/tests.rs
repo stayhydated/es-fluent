@@ -17,10 +17,10 @@ fn plugin_constructors_store_the_requested_configuration() {
     assert_eq!(fr.config.initial_language, langid!("fr"));
     assert_eq!(fr.config.asset_path, "locales");
 
-    let custom_config = I18nPluginConfig {
-        initial_language: langid!("de"),
-        asset_path: "locale-assets".to_string(),
-    };
+    let custom_config = I18nPluginConfig::builder()
+        .initial_language(langid!("de"))
+        .asset_path("locale-assets")
+        .build();
     let custom = I18nPlugin::with_config(custom_config);
 
     assert_eq!(custom.config.initial_language, langid!("de"));
@@ -34,10 +34,12 @@ fn i18n_plugin_build_ignores_initial_language_rejected_by_fallback_manager() {
     app.add_plugins(MinimalPlugins);
     app.add_plugins(AssetPlugin::default());
 
-    I18nPlugin::with_config(I18nPluginConfig {
-        initial_language: unsupported.clone(),
-        asset_path: "locales".to_string(),
-    })
+    I18nPlugin::with_config(
+        I18nPluginConfig::builder()
+            .initial_language(unsupported.clone())
+            .asset_path("locales")
+            .build(),
+    )
     .build(&mut app);
 
     assert_eq!(
@@ -58,10 +60,12 @@ fn i18n_plugin_build_initializes_resources_for_supported_inventory_language() {
     app.add_plugins(MinimalPlugins);
     app.add_plugins(AssetPlugin::default());
 
-    I18nPlugin::with_config(I18nPluginConfig {
-        initial_language: langid!("en"),
-        asset_path: "locales".to_string(),
-    })
+    I18nPlugin::with_config(
+        I18nPluginConfig::builder()
+            .initial_language(langid!("en"))
+            .asset_path("locales")
+            .build(),
+    )
     .build(&mut app);
 
     assert!(app.world().get_resource::<crate::I18nResource>().is_some());

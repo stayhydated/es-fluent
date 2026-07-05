@@ -27,9 +27,25 @@ pub fn watch_all(
         anyhow::bail!("No crates to watch");
     }
 
-    crate::generation::prepare_monolithic_runner_crate(workspace)?;
+    let runner_workspace = workspace_for_crates(workspace, crates);
+    {
+        let _runner_lock =
+            crate::generation::acquire_monolithic_runner_lock(&runner_workspace.root_dir)?;
+        crate::generation::prepare_monolithic_runner_crate(&runner_workspace)?;
+    }
 
-    run_watch_terminal(crates, workspace, mode)
+    run_watch_terminal(crates, &runner_workspace, mode)
+}
+
+pub(super) fn workspace_for_crates(
+    workspace: &WorkspaceInfo,
+    crates: &[CrateInfo],
+) -> WorkspaceInfo {
+    WorkspaceInfo {
+        root_dir: workspace.root_dir.clone(),
+        target_dir: workspace.target_dir.clone(),
+        crates: crates.to_vec(),
+    }
 }
 
 #[cfg(not(any(test, coverage)))]
@@ -79,7 +95,8 @@ fn run_watch_loop_with_poll<B: Backend>(
 ) -> Result<()> {
     let mut app = TuiApp::new(crates);
     let mut runtime = WatchRuntime::new(crates, workspace, mode);
-    let (_debouncer, file_rx) = configure_file_watcher(runtime.valid_crates())?;
+    let (_debouncer, file_rx) =
+        configure_file_watcher(runtime.valid_crates(), &workspace.root_dir)?;
     run_watch_loop_with_runtime(
         terminal,
         &mut app,
@@ -172,6 +189,7 @@ fn run_watch_loop_with_runtime<B: Backend>(
 
 fn configure_file_watcher(
     valid_crates: &[&CrateInfo],
+    workspace_root: &std::path::Path,
 ) -> Result<(
     notify_debouncer_full::Debouncer<RecommendedWatcher, RecommendedCache>,
     Receiver<DebounceEventResult>,
@@ -180,6 +198,10 @@ fn configure_file_watcher(
     let mut debouncer =
         notify_debouncer_full::new_debouncer(Duration::from_millis(300), None, file_tx)
             .context("Failed to create file watcher")?;
+
+    debouncer
+        .watch(workspace_root, RecursiveMode::NonRecursive)
+        .with_context(|| format!("Failed to watch {}", workspace_root.display()))?;
 
     for krate in valid_crates {
         debouncer

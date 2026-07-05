@@ -1,0 +1,13 @@
+error: Attribute error in message struct container: `#[fluent(domain = ...)]` cannot be used in message struct container `DomainOnStruct`
+       help: accepted key here is namespace
+ --> tests/ui/enum_only_keys_on_struct.rs:4:10
+  |
+4 | #[fluent(domain = "auth")]
+  |          ^^^^^^
+
+error: Attribute error in message struct container: `#[fluent(id = ...)]` cannot be used in message struct container `ResourceOnStruct`
+       help: accepted key here is namespace
+  --> tests/ui/enum_only_keys_on_struct.rs:10:10
+   |
+10 | #[fluent(id = "auth_error")]
+   |          ^^

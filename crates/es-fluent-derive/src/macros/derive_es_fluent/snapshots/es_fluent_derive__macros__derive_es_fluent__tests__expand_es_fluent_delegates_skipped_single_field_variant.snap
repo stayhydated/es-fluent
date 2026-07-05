@@ -5,16 +5,7 @@ expression: tokens
 impl ::es_fluent::FluentMessage for LoginError {
     fn to_fluent_string_with(
         &self,
-        localize: &mut dyn for<'__es_fluent_message> FnMut(
-            &str,
-            &str,
-            Option<
-                &::std::collections::HashMap<
-                    &str,
-                    ::es_fluent::FluentValue<'__es_fluent_message>,
-                >,
-            >,
-        ) -> String,
+        localize: &mut ::es_fluent::FluentMessageLookup<'_>,
     ) -> String {
         match self {
             Self::Network(value) => {
@@ -29,14 +20,14 @@ impl ::es_fluent::FluentMessage for LoginError {
 mod __es_fluent_inventory_LoginError {
     use super::*;
     static VARIANTS: &[::es_fluent::registry::FtlVariant] = &[];
-    static TYPE_INFO: ::es_fluent::registry::FtlTypeInfo = ::es_fluent::registry::FtlTypeInfo {
-        type_kind: ::es_fluent::meta::TypeKind::Enum,
-        type_name: "LoginError",
-        variants: VARIANTS,
-        file_path: file!(),
-        module_path: module_path!(),
-        namespace: None,
-    };
+    static TYPE_INFO: ::es_fluent::registry::FtlTypeInfo = ::es_fluent::registry::__macro::ftl_type_info(
+        ::es_fluent::meta::TypeKind::Enum,
+        "LoginError",
+        VARIANTS,
+        file!(),
+        module_path!(),
+        None,
+    );
     ::es_fluent::__inventory::submit!(
         ::es_fluent::registry::RegisteredFtlType(& TYPE_INFO)
     );

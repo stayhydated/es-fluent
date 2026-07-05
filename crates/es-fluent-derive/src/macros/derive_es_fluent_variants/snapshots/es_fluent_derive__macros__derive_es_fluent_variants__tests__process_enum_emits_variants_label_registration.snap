@@ -3,6 +3,7 @@ source: crates/es-fluent-derive/src/macros/derive_es_fluent_variants/mod.rs
 expression: tokens
 ---
 ///Variants of [`Status`].
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub enum StatusVariants {
     ///The `Ready` variant of [`Status`].
     Ready,
@@ -12,24 +13,39 @@ pub enum StatusVariants {
 impl ::es_fluent::FluentMessage for StatusVariants {
     fn to_fluent_string_with(
         &self,
-        localize: &mut dyn for<'__es_fluent_message> FnMut(
-            &str,
-            &str,
-            Option<
-                &::std::collections::HashMap<
-                    &str,
-                    ::es_fluent::FluentValue<'__es_fluent_message>,
-                >,
-            >,
-        ) -> String,
+        localize: &mut ::es_fluent::FluentMessageLookup<'_>,
     ) -> String {
         match self {
             Self::Ready => {
-                localize(env!("CARGO_PKG_NAME"), "status_variants-Ready", None)
+                localize(
+                    ::es_fluent::registry::StaticFluentDomain::from_package_name(
+                        env!("CARGO_PKG_NAME"),
+                    ),
+                    ::es_fluent::registry::__macro::static_entry_id(
+                        "status_variants-Ready",
+                    ),
+                    None,
+                )
             }
             Self::Failed => {
-                localize(env!("CARGO_PKG_NAME"), "status_variants-Failed", None)
+                localize(
+                    ::es_fluent::registry::StaticFluentDomain::from_package_name(
+                        env!("CARGO_PKG_NAME"),
+                    ),
+                    ::es_fluent::registry::__macro::static_entry_id(
+                        "status_variants-Failed",
+                    ),
+                    None,
+                )
             }
+        }
+    }
+}
+impl ::es_fluent::EsFluentChoice for StatusVariants {
+    fn as_fluent_choice(&self) -> ::es_fluent::registry::StaticFluentVariantKey {
+        match self {
+            Self::Ready => ::es_fluent::registry::__macro::static_variant_key("ready"),
+            Self::Failed => ::es_fluent::registry::__macro::static_variant_key("failed"),
         }
     }
 }
@@ -38,74 +54,65 @@ impl ::es_fluent::FluentMessage for StatusVariants {
 mod __es_fluent_inventory_StatusVariants {
     use super::*;
     static VARIANTS: &[::es_fluent::registry::FtlVariant] = &[
-        ::es_fluent::registry::FtlVariant {
-            name: "Ready",
-            ftl_key: "status_variants-Ready",
-            args: &[],
-            module_path: module_path!(),
-            line: line!(),
-        },
-        ::es_fluent::registry::FtlVariant {
-            name: "Failed",
-            ftl_key: "status_variants-Failed",
-            args: &[],
-            module_path: module_path!(),
-            line: line!(),
-        },
-    ];
-    static TYPE_INFO: ::es_fluent::registry::FtlTypeInfo = ::es_fluent::registry::FtlTypeInfo {
-        type_kind: ::es_fluent::meta::TypeKind::Enum,
-        type_name: "StatusVariants",
-        variants: VARIANTS,
-        file_path: file!(),
-        module_path: module_path!(),
-        namespace: Some(
-            ::es_fluent::registry::NamespaceRule::Literal(
-                ::std::borrow::Cow::Borrowed("ui"),
-            ),
+        ::es_fluent::registry::__macro::ftl_variant(
+            "Ready",
+            ::es_fluent::registry::__macro::static_entry_id("status_variants-Ready"),
+            &[],
+            module_path!(),
+            line!(),
         ),
-    };
+        ::es_fluent::registry::__macro::ftl_variant(
+            "Failed",
+            ::es_fluent::registry::__macro::static_entry_id("status_variants-Failed"),
+            &[],
+            module_path!(),
+            line!(),
+        ),
+    ];
+    static TYPE_INFO: ::es_fluent::registry::FtlTypeInfo = ::es_fluent::registry::__macro::ftl_type_info(
+        ::es_fluent::meta::TypeKind::Enum,
+        "StatusVariants",
+        VARIANTS,
+        file!(),
+        module_path!(),
+        Some(::es_fluent::registry::__macro::namespace_literal("ui")),
+    );
     ::es_fluent::__inventory::submit!(
         ::es_fluent::registry::RegisteredFtlType(& TYPE_INFO)
     );
-}
-impl ::es_fluent::FluentLabel for StatusVariants {
-    fn localize_label<__EsFluentLocalizer: ::es_fluent::FluentLocalizer + ?Sized>(
-        localizer: &__EsFluentLocalizer,
-    ) -> String {
-        ::es_fluent::__private::localize_label(
-            localizer,
-            env!("CARGO_PKG_NAME"),
-            "status_variants_label",
-        )
-    }
 }
 #[doc(hidden)]
 #[allow(non_snake_case)]
 mod __es_fluent_label_inventory_StatusVariants {
     use super::*;
     static VARIANTS: &[::es_fluent::registry::FtlVariant] = &[
-        ::es_fluent::registry::FtlVariant {
-            name: "StatusVariants",
-            ftl_key: "status_variants_label",
-            args: &[],
-            module_path: module_path!(),
-            line: line!(),
-        },
-    ];
-    static TYPE_INFO: ::es_fluent::registry::FtlTypeInfo = ::es_fluent::registry::FtlTypeInfo {
-        type_kind: ::es_fluent::meta::TypeKind::Enum,
-        type_name: "StatusVariants",
-        variants: VARIANTS,
-        file_path: file!(),
-        module_path: module_path!(),
-        namespace: Some(
-            ::es_fluent::registry::NamespaceRule::Literal(
-                ::std::borrow::Cow::Borrowed("ui"),
-            ),
+        ::es_fluent::registry::__macro::ftl_variant(
+            "StatusVariants",
+            ::es_fluent::registry::__macro::static_entry_id("status_variants_label"),
+            &[],
+            module_path!(),
+            line!(),
         ),
-    };
+    ];
+    static TYPE_INFO: ::es_fluent::registry::FtlTypeInfo = ::es_fluent::registry::__macro::ftl_type_info(
+        ::es_fluent::meta::TypeKind::Enum,
+        "StatusVariants",
+        VARIANTS,
+        file!(),
+        module_path!(),
+        Some(::es_fluent::registry::__macro::namespace_literal("ui")),
+    );
     ::es_fluent::__inventory::submit!(
         ::es_fluent::registry::RegisteredFtlType(& TYPE_INFO)
     );
+}
+impl ::es_fluent::FluentLabel for StatusVariants {
+    fn fluent_label_domain() -> ::es_fluent::registry::StaticFluentDomain {
+        ::es_fluent::registry::StaticFluentDomain::from_package_name(
+            env!("CARGO_PKG_NAME"),
+        )
+    }
+    fn fluent_label_id() -> ::es_fluent::registry::StaticFluentEntryId {
+        ::es_fluent::registry::__macro::static_entry_id("status_variants_label")
+    }
 }

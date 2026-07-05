@@ -26,14 +26,14 @@ impl<'a> WatchRuntime<'a> {
         mode: &FluentParseMode,
     ) -> Self {
         let valid_crates: Vec<_> = crates.iter().filter(|krate| krate.has_lib_rs).collect();
-        let path_to_crate = super::events::build_path_to_crate(&valid_crates);
+        let path_to_crate = super::events::build_path_to_crate(&valid_crates, &workspace.root_dir);
         let mut crates_by_name = HashMap::new();
         let mut observed_hashes = HashMap::new();
 
         for krate in &valid_crates {
-            crates_by_name.insert(krate.name.clone(), *krate);
+            crates_by_name.insert(krate.name.to_string(), *krate);
             observed_hashes.insert(
-                krate.name.clone(),
+                krate.name.to_string(),
                 super::generation::compute_watch_inputs_hash(
                     &krate.manifest_dir,
                     &krate.src_dir,
@@ -43,10 +43,14 @@ impl<'a> WatchRuntime<'a> {
         }
 
         let (result_tx, result_rx) = crossbeam_channel::unbounded();
+        let runner_crates = valid_crates
+            .iter()
+            .map(|krate| (*krate).clone())
+            .collect::<Vec<_>>();
 
         Self {
-            workspace: Arc::new(workspace.clone()),
-            mode: mode.clone(),
+            workspace: Arc::new(super::workspace_for_crates(workspace, &runner_crates)),
+            mode: *mode,
             valid_crates,
             crates_by_name,
             path_to_crate,
@@ -77,10 +81,12 @@ impl<'a> WatchRuntime<'a> {
     pub(super) fn handle_generation_results(&mut self, app: &mut TuiApp<'_>) {
         while let Ok(result) = self.result_rx.try_recv() {
             let crate_name = result.name.clone();
-            let rerun_needed = self.finish_generation(&crate_name);
+            let rerun_needed = self.finish_generation(crate_name.as_str());
             app.update(Message::GenerationComplete { result });
 
-            if rerun_needed && let Some(krate) = self.crates_by_name.get(&crate_name).copied() {
+            if rerun_needed
+                && let Some(krate) = self.crates_by_name.get(crate_name.as_str()).copied()
+            {
                 self.start_generation(app, krate, false);
             }
         }
@@ -114,13 +120,13 @@ impl<'a> WatchRuntime<'a> {
     fn start_generation(&mut self, app: &mut TuiApp<'_>, krate: &CrateInfo, report_change: bool) {
         if report_change {
             app.update(Message::FileChanged {
-                crate_name: krate.name.clone(),
+                crate_name: krate.name.to_string(),
             });
         }
 
-        self.begin_generation(&krate.name);
+        self.begin_generation(krate.name.as_str());
         app.update(Message::GenerationStarted {
-            crate_name: krate.name.clone(),
+            crate_name: krate.name.to_string(),
         });
         self.spawn_for(krate);
     }
@@ -129,7 +135,7 @@ impl<'a> WatchRuntime<'a> {
         super::generation::spawn_generation(
             krate.clone(),
             self.workspace.clone(),
-            self.mode.clone(),
+            self.mode,
             self.result_tx.clone(),
         );
     }
@@ -183,11 +189,15 @@ mod tests {
 
     fn test_crate() -> CrateInfo {
         CrateInfo {
-            name: "crate-a".to_string(),
-            manifest_dir: PathBuf::from("/tmp/test"),
-            src_dir: PathBuf::from("/tmp/test/src"),
-            i18n_config_path: PathBuf::from("/tmp/test/i18n.toml"),
-            ftl_output_dir: PathBuf::from("/tmp/test/i18n/en"),
+            name: es_fluent_runner::PackageName::try_new("crate-a").expect("valid package name"),
+            manifest_dir: crate::core::ManifestDir::from_discovered(PathBuf::from("/tmp/test")),
+            src_dir: crate::core::SourceDir::from_discovered(PathBuf::from("/tmp/test/src")),
+            i18n_config_path: crate::core::DiscoveredI18nConfigPath::from_discovered(
+                PathBuf::from("/tmp/test/i18n.toml"),
+            ),
+            ftl_output_dir: crate::core::DiscoveredFtlOutputDir::from_discovered(PathBuf::from(
+                "/tmp/test/i18n/en",
+            )),
             has_lib_rs: true,
             fluent_features: Vec::new(),
         }
@@ -213,16 +223,20 @@ mod tests {
         let mut runtime = test_runtime(&krate);
         runtime
             .observed_hashes
-            .insert(krate.name.clone(), "hash-a".to_string());
+            .insert(krate.name.to_string(), "hash-a".to_string());
 
-        runtime.begin_generation(&krate.name);
+        runtime.begin_generation(krate.name.as_str());
         assert_eq!(
-            runtime.active_generation_hashes.get(&krate.name),
+            runtime.active_generation_hashes.get(krate.name.as_str()),
             Some(&"hash-a".to_string())
         );
 
-        assert!(runtime.observe_hash(&krate.name, "hash-b".to_string()));
-        assert!(runtime.dirty_generating_crates.contains(&krate.name));
+        assert!(runtime.observe_hash(krate.name.as_str(), "hash-b".to_string()));
+        assert!(
+            runtime
+                .dirty_generating_crates
+                .contains(krate.name.as_str())
+        );
     }
 
     #[test]
@@ -231,13 +245,21 @@ mod tests {
         let mut runtime = test_runtime(&krate);
         runtime
             .observed_hashes
-            .insert(krate.name.clone(), "hash-a".to_string());
+            .insert(krate.name.to_string(), "hash-a".to_string());
 
-        runtime.begin_generation(&krate.name);
-        runtime.observe_hash(&krate.name, "hash-b".to_string());
+        runtime.begin_generation(krate.name.as_str());
+        runtime.observe_hash(krate.name.as_str(), "hash-b".to_string());
 
-        assert!(runtime.finish_generation(&krate.name));
-        assert!(!runtime.dirty_generating_crates.contains(&krate.name));
-        assert!(!runtime.active_generation_hashes.contains_key(&krate.name));
+        assert!(runtime.finish_generation(krate.name.as_str()));
+        assert!(
+            !runtime
+                .dirty_generating_crates
+                .contains(krate.name.as_str())
+        );
+        assert!(
+            !runtime
+                .active_generation_hashes
+                .contains_key(krate.name.as_str())
+        );
     }
 }

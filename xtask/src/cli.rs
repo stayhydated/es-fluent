@@ -19,6 +19,11 @@ pub enum Command {
         #[command(subcommand)]
         target: BuildCommand,
     },
+    /// Run focused workspace checks
+    Check {
+        #[command(subcommand)]
+        target: CheckCommand,
+    },
     /// Release workspace crates in registry dependency order
     Release {
         #[command(subcommand)]
@@ -30,12 +35,20 @@ pub enum Command {
 pub enum BuildCommand {
     /// Build the Trunk-hosted Bevy demo into web/public/bevy-demo
     BevyDemo,
+    /// Build the Trunk-hosted GPUI demo into web/public/gpui-demo
+    GpuiDemo,
     /// Build mdBook documentation to web/public/book
     Book,
     /// Build llms.txt and per-chapter Markdown files from mdBook sources
     LlmsTxt,
     /// Build the Dioxus site into web/dist for GitHub Pages
     Web,
+}
+
+#[derive(Debug, Subcommand)]
+pub enum CheckCommand {
+    /// Verify one-owner FTL domain ownership across workspace i18n trees
+    FtlOwnership,
 }
 
 #[derive(Debug, Subcommand)]

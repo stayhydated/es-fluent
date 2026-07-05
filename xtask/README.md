@@ -14,6 +14,17 @@ Builds the Trunk-hosted Bevy demo into `web/public/bevy-demo`.
 cargo xtask build bevy-demo
 ```
 
+### `build gpui-demo`
+
+Builds the Trunk-hosted GPUI demo into `web/public/gpui-demo`.
+
+This step uses the nightly toolchain for the GPUI crate build so the local
+environment must have nightly installed (`rustup toolchain install nightly`).
+
+```bash
+cargo xtask build gpui-demo
+```
+
 ### `build book`
 
 Builds the mdBook into `web/public/book`.

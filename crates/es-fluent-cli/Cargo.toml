@@ -21,6 +21,7 @@ path = "src/main.rs"
 anyhow = { workspace = true }
 askama = { workspace = true }
 blake3 = { workspace = true }
+bon = { workspace = true }
 camino = { workspace = true }
 cargo-manifest = { workspace = true }
 cargo_metadata = { workspace = true }
@@ -51,7 +52,6 @@ throbber-widgets-tui = { workspace = true }
 toml = { workspace = true }
 toml_edit = { workspace = true }
 treelog = { workspace = true }
-unic-langid = { workspace = true }
 walkdir = { workspace = true }
 
 [dev-dependencies]

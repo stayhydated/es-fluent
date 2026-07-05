@@ -1,9 +1,11 @@
 #![doc = include_str!("../README.md")]
+#![cfg_attr(not(test), deny(clippy::panic, clippy::unwrap_used))]
 #![allow(clippy::needless_doctest_main)]
 
 mod assets;
 mod bevy_fluent_text;
 mod module_macros;
+mod support;
 
 use proc_macro::TokenStream;
 
@@ -38,8 +40,8 @@ pub fn define_bevy_i18n_module(input: TokenStream) -> TokenStream {
 ///
 /// 1.  Read the `i18n.toml` configuration file.
 /// 2.  Discover the available languages in the configured `assets_dir`.
-/// 3.  Generate a `RustEmbed` struct for the i18n assets.
-/// 4.  Generate an embedded runtime registration for Dioxus integrations.
+/// 3.  Generate Dioxus `asset!` registrations for the i18n assets.
+/// 4.  Generate explicit async asset loader helpers for Dioxus integrations.
 #[proc_macro]
 pub fn define_dioxus_i18n_module(input: TokenStream) -> TokenStream {
     module_macros::define_dioxus_i18n_module(input)
@@ -52,7 +54,7 @@ pub fn define_dioxus_i18n_module(input: TokenStream) -> TokenStream {
 ///
 /// If any fields are marked with `#[locale]`, the macro will:
 /// - Auto-generate a `RefreshForLocale` implementation
-/// - Use `register_fluent_text_from_locale` instead of `register_fluent_text`
+/// - Register through `register_fluent_text_from_locale`
 ///
 /// The `#[locale]` attribute marks fields that should be updated when the locale changes.
 /// The field type must implement `TryFrom<&LanguageIdentifier>`.

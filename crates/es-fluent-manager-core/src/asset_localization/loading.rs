@@ -130,7 +130,7 @@ impl ResourceLoadError {
     pub fn missing(spec: &ModuleResourceSpec) -> Self {
         Self::Missing {
             key: spec.key.clone(),
-            path: spec.locale_relative_path.clone(),
+            path: spec.locale_relative_path.to_string(),
             required: spec.required,
         }
     }
@@ -139,7 +139,7 @@ impl ResourceLoadError {
     pub fn load(spec: &ModuleResourceSpec, details: impl Into<String>) -> Self {
         Self::Load {
             key: spec.key.clone(),
-            path: spec.locale_relative_path.clone(),
+            path: spec.locale_relative_path.to_string(),
             required: spec.required,
             details: details.into(),
         }
@@ -352,7 +352,7 @@ pub fn parse_and_store_locale_resource_content(
     Ok(())
 }
 
-/// Records a localized resource error and clears any previously loaded resource for the same key.
+/// Records a localized resource error and clears any loaded resource for the same key.
 pub fn record_locale_resource_error(
     loaded_resources: &mut HashMap<(LanguageIdentifier, ResourceKey), Arc<FluentResource>>,
     load_errors: &mut HashMap<(LanguageIdentifier, ResourceKey), ResourceLoadError>,
@@ -409,7 +409,7 @@ pub fn parse_fluent_resource_bytes(
     let content =
         String::from_utf8(bytes.to_vec()).map_err(|e| ResourceLoadError::InvalidUtf8 {
             key: spec.key.clone(),
-            path: spec.locale_relative_path.clone(),
+            path: spec.locale_relative_path.to_string(),
             required: spec.required,
             details: e.to_string(),
         })?;
@@ -426,7 +426,7 @@ pub fn parse_fluent_resource_content(
         .map(Arc::new)
         .map_err(|(_, errs)| ResourceLoadError::Parse {
             key: spec.key.clone(),
-            path: spec.locale_relative_path.clone(),
+            path: spec.locale_relative_path.to_string(),
             required: spec.required,
             details: format!("{errs:?}"),
         })
@@ -435,12 +435,18 @@ pub fn parse_fluent_resource_content(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::asset_localization::LocaleRelativeFtlPath;
     use unic_langid::langid;
 
     fn spec(key: &str, required: bool) -> ModuleResourceSpec {
         ModuleResourceSpec {
-            key: ResourceKey::new(key),
-            locale_relative_path: format!("{key}.ftl"),
+            key: ResourceKey::try_new(key).unwrap_or_else(|error| {
+                panic!("test resource key '{key}' should be valid: {error}")
+            }),
+            locale_relative_path: LocaleRelativeFtlPath::try_new(format!("{key}.ftl"))
+                .unwrap_or_else(|error| {
+                    panic!("test FTL path '{key}.ftl' should be valid: {error}")
+                }),
             required,
         }
     }
@@ -450,11 +456,7 @@ mod tests {
         let required = spec("app", true);
         let optional_missing = spec("app/optional", false);
         let optional_error = spec("app/broken", false);
-        let plan = vec![
-            required.clone(),
-            optional_missing.clone(),
-            optional_error.clone(),
-        ];
+        let plan = vec![required.clone(), optional_missing.clone(), optional_error];
         let loaded = Arc::new(
             FluentResource::try_new("hello = Hello".to_string()).expect("valid fluent resource"),
         );
@@ -541,7 +543,7 @@ mod tests {
         let resource_specs = HashMap::from([
             ((en.clone(), app.key.clone()), app.clone()),
             ((en.clone(), optional.key.clone()), optional.clone()),
-            ((fr.clone(), other.key.clone()), other.clone()),
+            ((fr, other.key.clone()), other.clone()),
         ]);
         let loaded_resources = HashMap::from([((en.clone(), app.key.clone()), resource)]);
         let load_errors = HashMap::from([(
@@ -573,7 +575,7 @@ mod tests {
                 path,
                 required: true,
                 ..
-            } if key == resource_spec.key && path == resource_spec.locale_relative_path
+            } if key == resource_spec.key && path == resource_spec.locale_relative_path.as_str()
         ));
     }
 

@@ -5,10 +5,23 @@ use super::*;
 use crate::core::{CrateInfo, WorkspaceInfo};
 use crate::generation::cache::{MetadataCache, RunnerCache};
 use crate::test_fixtures::FakeRunnerBehavior;
-use es_fluent_runner::{RunnerMetadataStore, RunnerParseMode, RunnerRequest};
+use es_fluent_runner::{
+    FluentParseMode, I18nTomlPath, PackageName, RunnerMetadataStore, RunnerRequest,
+};
 use fs_err as fs;
 use std::path::Path;
+use std::sync::mpsc;
+use std::thread;
+use std::time::Duration;
 use toml::Value;
+
+fn package(name: impl AsRef<str>) -> PackageName {
+    PackageName::try_new(name.as_ref()).expect("valid package name")
+}
+
+fn i18n_path(path: impl AsRef<Path>) -> I18nTomlPath {
+    I18nTomlPath::new(path.as_ref().to_path_buf()).expect("valid i18n.toml path")
+}
 
 fn package_manifest(name: &str) -> Value {
     package_manifest_with_version(name, "0.1.0")
@@ -56,11 +69,13 @@ fn create_workspace_fixture(
     );
 
     let krate = CrateInfo {
-        name: crate_name.to_string(),
-        manifest_dir: temp.path().to_path_buf(),
-        src_dir,
-        i18n_config_path,
-        ftl_output_dir: temp.path().join("i18n/en"),
+        name: package(crate_name),
+        manifest_dir: crate::core::ManifestDir::from_discovered(temp.path().to_path_buf()),
+        src_dir: crate::core::SourceDir::from_discovered(src_dir),
+        i18n_config_path: crate::core::DiscoveredI18nConfigPath::from_discovered(i18n_config_path),
+        ftl_output_dir: crate::core::DiscoveredFtlOutputDir::from_discovered(
+            temp.path().join("i18n/en"),
+        ),
         has_lib_rs,
         fluent_features: Vec::new(),
     };
@@ -82,7 +97,7 @@ fn crate_inputs_hash(krate: &CrateInfo) -> String {
     )
 }
 
-fn workspace_crate_hashes(workspace: &WorkspaceInfo) -> indexmap::IndexMap<String, String> {
+fn workspace_crate_hashes(workspace: &WorkspaceInfo) -> indexmap::IndexMap<PackageName, String> {
     workspace
         .crates
         .iter()
@@ -102,7 +117,7 @@ fn utf8_path_string_accepts_valid_paths() {
 #[test]
 fn utf8_path_string_rejects_non_utf8_paths() {
     use std::ffi::OsString;
-    use std::os::unix::ffi::OsStringExt;
+    use std::os::unix::ffi::OsStringExt as _;
 
     let path = std::path::PathBuf::from(OsString::from_vec(vec![0xff]));
     let error = utf8_path_string(&path, "runner path").unwrap_err();
@@ -141,7 +156,7 @@ fn write_cached_runner(
     workspace: &WorkspaceInfo,
     runner_mtime: u64,
     cli_version: &str,
-    crate_hashes: indexmap::IndexMap<String, String>,
+    crate_hashes: indexmap::IndexMap<PackageName, String>,
 ) {
     ensure_runner_dirs(runner);
     crate::test_fixtures::save_runner_cache(
@@ -278,7 +293,7 @@ fn temp_crate_config_uses_valid_cached_metadata() {
         },
         dep => panic!("expected detailed dependency, got {dep:?}"),
     }
-    assert_eq!(config.target_dir, "/tmp/target");
+    assert_eq!(config.target_dir.as_path(), Path::new("/tmp/target"));
 }
 
 #[test]
@@ -325,6 +340,41 @@ fn prepare_monolithic_runner_crate_writes_expected_files() {
     assert!(runner_dir.join("src/main.rs").exists());
     assert!(runner_dir.join(".cargo/config.toml").exists());
     assert!(runner_dir.join(".gitignore").exists());
+}
+
+#[cfg(unix)]
+#[test]
+fn prepare_monolithic_runner_crate_rejects_symlinked_temp_dir_without_writing_target() {
+    let (temp, workspace) = create_workspace_fixture("runner-symlink", true);
+    let outside = tempfile::tempdir().expect("outside tempdir");
+    std::os::unix::fs::symlink(outside.path(), temp.path().join(".es-fluent"))
+        .expect("create .es-fluent symlink");
+
+    let error = prepare_monolithic_runner_crate(&workspace)
+        .expect_err("symlinked .es-fluent path should be rejected");
+
+    assert!(error.to_string().contains(".es-fluent"));
+    assert!(error.to_string().contains("symlink"));
+    assert!(!outside.path().join("Cargo.toml").exists());
+    assert!(!outside.path().join("src/main.rs").exists());
+}
+
+#[cfg(unix)]
+#[test]
+fn prepare_monolithic_runner_crate_rejects_nested_temp_dir_symlink_without_writing_target() {
+    let (temp, workspace) = create_workspace_fixture("runner-nested-symlink", true);
+    let outside = tempfile::tempdir().expect("outside tempdir");
+    let temp_store = RunnerMetadataStore::temp_for_workspace(temp.path());
+    fs::create_dir_all(temp_store.base_dir()).expect("create .es-fluent");
+    std::os::unix::fs::symlink(outside.path(), temp_store.base_dir().join("src"))
+        .expect("create .es-fluent/src symlink");
+
+    let error = prepare_monolithic_runner_crate(&workspace)
+        .expect_err("nested symlinked .es-fluent path should be rejected");
+
+    assert!(error.to_string().contains(".es-fluent"));
+    assert!(error.to_string().contains("symlinks"));
+    assert!(!outside.path().join("main.rs").exists());
 }
 
 #[test]
@@ -422,9 +472,9 @@ fn run_monolithic_uses_fast_path_binary_when_cache_is_fresh() {
     let krate = &workspace.crates[0];
 
     let request = RunnerRequest::Generate {
-        crate_name: krate.name.clone(),
-        i18n_toml_path: krate.i18n_config_path.display().to_string(),
-        mode: RunnerParseMode::Conservative,
+        crate_name: package(&krate.name),
+        i18n_toml_path: i18n_path(&krate.i18n_config_path),
+        mode: FluentParseMode::Conservative,
         dry_run: true,
     };
     let output = run_monolithic(&workspace, &request, false).expect("run monolithic");
@@ -445,9 +495,9 @@ fn run_monolithic_fast_path_reports_binary_failure() {
     let krate = &workspace.crates[0];
 
     let request = RunnerRequest::Generate {
-        crate_name: krate.name.clone(),
-        i18n_toml_path: krate.i18n_config_path.display().to_string(),
-        mode: RunnerParseMode::Conservative,
+        crate_name: package(&krate.name),
+        i18n_toml_path: i18n_path(&krate.i18n_config_path),
+        mode: FluentParseMode::Conservative,
         dry_run: false,
     };
     let err = run_monolithic(&workspace, &request, false).expect_err("expected fast-path failure");
@@ -520,7 +570,7 @@ fn monolithic_runner_staleness_handles_missing_cache_and_metadata_variants() {
     write_cached_runner(&runner, &workspace, mtime, "0.0.0", crate_hashes.clone());
     assert!(runner.is_stale(), "version mismatch should be stale");
 
-    crate_hashes.insert("removed-crate".to_string(), "abc".to_string());
+    crate_hashes.insert(package("removed-crate"), "abc".to_string());
     write_cached_runner(&runner, &workspace, mtime, CLI_VERSION, crate_hashes);
     assert!(runner.is_stale(), "removed crate should be stale");
 }
@@ -604,6 +654,33 @@ fn monolithic_runner_staleness_detects_workspace_lockfile_changes() {
         runner.is_stale(),
         "workspace lockfile change should mark runner stale"
     );
+}
+
+#[test]
+fn monolithic_runner_lock_serializes_shared_runner_access() {
+    let temp = tempfile::tempdir().expect("tempdir");
+    let first = acquire_monolithic_runner_lock(temp.path()).expect("acquire first lock");
+    let root = temp.path().to_path_buf();
+    let (started_tx, started_rx) = mpsc::channel();
+    let (done_tx, done_rx) = mpsc::channel();
+
+    let handle = thread::spawn(move || {
+        started_tx.send(()).expect("send started");
+        let _second = acquire_monolithic_runner_lock(&root).expect("acquire second lock");
+        done_tx.send(()).expect("send done");
+    });
+
+    started_rx.recv().expect("second thread started");
+    assert!(
+        done_rx.recv_timeout(Duration::from_millis(150)).is_err(),
+        "second lock should wait while first lock is held"
+    );
+
+    drop(first);
+    done_rx
+        .recv_timeout(Duration::from_secs(2))
+        .expect("second lock should acquire after first lock is dropped");
+    handle.join().expect("join lock thread");
 }
 
 #[test]
@@ -700,9 +777,9 @@ fn run_monolithic_fast_path_surfaces_execution_errors() {
     );
 
     let request = RunnerRequest::Generate {
-        crate_name: workspace.crates[0].name.clone(),
-        i18n_toml_path: workspace.crates[0].i18n_config_path.display().to_string(),
-        mode: RunnerParseMode::Conservative,
+        crate_name: package(&workspace.crates[0].name),
+        i18n_toml_path: i18n_path(&workspace.crates[0].i18n_config_path),
+        mode: FluentParseMode::Conservative,
         dry_run: false,
     };
     let err = run_monolithic(&workspace, &request, false).expect_err("expected execution failure");
@@ -751,9 +828,9 @@ fn run_monolithic_force_run_uses_slow_path_and_writes_runner_cache() {
     );
 
     let request = RunnerRequest::Generate {
-        crate_name: workspace.crates[0].name.clone(),
-        i18n_toml_path: workspace.crates[0].i18n_config_path.display().to_string(),
-        mode: RunnerParseMode::Conservative,
+        crate_name: package(&workspace.crates[0].name),
+        i18n_toml_path: i18n_path(&workspace.crates[0].i18n_config_path),
+        mode: FluentParseMode::Conservative,
         dry_run: true,
     };
     let output = run_monolithic(&workspace, &request, true).expect("slow path run should succeed");
@@ -765,5 +842,5 @@ fn run_monolithic_force_run_uses_slow_path_and_writes_runner_cache() {
     );
 
     let cache = RunnerCache::load(runner_dir.base_dir()).expect("runner cache should be written");
-    assert!(cache.crate_hashes.contains_key("slow-path"));
+    assert!(cache.crate_hashes.contains_key(&package("slow-path")));
 }

@@ -12,11 +12,12 @@ readme = "README.md"
 [dependencies]
 anyhow = { workspace = true }
 camino = { workspace = true }
+clap = { features = [ "derive" ], workspace = true }
 darling = { workspace = true }
 derive_more = { features = [ "full" ], workspace = true }
 fluent-syntax = { workspace = true }
 heck = { workspace = true }
-icu = { workspace = true }
+icu_locale = { workspace = true }
 proc-macro2 = { workspace = true }
 quote = { workspace = true }
 serde = { features = [ "derive" ], workspace = true }

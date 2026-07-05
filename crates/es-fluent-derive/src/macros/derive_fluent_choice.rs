@@ -1,71 +1,41 @@
 //! This module provides the implementation of the `EsFluentChoice` derive macro.
 
-use darling::FromDeriveInput as _;
-use es_fluent_derive_core::options::choice::{CaseStyle, ChoiceOpts};
-use es_fluent_shared::namer;
-use quote::quote;
-use strum::IntoEnumIterator as _;
+use es_fluent_derive_core::expansion::{EsFluentChoiceExpansion, ExpansionError};
 use syn::{DeriveInput, parse_macro_input};
+
+use crate::macros::utils::CodegenContext;
 
 /// The entry point for the `EsFluentChoice` derive macro.
 pub fn from(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let input = parse_macro_input!(input as DeriveInput);
-    expand_choice(input).into()
+    let context = CodegenContext::resolve();
+    expand_choice_with_context(input, &context).into()
 }
 
+#[cfg(test)]
 fn expand_choice(input: DeriveInput) -> proc_macro2::TokenStream {
-    let opts = match ChoiceOpts::from_derive_input(&input) {
-        Ok(opts) => opts,
-        Err(err) => return err.write_errors(),
+    let context = CodegenContext::fallback();
+    expand_choice_with_context(input, &context)
+}
+
+fn expand_choice_with_context(
+    input: DeriveInput,
+    context: &CodegenContext,
+) -> proc_macro2::TokenStream {
+    let expansion = match EsFluentChoiceExpansion::from_derive_input(&input) {
+        Ok(expansion) => expansion,
+        Err(ExpansionError::Core(error)) => {
+            return crate::macros::utils::core_error_to_compile_error(error);
+        },
+        Err(ExpansionError::Darling(error)) => return error.write_errors(),
+        Err(ExpansionError::Syn(error)) => return error.to_compile_error(),
     };
-
-    let enum_ident = opts.ident();
-    let (impl_generics, ty_generics, where_clause) = opts.generics().split_for_impl();
-
-    let variants = match opts.data() {
-        darling::ast::Data::Enum(variants) => variants,
-        _ => unreachable!(),
-    };
-
-    let serialize_fn: Box<dyn Fn(&str) -> String> =
-        if let Some(case) = opts.attr_args().serialize_all().as_deref() {
-            match case.parse::<CaseStyle>() {
-                Ok(case_style) => Box::new(move |s: &str| case_style.apply(s)),
-                Err(msg) => {
-                    let supported = CaseStyle::iter()
-                        .map(|c| c.to_string())
-                        .collect::<Vec<_>>()
-                        .join(", ");
-                    return syn::Error::new(
-                        enum_ident.span(),
-                        format!("{}. Supported values are: {}", msg, supported),
-                    )
-                    .to_compile_error();
-                },
-            }
-        } else {
-            Box::new(|s: &str| s.to_string())
-        };
-
-    let match_arms = variants.iter().map(|variant| {
-        let variant_ident = &variant.ident;
-        let serialized_name = serialize_fn(&namer::rust_ident_name(variant_ident));
-        quote! {
-            Self::#variant_ident => #serialized_name
-        }
-    });
-
-    let generated = quote! {
-        impl #impl_generics ::es_fluent::EsFluentChoice for #enum_ident #ty_generics #where_clause {
-            fn as_fluent_choice(&self) -> &'static str {
-                match self {
-                    #(#match_arms),*
-                }
-            }
-        }
-    };
-
-    generated
+    crate::macros::utils::generate_fluent_choice_impl(
+        context,
+        expansion.ident(),
+        expansion.generics(),
+        expansion.choice(),
+    )
 }
 
 #[cfg(all(test, target_os = "linux"))]
@@ -74,7 +44,7 @@ mod tests {
     use syn::parse_quote;
 
     #[test]
-    fn expand_choice_generates_expected_tokens_for_default_and_serialized_modes() {
+    fn expand_choice_generates_expected_tokens_for_default_and_renamed_modes() {
         let default_input: syn::DeriveInput = parse_quote! {
             enum ChoiceDefault {
                 VeryHigh
@@ -87,24 +57,24 @@ mod tests {
             default_tokens
         );
 
-        let snake_input: syn::DeriveInput = parse_quote! {
-            #[fluent_choice(serialize_all = "snake_case")]
-            enum ChoiceSnake {
+        let kebab_input: syn::DeriveInput = parse_quote! {
+            #[fluent_choice(rename_all = "kebab-case")]
+            enum ChoiceKebab {
                 VeryHigh
             }
         };
-        let snake_tokens =
-            crate::snapshot_support::pretty_file_tokens(super::expand_choice(snake_input));
+        let kebab_tokens =
+            crate::snapshot_support::pretty_file_tokens(super::expand_choice(kebab_input));
         assert_snapshot!(
-            "expand_choice_generates_expected_tokens_for_snake_case_mode",
-            snake_tokens
+            "expand_choice_generates_expected_tokens_for_kebab_case_mode",
+            kebab_tokens
         );
     }
 
     #[test]
-    fn expand_choice_emits_compile_error_for_invalid_serialize_all() {
+    fn expand_choice_emits_compile_error_for_invalid_rename_all() {
         let input: syn::DeriveInput = parse_quote! {
-            #[fluent_choice(serialize_all = "not_a_style")]
+            #[fluent_choice(rename_all = "not_a_style")]
             enum BadChoice {
                 A
             }
@@ -112,7 +82,7 @@ mod tests {
 
         let tokens = crate::snapshot_support::pretty_file_tokens(super::expand_choice(input));
         assert_snapshot!(
-            "expand_choice_emits_compile_error_for_invalid_serialize_all",
+            "expand_choice_emits_compile_error_for_invalid_rename_all",
             tokens
         );
     }

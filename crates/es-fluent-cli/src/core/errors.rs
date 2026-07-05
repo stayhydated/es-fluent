@@ -171,6 +171,33 @@ pub struct MissingVariableWarning {
     pub help: String,
 }
 
+/// Warning when a non-fallback locale still contains the fallback text.
+#[derive(Debug, Diagnostic, Error)]
+#[error("translation matches fallback locale")]
+#[diagnostic(code(es_fluent::validate::untranslated_message), severity(Warning))]
+pub struct UntranslatedMessageWarning {
+    /// The source content of the FTL file.
+    #[source_code]
+    pub src: NamedSource<String>,
+
+    /// The span where the message is defined.
+    #[label("this message is identical to the fallback translation")]
+    pub span: SourceSpan,
+
+    /// The key containing the issue.
+    pub key: String,
+
+    /// The locale where the issue exists.
+    pub locale: String,
+
+    /// The fallback locale this translation matches.
+    pub fallback_locale: String,
+
+    /// Help text.
+    #[help]
+    pub help: String,
+}
+
 /// Error when an FTL message references a variable that Rust code does not provide.
 #[derive(Debug, Diagnostic, Error)]
 #[error("translation uses undeclared variable")]
@@ -236,6 +263,26 @@ pub struct FtlSyntaxError {
     pub help: String,
 }
 
+/// Error when a non-fallback locale contains an FTL file with no matching fallback file.
+#[derive(Debug, Diagnostic, Error)]
+#[error("orphaned FTL file")]
+#[diagnostic(code(es_fluent::validate::orphaned_file), severity(Error))]
+pub struct OrphanedFtlFileError {
+    /// Empty source named after the orphaned file for grouped diagnostic output.
+    #[source_code]
+    pub src: NamedSource<String>,
+
+    /// The locale where the orphaned file exists.
+    pub locale: String,
+
+    /// The orphaned file path.
+    pub path: String,
+
+    /// Help text.
+    #[help]
+    pub help: String,
+}
+
 /// Aggregated validation report containing multiple issues.
 #[derive(Debug, Diagnostic, Error)]
 #[error("validation found {error_count} error(s) and {warning_count} warning(s)")]
@@ -269,6 +316,10 @@ pub enum ValidationIssue {
 
     #[error(transparent)]
     #[diagnostic(transparent)]
+    UntranslatedMessage(#[from] UntranslatedMessageWarning),
+
+    #[error(transparent)]
+    #[diagnostic(transparent)]
     UnexpectedVariable(#[from] UnexpectedVariableError),
 
     #[error(transparent)]
@@ -278,6 +329,10 @@ pub enum ValidationIssue {
     #[error(transparent)]
     #[diagnostic(transparent)]
     SyntaxError(#[from] FtlSyntaxError),
+
+    #[error(transparent)]
+    #[diagnostic(transparent)]
+    OrphanedFtlFile(#[from] OrphanedFtlFileError),
 }
 
 impl ValidationIssue {
@@ -292,6 +347,9 @@ impl ValidationIssue {
             ValidationIssue::SyntaxError(e) => {
                 format!("1:{:?}", e.src.name())
             },
+            ValidationIssue::OrphanedFtlFile(e) => {
+                format!("1a:{:?}:{}", e.src.name(), e.path)
+            },
             ValidationIssue::DuplicateKey(e) => {
                 format!("2:{:?}:{}", e.src.name(), e.key)
             },
@@ -304,8 +362,11 @@ impl ValidationIssue {
             ValidationIssue::ValidationExecution(e) => {
                 format!("5:{:?}:{}", e.src.name(), e.crate_name)
             },
+            ValidationIssue::UntranslatedMessage(e) => {
+                format!("6:{:?}:{}", e.src.name(), e.key)
+            },
             ValidationIssue::MissingVariable(e) => {
-                format!("6:{:?}:{}:{}", e.src.name(), e.key, e.variable)
+                format!("7:{:?}:{}:{}", e.src.name(), e.key, e.variable)
             },
         }
     }
@@ -568,12 +629,20 @@ line3"#;
             help: "add var".to_string(),
         });
         let unexpected_var = ValidationIssue::UnexpectedVariable(UnexpectedVariableError {
-            src,
+            src: src.clone(),
             span: SourceSpan::new(0usize.into(), 1),
             variable: "unused".to_string(),
             key: "hello".to_string(),
             locale: "en".to_string(),
             help: "remove var".to_string(),
+        });
+        let untranslated = ValidationIssue::UntranslatedMessage(UntranslatedMessageWarning {
+            src,
+            span: SourceSpan::new(0usize.into(), 1),
+            key: "hello".to_string(),
+            locale: "fr".to_string(),
+            fallback_locale: "en".to_string(),
+            help: "translate".to_string(),
         });
         let validation_execution = ValidationIssue::ValidationExecution(ValidationExecutionError {
             src: NamedSource::new("test-crate", String::new()),
@@ -586,7 +655,8 @@ line3"#;
         assert!(missing_key.sort_key().starts_with("3:"));
         assert!(unexpected_var.sort_key().starts_with("4:"));
         assert!(validation_execution.sort_key().starts_with("5:"));
-        assert!(missing_var.sort_key().starts_with("6:"));
+        assert!(untranslated.sort_key().starts_with("6:"));
+        assert!(missing_var.sort_key().starts_with("7:"));
     }
 
     #[test]

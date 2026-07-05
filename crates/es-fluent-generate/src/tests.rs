@@ -1,10 +1,12 @@
 use super::*;
 use es_fluent_shared::meta::TypeKind;
-use es_fluent_shared::registry::{FtlTypeInfo, FtlVariant, NamespaceRule};
+use es_fluent_shared::registry::{
+    __macro, FtlTypeInfo, FtlVariant, NamespaceRule, ResolvedNamespace, StaticFluentArgumentName,
+    StaticFluentEntryId,
+};
 use fluent_syntax::{ast, parser};
 use fs_err as fs;
 use indexmap::IndexMap;
-use std::borrow::Cow;
 use std::path::PathBuf;
 
 fn leak_str(s: impl ToString) -> &'static str {
@@ -16,28 +18,56 @@ fn leak_slice<T>(items: Vec<T>) -> &'static [T] {
 }
 
 fn test_variant(name: &str, ftl_key: &str, args: &[&str]) -> FtlVariant {
-    FtlVariant {
-        name: leak_str(name),
-        ftl_key: leak_str(ftl_key),
-        args: leak_slice(args.iter().map(|arg| leak_str(arg)).collect()),
-        module_path: "test",
-        line: 0,
-    }
+    test_variant_at(name, ftl_key, args, 0)
+}
+
+fn test_variant_at(name: &str, ftl_key: &str, args: &[&str], line: u32) -> FtlVariant {
+    FtlVariant::new(
+        leak_str(name),
+        StaticFluentEntryId::try_new(leak_str(ftl_key)).expect("valid test message id"),
+        leak_slice(
+            args.iter()
+                .map(|arg| {
+                    StaticFluentArgumentName::try_new(leak_str(arg))
+                        .expect("valid test argument name")
+                })
+                .collect(),
+        ),
+        "test",
+        line,
+    )
 }
 
 fn test_type(name: &str, variants: Vec<FtlVariant>) -> FtlTypeInfo {
-    FtlTypeInfo {
-        type_kind: TypeKind::Struct,
-        type_name: leak_str(name),
-        variants: leak_slice(variants),
-        file_path: "",
-        module_path: "test",
-        namespace: None,
-    }
+    test_type_at(name, variants, "")
+}
+
+fn test_type_at(name: &str, variants: Vec<FtlVariant>, file_path: &str) -> FtlTypeInfo {
+    test_type_at_with_namespace(name, variants, file_path, None)
+}
+
+fn test_type_at_with_namespace(
+    name: &str,
+    variants: Vec<FtlVariant>,
+    file_path: &str,
+    namespace: Option<NamespaceRule>,
+) -> FtlTypeInfo {
+    FtlTypeInfo::new(
+        TypeKind::Struct,
+        leak_str(name),
+        leak_slice(variants),
+        leak_str(file_path),
+        "test",
+        namespace,
+    )
 }
 
 fn parse_resource_allowing_errors(input: &str) -> ast::Resource<String> {
     parser::parse(input.to_string()).unwrap_or_else(|(resource, _)| resource)
+}
+
+fn owned_variant(name: &str, ftl_key: &str, args: &[&str]) -> OwnedVariant {
+    OwnedVariant::new(name, ftl_key, args.iter().copied()).expect("owned variant")
 }
 
 #[test]
@@ -47,10 +77,10 @@ fn owned_type_info_and_entry_helpers_work() {
         vec![test_variant("HelloName", "greeter-hello_name", &["name"])],
     );
 
-    let owned = OwnedTypeInfo::from(&info);
+    let owned = OwnedTypeInfo::from_ftl_type_info(&info).expect("owned type info");
     assert_eq!(owned.type_name, "Greeter");
     assert_eq!(owned.variants.len(), 1);
-    assert_eq!(owned.variants[0].ftl_key, "greeter-hello_name");
+    assert_eq!(owned.variants[0].entry_id().as_str(), "greeter-hello_name");
 
     let message = create_message_entry(&owned.variants[0]);
     assert!(matches!(
@@ -64,6 +94,144 @@ fn owned_type_info_and_entry_helpers_work() {
         ast::Entry::GroupComment(comment)
             if group_comment_name(comment) == Some("Greeter".to_string())
     ));
+}
+
+#[test]
+fn generate_rejects_duplicate_keys_within_one_type_before_writing() {
+    let temp = tempfile::tempdir().expect("tempdir");
+    let output = temp.path().join("i18n");
+    let item = test_type_at(
+        "LoginError",
+        vec![
+            test_variant_at("MissingUser", "login_error-same", &["name"], 10),
+            test_variant_at("InvalidPassword", "login_error-same", &["attempts"], 11),
+        ],
+        "src/login.rs",
+    );
+
+    let err = generate(
+        "demo",
+        &output,
+        temp.path(),
+        &[item],
+        FluentParseMode::Conservative,
+        false,
+    )
+    .expect_err("duplicate key should fail");
+
+    let message = err.to_string();
+    assert!(message.contains("Duplicate generated FTL key 'login_error-same'"));
+    assert!(message.contains("LoginError"));
+    assert!(message.contains("MissingUser"));
+    assert!(message.contains("InvalidPassword"));
+    assert!(message.contains("src/login.rs:10"));
+    assert!(message.contains("src/login.rs:11"));
+    assert!(!output.join("demo.ftl").exists());
+}
+
+#[test]
+fn generate_rejects_duplicate_keys_across_types() {
+    let temp = tempfile::tempdir().expect("tempdir");
+    let first = test_type_at(
+        "SaveButton",
+        vec![test_variant_at("SaveButton", "shared-key", &[], 3)],
+        "src/save.rs",
+    );
+    let second = test_type_at(
+        "CancelButton",
+        vec![test_variant_at("CancelButton", "shared-key", &[], 9)],
+        "src/cancel.rs",
+    );
+
+    let err = generate(
+        "demo",
+        temp.path().join("i18n"),
+        temp.path(),
+        &[first, second],
+        FluentParseMode::Aggressive,
+        true,
+    )
+    .expect_err("duplicate key should fail");
+
+    let message = err.to_string();
+    assert!(message.contains("Duplicate generated FTL key 'shared-key'"));
+    assert!(message.contains("SaveButton"));
+    assert!(message.contains("CancelButton"));
+    assert!(message.contains("src/save.rs:3"));
+    assert!(message.contains("src/cancel.rs:9"));
+}
+
+#[test]
+fn generate_rejects_label_key_colliding_with_message_key() {
+    let temp = tempfile::tempdir().expect("tempdir");
+    let label = test_type_at(
+        "SettingsLabel",
+        vec![test_variant_at(
+            "SettingsLabel",
+            "settings_label_label",
+            &[],
+            4,
+        )],
+        "src/settings.rs",
+    );
+    let message = test_type_at(
+        "SettingsMessage",
+        vec![test_variant_at(
+            "SettingsMessage",
+            "settings_label_label",
+            &["name"],
+            12,
+        )],
+        "src/message.rs",
+    );
+
+    let err = generate(
+        "demo",
+        temp.path().join("i18n"),
+        temp.path(),
+        &[label, message],
+        FluentParseMode::Conservative,
+        true,
+    )
+    .expect_err("label/message collision should fail");
+
+    let message = err.to_string();
+    assert!(message.contains("settings_label_label"));
+    assert!(message.contains("SettingsLabel"));
+    assert!(message.contains("SettingsMessage"));
+}
+
+#[test]
+fn clean_rejects_duplicate_keys_with_different_argument_sets() {
+    let temp = tempfile::tempdir().expect("tempdir");
+    let output = temp.path().join("i18n");
+    fs::create_dir_all(&output).expect("create output");
+    let file = output.join("demo.ftl");
+    fs::write(&file, "duplicate-key = Existing\n").expect("write existing");
+
+    let first = test_type_at(
+        "First",
+        vec![test_variant_at("First", "duplicate-key", &["name"], 1)],
+        "src/first.rs",
+    );
+    let second = test_type_at(
+        "Second",
+        vec![test_variant_at("Second", "duplicate-key", &["count"], 2)],
+        "src/second.rs",
+    );
+
+    let err = clean::clean("demo", &output, temp.path(), &[first, second], false)
+        .expect_err("clean should fail before merging duplicate generated keys");
+
+    let message = err.to_string();
+    assert!(message.contains("Duplicate generated FTL key 'duplicate-key'"));
+    assert!(message.contains("First"));
+    assert!(message.contains("Second"));
+    assert!(
+        fs::read_to_string(&file)
+            .expect("read")
+            .contains("Existing")
+    );
 }
 
 #[test]
@@ -192,19 +360,19 @@ fn remove_empty_group_comments_keeps_top_level_entries_without_group() {
 
 #[test]
 fn insert_late_relocated_handles_empty_groups_and_duplicate_names() {
-    let mut no_groups = vec![create_message_entry(&OwnedVariant {
-        name: "Only".to_string(),
-        ftl_key: "only-key".to_string(),
-        args: vec![],
-    })];
+    let mut no_groups = vec![create_message_entry(&owned_variant(
+        "Only",
+        "only-key",
+        &[],
+    ))];
     let mut late = IndexMap::new();
     late.insert(
         "MissingGroup".to_string(),
-        vec![create_message_entry(&OwnedVariant {
-            name: "Late".to_string(),
-            ftl_key: "late-key".to_string(),
-            args: vec![],
-        })],
+        vec![create_message_entry(&owned_variant(
+            "Late",
+            "late-key",
+            &[],
+        ))],
     );
     insert_late_relocated(&mut no_groups, &late);
     assert_eq!(no_groups.len(), 1);
@@ -216,11 +384,11 @@ fn insert_late_relocated_handles_empty_groups_and_duplicate_names() {
     let mut late_for_group = IndexMap::new();
     late_for_group.insert(
         "GroupA".to_string(),
-        vec![create_message_entry(&OwnedVariant {
-            name: "LateA".to_string(),
-            ftl_key: "group_a-late".to_string(),
-            args: vec![],
-        })],
+        vec![create_message_entry(&owned_variant(
+            "LateA",
+            "group_a-late",
+            &[],
+        ))],
     );
     insert_late_relocated(&mut body, &late_for_group);
 
@@ -232,24 +400,17 @@ fn insert_late_relocated_handles_empty_groups_and_duplicate_names() {
 }
 
 #[test]
-fn smart_merge_moves_leading_comments_with_relocated_messages_and_terms() {
-    let group_a = test_type(
-        "GroupA",
-        vec![
-            test_variant("A1", "group_a-A1", &[]),
-            test_variant("Term", "-group_a-term", &[]),
-        ],
-    );
+fn smart_merge_moves_leading_comments_with_relocated_messages_and_preserves_terms() {
+    let group_a = test_type("GroupA", vec![test_variant("A1", "group_a-A1", &[])]);
     let group_b = test_type("GroupB", vec![test_variant("B1", "group_b-B1", &[])]);
     let items = vec![&group_a, &group_b];
 
     let existing = parse_resource_allowing_errors(
         "## GroupA\n# move-with-message\ngroup_b-B1 = wrong-group\n\n## GroupB\n# move-with-term\n-group_a-term = wrong-group\n",
     );
-    let merged = smart_merge(existing, &items, MergeBehavior::Append);
+    let merged = smart_merge(existing, &items, MergeBehavior::Append).expect("merge");
     let content = fluent_syntax::serializer::serialize(&merged);
 
-    let group_a_pos = content.find("## GroupA").expect("group a");
     let group_b_pos = content.find("## GroupB").expect("group b");
     let message_comment_pos = content
         .find("# move-with-message")
@@ -260,26 +421,21 @@ fn smart_merge_moves_leading_comments_with_relocated_messages_and_terms() {
 
     assert!(message_comment_pos > group_b_pos);
     assert!(message_comment_pos < message_pos);
-    assert!(term_comment_pos > group_a_pos);
+    assert!(term_comment_pos > group_b_pos);
     assert!(term_comment_pos < term_pos);
 }
 
 #[test]
-fn smart_merge_covers_relocation_terms_junk_and_cleanup_modes() {
+fn smart_merge_covers_relocation_junk_and_cleanup_modes() {
     let group_a = test_type("GroupA", vec![test_variant("A1", "group_a-A1", &[])]);
-    let group_b = test_type(
-        "GroupB",
-        vec![
-            test_variant("B1", "group_b-B1", &[]),
-            test_variant("SharedTerm", "-shared_term", &[]),
-        ],
-    );
+    let group_b = test_type("GroupB", vec![test_variant("B1", "group_b-B1", &[])]);
     let items = vec![&group_a, &group_b];
 
     let existing_append = parse_resource_allowing_errors(
         "## GroupA\ngroup_b-B1 = wrong-group\n\n## GroupB\n-shared_term = shared\nbroken = {\n",
     );
-    let merged_append = smart_merge(existing_append, &items, MergeBehavior::Append);
+    let merged_append =
+        smart_merge(existing_append, &items, MergeBehavior::Append).expect("append merge");
     let merged_append_text = formatting::sort_ftl_resource(&merged_append);
     assert!(merged_append_text.contains("## GroupA"));
     assert!(merged_append_text.contains("## GroupB"));
@@ -289,22 +445,17 @@ fn smart_merge_covers_relocation_terms_junk_and_cleanup_modes() {
     let existing_clean = parse_resource_allowing_errors(
         "## GroupA\ngroup_b-B1 = wrong-group\n\n## GroupB\n-shared_term = shared\nbroken = {\n",
     );
-    let merged_clean = smart_merge(existing_clean, &items, MergeBehavior::Clean);
+    let merged_clean =
+        smart_merge(existing_clean, &items, MergeBehavior::Clean).expect("clean merge");
     let merged_clean_text = formatting::sort_ftl_resource(&merged_clean);
-    assert!(merged_clean_text.contains("-shared_term = shared"));
+    assert!(!merged_clean_text.contains("-shared_term = shared"));
     assert!(merged_clean_text.contains("group_b-B1 = wrong-group"));
     assert!(!merged_clean_text.contains("group_a-A1"));
 }
 
 #[test]
 fn smart_merge_handles_duplicates_empty_group_headers_and_comment_entries() {
-    let group_a = test_type(
-        "GroupA",
-        vec![
-            test_variant("A1", "dup-key", &[]),
-            test_variant("SharedTerm", "-dup-term", &[]),
-        ],
-    );
+    let group_a = test_type("GroupA", vec![test_variant("A1", "dup-key", &[])]);
     let items = vec![&group_a];
 
     let mut existing = parse_resource_allowing_errors(
@@ -317,7 +468,7 @@ fn smart_merge_handles_duplicates_empty_group_headers_and_comment_entries() {
         .body
         .push(ast::Entry::GroupComment(ast::Comment { content: vec![] }));
 
-    let merged = smart_merge(existing, &items, MergeBehavior::Append);
+    let merged = smart_merge(existing, &items, MergeBehavior::Append).expect("merge");
     let merged_text = formatting::sort_ftl_resource(&merged);
     assert_eq!(merged_text.matches("dup-key =").count(), 1);
     assert_eq!(merged_text.matches("-dup-term =").count(), 1);
@@ -341,7 +492,7 @@ fn smart_merge_appends_relocated_entries_for_group_switch_and_missing_group_head
     let existing = parse_resource_allowing_errors(
         "## GroupX\ngroup_a-A1 = moved-to-a\ngroup_b-B1 = moved-to-b\n\n## GroupA\ngroup_a-A2 = keep-a2\n\n## GroupC\ngroup_c-C1 = keep-c1\n",
     );
-    let merged = smart_merge(existing, &items, MergeBehavior::Append);
+    let merged = smart_merge(existing, &items, MergeBehavior::Append).expect("merge");
     let merged_text = formatting::sort_ftl_resource(&merged);
 
     assert!(merged_text.contains("group_a-A1 = moved-to-a"));
@@ -354,10 +505,14 @@ fn generate_creates_namespaced_directories_and_handles_dry_run() {
     let temp = tempfile::tempdir().expect("tempdir");
     let i18n_root = temp.path().join("i18n");
 
-    let mut namespaced = test_type("NamespacedType", vec![test_variant("A1", "ns-a1", &[])]);
-    namespaced.namespace = Some(es_fluent_shared::registry::NamespaceRule::Literal(
-        std::borrow::Cow::Borrowed("ui"),
-    ));
+    let namespaced = test_type_at_with_namespace(
+        "NamespacedType",
+        vec![test_variant("A1", "ns-a1", &[])],
+        "",
+        Some(NamespaceRule::Literal(
+            ResolvedNamespace::new("ui").expect("valid test namespace"),
+        )),
+    );
     let items = vec![&namespaced];
 
     let changed = generate(
@@ -377,27 +532,76 @@ fn generate_creates_namespaced_directories_and_handles_dry_run() {
 }
 
 #[test]
+fn plan_outputs_uses_canonical_resource_specs_for_paths() {
+    let temp = tempfile::tempdir().expect("tempdir");
+    let i18n_root = temp.path().join("i18n");
+
+    let base = test_type("BaseType", vec![test_variant("Base", "base", &[])]);
+    let namespaced = test_type_at_with_namespace(
+        "NamespacedType",
+        vec![test_variant("A1", "ns-a1", &[])],
+        "",
+        Some(NamespaceRule::Literal(
+            ResolvedNamespace::new("ui/forms").expect("valid test namespace"),
+        )),
+    );
+    let items = vec![&base, &namespaced];
+
+    let outputs = crate::pipeline::plan_outputs("crate-name", &i18n_root, temp.path(), &items)
+        .expect("planned outputs");
+    let base_output = outputs
+        .iter()
+        .find(|output| output.route.is_base())
+        .expect("base output");
+    let namespace_output = outputs
+        .iter()
+        .find(|output| {
+            matches!(
+                &output.route,
+                es_fluent_shared::resource::ResourceRoute::Namespaced(namespace)
+                    if namespace.as_str() == "ui/forms"
+            )
+        })
+        .expect("namespaced output");
+    let base_resource = base_output.route.resource_spec("crate-name", true);
+    let namespace_resource = namespace_output.route.resource_spec("crate-name", true);
+
+    assert_eq!(base_resource.locale_relative_path, "crate-name.ftl");
+    assert!(base_output.route.is_base());
+    assert!(matches!(
+        &namespace_output.route,
+        es_fluent_shared::resource::ResourceRoute::Namespaced(namespace)
+            if namespace.as_str() == "ui/forms"
+    ));
+    assert_eq!(
+        namespace_resource.locale_relative_path,
+        "crate-name/ui/forms.ftl"
+    );
+    assert_eq!(base_output.file_path, i18n_root.join("crate-name.ftl"));
+    assert_eq!(
+        namespace_output.file_path,
+        i18n_root.join("crate-name/ui/forms.ftl")
+    );
+}
+
+#[test]
 fn generate_rejects_namespace_paths_that_escape_the_crate_directory() {
     let temp = tempfile::tempdir().expect("tempdir");
     let i18n_root = temp.path().join("i18n");
 
-    let escaping = FtlTypeInfo {
-        type_kind: TypeKind::Struct,
-        type_name: "EscapingType",
-        variants: leak_slice(vec![test_variant("Hello", "hello", &[])]),
-        file_path: "src/../escape.rs",
-        module_path: "test",
-        namespace: Some(NamespaceRule::FileRelative),
-    };
+    let escaping = test_type_at_with_namespace(
+        "EscapingType",
+        vec![test_variant("Hello", "hello", &[])],
+        "src/../escape.rs",
+        Some(NamespaceRule::FileRelative),
+    );
 
-    let literal_escape = FtlTypeInfo {
-        type_kind: TypeKind::Struct,
-        type_name: "LiteralEscape",
-        variants: leak_slice(vec![test_variant("Bye", "bye", &[])]),
-        file_path: "src/lib.rs",
-        module_path: "test",
-        namespace: Some(NamespaceRule::Literal(Cow::Borrowed("../literal-escape"))),
-    };
+    let literal_escape = test_type_at_with_namespace(
+        "LiteralEscape",
+        vec![test_variant("Bye", "bye", &[])],
+        "src/lib.rs",
+        Some(__macro::namespace_literal("../literal-escape")),
+    );
 
     let err = generate(
         "crate-name",
@@ -426,23 +630,19 @@ fn generate_rejects_noncanonical_namespace_literals() {
     let temp = tempfile::tempdir().expect("tempdir");
     let i18n_root = temp.path().join("i18n");
 
-    let padded = FtlTypeInfo {
-        type_kind: TypeKind::Struct,
-        type_name: "PaddedNamespace",
-        variants: leak_slice(vec![test_variant("Hello", "hello", &[])]),
-        file_path: "src/lib.rs",
-        module_path: "test",
-        namespace: Some(NamespaceRule::Literal(Cow::Borrowed(" ui "))),
-    };
+    let padded = test_type_at_with_namespace(
+        "PaddedNamespace",
+        vec![test_variant("Hello", "hello", &[])],
+        "src/lib.rs",
+        Some(__macro::namespace_literal(" ui ")),
+    );
 
-    let with_extension = FtlTypeInfo {
-        type_kind: TypeKind::Struct,
-        type_name: "FileNamespace",
-        variants: leak_slice(vec![test_variant("Bye", "bye", &[])]),
-        file_path: "src/lib.rs",
-        module_path: "test",
-        namespace: Some(NamespaceRule::Literal(Cow::Borrowed("ui.ftl"))),
-    };
+    let with_extension = test_type_at_with_namespace(
+        "FileNamespace",
+        vec![test_variant("Bye", "bye", &[])],
+        "src/lib.rs",
+        Some(__macro::namespace_literal("ui.ftl")),
+    );
 
     let err = generate(
         "crate-name",
@@ -458,5 +658,24 @@ fn generate_rejects_noncanonical_namespace_literals() {
     assert!(
         error_text.contains("Invalid namespace ' ui '")
             || error_text.contains("Invalid namespace 'ui.ftl'")
+    );
+}
+
+#[test]
+fn static_registry_wrappers_reject_invalid_manual_keys_and_arguments() {
+    let key_err =
+        StaticFluentEntryId::try_new("_invalid").expect_err("invalid message id should fail");
+    assert!(
+        key_err
+            .to_string()
+            .contains("Fluent message id must start with an ASCII letter")
+    );
+
+    let arg_err =
+        StaticFluentArgumentName::try_new("not valid").expect_err("invalid argument should fail");
+    assert!(
+        arg_err
+            .to_string()
+            .contains("Fluent argument name contains invalid character")
     );
 }

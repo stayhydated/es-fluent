@@ -8,15 +8,17 @@ use unic_langid::LanguageIdentifier;
 
 /// Configuration for [`I18nPlugin`].
 ///
-/// `asset_path` is interpreted by Bevy's [`AssetServer`], so it is relative to
-/// the configured Bevy asset root. With the default Bevy asset root `assets`
-/// and the standard `i18n.toml` layout `assets_dir = "assets/locales"`, the
-/// plugin asset path should be `locales`.
-#[derive(Clone, Debug)]
+/// `asset_path` is interpreted by Bevy's [`AssetServer`] for custom
+/// metadata-only registrations that do not provide owner resource content, so
+/// it is relative to the configured Bevy asset root. Generated Bevy module
+/// registrations load resources from the owning crate's configured
+/// `assets_dir`.
+#[derive(bon::Builder, Clone, Debug)]
+#[builder(on(String, into))]
 pub struct I18nPluginConfig {
     /// Initial locale requested during plugin startup.
     pub initial_language: LanguageIdentifier,
-    /// Locale asset path relative to Bevy's asset root.
+    /// Locale asset path relative to Bevy's asset root for custom asset-backed resources.
     pub asset_path: String,
 }
 
@@ -33,10 +35,10 @@ impl I18nPluginConfig {
     /// Creates a config with the default asset path and a requested initial
     /// language.
     pub fn new(initial_language: LanguageIdentifier) -> Self {
-        Self {
-            initial_language,
-            ..Default::default()
-        }
+        Self::builder()
+            .initial_language(initial_language)
+            .asset_path(Self::default().asset_path)
+            .build()
     }
 
     /// Sets the Bevy asset path that contains locale directories.
@@ -143,6 +145,8 @@ impl Plugin for I18nPlugin {
                 return;
             },
         };
+        let embedded_asset_count = setup::register_discovered_i18n_assets(app);
+        debug!("Registered {embedded_asset_count} embedded i18n asset modules");
         let i18n_assets = {
             let asset_server = app.world().resource::<AssetServer>();
             setup::build_i18n_assets(asset_server, &self.config.asset_path, &discovery.modules)

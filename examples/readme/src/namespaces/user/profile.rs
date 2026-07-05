@@ -1,7 +1,7 @@
 use es_fluent::{EsFluent, EsFluentLabel};
 
 #[derive(EsFluent)]
-#[fluent(namespace(file(relative)))]
+#[fluent(namespace = file_relative)]
 pub enum Gender {
     Male,
     Female,
@@ -10,12 +10,10 @@ pub enum Gender {
 }
 
 #[derive(EsFluentLabel)]
-#[fluent_label(origin)]
-#[fluent(namespace(file(relative)))]
+#[fluent(namespace = file_relative)]
 pub struct UserProfile;
 
 #[derive(EsFluentLabel)]
-#[fluent_label(origin)]
 #[fluent(namespace = folder)]
 pub enum FolderStatus {
     Active,
@@ -23,6 +21,5 @@ pub enum FolderStatus {
 }
 
 #[derive(EsFluentLabel)]
-#[fluent_label(origin)]
-#[fluent(namespace(folder(relative)))]
+#[fluent(namespace = folder_relative)]
 pub struct FolderUserProfile;

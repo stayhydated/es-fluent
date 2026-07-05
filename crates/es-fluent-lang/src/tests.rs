@@ -1,5 +1,19 @@
 use super::*;
+use es_fluent_manager_core::StaticFluentEntryId;
+#[cfg(feature = "localized-langs")]
+use es_fluent_manager_core::{FluentArgumentMap, StaticFluentArgumentName};
+#[cfg(feature = "localized-langs")]
+use fluent_bundle::FluentValue;
 use unic_langid::langid;
+
+fn static_entry(value: &'static str) -> StaticFluentEntryId {
+    es_fluent_manager_core::__macro::static_entry_id(value)
+}
+
+#[cfg(feature = "localized-langs")]
+fn static_arg(value: &'static str) -> StaticFluentArgumentName {
+    es_fluent_manager_core::__macro::static_argument_name(value)
+}
 
 #[test]
 fn parse_message_language_extracts_language_identifier() {
@@ -7,7 +21,8 @@ fn parse_message_language_extracts_language_identifier() {
         parse_message_language("es-fluent-lang-fr-FR"),
         Some(langid!("fr-FR"))
     );
-    assert_eq!(parse_message_language("missing-prefix"), None);
+    assert_eq!(parse_message_language("fr-FR"), Some(langid!("fr-FR")));
+    assert_eq!(parse_message_language("not a language!"), None);
     assert_eq!(parse_message_language("es-fluent-lang-invalid!"), None);
 }
 
@@ -34,13 +49,13 @@ fn language_module_creates_localizer_and_selects_language() {
 
     #[cfg(not(feature = "localized-langs"))]
     assert_eq!(
-        localizer.localize("es-fluent-lang-fr", None),
+        localizer.localize(static_entry("fr"), None),
         Some(expected_french_name())
     );
 
     #[cfg(feature = "localized-langs")]
     assert_eq!(
-        localizer.localize("es-fluent-lang-fr", None),
+        localizer.localize(static_entry("fr"), None),
         Some("French".to_string())
     );
 }
@@ -56,15 +71,15 @@ fn autonym_mode_returns_native_language_names_regardless_of_selected_locale() {
         .expect("language selection should succeed");
 
     assert_eq!(
-        localizer.localize("es-fluent-lang-en", None),
+        localizer.localize(static_entry("es-fluent-lang-en"), None),
         Some("English".to_string())
     );
     assert_eq!(
-        localizer.localize("es-fluent-lang-fr", None),
+        localizer.localize(static_entry("es-fluent-lang-fr"), None),
         Some(expected_french_name())
     );
     assert_eq!(
-        localizer.localize("es-fluent-lang-ja", None),
+        localizer.localize(static_entry("es-fluent-lang-ja"), None),
         Some(expected_japanese_name())
     );
 
@@ -73,11 +88,11 @@ fn autonym_mode_returns_native_language_names_regardless_of_selected_locale() {
         .expect("language selection should succeed");
 
     assert_eq!(
-        localizer.localize("es-fluent-lang-fr", None),
+        localizer.localize(static_entry("es-fluent-lang-fr"), None),
         Some(expected_french_name())
     );
     assert_eq!(
-        localizer.localize("es-fluent-lang-ja", None),
+        localizer.localize(static_entry("es-fluent-lang-ja"), None),
         Some(expected_japanese_name())
     );
 }
@@ -92,15 +107,15 @@ fn localized_mode_returns_translated_language_names() {
         .select_language(&langid!("en"))
         .expect("English language selection should succeed");
     assert_eq!(
-        localizer.localize("es-fluent-lang-fr", None),
+        localizer.localize(static_entry("es-fluent-lang-fr"), None),
         Some("French".to_string())
     );
     assert_eq!(
-        localizer.localize("es-fluent-lang-de", None),
+        localizer.localize(static_entry("es-fluent-lang-de"), None),
         Some("German".to_string())
     );
     assert_eq!(
-        localizer.localize("es-fluent-lang-ja", None),
+        localizer.localize(static_entry("es-fluent-lang-ja"), None),
         Some("Japanese".to_string())
     );
 
@@ -108,15 +123,15 @@ fn localized_mode_returns_translated_language_names() {
         .select_language(&langid!("fr"))
         .expect("French language selection should succeed");
     assert_eq!(
-        localizer.localize("es-fluent-lang-fr", None),
+        localizer.localize(static_entry("es-fluent-lang-fr"), None),
         Some(expected_french_name())
     );
     assert_eq!(
-        localizer.localize("es-fluent-lang-de", None),
+        localizer.localize(static_entry("es-fluent-lang-de"), None),
         Some("allemand".to_string())
     );
     assert_eq!(
-        localizer.localize("es-fluent-lang-en", None),
+        localizer.localize(static_entry("es-fluent-lang-en"), None),
         Some("anglais".to_string())
     );
 }
@@ -131,7 +146,7 @@ fn localized_mode_falls_back_to_parent_display_locale() {
         .select_language(&langid!("fr-FR"))
         .expect("fr-FR should fall back to fr");
     assert_eq!(
-        localizer.localize("es-fluent-lang-en", None),
+        localizer.localize(static_entry("es-fluent-lang-en"), None),
         Some("anglais".to_string())
     );
 }
@@ -141,14 +156,14 @@ fn localized_mode_falls_back_to_parent_display_locale() {
 fn localized_mode_ignores_unused_args() {
     let module = EsFluentLanguageModule;
     let localizer = I18nModule::create_localizer(&module);
-    let mut args = HashMap::new();
-    args.insert("unused", FluentValue::from("value"));
+    let mut args = FluentArgumentMap::default();
+    args.insert(static_arg("unused"), FluentValue::from("value"));
 
     localizer
         .select_language(&langid!("en"))
         .expect("language selection should succeed");
     assert_eq!(
-        localizer.localize("es-fluent-lang-fr", Some(&args)),
+        localizer.localize(static_entry("es-fluent-lang-fr"), Some(&args)),
         Some("French".to_string())
     );
 }
@@ -156,7 +171,7 @@ fn localized_mode_ignores_unused_args() {
 #[test]
 fn uses_standard_module_registration() {
     let registration = inventory::iter::<&'static dyn I18nModuleRegistration>()
-        .find(|registration| registration.data().domain == "es-fluent-lang")
+        .find(|registration| registration.data().domain() == "es-fluent-lang")
         .expect("es-fluent-lang module registration should be present");
     let localizer = registration
         .create_localizer()
@@ -166,7 +181,7 @@ fn uses_standard_module_registration() {
         .expect("language selection should succeed");
 
     assert_eq!(
-        localizer.localize("es-fluent-lang-en", None),
+        localizer.localize(static_entry("es-fluent-lang-en"), None),
         Some("English".to_string())
     );
 }

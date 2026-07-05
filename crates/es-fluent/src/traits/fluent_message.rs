@@ -1,10 +1,50 @@
 use crate::FluentValue;
+use crate::registry::{
+    StaticFluentArgumentName, StaticFluentDomain, StaticFluentEntryId, StaticFluentVariantKey,
+};
 use es_fluent_manager_core::FluentManager;
-use std::collections::HashMap;
 use std::sync::Arc;
 
 const WITH_LOOKUP_CALLBACK_COUNT_ERROR: &str =
     "FluentLocalizer::with_lookup must invoke its callback exactly once";
+
+/// Generated Fluent arguments keyed by validated static argument names.
+#[derive(Clone, Debug, Default)]
+pub struct FluentArgs<'a> {
+    values: es_fluent_manager_core::FluentArgumentMap<'a>,
+}
+
+impl<'a> FluentArgs<'a> {
+    pub fn new() -> Self {
+        Self {
+            values: es_fluent_manager_core::FluentArgumentMap::default(),
+        }
+    }
+
+    pub fn insert(&mut self, name: StaticFluentArgumentName, value: FluentValue<'a>) {
+        self.values.insert(name, value);
+    }
+
+    pub fn as_raw(&self) -> &es_fluent_manager_core::FluentArgumentMap<'a> {
+        &self.values
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.values.is_empty()
+    }
+}
+
+/// Render-time lookup callback used by [`FluentMessage`] implementations.
+pub type FluentMessageLookup<'lookup> = dyn for<'a> FnMut(StaticFluentDomain, StaticFluentEntryId, Option<&'a FluentArgs<'a>>) -> String
+    + 'lookup;
+
+/// Fallible render-time lookup callback supplied by [`FluentLocalizer`].
+pub type FluentLocalizerLookup<'lookup> = dyn for<'a> FnMut(
+        StaticFluentDomain,
+        StaticFluentEntryId,
+        Option<&'a FluentArgs<'a>>,
+    ) -> Option<String>
+    + 'lookup;
 
 /// A typed Fluent message that can be resolved by an explicit localization
 /// backend.
@@ -20,35 +60,19 @@ pub trait FluentMessage {
     /// during rendering. Do not re-enter the same localizer to select a
     /// language or perform other lock-taking lookups from this method; managers
     /// may hold snapshot locks while invoking it.
-    fn to_fluent_string_with(
-        &self,
-        localize: &mut dyn for<'a> FnMut(
-            &str,
-            &str,
-            Option<&HashMap<&str, FluentValue<'a>>>,
-        ) -> String,
-    ) -> String;
+    fn to_fluent_string_with(&self, localize: &mut FluentMessageLookup<'_>) -> String;
 }
 
 impl<T: FluentMessage + ?Sized> FluentMessage for &T {
-    fn to_fluent_string_with(
-        &self,
-        localize: &mut dyn for<'a> FnMut(
-            &str,
-            &str,
-            Option<&HashMap<&str, FluentValue<'a>>>,
-        ) -> String,
-    ) -> String {
+    fn to_fluent_string_with(&self, localize: &mut FluentMessageLookup<'_>) -> String {
         (**self).to_fluent_string_with(localize)
     }
 }
 
-/// Runtime context that can resolve Fluent message IDs.
+/// Runtime context that resolves Fluent message IDs for typed message values.
 ///
-/// This is the manager-facing replacement for the removed context-free global
-/// lookup. Managers and framework adapters implement this trait so callers
-/// can keep typed message values while passing the active localization context
-/// explicitly.
+/// Managers and framework adapters implement this trait so callers can pass
+/// the active localization context explicitly.
 ///
 /// # Implementing `FluentLocalizer`
 ///
@@ -59,19 +83,21 @@ impl<T: FluentMessage + ?Sized> FluentMessage for &T {
 /// [`FluentLocalizerExt::localize_message`] and
 /// [`FluentLocalizerExt::try_localize_message`].
 pub trait FluentLocalizer {
-    /// Localizes a message by ID using the localizer's default lookup behavior.
+    /// Localizes a validated static message ID using the localizer's default
+    /// lookup behavior.
     fn localize<'a>(
         &self,
-        id: &str,
-        args: Option<&HashMap<&str, FluentValue<'a>>>,
+        id: StaticFluentEntryId,
+        args: Option<&'a FluentArgs<'a>>,
     ) -> Option<String>;
 
-    /// Localizes a message by ID within a specific domain.
+    /// Localizes a validated static message ID within a validated static
+    /// domain.
     fn localize_in_domain<'a>(
         &self,
-        domain: &str,
-        id: &str,
-        args: Option<&HashMap<&str, FluentValue<'a>>>,
+        domain: StaticFluentDomain,
+        id: StaticFluentEntryId,
+        args: Option<&'a FluentArgs<'a>>,
     ) -> Option<String>;
 
     /// Runs a group of lookups against one render-scoped localization view.
@@ -93,70 +119,50 @@ pub trait FluentLocalizer {
     /// # Example
     ///
     /// ```
-    /// # use es_fluent::{FluentLocalizer, FluentValue};
-    /// # use std::collections::HashMap;
+    /// # use es_fluent::{FluentArgs, FluentLocalizer};
+    /// # use es_fluent::registry::{StaticFluentDomain, StaticFluentEntryId};
     /// struct MyLocalizer;
     ///
-    /// impl MyLocalizer {
-    ///     fn lookup<'a>(
-    ///         &self,
-    ///         domain: &str,
-    ///         id: &str,
-    ///         _args: Option<&HashMap<&str, FluentValue<'a>>>,
-    ///     ) -> Option<String> {
-    ///         Some(format!("{domain}:{id}"))
-    ///     }
+    /// fn lookup(
+    ///     domain: StaticFluentDomain,
+    ///     id: StaticFluentEntryId,
+    ///     _args: Option<&FluentArgs<'_>>,
+    /// ) -> Option<String> {
+    ///     Some(format!("{domain}:{id}"))
     /// }
     ///
     /// impl FluentLocalizer for MyLocalizer {
     ///     fn localize<'a>(
     ///         &self,
-    ///         id: &str,
-    ///         args: Option<&HashMap<&str, FluentValue<'a>>>,
+    ///         id: StaticFluentEntryId,
+    ///         args: Option<&FluentArgs<'a>>,
     ///     ) -> Option<String> {
-    ///         self.localize_in_domain(env!("CARGO_PKG_NAME"), id, args)
+    ///         self.localize_in_domain(StaticFluentDomain::from_package_name(env!("CARGO_PKG_NAME")), id, args)
     ///     }
     ///
     ///     fn localize_in_domain<'a>(
     ///         &self,
-    ///         domain: &str,
-    ///         id: &str,
-    ///         args: Option<&HashMap<&str, FluentValue<'a>>>,
+    ///         domain: StaticFluentDomain,
+    ///         id: StaticFluentEntryId,
+    ///         args: Option<&FluentArgs<'a>>,
     ///     ) -> Option<String> {
-    ///         self.lookup(domain, id, args)
+    ///         lookup(domain, id, args)
     ///     }
     ///
     ///     fn with_lookup(
     ///         &self,
-    ///         f: &mut dyn FnMut(
-    ///             &mut dyn for<'a> FnMut(
-    ///                 &str,
-    ///                 &str,
-    ///                 Option<&HashMap<&str, FluentValue<'a>>>,
-    ///             ) -> Option<String>,
-    ///         ),
+    ///         f: &mut dyn FnMut(&mut es_fluent::FluentLocalizerLookup<'_>),
     ///     ) {
-    ///         let mut lookup =
-    ///             |domain: &str, id: &str, args: Option<&HashMap<&str, FluentValue<'_>>>| {
-    ///                 self.localize_in_domain(domain, id, args)
-    ///             };
+    ///         let mut lookup = lookup;
     ///         f(&mut lookup);
     ///     }
     /// }
     /// ```
-    fn with_lookup(
-        &self,
-        f: &mut dyn FnMut(
-            &mut dyn for<'a> FnMut(
-                &str,
-                &str,
-                Option<&HashMap<&str, FluentValue<'a>>>,
-            ) -> Option<String>,
-        ),
-    ) {
-        let mut lookup = |domain: &str, id: &str, args: Option<&HashMap<&str, FluentValue<'_>>>| {
-            self.localize_in_domain(domain, id, args)
-        };
+    fn with_lookup(&self, f: &mut dyn FnMut(&mut FluentLocalizerLookup<'_>)) {
+        let mut lookup =
+            |domain: StaticFluentDomain, id: StaticFluentEntryId, args: Option<&FluentArgs<'_>>| {
+                self.localize_in_domain(domain, id, args)
+            };
         f(&mut lookup);
     }
 }
@@ -164,63 +170,53 @@ pub trait FluentLocalizer {
 impl FluentLocalizer for FluentManager {
     fn localize<'a>(
         &self,
-        id: &str,
-        args: Option<&HashMap<&str, FluentValue<'a>>>,
+        id: StaticFluentEntryId,
+        args: Option<&FluentArgs<'a>>,
     ) -> Option<String> {
-        FluentManager::localize(self, id, args)
+        FluentManager::localize(self, id, args.map(FluentArgs::as_raw))
     }
 
     fn localize_in_domain<'a>(
         &self,
-        domain: &str,
-        id: &str,
-        args: Option<&HashMap<&str, FluentValue<'a>>>,
+        domain: StaticFluentDomain,
+        id: StaticFluentEntryId,
+        args: Option<&FluentArgs<'a>>,
     ) -> Option<String> {
-        FluentManager::localize_in_domain(self, domain, id, args)
+        FluentManager::localize_in_domain(self, domain, id, args.map(FluentArgs::as_raw))
     }
 
-    fn with_lookup(
-        &self,
-        f: &mut dyn FnMut(
-            &mut dyn for<'a> FnMut(
-                &str,
-                &str,
-                Option<&HashMap<&str, FluentValue<'a>>>,
-            ) -> Option<String>,
-        ),
-    ) {
-        FluentManager::with_lookup(self, f);
+    fn with_lookup(&self, f: &mut dyn FnMut(&mut FluentLocalizerLookup<'_>)) {
+        FluentManager::with_lookup(self, &mut |lookup| {
+            let mut typed_lookup =
+                |domain: StaticFluentDomain,
+                 id: StaticFluentEntryId,
+                 args: Option<&FluentArgs<'_>>| {
+                    lookup(domain, id, args.map(FluentArgs::as_raw))
+                };
+            f(&mut typed_lookup);
+        });
     }
 }
 
 impl<T: FluentLocalizer + ?Sized> FluentLocalizer for &T {
     fn localize<'a>(
         &self,
-        id: &str,
-        args: Option<&HashMap<&str, FluentValue<'a>>>,
+        id: StaticFluentEntryId,
+        args: Option<&FluentArgs<'a>>,
     ) -> Option<String> {
         (**self).localize(id, args)
     }
 
     fn localize_in_domain<'a>(
         &self,
-        domain: &str,
-        id: &str,
-        args: Option<&HashMap<&str, FluentValue<'a>>>,
+        domain: StaticFluentDomain,
+        id: StaticFluentEntryId,
+        args: Option<&FluentArgs<'a>>,
     ) -> Option<String> {
         (**self).localize_in_domain(domain, id, args)
     }
 
-    fn with_lookup(
-        &self,
-        f: &mut dyn FnMut(
-            &mut dyn for<'a> FnMut(
-                &str,
-                &str,
-                Option<&HashMap<&str, FluentValue<'a>>>,
-            ) -> Option<String>,
-        ),
-    ) {
+    fn with_lookup(&self, f: &mut dyn FnMut(&mut FluentLocalizerLookup<'_>)) {
         (**self).with_lookup(f);
     }
 }
@@ -228,31 +224,22 @@ impl<T: FluentLocalizer + ?Sized> FluentLocalizer for &T {
 impl<T: FluentLocalizer + ?Sized> FluentLocalizer for Arc<T> {
     fn localize<'a>(
         &self,
-        id: &str,
-        args: Option<&HashMap<&str, FluentValue<'a>>>,
+        id: StaticFluentEntryId,
+        args: Option<&FluentArgs<'a>>,
     ) -> Option<String> {
         (**self).localize(id, args)
     }
 
     fn localize_in_domain<'a>(
         &self,
-        domain: &str,
-        id: &str,
-        args: Option<&HashMap<&str, FluentValue<'a>>>,
+        domain: StaticFluentDomain,
+        id: StaticFluentEntryId,
+        args: Option<&FluentArgs<'a>>,
     ) -> Option<String> {
         (**self).localize_in_domain(domain, id, args)
     }
 
-    fn with_lookup(
-        &self,
-        f: &mut dyn FnMut(
-            &mut dyn for<'a> FnMut(
-                &str,
-                &str,
-                Option<&HashMap<&str, FluentValue<'a>>>,
-            ) -> Option<String>,
-        ),
-    ) {
+    fn with_lookup(&self, f: &mut dyn FnMut(&mut FluentLocalizerLookup<'_>)) {
         (**self).with_lookup(f);
     }
 }
@@ -320,8 +307,12 @@ pub trait FluentLocalizerExt: FluentLocalizer {
 
             value = Some(message.to_fluent_string_with(&mut |domain, id, args| {
                 lookup(domain, id, args).unwrap_or_else(|| {
-                    tracing::warn!(domain, message_id = id, "missing Fluent message");
-                    id.to_string()
+                    tracing::warn!(
+                        domain = domain.as_str(),
+                        message_id = id.as_str(),
+                        "missing Fluent message"
+                    );
+                    id.as_str().to_string()
                 })
             }));
         });
@@ -400,28 +391,14 @@ impl<T> FluentOptionalArgumentValue<T> {
 /// `&FluentArgumentValue<T>`.
 #[doc(hidden)]
 pub trait IntoFluentArgumentValue<'a> {
-    fn into_fluent_argument_value(
-        self,
-        localize: &mut dyn for<'b> FnMut(
-            &str,
-            &str,
-            Option<&HashMap<&str, FluentValue<'b>>>,
-        ) -> String,
-    ) -> FluentValue<'a>;
+    fn into_fluent_argument_value(self, localize: &mut FluentMessageLookup<'_>) -> FluentValue<'a>;
 }
 
 impl<'a, T> IntoFluentArgumentValue<'a> for FluentArgumentValue<T>
 where
     T: FluentMessage,
 {
-    fn into_fluent_argument_value(
-        self,
-        localize: &mut dyn for<'b> FnMut(
-            &str,
-            &str,
-            Option<&HashMap<&str, FluentValue<'b>>>,
-        ) -> String,
-    ) -> FluentValue<'a> {
+    fn into_fluent_argument_value(self, localize: &mut FluentMessageLookup<'_>) -> FluentValue<'a> {
         self.value.to_fluent_string_with(localize).into()
     }
 }
@@ -430,14 +407,7 @@ impl<'a, 'value, T> IntoFluentArgumentValue<'a> for FluentBorrowedArgumentValue<
 where
     T: FluentMessage + ?Sized,
 {
-    fn into_fluent_argument_value(
-        self,
-        localize: &mut dyn for<'b> FnMut(
-            &str,
-            &str,
-            Option<&HashMap<&str, FluentValue<'b>>>,
-        ) -> String,
-    ) -> FluentValue<'a> {
+    fn into_fluent_argument_value(self, localize: &mut FluentMessageLookup<'_>) -> FluentValue<'a> {
         self.value.to_fluent_string_with(localize).into()
     }
 }
@@ -448,11 +418,7 @@ where
 {
     fn into_fluent_argument_value(
         self,
-        _localize: &mut dyn for<'b> FnMut(
-            &str,
-            &str,
-            Option<&HashMap<&str, FluentValue<'b>>>,
-        ) -> String,
+        _localize: &mut FluentMessageLookup<'_>,
     ) -> FluentValue<'a> {
         self.value.clone().into_fluent_value()
     }
@@ -464,11 +430,7 @@ where
 {
     fn into_fluent_argument_value(
         self,
-        _localize: &mut dyn for<'b> FnMut(
-            &str,
-            &str,
-            Option<&HashMap<&str, FluentValue<'b>>>,
-        ) -> String,
+        _localize: &mut FluentMessageLookup<'_>,
     ) -> FluentValue<'a> {
         (*self.value).clone().into_fluent_value()
     }
@@ -477,11 +439,7 @@ where
 impl<'a> IntoFluentArgumentValue<'a> for FluentArgumentValue<bool> {
     fn into_fluent_argument_value(
         self,
-        _localize: &mut dyn for<'b> FnMut(
-            &str,
-            &str,
-            Option<&HashMap<&str, FluentValue<'b>>>,
-        ) -> String,
+        _localize: &mut FluentMessageLookup<'_>,
     ) -> FluentValue<'a> {
         bool_fluent_value(self.value)
     }
@@ -490,11 +448,7 @@ impl<'a> IntoFluentArgumentValue<'a> for FluentArgumentValue<bool> {
 impl<'a, 'value> IntoFluentArgumentValue<'a> for FluentBorrowedArgumentValue<'value, bool> {
     fn into_fluent_argument_value(
         self,
-        _localize: &mut dyn for<'b> FnMut(
-            &str,
-            &str,
-            Option<&HashMap<&str, FluentValue<'b>>>,
-        ) -> String,
+        _localize: &mut FluentMessageLookup<'_>,
     ) -> FluentValue<'a> {
         bool_fluent_value(*self.value)
     }
@@ -505,13 +459,30 @@ impl<'a, 'value, 'inner> IntoFluentArgumentValue<'a>
 {
     fn into_fluent_argument_value(
         self,
-        _localize: &mut dyn for<'b> FnMut(
-            &str,
-            &str,
-            Option<&HashMap<&str, FluentValue<'b>>>,
-        ) -> String,
+        _localize: &mut FluentMessageLookup<'_>,
     ) -> FluentValue<'a> {
         bool_fluent_value(**self.value)
+    }
+}
+
+impl<'a> IntoFluentArgumentValue<'a> for FluentArgumentValue<StaticFluentVariantKey> {
+    fn into_fluent_argument_value(
+        self,
+        _localize: &mut FluentMessageLookup<'_>,
+    ) -> FluentValue<'a> {
+        self.value.as_str().into()
+    }
+}
+
+impl<'a> IntoFluentArgumentValue<'a> for FluentOptionalArgumentValue<StaticFluentVariantKey> {
+    fn into_fluent_argument_value(
+        self,
+        _localize: &mut FluentMessageLookup<'_>,
+    ) -> FluentValue<'a> {
+        match self.value {
+            Some(value) => value.as_str().into(),
+            None => FluentValue::None,
+        }
     }
 }
 
@@ -522,11 +493,7 @@ fn bool_fluent_value<'a>(value: bool) -> FluentValue<'a> {
 impl<'a> IntoFluentArgumentValue<'a> for FluentOptionalArgumentValue<&bool> {
     fn into_fluent_argument_value(
         self,
-        _localize: &mut dyn for<'b> FnMut(
-            &str,
-            &str,
-            Option<&HashMap<&str, FluentValue<'b>>>,
-        ) -> String,
+        _localize: &mut FluentMessageLookup<'_>,
     ) -> FluentValue<'a> {
         match self.value {
             Some(value) => bool_fluent_value(*value),
@@ -538,11 +505,7 @@ impl<'a> IntoFluentArgumentValue<'a> for FluentOptionalArgumentValue<&bool> {
 impl<'a> IntoFluentArgumentValue<'a> for FluentOptionalArgumentValue<&&bool> {
     fn into_fluent_argument_value(
         self,
-        _localize: &mut dyn for<'b> FnMut(
-            &str,
-            &str,
-            Option<&HashMap<&str, FluentValue<'b>>>,
-        ) -> String,
+        _localize: &mut FluentMessageLookup<'_>,
     ) -> FluentValue<'a> {
         match self.value {
             Some(value) => bool_fluent_value(**value),
@@ -555,14 +518,7 @@ impl<'a, T> IntoFluentArgumentValue<'a> for FluentOptionalArgumentValue<T>
 where
     T: FluentMessage,
 {
-    fn into_fluent_argument_value(
-        self,
-        localize: &mut dyn for<'b> FnMut(
-            &str,
-            &str,
-            Option<&HashMap<&str, FluentValue<'b>>>,
-        ) -> String,
-    ) -> FluentValue<'a> {
+    fn into_fluent_argument_value(self, localize: &mut FluentMessageLookup<'_>) -> FluentValue<'a> {
         match self.value {
             Some(value) => value.to_fluent_string_with(localize).into(),
             None => FluentValue::None,
@@ -576,11 +532,7 @@ where
 {
     fn into_fluent_argument_value(
         self,
-        _localize: &mut dyn for<'b> FnMut(
-            &str,
-            &str,
-            Option<&HashMap<&str, FluentValue<'b>>>,
-        ) -> String,
+        _localize: &mut FluentMessageLookup<'_>,
     ) -> FluentValue<'a> {
         match self.value {
             Some(value) => (*value).clone().into_fluent_value(),
@@ -593,14 +545,7 @@ impl<'a, T> IntoFluentArgumentValue<'a> for FluentArgumentValue<Option<T>>
 where
     T: FluentMessage,
 {
-    fn into_fluent_argument_value(
-        self,
-        localize: &mut dyn for<'b> FnMut(
-            &str,
-            &str,
-            Option<&HashMap<&str, FluentValue<'b>>>,
-        ) -> String,
-    ) -> FluentValue<'a> {
+    fn into_fluent_argument_value(self, localize: &mut FluentMessageLookup<'_>) -> FluentValue<'a> {
         match self.value {
             Some(value) => value.to_fluent_string_with(localize).into(),
             None => FluentValue::None,
@@ -614,10 +559,18 @@ mod tests {
     use std::sync::{Mutex, RwLock, mpsc};
     use std::time::Duration;
 
+    fn static_domain(value: &'static str) -> StaticFluentDomain {
+        StaticFluentDomain::try_new(value).expect("valid test domain")
+    }
+
+    fn static_entry(value: &'static str) -> StaticFluentEntryId {
+        StaticFluentEntryId::try_new(value).expect("valid test message id")
+    }
+
     fn panic_lookup<'a>(
-        _domain: &str,
-        _id: &str,
-        _args: Option<&HashMap<&str, FluentValue<'a>>>,
+        _domain: StaticFluentDomain,
+        _id: StaticFluentEntryId,
+        _args: Option<&FluentArgs<'a>>,
     ) -> String {
         panic!("ordinary arguments should not invoke nested localization")
     }
@@ -654,6 +607,12 @@ mod tests {
         let false_value = FluentArgumentValue::new(false).into_fluent_argument_value(&mut localize);
         assert_string(false_value, "false");
 
+        let choice_value = FluentArgumentValue::new(
+            StaticFluentVariantKey::try_new("selected").expect("valid choice"),
+        )
+        .into_fluent_argument_value(&mut localize);
+        assert_string(choice_value, "selected");
+
         let borrowed_bool = true;
         let borrowed_bool_value = FluentBorrowedArgumentValue::new(&borrowed_bool)
             .into_fluent_argument_value(&mut localize);
@@ -663,7 +622,7 @@ mod tests {
     #[test]
     #[should_panic(expected = "ordinary arguments should not invoke nested localization")]
     fn panic_lookup_reports_unexpected_nested_localization() {
-        let _ = panic_lookup("domain", "id", None);
+        let _ = panic_lookup(static_domain("domain"), static_entry("id"), None);
     }
 
     #[test]
@@ -713,24 +672,21 @@ mod tests {
     struct NestedMessage;
 
     impl FluentMessage for NestedMessage {
-        fn to_fluent_string_with(
-            &self,
-            localize: &mut dyn for<'a> FnMut(
-                &str,
-                &str,
-                Option<&HashMap<&str, FluentValue<'a>>>,
-            ) -> String,
-        ) -> String {
-            localize("nested-domain", "nested-id", None)
+        fn to_fluent_string_with(&self, localize: &mut FluentMessageLookup<'_>) -> String {
+            localize(
+                static_domain("nested-domain"),
+                static_entry("nested-id"),
+                None,
+            )
         }
     }
 
     #[test]
     fn argument_conversion_localizes_nested_messages_with_current_callback() {
         let mut localize =
-            |domain: &str, id: &str, args: Option<&HashMap<&str, FluentValue<'_>>>| {
-                assert_eq!(domain, "nested-domain");
-                assert_eq!(id, "nested-id");
+            |domain: StaticFluentDomain, id: StaticFluentEntryId, args: Option<&FluentArgs<'_>>| {
+                assert_eq!(domain.as_str(), "nested-domain");
+                assert_eq!(id.as_str(), "nested-id");
                 assert!(args.is_none());
                 "nested value".to_string()
             };
@@ -743,9 +699,9 @@ mod tests {
     #[test]
     fn argument_conversion_localizes_optional_nested_messages_with_current_callback() {
         let mut localize =
-            |domain: &str, id: &str, args: Option<&HashMap<&str, FluentValue<'_>>>| {
-                assert_eq!(domain, "nested-domain");
-                assert_eq!(id, "nested-id");
+            |domain: StaticFluentDomain, id: StaticFluentEntryId, args: Option<&FluentArgs<'_>>| {
+                assert_eq!(domain.as_str(), "nested-domain");
+                assert_eq!(id.as_str(), "nested-id");
                 assert!(args.is_none());
                 "optional nested value".to_string()
             };
@@ -766,8 +722,8 @@ mod tests {
     impl FluentLocalizer for StaticLocalizer {
         fn localize<'a>(
             &self,
-            id: &str,
-            _args: Option<&HashMap<&str, FluentValue<'a>>>,
+            id: StaticFluentEntryId,
+            _args: Option<&FluentArgs<'a>>,
         ) -> Option<String> {
             if id == "nested-id" {
                 Some(self.value.to_string())
@@ -778,9 +734,9 @@ mod tests {
 
         fn localize_in_domain<'a>(
             &self,
-            domain: &str,
-            id: &str,
-            args: Option<&HashMap<&str, FluentValue<'a>>>,
+            domain: StaticFluentDomain,
+            id: StaticFluentEntryId,
+            args: Option<&FluentArgs<'a>>,
         ) -> Option<String> {
             if domain == "nested-domain" {
                 self.localize(id, args)
@@ -803,30 +759,24 @@ mod tests {
     struct MissingMessage;
 
     impl FluentMessage for MissingMessage {
-        fn to_fluent_string_with(
-            &self,
-            localize: &mut dyn for<'a> FnMut(
-                &str,
-                &str,
-                Option<&HashMap<&str, FluentValue<'a>>>,
-            ) -> String,
-        ) -> String {
-            localize("missing-domain", "missing-id", None)
+        fn to_fluent_string_with(&self, localize: &mut FluentMessageLookup<'_>) -> String {
+            localize(
+                static_domain("missing-domain"),
+                static_entry("missing-id"),
+                None,
+            )
         }
     }
 
     struct CallbackOnlyMessage;
 
     impl FluentMessage for CallbackOnlyMessage {
-        fn to_fluent_string_with(
-            &self,
-            localize: &mut dyn for<'a> FnMut(
-                &str,
-                &str,
-                Option<&HashMap<&str, FluentValue<'a>>>,
-            ) -> String,
-        ) -> String {
-            localize("callback-domain", "callback-id", None)
+        fn to_fluent_string_with(&self, localize: &mut FluentMessageLookup<'_>) -> String {
+            localize(
+                static_domain("callback-domain"),
+                static_entry("callback-id"),
+                None,
+            )
         }
     }
 
@@ -834,10 +784,11 @@ mod tests {
     fn fluent_message_reference_impl_delegates_to_inner_message() {
         let message = NestedMessage;
         let message_ref = &message;
-        let mut localize =
-            |domain: &str, id: &str, _args: Option<&HashMap<&str, FluentValue<'_>>>| {
-                format!("{domain}:{id}")
-            };
+        let mut localize = |domain: StaticFluentDomain,
+                            id: StaticFluentEntryId,
+                            _args: Option<&FluentArgs<'_>>| {
+            format!("{}:{}", domain.as_str(), id.as_str())
+        };
 
         assert_eq!(
             FluentMessage::to_fluent_string_with(&message_ref, &mut localize),
@@ -849,10 +800,10 @@ mod tests {
     fn manual_fluent_message_uses_supplied_callback_for_lookup() {
         let mut called = false;
         let mut localize =
-            |domain: &str, id: &str, args: Option<&HashMap<&str, FluentValue<'_>>>| {
+            |domain: StaticFluentDomain, id: StaticFluentEntryId, args: Option<&FluentArgs<'_>>| {
                 called = true;
-                assert_eq!(domain, "callback-domain");
-                assert_eq!(id, "callback-id");
+                assert_eq!(domain.as_str(), "callback-domain");
+                assert_eq!(id.as_str(), "callback-id");
                 assert!(args.is_none());
                 "callback result".to_string()
             };
@@ -873,15 +824,25 @@ mod tests {
         assert_eq!(localizer_ref.localize_message(&NestedMessage), "Hello");
         assert_eq!(localizer_arc.localize_message(&NestedMessage), "Bonjour");
         assert_eq!(
-            FluentLocalizer::localize(&localizer_ref, "nested-id", None),
+            FluentLocalizer::localize(&localizer_ref, static_entry("nested-id"), None),
             Some("Hello".to_string())
         );
         assert_eq!(
-            FluentLocalizer::localize_in_domain(&localizer_ref, "nested-domain", "nested-id", None,),
+            FluentLocalizer::localize_in_domain(
+                &localizer_ref,
+                static_domain("nested-domain"),
+                static_entry("nested-id"),
+                None,
+            ),
             Some("Hello".to_string())
         );
         assert_eq!(
-            FluentLocalizer::localize_in_domain(&localizer_arc, "nested-domain", "nested-id", None,),
+            FluentLocalizer::localize_in_domain(
+                &localizer_arc,
+                static_domain("nested-domain"),
+                static_entry("nested-id"),
+                None,
+            ),
             Some("Bonjour".to_string())
         );
     }
@@ -891,11 +852,16 @@ mod tests {
         let localizer = StaticLocalizer { value: "Hello" };
 
         assert_eq!(
-            FluentLocalizer::localize(&localizer, "nested-id", None),
+            FluentLocalizer::localize(&localizer, static_entry("nested-id"), None),
             Some("Hello".to_string())
         );
         assert_eq!(
-            FluentLocalizer::localize_in_domain(&localizer, "nested-domain", "nested-id", None),
+            FluentLocalizer::localize_in_domain(
+                &localizer,
+                static_domain("nested-domain"),
+                static_entry("nested-id"),
+                None,
+            ),
             Some("Hello".to_string())
         );
         assert_eq!(localizer.localize_message(&MissingMessage), "missing-id");
@@ -915,11 +881,11 @@ mod tests {
     struct MinimalScopedLocalizer;
 
     impl MinimalScopedLocalizer {
-        fn lookup<'a>(
+        fn lookup(
             &self,
-            domain: &str,
-            id: &str,
-            _args: Option<&HashMap<&str, FluentValue<'a>>>,
+            domain: StaticFluentDomain,
+            id: StaticFluentEntryId,
+            _args: Option<&FluentArgs<'_>>,
         ) -> Option<String> {
             Some(format!("{domain}:{id}"))
         }
@@ -928,35 +894,31 @@ mod tests {
     impl FluentLocalizer for MinimalScopedLocalizer {
         fn localize<'a>(
             &self,
-            id: &str,
-            args: Option<&HashMap<&str, FluentValue<'a>>>,
+            id: StaticFluentEntryId,
+            args: Option<&FluentArgs<'a>>,
         ) -> Option<String> {
-            self.localize_in_domain(env!("CARGO_PKG_NAME"), id, args)
+            self.localize_in_domain(
+                StaticFluentDomain::from_package_name(env!("CARGO_PKG_NAME")),
+                id,
+                args,
+            )
         }
 
         fn localize_in_domain<'a>(
             &self,
-            domain: &str,
-            id: &str,
-            args: Option<&HashMap<&str, FluentValue<'a>>>,
+            domain: StaticFluentDomain,
+            id: StaticFluentEntryId,
+            args: Option<&FluentArgs<'a>>,
         ) -> Option<String> {
             self.lookup(domain, id, args)
         }
 
-        fn with_lookup(
-            &self,
-            f: &mut dyn FnMut(
-                &mut dyn for<'a> FnMut(
-                    &str,
-                    &str,
-                    Option<&HashMap<&str, FluentValue<'a>>>,
-                ) -> Option<String>,
-            ),
-        ) {
-            let mut lookup =
-                |domain: &str, id: &str, args: Option<&HashMap<&str, FluentValue<'_>>>| {
-                    self.localize_in_domain(domain, id, args)
-                };
+        fn with_lookup(&self, f: &mut dyn FnMut(&mut FluentLocalizerLookup<'_>)) {
+            let mut lookup = |domain: StaticFluentDomain,
+                              id: StaticFluentEntryId,
+                              args: Option<&FluentArgs<'_>>| {
+                self.localize_in_domain(domain, id, args)
+            };
             f(&mut lookup);
         }
     }
@@ -964,15 +926,12 @@ mod tests {
     struct ScopedMessage;
 
     impl FluentMessage for ScopedMessage {
-        fn to_fluent_string_with(
-            &self,
-            localize: &mut dyn for<'a> FnMut(
-                &str,
-                &str,
-                Option<&HashMap<&str, FluentValue<'a>>>,
-            ) -> String,
-        ) -> String {
-            localize("custom-domain", "scoped-message", None)
+        fn to_fluent_string_with(&self, localize: &mut FluentMessageLookup<'_>) -> String {
+            localize(
+                static_domain("custom-domain"),
+                static_entry("scoped-message"),
+                None,
+            )
         }
     }
 
@@ -989,32 +948,22 @@ mod tests {
     impl FluentLocalizer for SkippingCallbackLocalizer {
         fn localize<'a>(
             &self,
-            _id: &str,
-            _args: Option<&HashMap<&str, FluentValue<'a>>>,
+            _id: StaticFluentEntryId,
+            _args: Option<&FluentArgs<'a>>,
         ) -> Option<String> {
             None
         }
 
         fn localize_in_domain<'a>(
             &self,
-            _domain: &str,
-            _id: &str,
-            _args: Option<&HashMap<&str, FluentValue<'a>>>,
+            _domain: StaticFluentDomain,
+            _id: StaticFluentEntryId,
+            _args: Option<&FluentArgs<'a>>,
         ) -> Option<String> {
             None
         }
 
-        fn with_lookup(
-            &self,
-            _f: &mut dyn FnMut(
-                &mut dyn for<'a> FnMut(
-                    &str,
-                    &str,
-                    Option<&HashMap<&str, FluentValue<'a>>>,
-                ) -> Option<String>,
-            ),
-        ) {
-        }
+        fn with_lookup(&self, _f: &mut dyn FnMut(&mut FluentLocalizerLookup<'_>)) {}
     }
 
     struct DoubleCallbackLocalizer;
@@ -1022,35 +971,26 @@ mod tests {
     impl FluentLocalizer for DoubleCallbackLocalizer {
         fn localize<'a>(
             &self,
-            id: &str,
-            _args: Option<&HashMap<&str, FluentValue<'a>>>,
+            id: StaticFluentEntryId,
+            _args: Option<&FluentArgs<'a>>,
         ) -> Option<String> {
-            Some(id.to_string())
+            Some(id.as_str().to_string())
         }
 
         fn localize_in_domain<'a>(
             &self,
-            _domain: &str,
-            id: &str,
-            args: Option<&HashMap<&str, FluentValue<'a>>>,
+            _domain: StaticFluentDomain,
+            id: StaticFluentEntryId,
+            args: Option<&FluentArgs<'a>>,
         ) -> Option<String> {
             self.localize(id, args)
         }
 
-        fn with_lookup(
-            &self,
-            f: &mut dyn FnMut(
-                &mut dyn for<'a> FnMut(
-                    &str,
-                    &str,
-                    Option<&HashMap<&str, FluentValue<'a>>>,
-                ) -> Option<String>,
-            ),
-        ) {
+        fn with_lookup(&self, f: &mut dyn FnMut(&mut FluentLocalizerLookup<'_>)) {
             let mut lookup =
-                |_domain: &str, id: &str, _args: Option<&HashMap<&str, FluentValue<'_>>>| {
-                    Some(id.to_string())
-                };
+                |_domain: StaticFluentDomain,
+                 id: StaticFluentEntryId,
+                 _args: Option<&FluentArgs<'_>>| { Some(id.as_str().to_string()) };
             f(&mut lookup);
             f(&mut lookup);
         }
@@ -1122,42 +1062,34 @@ mod tests {
     impl FluentLocalizer for BlockingSwitchLocalizer {
         fn localize<'a>(
             &self,
-            id: &str,
-            _args: Option<&HashMap<&str, FluentValue<'a>>>,
+            id: StaticFluentEntryId,
+            _args: Option<&FluentArgs<'a>>,
         ) -> Option<String> {
             let language = self.selected();
-            self.render_lookup(language, "switch-domain", id)
+            self.render_lookup(language, "switch-domain", id.as_str())
         }
 
         fn localize_in_domain<'a>(
             &self,
-            domain: &str,
-            id: &str,
-            _args: Option<&HashMap<&str, FluentValue<'a>>>,
+            domain: StaticFluentDomain,
+            id: StaticFluentEntryId,
+            _args: Option<&FluentArgs<'a>>,
         ) -> Option<String> {
             let language = self.selected();
-            self.render_lookup(language, domain, id)
+            self.render_lookup(language, domain.as_str(), id.as_str())
         }
 
-        fn with_lookup(
-            &self,
-            f: &mut dyn FnMut(
-                &mut dyn for<'a> FnMut(
-                    &str,
-                    &str,
-                    Option<&HashMap<&str, FluentValue<'a>>>,
-                ) -> Option<String>,
-            ),
-        ) {
+        fn with_lookup(&self, f: &mut dyn FnMut(&mut FluentLocalizerLookup<'_>)) {
             let selected = self
                 .selected
                 .read()
                 .expect("test language lock should not be poisoned");
             let language = *selected;
-            let mut lookup =
-                |domain: &str, id: &str, _args: Option<&HashMap<&str, FluentValue<'_>>>| {
-                    self.render_lookup(language, domain, id)
-                };
+            let mut lookup = |domain: StaticFluentDomain,
+                              id: StaticFluentEntryId,
+                              _args: Option<&FluentArgs<'_>>| {
+                self.render_lookup(language, domain.as_str(), id.as_str())
+            };
 
             f(&mut lookup);
         }
@@ -1166,16 +1098,9 @@ mod tests {
     struct BlockingParent;
 
     impl FluentMessage for BlockingParent {
-        fn to_fluent_string_with(
-            &self,
-            localize: &mut dyn for<'a> FnMut(
-                &str,
-                &str,
-                Option<&HashMap<&str, FluentValue<'a>>>,
-            ) -> String,
-        ) -> String {
-            let child = localize("switch-domain", "child", None);
-            let parent = localize("switch-domain", "parent", None);
+        fn to_fluent_string_with(&self, localize: &mut FluentMessageLookup<'_>) -> String {
+            let child = localize(static_domain("switch-domain"), static_entry("child"), None);
+            let parent = localize(static_domain("switch-domain"), static_entry("parent"), None);
             format!("{parent}:{child}")
         }
     }

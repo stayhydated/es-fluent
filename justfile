@@ -12,10 +12,13 @@ fmt:
     rumdl fmt .
 
 clippy:
-    cargo clippy --workspace --all-features
+    cargo clippy --workspace --all-features --all-targets -- -D warnings
 
 check:
     cargo check --workspace --all-features
+
+ftl-ownership:
+    cargo xtask check ftl-ownership
 
 test: test-dioxus-manager-feature-matrix
     cargo test --workspace --all-features --all-targets
@@ -24,6 +27,7 @@ test-dioxus-manager-feature-matrix:
     cargo check -p es-fluent-manager-dioxus --no-default-features
     cargo test -p es-fluent-manager-dioxus --no-default-features --features client
     cargo test -p es-fluent-manager-dioxus --no-default-features --features ssr
+    cargo test -p es-fluent-manager-dioxus --no-default-features --features client,ssr
     cargo check -p es-fluent-manager-dioxus --target wasm32-unknown-unknown --no-default-features --features client
 
 cov:
@@ -35,17 +39,23 @@ test-publish:
 test-docs:
     cargo doc --workspace --all-features --no-deps --open
 
-ci: fmt check clippy test cov
+ci: fmt check ftl-ownership clippy test cov
     cargo machete
 
 book:
     mdbook serve book
 
-web-build:
+wasm-demo-build:
+    cargo xtask build gpui-demo
     cargo xtask build bevy-demo
+
+web-build: wasm-demo-build
     cargo xtask build book
     cargo xtask build llms-txt
     cargo xtask build web
 
 web: web-build
     dx serve --package web
+
+web-preview: web-build
+    cd web && bun run preview

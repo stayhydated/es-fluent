@@ -20,6 +20,7 @@ impl DryRunDiff {
 pub enum DryRunSummary {
     Format { formatted: usize },
     Sync { keys: usize, locales: usize },
+    AddLocale { keys: usize, locales: usize },
 }
 
 impl DryRunSummary {
@@ -30,6 +31,9 @@ impl DryRunSummary {
             },
             DryRunSummary::Sync { keys, locales } => {
                 ui::Ui::print_sync_dry_run_summary(keys, locales);
+            },
+            DryRunSummary::AddLocale { keys, locales } => {
+                ui::Ui::print_add_locale_dry_run_summary(keys, locales);
             },
         }
     }
@@ -53,6 +57,11 @@ mod tests {
 
         DryRunSummary::Format { formatted: 3 }.print();
         DryRunSummary::Sync {
+            keys: 5,
+            locales: 2,
+        }
+        .print();
+        DryRunSummary::AddLocale {
             keys: 5,
             locales: 2,
         }

@@ -1,0 +1,33 @@
+error[E0277]: the trait bound `for<'__es_fluent_locale> NotRefreshable: TryFrom<&'__es_fluent_locale LanguageIdentifier>` is not satisfied
+  --> tests/ui/locale_field_missing_try_from.rs:43:15
+   |
+43 |     language: NotRefreshable,
+   |               ^^^^^^^^^^^^^^ unsatisfied trait bound
+   |
+help: the trait `for<'__es_fluent_locale> From<&'__es_fluent_locale LanguageIdentifier>` is not implemented for `NotRefreshable`
+  --> tests/ui/locale_field_missing_try_from.rs:38:1
+   |
+38 | pub struct NotRefreshable;
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^
+   = note: required for `&'__es_fluent_locale LanguageIdentifier` to implement `for<'__es_fluent_locale> Into<NotRefreshable>`
+   = note: required for `NotRefreshable` to implement `for<'__es_fluent_locale> TryFrom<&'__es_fluent_locale LanguageIdentifier>`
+note: required by a bound in `__es_fluent_assert_locale_try_from`
+  --> tests/ui/locale_field_missing_try_from.rs:42:5
+   |
+42 |     #[locale]
+   |     ^ required by this bound in `__es_fluent_assert_locale_try_from`
+
+error[E0277]: the trait bound `NotRefreshable: TryFrom<&LanguageIdentifier>` is not satisfied
+  --> tests/ui/locale_field_missing_try_from.rs:40:10
+   |
+40 | #[derive(BevyFluentText)]
+   |          ^^^^^^^^^^^^^^ unsatisfied trait bound
+   |
+help: the trait `From<&LanguageIdentifier>` is not implemented for `NotRefreshable`
+  --> tests/ui/locale_field_missing_try_from.rs:38:1
+   |
+38 | pub struct NotRefreshable;
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^
+   = note: required for `&LanguageIdentifier` to implement `Into<NotRefreshable>`
+   = note: required for `NotRefreshable` to implement `TryFrom<&LanguageIdentifier>`
+   = note: this error originates in the derive macro `BevyFluentText` (in Nightly builds, run with -Z macro-backtrace for more info)

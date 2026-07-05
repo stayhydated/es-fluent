@@ -1,0 +1,31 @@
+error: Attribute error in message field: duplicate key `arg` in message field `value`
+       note: first `arg` key in #[fluent] appears earlier
+       help: keep only one `arg` entry in #[fluent]
+ --> tests/ui/duplicate_attribute_keys.rs:5:28
+  |
+5 |     #[fluent(arg = "name", arg = "other")]
+  |                            ^^^
+
+error: Attribute error in variants container: duplicate key `keys` in variants container `DuplicateVariantsKeys`
+       note: first `keys` key in #[fluent_variants] appears earlier
+       help: keep only one `keys` entry in #[fluent_variants]
+  --> tests/ui/duplicate_attribute_keys.rs:10:37
+   |
+10 | #[fluent_variants(keys = ["label"], keys = ["placeholder"])]
+   |                                     ^^^^
+
+error: Attribute error in label container: duplicate key `namespace` in label container `DuplicateLabelNamespace`
+       note: first `namespace` key in #[fluent_label] appears earlier
+       help: keep only one `namespace` entry in #[fluent_label]
+  --> tests/ui/duplicate_attribute_keys.rs:16:38
+   |
+16 | #[fluent_label(namespace = "labels", namespace = "forms")]
+   |                                      ^^^^^^^^^
+
+error: Attribute error in choice container: duplicate key `rename_all` in choice container `DuplicateChoice`
+       note: first `rename_all` key in #[fluent_choice] appears earlier
+       help: keep only one `rename_all` entry in #[fluent_choice]
+  --> tests/ui/duplicate_attribute_keys.rs:20:44
+   |
+20 | #[fluent_choice(rename_all = "snake_case", rename_all = "kebab-case")]
+   |                                            ^^^^^^^^^^

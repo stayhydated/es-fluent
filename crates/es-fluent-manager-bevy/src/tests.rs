@@ -2,11 +2,27 @@ use crate::*;
 use bevy::asset::AssetLoader as _;
 use bevy::prelude::*;
 use es_fluent::FluentValue;
-use es_fluent_manager_core::{ModuleResourceSpec, ResourceKey, ResourceLoadError};
+use es_fluent_manager_core::{
+    FluentArgumentMap, FluentDomain, LocaleRelativeFtlPath, ModuleResourceSpec, ResourceKey,
+    ResourceLoadError, StaticFluentArgumentName, StaticFluentEntryId,
+};
 use fluent_bundle::FluentResource;
 use std::collections::HashMap;
 use std::sync::Arc;
 use unic_langid::{LanguageIdentifier, langid};
+
+fn static_entry(value: &'static str) -> StaticFluentEntryId {
+    es_fluent_manager_core::__macro::static_entry_id(value)
+}
+
+fn static_arg(value: &'static str) -> StaticFluentArgumentName {
+    es_fluent_manager_core::__macro::static_argument_name(value)
+}
+
+fn domain(value: &str) -> FluentDomain {
+    FluentDomain::try_new(value)
+        .unwrap_or_else(|error| panic!("test domain '{value}' should be valid: {error}"))
+}
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 struct LocaleBacked(pub String);
@@ -27,14 +43,7 @@ impl RefreshForLocale for RefreshableMessage {
 }
 
 impl FluentMessage for RefreshableMessage {
-    fn to_fluent_string_with(
-        &self,
-        _localize: &mut dyn for<'a> FnMut(
-            &str,
-            &str,
-            Option<&HashMap<&str, FluentValue<'a>>>,
-        ) -> String,
-    ) -> String {
+    fn to_fluent_string_with(&self, _localize: &mut es_fluent::FluentMessageLookup<'_>) -> String {
         self.0.clone()
     }
 }
@@ -42,15 +51,12 @@ impl FluentMessage for RefreshableMessage {
 struct DomainMessage(&'static str);
 
 impl FluentMessage for DomainMessage {
-    fn to_fluent_string_with(
-        &self,
-        localize: &mut dyn for<'a> FnMut(
-            &str,
-            &str,
-            Option<&HashMap<&str, FluentValue<'a>>>,
-        ) -> String,
-    ) -> String {
-        localize("app", self.0, None)
+    fn to_fluent_string_with(&self, localize: &mut es_fluent::FluentMessageLookup<'_>) -> String {
+        localize(
+            es_fluent::registry::__macro::static_domain("app"),
+            es_fluent::registry::__macro::static_entry_id(self.0),
+            None,
+        )
     }
 }
 
@@ -69,9 +75,17 @@ fn capture_bevy_i18n(i18n: BevyI18n, mut captured: ResMut<CapturedBevyI18n>) {
     captured.active_language = Some(i18n.active_language().clone());
     captured.resolved_language = Some(i18n.resolved_language().clone());
     captured.bundle_changed = i18n.is_bundle_changed();
-    captured.localized = es_fluent::FluentLocalizer::localize(&i18n, "hello", None);
-    captured.domain_localized =
-        es_fluent::FluentLocalizer::localize_in_domain(&i18n, "app", "hello", None);
+    captured.localized = es_fluent::FluentLocalizer::localize(
+        &i18n,
+        es_fluent::registry::__macro::static_entry_id("hello"),
+        None,
+    );
+    captured.domain_localized = es_fluent::FluentLocalizer::localize_in_domain(
+        &i18n,
+        es_fluent::registry::__macro::static_domain("app"),
+        es_fluent::registry::__macro::static_entry_id("hello"),
+        None,
+    );
     captured.message = i18n.localize_message(&DomainMessage("hello"));
     captured.missing_message = i18n.localize_message(&DomainMessage("missing"));
 }
@@ -105,9 +119,10 @@ fn i18n_assets_track_loaded_resources_and_languages() {
     assert_eq!(assets.available_languages(), vec![lang.clone()]);
 
     let resource = Arc::new(FluentResource::try_new("hello = hi".to_string()).expect("ftl"));
-    assets
-        .loaded_resources
-        .insert((lang.clone(), ResourceKey::new("app")), resource);
+    assets.loaded_resources.insert(
+        (lang.clone(), ResourceKey::from_static_path("app")),
+        resource,
+    );
 
     assert!(assets.is_language_loaded(&lang));
     assert_eq!(assets.get_language_resources(&lang).len(), 1);
@@ -120,20 +135,20 @@ fn i18n_assets_namespace_contract_matrix() {
 
     assets.add_optional_asset_spec(
         lang.clone(),
-        ModuleResourceSpec {
-            key: ResourceKey::new("app"),
-            locale_relative_path: "app.ftl".to_string(),
-            required: false,
-        },
+        ModuleResourceSpec::new(
+            ResourceKey::from_static_path("app"),
+            LocaleRelativeFtlPath::from_static_path("app.ftl"),
+            false,
+        ),
         Handle::default(),
     );
     assets.add_asset_spec(
         lang.clone(),
-        ModuleResourceSpec {
-            key: ResourceKey::new("app/ui"),
-            locale_relative_path: "app/ui.ftl".to_string(),
-            required: true,
-        },
+        ModuleResourceSpec::new(
+            ResourceKey::from_static_path("app/ui"),
+            LocaleRelativeFtlPath::from_static_path("app/ui.ftl"),
+            true,
+        ),
         Handle::default(),
     );
 
@@ -141,23 +156,24 @@ fn i18n_assets_namespace_contract_matrix() {
 
     let optional_resource =
         Arc::new(FluentResource::try_new("hello = optional".to_string()).expect("ftl"));
-    assets
-        .loaded_resources
-        .insert((lang.clone(), ResourceKey::new("app")), optional_resource);
+    assets.loaded_resources.insert(
+        (lang.clone(), ResourceKey::from_static_path("app")),
+        optional_resource,
+    );
     assert!(!assets.is_language_loaded(&lang));
 
     let required_resource =
         Arc::new(FluentResource::try_new("hello = required".to_string()).expect("ftl"));
     assets.loaded_resources.insert(
-        (lang.clone(), ResourceKey::new("app/ui")),
+        (lang.clone(), ResourceKey::from_static_path("app/ui")),
         required_resource,
     );
     assert!(assets.is_language_loaded(&lang));
 
     assets.load_errors.insert(
-        (lang.clone(), ResourceKey::new("app")),
+        (lang.clone(), ResourceKey::from_static_path("app")),
         ResourceLoadError::Parse {
-            key: ResourceKey::new("app"),
+            key: ResourceKey::from_static_path("app"),
             path: "app.ftl".to_string(),
             required: false,
             details: "optional parse".to_string(),
@@ -166,9 +182,9 @@ fn i18n_assets_namespace_contract_matrix() {
     assert!(assets.is_language_loaded(&lang));
 
     assets.load_errors.insert(
-        (lang.clone(), ResourceKey::new("app/ui")),
+        (lang.clone(), ResourceKey::from_static_path("app/ui")),
         ResourceLoadError::Parse {
-            key: ResourceKey::new("app/ui"),
+            key: ResourceKey::from_static_path("app/ui"),
             path: "app/ui.ftl".to_string(),
             required: true,
             details: "required parse".to_string(),
@@ -212,21 +228,24 @@ fn i18n_resource_localizes_and_falls_back_to_parent_locale() {
     assert_eq!(i18n_resource.active_language(), &requested);
     assert_eq!(i18n_resource.resolved_language(), &resolved);
 
-    let mut args = HashMap::new();
-    args.insert("name", FluentValue::from("Mark"));
+    let mut args = FluentArgumentMap::default();
+    args.insert(static_arg("name"), FluentValue::from("Mark"));
     let localized = i18n_resource
-        .localize("welcome", Some(&args), &i18n_bundle)
+        .localize(static_entry("welcome"), Some(&args), &i18n_bundle)
         .expect("localized text");
     assert!(localized.contains("Welcome"));
     assert!(localized.contains("Mark"));
 
     assert_eq!(
-        i18n_resource.localize("shared", None, &i18n_bundle),
+        i18n_resource.localize(static_entry("shared"), None, &i18n_bundle),
         Some("Shared fallback value".to_string())
     );
-    assert_eq!(i18n_resource.localize("missing", None, &i18n_bundle), None);
     assert_eq!(
-        i18n_resource.localize_with_fallback(&i18n_bundle, "missing", None),
+        i18n_resource.localize(static_entry("missing"), None, &i18n_bundle),
+        None
+    );
+    assert_eq!(
+        i18n_resource.localize_with_fallback(&i18n_bundle, static_entry("missing"), None),
         "missing"
     );
 }
@@ -254,17 +273,20 @@ fn i18n_resource_uses_resolved_bundle_when_requested_locale_is_unavailable() {
     assert_eq!(i18n_resource.active_language(), &requested);
     assert_eq!(i18n_resource.resolved_language(), &resolved);
 
-    let mut args = HashMap::new();
-    args.insert("name", FluentValue::from("Mark"));
+    let mut args = FluentArgumentMap::default();
+    args.insert(static_arg("name"), FluentValue::from("Mark"));
     let localized = i18n_resource
-        .localize("welcome", Some(&args), &i18n_bundle)
+        .localize(static_entry("welcome"), Some(&args), &i18n_bundle)
         .expect("localized text");
     assert!(localized.contains("Welcome"));
     assert!(localized.contains("Mark"));
 
-    assert_eq!(i18n_resource.localize("missing", None, &i18n_bundle), None);
     assert_eq!(
-        i18n_resource.localize_with_fallback(&i18n_bundle, "missing", None),
+        i18n_resource.localize(static_entry("missing"), None, &i18n_bundle),
+        None
+    );
+    assert_eq!(
+        i18n_resource.localize_with_fallback(&i18n_bundle, static_entry("missing"), None),
         "missing"
     );
 }
@@ -293,11 +315,11 @@ fn i18n_resource_prefers_partial_requested_locale_resources_over_resolved_parent
     let i18n_resource = I18nResource::new_with_resolved_language(requested, resolved);
 
     assert_eq!(
-        i18n_resource.localize("hello", None, &i18n_bundle),
+        i18n_resource.localize(static_entry("hello"), None, &i18n_bundle),
         Some("Hello from en-US".to_string())
     );
     assert_eq!(
-        i18n_resource.localize("shared", None, &i18n_bundle),
+        i18n_resource.localize(static_entry("shared"), None, &i18n_bundle),
         Some("Shared fallback".to_string())
     );
 }
@@ -320,11 +342,11 @@ fn bevy_i18n_system_param_exposes_context_bound_localization() {
     let mut i18n_domain_bundles = I18nDomainBundles::default();
     i18n_domain_bundles.set_bundles(
         lang.clone(),
-        HashMap::from([("app".to_string(), Arc::new(domain_bundle))]),
+        HashMap::from([(domain("app"), Arc::new(domain_bundle))]),
     );
     i18n_domain_bundles.set_locale_resources(
         lang.clone(),
-        HashMap::from([("app".to_string(), vec![resource])]),
+        HashMap::from([(domain("app"), vec![resource])]),
     );
 
     let mut app = App::new();
@@ -403,7 +425,10 @@ fn locale_aware_registration_needs_locale_changed_event_to_refresh_values() {
     app.world_mut()
         .resource_mut::<I18nAssets>()
         .loaded_resources
-        .insert((lang.clone(), ResourceKey::new("app")), resource.clone());
+        .insert(
+            (lang.clone(), ResourceKey::from_static_path("app")),
+            resource.clone(),
+        );
 
     let mut bundle = fluent_bundle::bundle::FluentBundle::new_concurrent(vec![lang.clone()]);
     bundle.add_resource(resource.clone()).expect("add resource");

@@ -1,5 +1,7 @@
 use bevy::prelude::*;
+use es_fluent_manager_core::{I18nModuleDescriptor, ResourceKey};
 use std::{any::TypeId, collections::HashSet};
+use unic_langid::LanguageIdentifier;
 
 #[derive(Default, Resource)]
 pub(crate) struct RegisteredFluentTextTypes {
@@ -41,6 +43,10 @@ fn mark_locale_refresh_registered<T: 'static>(app: &mut App) -> bool {
         .register_locale_refresh::<T>()
 }
 
+fn configure_text_update_set(app: &mut App) {
+    app.configure_sets(PostUpdate, crate::I18nSet::TextUpdate);
+}
+
 /// A plugin that initializes the `es-fluent` Bevy integration.
 #[cfg(test)]
 pub struct EsFluentBevyPlugin;
@@ -63,6 +69,31 @@ pub trait BevyFluentTextRegistration: Send + Sync {
 }
 
 inventory::collect!(&'static dyn BevyFluentTextRegistration);
+
+#[doc(hidden)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct BevyI18nEmbeddedAsset {
+    pub source_path: &'static str,
+    pub embedded_path: &'static str,
+    pub asset_path: &'static str,
+}
+
+#[doc(hidden)]
+pub trait BevyI18nAssetRegistration: I18nModuleDescriptor {
+    fn register_assets(&self, app: &mut App);
+
+    fn asset_path_for_language(
+        &self,
+        lang: &LanguageIdentifier,
+        resource_key: &ResourceKey,
+    ) -> Option<&'static str>;
+
+    fn embedded_assets(&self) -> &'static [BevyI18nEmbeddedAsset] {
+        &[]
+    }
+}
+
+inventory::collect!(&'static dyn BevyI18nAssetRegistration);
 
 /// An extension trait for `App` to simplify the registration of `FluentText` components.
 pub trait FluentTextRegistration {
@@ -87,13 +118,15 @@ impl FluentTextRegistration for App {
         &mut self,
     ) -> &mut Self {
         if mark_text_systems_registered::<T>(self) {
+            configure_text_update_set(self);
             self.add_systems(
                 PostUpdate,
                 (
                     crate::systems::update_all_fluent_text_on_locale_change::<T>,
                     crate::systems::update_fluent_text_system::<T>,
                 )
-                    .chain(),
+                    .chain()
+                    .in_set(crate::I18nSet::TextUpdate),
             );
         }
         self
@@ -109,6 +142,7 @@ impl FluentTextRegistration for App {
 
         match (should_register_locale_refresh, should_register_text_systems) {
             (true, true) => {
+                configure_text_update_set(self);
                 self.add_systems(
                     PostUpdate,
                     (
@@ -116,24 +150,29 @@ impl FluentTextRegistration for App {
                         crate::systems::update_all_fluent_text_on_locale_change::<T>,
                         crate::systems::update_fluent_text_system::<T>,
                     )
-                        .chain(),
+                        .chain()
+                        .in_set(crate::I18nSet::TextUpdate),
                 );
             },
             (true, false) => {
+                configure_text_update_set(self);
                 self.add_systems(
                     PostUpdate,
                     crate::update_values_on_locale_change::<T>
+                        .in_set(crate::I18nSet::TextUpdate)
                         .before(crate::systems::update_all_fluent_text_on_locale_change::<T>),
                 );
             },
             (false, true) => {
+                configure_text_update_set(self);
                 self.add_systems(
                     PostUpdate,
                     (
                         crate::systems::update_all_fluent_text_on_locale_change::<T>,
                         crate::systems::update_fluent_text_system::<T>,
                     )
-                        .chain(),
+                        .chain()
+                        .in_set(crate::I18nSet::TextUpdate),
                 );
             },
             (false, false) => {},
@@ -146,8 +185,7 @@ impl FluentTextRegistration for App {
 mod tests {
     use super::*;
     use crate::{FluentText, LocaleChangedEvent, RefreshForLocale};
-    use es_fluent::{FluentMessage, FluentValue};
-    use std::collections::HashMap;
+    use es_fluent::FluentMessage;
     use unic_langid::{LanguageIdentifier, langid};
 
     #[derive(Clone)]
@@ -160,18 +198,31 @@ mod tests {
     impl FluentMessage for RefreshableMessage {
         fn to_fluent_string_with(
             &self,
-            localize: &mut dyn for<'a> FnMut(
-                &str,
-                &str,
-                Option<&HashMap<&str, FluentValue<'a>>>,
-            ) -> String,
+            localize: &mut es_fluent::FluentMessageLookup<'_>,
         ) -> String {
-            localize("registration-test", "refreshable", None)
+            localize(
+                es_fluent::registry::__macro::static_domain("registration-test"),
+                es_fluent::registry::__macro::static_entry_id("refreshable"),
+                None,
+            )
         }
     }
 
     #[derive(Clone)]
     struct PlainMessage(&'static str);
+
+    #[derive(Component)]
+    struct ObservedText;
+
+    #[derive(Default, Resource)]
+    struct TextAfterI18nSet(Option<String>);
+
+    fn capture_text_after_i18n_set(
+        query: Query<&Text, With<ObservedText>>,
+        mut captured: ResMut<TextAfterI18nSet>,
+    ) {
+        captured.0 = query.iter().next().map(|text| text.0.clone());
+    }
 
     impl RefreshForLocale for PlainMessage {
         fn refresh_for_locale(&mut self, lang: &LanguageIdentifier) {
@@ -186,13 +237,13 @@ mod tests {
     impl FluentMessage for PlainMessage {
         fn to_fluent_string_with(
             &self,
-            localize: &mut dyn for<'a> FnMut(
-                &str,
-                &str,
-                Option<&HashMap<&str, FluentValue<'a>>>,
-            ) -> String,
+            localize: &mut es_fluent::FluentMessageLookup<'_>,
         ) -> String {
-            localize("registration-test", self.0, None)
+            localize(
+                es_fluent::registry::__macro::static_domain("registration-test"),
+                es_fluent::registry::__macro::static_entry_id(self.0),
+                None,
+            )
         }
     }
 
@@ -201,9 +252,9 @@ mod tests {
         let mut app = App::new();
         let mut message = RefreshableMessage;
         let mut localize =
-            |_domain: &str, _id: &str, _args: Option<&HashMap<&str, FluentValue<'_>>>| {
-                "unused".to_string()
-            };
+            |_domain: es_fluent::registry::StaticFluentDomain,
+             _id: es_fluent::registry::StaticFluentEntryId,
+             _args: Option<&es_fluent::FluentArgs<'_>>| { "unused".to_string() };
 
         message.refresh_for_locale(&langid!("en-US"));
         assert_eq!(message.to_fluent_string_with(&mut localize), "unused");
@@ -244,5 +295,44 @@ mod tests {
             .get::<FluentText<PlainMessage>>(entity)
             .expect("plain message FluentText should remain inserted");
         assert_eq!(component.value.0, "bonjour");
+    }
+
+    #[test]
+    fn text_update_set_allows_user_systems_to_run_after_fluent_text_refresh() {
+        let en = langid!("en");
+        let fr = langid!("fr");
+        let mut app = App::new();
+        app.insert_resource(crate::I18nAssets::new());
+        app.insert_resource(crate::I18nResource::new(en.clone()));
+        app.insert_resource(crate::RequestedLanguageId(en.clone()));
+        app.insert_resource(crate::ActiveLanguageId(en));
+        app.insert_resource(crate::I18nBundle::default());
+        app.insert_resource(crate::I18nDomainBundles::default());
+        app.insert_resource(TextAfterI18nSet::default());
+        app.add_message::<LocaleChangedEvent>();
+        app.add_systems(
+            PostUpdate,
+            capture_text_after_i18n_set.after(crate::I18nSet::TextUpdate),
+        );
+        app.register_fluent_text_from_locale::<PlainMessage>();
+
+        let entity = app
+            .world_mut()
+            .spawn((
+                FluentText::new(PlainMessage("hello")),
+                Text::new("old"),
+                ObservedText,
+            ))
+            .id();
+        app.world_mut().write_message(LocaleChangedEvent(fr));
+
+        app.update();
+
+        let text = app.world().get::<Text>(entity).expect("text");
+        assert_eq!(text.0, "bonjour");
+        assert_eq!(
+            app.world().resource::<TextAfterI18nSet>().0.as_deref(),
+            Some("bonjour")
+        );
     }
 }

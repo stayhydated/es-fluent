@@ -1,8 +1,5 @@
 {
   "$schema": "./node_modules/oxlint/configuration_schema.json",
   "plugins": ["import", "typescript", "unicorn", "jsdoc"],
-  "globals": {
-    "Astro": "readonly"
-  },
-  "ignorePatterns": ["node_modules", "dist", ".astro", "public"]
+  "ignorePatterns": ["node_modules", "dist", "public"]
 }

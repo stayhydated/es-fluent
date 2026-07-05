@@ -1,0 +1,78 @@
+---
+source: crates/es-fluent-derive/src/macros/derive_es_fluent/mod.rs
+expression: tokens
+---
+impl ::es_fluent::FluentMessage for LoginError {
+    fn to_fluent_string_with(
+        &self,
+        localize: &mut ::es_fluent::FluentMessageLookup<'_>,
+    ) -> String {
+        match self {
+            Self::Something(f0, f1, f2) => {
+                let mut args = ::es_fluent::FluentArgs::new();
+                {
+                    use ::es_fluent::__private::IntoFluentArgumentValue as _;
+                    args.insert(
+                        ::es_fluent::registry::__macro::static_argument_name("f0"),
+                        (::es_fluent::__private::FluentBorrowedArgumentValue::new(f0))
+                            .into_fluent_argument_value(localize),
+                    );
+                }
+                {
+                    use ::es_fluent::__private::IntoFluentArgumentValue as _;
+                    args.insert(
+                        ::es_fluent::registry::__macro::static_argument_name("f1"),
+                        (::es_fluent::__private::FluentBorrowedArgumentValue::new(f1))
+                            .into_fluent_argument_value(localize),
+                    );
+                }
+                {
+                    use ::es_fluent::__private::IntoFluentArgumentValue as _;
+                    args.insert(
+                        ::es_fluent::registry::__macro::static_argument_name("f2"),
+                        (::es_fluent::__private::FluentBorrowedArgumentValue::new(f2))
+                            .into_fluent_argument_value(localize),
+                    );
+                }
+                localize(
+                    ::es_fluent::registry::StaticFluentDomain::from_package_name(
+                        env!("CARGO_PKG_NAME"),
+                    ),
+                    ::es_fluent::registry::__macro::static_entry_id(
+                        "login_error-Something",
+                    ),
+                    Some(&args),
+                )
+            }
+        }
+    }
+}
+#[doc(hidden)]
+#[allow(non_snake_case)]
+mod __es_fluent_inventory_LoginError {
+    use super::*;
+    static VARIANTS: &[::es_fluent::registry::FtlVariant] = &[
+        ::es_fluent::registry::__macro::ftl_variant(
+            "Something",
+            ::es_fluent::registry::__macro::static_entry_id("login_error-Something"),
+            &[
+                ::es_fluent::registry::__macro::static_argument_name("f0"),
+                ::es_fluent::registry::__macro::static_argument_name("f1"),
+                ::es_fluent::registry::__macro::static_argument_name("f2"),
+            ],
+            module_path!(),
+            line!(),
+        ),
+    ];
+    static TYPE_INFO: ::es_fluent::registry::FtlTypeInfo = ::es_fluent::registry::__macro::ftl_type_info(
+        ::es_fluent::meta::TypeKind::Enum,
+        "LoginError",
+        VARIANTS,
+        file!(),
+        module_path!(),
+        None,
+    );
+    ::es_fluent::__inventory::submit!(
+        ::es_fluent::registry::RegisteredFtlType(& TYPE_INFO)
+    );
+}

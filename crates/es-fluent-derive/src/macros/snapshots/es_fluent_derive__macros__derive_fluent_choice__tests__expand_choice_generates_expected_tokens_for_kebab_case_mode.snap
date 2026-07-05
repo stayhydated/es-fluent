@@ -1,0 +1,13 @@
+---
+source: crates/es-fluent-derive/src/macros/derive_fluent_choice.rs
+expression: kebab_tokens
+---
+impl ::es_fluent::EsFluentChoice for ChoiceKebab {
+    fn as_fluent_choice(&self) -> ::es_fluent::registry::StaticFluentVariantKey {
+        match self {
+            Self::VeryHigh => {
+                ::es_fluent::registry::__macro::static_variant_key("very-high")
+            }
+        }
+    }
+}

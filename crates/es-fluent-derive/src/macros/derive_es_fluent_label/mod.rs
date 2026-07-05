@@ -1,96 +1,53 @@
-use darling::FromDeriveInput as _;
-use es_fluent_derive_core::{options::label::LabelOpts, validation};
-use es_fluent_shared::{namer, namespace::NamespaceRule};
+use es_fluent_derive_core::expansion::{EsFluentLabelExpansion, ExpansionError};
 use quote::quote;
-use syn::{Data, DeriveInput, parse_macro_input};
+use syn::{DeriveInput, parse_macro_input};
 
-use crate::macros::utils::InventoryModuleInput;
+use crate::macros::utils::{CodegenContext, InventoryOutput};
 
 pub fn from(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let input = parse_macro_input!(input as DeriveInput);
-    expand_es_fluent_label(input).into()
+    let context = CodegenContext::resolve();
+    expand_es_fluent_label_with_context(input, &context).into()
 }
 
-fn validate_namespace(namespace: Option<&NamespaceRule>, span: proc_macro2::Span) {
-    if let Some(ns) = namespace
-        && let Err(err) = validation::validate_namespace(ns, Some(span))
-    {
-        err.abort();
-    }
-}
-
+#[cfg(test)]
 fn expand_es_fluent_label(input: DeriveInput) -> proc_macro2::TokenStream {
-    let opts = match LabelOpts::from_derive_input(&input) {
-        Ok(opts) => opts,
-        Err(err) => return err.write_errors(),
-    };
+    let context = CodegenContext::fallback();
+    expand_es_fluent_label_with_context(input, &context)
+}
 
-    if matches!(&input.data, Data::Union(_)) {
-        proc_macro_error2::abort!(
-            input.ident.span(),
-            "EsFluentLabel can only be derived for structs and enums"
-        );
-    }
-
-    let fluent_namespace = match crate::macros::utils::inherited_fluent_namespace(&input) {
-        Ok(namespace) => namespace,
-        Err(err) => return err.write_errors(),
-    };
-    let fluent_domain = match crate::macros::utils::inherited_fluent_domain(&input) {
-        Ok(domain) => domain,
-        Err(err) => return err.write_errors(),
-    };
-
-    let original_ident = opts.ident();
-    let generics = opts.generics();
-    let ftl_key = if opts.attr_args().is_origin() {
-        Some(namer::FluentKey::new_label(original_ident).to_string())
-    } else {
-        None
+fn expand_es_fluent_label_with_context(
+    input: DeriveInput,
+    context: &CodegenContext,
+) -> proc_macro2::TokenStream {
+    let expansion = match EsFluentLabelExpansion::from_derive_input(&input) {
+        Ok(expansion) => expansion,
+        Err(ExpansionError::Core(error)) => {
+            return crate::macros::utils::core_error_to_compile_error(error);
+        },
+        Err(ExpansionError::Darling(error)) => return error.write_errors(),
+        Err(ExpansionError::Syn(error)) => return error.to_compile_error(),
     };
 
     let localize_label_impl = crate::macros::utils::generate_localize_label_impl(
-        original_ident,
-        generics,
-        ftl_key.as_deref(),
-        fluent_domain.as_deref(),
+        context,
+        expansion.ident(),
+        expansion.generics(),
+        expansion.ftl_key(),
+        expansion.domain(),
     );
-    let type_kind = match &input.data {
-        Data::Struct(_) => quote! { ::es_fluent::meta::TypeKind::Struct },
-        Data::Enum(_) => quote! { ::es_fluent::meta::TypeKind::Enum },
-        Data::Union(_) => unreachable!("EsFluentLabel does not support unions"),
-    };
-
-    // Generate inventory submission for types with origin=true
-    // FTL metadata is purely structural and doesn't depend on generic type parameters
-    let inventory_submit = if let Some(ftl_key_str) = &ftl_key {
-        let type_name = namer::rust_ident_name(original_ident);
-        let namespace = crate::macros::utils::preferred_namespace([
-            fluent_namespace.as_ref(),
-            opts.attr_args().namespace(),
-        ]);
-        validate_namespace(namespace, original_ident.span());
-        let namespace_expr = crate::macros::utils::namespace_rule_tokens(namespace);
-        let label_variant = quote! {
-            ::es_fluent::registry::FtlVariant {
-                name: #type_name,
-                ftl_key: #ftl_key_str,
-                args: &[],
-                module_path: module_path!(),
-                line: line!(),
-            }
-        };
-
-        crate::macros::utils::generate_inventory_module(InventoryModuleInput {
-            ident: original_ident,
-            module_name_prefix: "label_inventory",
-            type_kind,
-            variants: vec![label_variant],
-            namespace_expr,
-        })
+    let label_model = expansion.label_inventory();
+    let inventory_output = if let Some(label) = label_model.label() {
+        crate::macros::utils::label_inventory_output(
+            expansion.ident(),
+            label_model.type_kind().clone(),
+            label_model.namespace().cloned(),
+            label.clone(),
+        )
     } else {
-        quote! {}
+        InventoryOutput::None
     };
+    let inventory_submit = crate::macros::utils::emit_inventory_output(context, inventory_output);
 
     let tokens = quote! {
         #localize_label_impl
@@ -106,9 +63,8 @@ mod tests {
     use syn::parse_quote;
 
     #[test]
-    fn expand_es_fluent_label_generates_inventory_when_origin_is_enabled() {
+    fn expand_es_fluent_label_generates_inventory_by_default() {
         let input: syn::DeriveInput = parse_quote! {
-            #[fluent_label]
             #[fluent(namespace = "ui")]
             struct LoginForm;
         };
@@ -116,15 +72,28 @@ mod tests {
         let tokens =
             crate::snapshot_support::pretty_file_tokens(super::expand_es_fluent_label(input));
         assert_snapshot!(
-            "expand_es_fluent_label_generates_inventory_when_origin_is_enabled",
+            "expand_es_fluent_label_generates_inventory_by_default",
             tokens
         );
     }
 
     #[test]
-    fn expand_es_fluent_label_skips_inventory_when_origin_is_disabled() {
+    fn expand_es_fluent_label_accepts_empty_label_attribute() {
         let input: syn::DeriveInput = parse_quote! {
-            #[fluent_label(origin = false)]
+            #[fluent_label]
+            struct LabelOnly;
+        };
+
+        let tokens =
+            crate::snapshot_support::pretty_file_tokens(super::expand_es_fluent_label(input));
+        assert!(!tokens.contains("compile_error"));
+        assert!(tokens.contains("impl ::es_fluent::FluentLabel for LabelOnly"));
+    }
+
+    #[test]
+    fn expand_es_fluent_label_rejects_legacy_origin_flag() {
+        let input: syn::DeriveInput = parse_quote! {
+            #[fluent_label(origin)]
             enum NoOrigin {
                 A
             }
@@ -132,16 +101,13 @@ mod tests {
 
         let tokens =
             crate::snapshot_support::pretty_file_tokens(super::expand_es_fluent_label(input));
-        assert_snapshot!(
-            "expand_es_fluent_label_skips_inventory_when_origin_is_disabled",
-            tokens
-        );
+        assert_snapshot!("expand_es_fluent_label_rejects_legacy_origin_flag", tokens);
     }
 
     #[test]
     fn expand_es_fluent_label_returns_compile_errors_for_parse_failures() {
         let label_opts_error: syn::DeriveInput = parse_quote! {
-            #[fluent_label(origin = "nope")]
+            #[fluent_label(namespace("children"))]
             struct InvalidLabelOpts;
         };
         let label_opts_tokens = crate::snapshot_support::pretty_file_tokens(
@@ -153,7 +119,6 @@ mod tests {
         );
 
         let struct_namespace_error: syn::DeriveInput = parse_quote! {
-            #[fluent_label]
             #[fluent(namespace = 123)]
             struct InvalidStructNamespace;
         };
@@ -166,7 +131,6 @@ mod tests {
         );
 
         let enum_namespace_error: syn::DeriveInput = parse_quote! {
-            #[fluent_label]
             #[fluent(namespace = 123)]
             enum InvalidEnumNamespace {
                 A
@@ -182,7 +146,7 @@ mod tests {
     }
 
     #[test]
-    fn expand_es_fluent_label_prefers_parent_fluent_namespace_over_label_namespace() {
+    fn expand_es_fluent_label_rejects_parent_and_label_namespace_conflict() {
         let input: syn::DeriveInput = parse_quote! {
             #[fluent(namespace = "parent")]
             #[fluent_label(namespace = "child")]
@@ -191,16 +155,15 @@ mod tests {
 
         let tokens =
             crate::snapshot_support::pretty_file_tokens(super::expand_es_fluent_label(input));
-        assert_snapshot!(
-            "expand_es_fluent_label_prefers_parent_fluent_namespace_over_label_namespace",
-            tokens
-        );
+        assert!(tokens.contains("compile_error"));
+        assert!(tokens.contains("conflicting namespace declarations"));
+        assert!(tokens.contains("#[fluent(namespace = ...)]"));
+        assert!(tokens.contains("#[fluent_label(namespace = ...)]"));
     }
 
     #[test]
     fn expand_es_fluent_label_uses_struct_type_kind_for_structs() {
         let input: syn::DeriveInput = parse_quote! {
-            #[fluent_label]
             struct LoginForm;
         };
 
@@ -215,7 +178,6 @@ mod tests {
     #[test]
     fn expand_es_fluent_label_uses_enum_type_kind_for_enums() {
         let input: syn::DeriveInput = parse_quote! {
-            #[fluent_label]
             enum LoginState {
                 Ready
             }

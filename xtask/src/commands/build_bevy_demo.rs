@@ -1,14 +1,15 @@
 use std::{fs, path::Path, process::Command};
 
-use anyhow::{Context, bail};
+use anyhow::{Context as _, bail};
 
 const EXAMPLE_DIR: &str = "examples/bevy-example";
 const OUTPUT_ROOT: &str = "web/public/bevy-demo";
 const OUTPUT_DIR: &str = "web/public/bevy-demo";
-const REQUIRED_MARKER: &str = "es-fluent-lang-en";
+// Must match `es_fluent_lang::WASM_FORCE_LINK_MARKER`.
+const REQUIRED_MARKER: &str = "es-fluent-lang-wasm-force-link";
 
 pub fn run() -> anyhow::Result<()> {
-    run_from_workspace_root(&crate::util::workspace_root()?)
+    run_from_workspace_root(&stayhydated_xtask::workspace_root_from_xtask_manifest()?)
 }
 
 fn run_from_workspace_root(workspace_root: &Path) -> anyhow::Result<()> {
@@ -35,6 +36,8 @@ fn run_from_workspace_root(workspace_root: &Path) -> anyhow::Result<()> {
         .env_remove("NO_COLOR")
         .arg("build")
         .arg("index.html")
+        .arg("--example")
+        .arg("bevy-example")
         .args([
             "--release",
             "--no-default-features",

@@ -1,4 +1,9 @@
-use bevy::{color::palettes::basic::*, input_focus::InputFocus, prelude::*, winit::WinitSettings};
+use bevy::{
+    color::palettes::basic::*,
+    input_focus::{FocusCause, InputFocus},
+    prelude::*,
+    winit::WinitSettings,
+};
 use es_fluent::EsFluent;
 use es_fluent_manager_bevy::{
     BevyFluentText, FluentText, I18nPlugin, I18nPluginConfig, LocaleChangeEvent,
@@ -37,8 +42,8 @@ pub fn run() {
 
     #[cfg(not(target_arch = "wasm32"))]
     app.add_plugins(DefaultPlugins.set(AssetPlugin {
-        watch_for_changes_override: Some(true),
-        file_path: "../assets".to_string(),
+        watch_for_changes_override: Some(cfg!(debug_assertions)),
+        file_path: concat!(env!("CARGO_MANIFEST_DIR"), "/assets").to_string(),
         ..default()
     }));
 
@@ -98,14 +103,13 @@ fn button_system(
     {
         match *interaction {
             Interaction::Pressed => {
-                input_focus.set(entity);
+                input_focus.set(entity, FocusCause::Pressed);
                 localized.value = ButtonState::Pressed;
                 *color = PRESSED_BUTTON.into();
                 *border_color = BorderColor::all(RED);
                 button.set_changed();
             },
             Interaction::Hovered => {
-                input_focus.set(entity);
                 localized.value = ButtonState::Hovered;
                 *color = HOVERED_BUTTON.into();
                 *border_color = BorderColor::all(Color::WHITE);
@@ -157,6 +161,8 @@ fn setup(mut commands: Commands, assets: Res<AssetServer>) {
 }
 
 fn button(asset_server: &AssetServer) -> impl Bundle {
+    let font: FontSource = asset_server.load("fonts/NotoSansSC-Bold.ttf").into();
+
     (
         Node {
             width: percent(100),
@@ -185,8 +191,8 @@ fn button(asset_server: &AssetServer) -> impl Bundle {
                 children![(
                     Text::new(""),
                     TextFont {
-                        font_size: 33.0,
-                        font: asset_server.load("fonts/NotoSansSC-Bold.ttf"),
+                        font: font.clone(),
+                        font_size: FontSize::Px(33.0),
                         ..default()
                     },
                     TextColor(Color::srgb(0.9, 0.9, 0.9)),
@@ -200,8 +206,8 @@ fn button(asset_server: &AssetServer) -> impl Bundle {
                 }),
                 Text::new(""),
                 TextFont {
-                    font_size: 20.0,
-                    font: asset_server.load("fonts/NotoSansSC-Bold.ttf"),
+                    font: font.clone(),
+                    font_size: FontSize::Px(20.0),
                     ..default()
                 },
                 TextColor(Color::srgb(0.7, 0.7, 0.7)),
@@ -230,8 +236,8 @@ fn button(asset_server: &AssetServer) -> impl Bundle {
                 children![(
                     Text::new(""),
                     TextFont {
-                        font_size: 20.0,
-                        font: asset_server.load("fonts/NotoSansSC-Bold.ttf"),
+                        font,
+                        font_size: FontSize::Px(20.0),
                         ..default()
                     },
                     TextColor(Color::srgb(0.9, 0.9, 0.9)),

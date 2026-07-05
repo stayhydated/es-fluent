@@ -1,0 +1,8 @@
+---
+source: crates/es-fluent-derive/src/macros/derive_fluent_choice.rs
+assertion_line: 101
+expression: tokens
+---
+::core::compile_error! {
+    "invalid #[fluent_choice(rename_all = ...)] value `not_a_style`: Matching variant not found; supported values are: snake_case, PascalCase, camelCase, kebab-case, SCREAMING_SNAKE_CASE, SCREAMING-KEBAB-CASE, Title Case, Train-Case, lowercase, UPPERCASE"
+}

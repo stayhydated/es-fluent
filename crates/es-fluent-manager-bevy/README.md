@@ -16,16 +16,19 @@ changes.
 | `es-fluent-manager-bevy` | `bevy`   |
 | :----------------------- | :------- |
 | **crates.io**            |          |
+| `0.19.x`                 | `0.19.x` |
 | `0.18.x`                 | `0.18.x` |
 | `0.17.x`                 | `0.17.x` |
 
 ## Features
 
-- **Asset Loading**: Loads `.ftl` files via Bevy's `AssetServer`.
-- **Hot Reloading**: Supports hot-reloading of translations during development.
+- **Owner Resources**: Registers generated module resources from the crate that owns the localization domain as Bevy embedded assets.
+- **Asset Loading**: Custom metadata-only registrations can still load `.ftl` files via Bevy's `AssetServer`.
+- **Hot Reloading**: Supports hot-reloading for resources loaded through Bevy's asset pipeline during development.
 - **Reactive UI**: The `FluentText` component automatically refreshes text when the locale changes.
 - **Bevy-native Context**: Systems can request `BevyI18n` as a `SystemParam` for direct localization.
-- **Explicit Context**: Localization comes from Bevy resources instead of a context-free bridge.
+- **Explicit Context**: Localization uses Bevy resources and `BevyI18n` system params.
+- **Composable Scheduling**: Runtime and text-refresh systems are labeled with `I18nSet` for normal Bevy ordering.
 
 ## Quick Start
 
@@ -61,10 +64,13 @@ fn main() {
 }
 ```
 
-By default, `I18nPlugin` loads locales from `locales` relative to Bevy's asset
-root, matching `assets_dir = "assets/locales"` in `i18n.toml`. If your Bevy
-asset root is `assets` but translations live in `assets/i18n`, configure the
-path explicitly:
+Generated Bevy module registrations register the owning crate's `.ftl` files
+from that crate's configured `assets_dir` as Bevy embedded assets; consuming
+apps should not copy dependency-owned domain files into their own asset tree.
+`asset_path` is only used for custom metadata-only registrations that do not
+provide owner embedded assets.
+If your Bevy asset root is `assets` but those custom resources live in
+`assets/i18n`, configure the path explicitly:
 
 ```rs
 use es_fluent_manager_bevy::{I18nPlugin, I18nPluginConfig};
@@ -77,20 +83,18 @@ app.add_plugins(I18nPlugin::with_config(
 ### Advanced behavior
 
 Plugin startup uses strict module discovery, so invalid or duplicate
-registrations are reported through `I18nPluginStartupError` instead of being
-normalized silently. When setup fails, the plugin skips localization runtime
-setup and leaves the error resource in the app world for diagnostics. Failed hot
-reloads or locale switches keep the last accepted locale active instead of
-publishing a broken update. A failed hot reload records diagnostics but keeps
-the previous ready cache selectable until a later rebuild succeeds.
+registrations are reported through `I18nPluginStartupError`. When setup fails,
+the plugin skips localization runtime setup and leaves the error resource in the
+app world for diagnostics. Failed hot reloads or locale switches keep the last
+accepted locale active. A failed hot reload records diagnostics but keeps the
+previous ready cache selectable until a later rebuild succeeds.
 
 Generated message lookup is domain-scoped. If separate domains define the same
 message ID, Bevy keeps typed domain-scoped lookup available and leaves raw
 unscoped lookup unavailable for the ambiguous merged locale.
 
 Locales with only optional resources, or with missing optional resources, are
-still treated as ready. They publish an empty Bevy cache instead of remaining
-pending indefinitely.
+treated as ready and publish an empty Bevy cache.
 
 Use `RequestedLanguageId` to read the latest user intent and `ActiveLanguageId`
 to read the currently published locale. `LocaleChangedEvent` refers to
@@ -99,9 +103,11 @@ falls back to a resolved locale, Bevy publishes the requested locale for change
 events and ECS resources while using the resolved locale for ready bundle
 lookup. Runtime fallback managers are best-effort: Bevy asks them to select the
 requested locale first, then the resolved locale, but rejection does not block
-Bevy asset-backed locale publication. Only metadata-only Bevy registrations
-create Bevy asset availability; runtime localizer registrations are reserved
-for the fallback manager and do not make a locale wait on Bevy asset bundles.
+Bevy resource-backed locale publication. Metadata-only Bevy registrations
+create Bevy resource availability either from owner-provided embedded asset
+handles or, for custom registrations, Bevy asset handles. Runtime localizer
+registrations are reserved for the fallback manager and do not make a locale
+wait on Bevy resource bundles.
 When attached, runtime fallback selection tells `FluentManager` that Bevy assets
 have already proved application locale support, so follower-only utility modules
 such as `es-fluent-lang` can be committed without making runtime-only locales
@@ -131,6 +137,25 @@ fn update_title(i18n: BevyI18n) {
 }
 ```
 
+### Schedule Ordering
+
+`I18nPlugin` labels its systems with `I18nSet` so app systems can use Bevy's
+standard `.before(...)` and `.after(...)` ordering APIs. `AssetWatch`,
+`AssetLoading`, `BundleRebuild`, `LocaleChange`, and `LocaleSync` run in
+`Update`. `TextUpdate` runs in `PostUpdate` after locale-aware `FluentText`
+values have refreshed and Bevy `Text` components have been written.
+
+```rs
+use bevy::prelude::*;
+use es_fluent_manager_bevy::I18nSet;
+
+fn persist_locale_choice() {}
+fn sync_window_title() {}
+
+app.add_systems(Update, persist_locale_choice.after(I18nSet::LocaleSync));
+app.add_systems(PostUpdate, sync_window_title.after(I18nSet::TextUpdate));
+```
+
 ### 3. Define Localizable Components (Recommended)
 
 Prefer the `BevyFluentText` derive macro. It auto-registers your type with
@@ -142,7 +167,8 @@ If a field depends on the active locale (like the `Languages` enum from
 macro will generate `RefreshForLocale` and register the locale-aware systems for
 you.
 `#[locale]` is supported on named struct fields and named enum variant fields,
-and multiple named fields in the same variant refresh together.
+and multiple named fields in the same variant refresh together. Each
+`#[locale]` field type must implement `TryFrom<&LanguageIdentifier>`.
 
 `RefreshForLocale` receives the originally requested locale, not the fallback
 resource locale. For example, if `en-GB` falls back to `en` assets, locale-aware

@@ -1,8 +1,9 @@
 use darling::FromDeriveInput as _;
 use es_fluent_derive_core::options::{
-    EnumDataOptions as _, FluentField as _, GeneratedVariantsOptions as _, StructDataOptions as _,
-    VariantFields as _,
-    r#enum::{EnumChoiceOpts, EnumOpts},
+    EnumDataOptions as _, FieldValueDirective, FluentField as _, GeneratedVariantsOptions as _,
+    SkipDirective as _, StructDataOptions as _, VariantFields as _,
+    choice::{CaseStyle, ChoiceOpts},
+    r#enum::EnumOpts,
     r#struct::{StructOpts, StructVariantsOpts},
 };
 use syn::{DeriveInput, parse_quote};
@@ -10,6 +11,16 @@ use syn::{DeriveInput, parse_quote};
 fn assert_no_generics(generics: &syn::Generics) {
     assert!(generics.params.is_empty());
     assert!(generics.where_clause.is_none());
+}
+
+fn is_selector(field: &impl es_fluent_derive_core::options::FluentField) -> bool {
+    matches!(
+        field
+            .directive()
+            .argument()
+            .map(|argument| argument.value()),
+        Some(FieldValueDirective::Choice { .. })
+    )
 }
 
 fn derive_names(paths: &darling::util::PathList) -> Vec<String> {
@@ -25,9 +36,17 @@ fn derive_names(paths: &darling::util::PathList) -> Vec<String> {
         .collect()
 }
 
-fn ignored_enum_variant_count(
-    data: &darling::ast::Data<darling::util::Ignored, darling::util::Ignored>,
-) -> usize {
+fn generated_key_names(
+    attr_args: &es_fluent_derive_core::options::VariantsFluentAttributeArgs,
+) -> Option<Vec<&str>> {
+    attr_args.keys().map(|keys| {
+        keys.iter()
+            .map(|key| key.value().as_str())
+            .collect::<Vec<_>>()
+    })
+}
+
+fn ignored_enum_variant_count<T>(data: &darling::ast::Data<T, darling::util::Ignored>) -> usize {
     match data {
         darling::ast::Data::Enum(variants) => variants.len(),
         darling::ast::Data::Struct(_) => panic!("expected enum data"),
@@ -55,9 +74,8 @@ fn es_fluent_enum_attributes_default_snapshot() {
     assert_eq!(opts.ident().to_string(), "ApiError");
     assert_no_generics(opts.generics());
     assert_eq!(opts.variants().len(), 4);
-    assert!(opts.attr_args().resource().is_none());
-    assert!(opts.attr_args().domain().is_none());
-    assert!(!opts.attr_args().skip_inventory());
+    assert!(opts.attr_args().id_message_id().is_none());
+    assert!(opts.attr_args().domain_name().is_none());
     assert!(opts.attr_args().namespace().is_none());
 
     let data = opts
@@ -92,9 +110,9 @@ fn es_fluent_enum_attributes_label_choice_snapshot() {
         #[derive(EsFluent)]
         enum Status {
             Ok,
-            Mixed(#[fluent(choice)] Severity, #[fluent(skip)] i32),
+            Mixed(#[fluent(selector)] Severity, #[fluent(skip)] i32),
             Info {
-                #[fluent(choice)]
+                #[fluent(selector)]
                 level: Severity,
                 message: String,
             }
@@ -114,7 +132,7 @@ fn es_fluent_enum_attributes_label_choice_snapshot() {
     assert!(matches!(mixed.style(), darling::ast::Style::Tuple));
     assert_eq!(mixed.fields().len(), 1);
     assert_eq!(mixed.all_fields().len(), 2);
-    assert!(mixed.fields()[0].is_choice());
+    assert!(is_selector(mixed.fields()[0]));
     assert!(mixed.all_fields()[1].is_skipped());
 
     let info = opts
@@ -128,24 +146,24 @@ fn es_fluent_enum_attributes_label_choice_snapshot() {
         info.fields()[0].ident().expect("named field").to_string(),
         "level"
     );
-    assert!(info.fields()[0].is_choice());
+    assert!(is_selector(info.fields()[0]));
     assert_eq!(
         info.fields()[1].ident().expect("named field").to_string(),
         "message"
     );
-    assert!(!info.fields()[1].is_choice());
+    assert!(!is_selector(info.fields()[1]));
 }
 
 #[test]
 fn es_fluent_struct_attributes_label_with_derive_snapshot() {
     let input: DeriveInput = parse_quote! {
         #[derive(EsFluent)]
-        #[fluent(derive(Debug, Clone))]
+        #[fluent(namespace = "people")]
         struct Person {
             name: String,
             #[fluent(skip)]
             password_hash: String,
-            #[fluent(choice)]
+            #[fluent(selector)]
             gender: Gender,
         }
     };
@@ -153,21 +171,20 @@ fn es_fluent_struct_attributes_label_with_derive_snapshot() {
     let opts = StructOpts::from_derive_input(&input).expect("StructOpts should parse");
     assert_eq!(opts.ident().to_string(), "Person");
     assert_no_generics(opts.generics());
-    assert_eq!(
-        derive_names(opts.attr_args().derive()),
-        vec!["Debug", "Clone"]
-    );
-    assert!(opts.attr_args().namespace().is_none());
+    assert!(matches!(
+        opts.attr_args().namespace(),
+        Some(es_fluent_shared::namespace::NamespaceRule::Literal(value)) if value == "people"
+    ));
 
     let fields = opts.fields();
     assert_eq!(fields.len(), 2);
     assert_eq!(fields[0].ident().expect("named field").to_string(), "name");
-    assert!(!fields[0].is_choice());
+    assert!(!is_selector(fields[0]));
     assert_eq!(
         fields[1].ident().expect("named field").to_string(),
         "gender"
     );
-    assert!(fields[1].is_choice());
+    assert!(is_selector(fields[1]));
 
     let all_fields = opts.all_indexed_fields();
     assert_eq!(all_fields.len(), 3);
@@ -179,14 +196,13 @@ fn es_fluent_struct_attributes_label_with_derive_snapshot() {
 }
 
 #[test]
-fn es_fluent_struct_attributes_default_and_choice_snapshot() {
+fn es_fluent_struct_attributes_choice_snapshot() {
     let input: DeriveInput = parse_quote! {
         #[derive(EsFluent)]
 
         struct Label {
-            #[fluent(default)]
             text: String,
-            #[fluent(choice)]
+            #[fluent(selector)]
             style: Emphasis,
             #[fluent(skip)]
             developer_only_flag: bool,
@@ -196,17 +212,14 @@ fn es_fluent_struct_attributes_default_and_choice_snapshot() {
     let opts = StructOpts::from_derive_input(&input).expect("StructOpts should parse");
     assert_eq!(opts.ident().to_string(), "Label");
     assert_no_generics(opts.generics());
-    assert!(derive_names(opts.attr_args().derive()).is_empty());
     assert!(opts.attr_args().namespace().is_none());
 
     let fields = opts.fields();
     assert_eq!(fields.len(), 2);
     assert_eq!(fields[0].ident().expect("named field").to_string(), "text");
-    assert!(fields[0].is_default());
-    assert!(!fields[0].is_choice());
+    assert!(!is_selector(fields[0]));
     assert_eq!(fields[1].ident().expect("named field").to_string(), "style");
-    assert!(!fields[1].is_default());
-    assert!(fields[1].is_choice());
+    assert!(is_selector(fields[1]));
 
     let all_fields = opts.all_indexed_fields();
     assert_eq!(all_fields.len(), 3);
@@ -214,7 +227,7 @@ fn es_fluent_struct_attributes_default_and_choice_snapshot() {
         all_fields[2].1.ident().expect("named field").to_string(),
         "developer_only_flag"
     );
-    assert!(all_fields[2].1.is_skipped());
+    assert!(all_fields[2].1.directive().is_skipped());
 }
 
 #[test]
@@ -240,8 +253,7 @@ fn es_fluent_variants_attributes_no_keys_snapshot() {
             .expect("keyed idents should parse")
             .is_empty()
     );
-    assert!(derive_names(opts.attr_args().derive()).is_empty());
-    assert!(opts.attr_args().key_strings().is_none());
+    assert!(generated_key_names(opts.attr_args()).is_none());
     assert!(opts.attr_args().namespace().is_none());
 
     let fields = opts.fields();
@@ -255,7 +267,7 @@ fn es_fluent_variants_attributes_no_keys_snapshot() {
         all_fields[2].1.ident().expect("named field").to_string(),
         "archived"
     );
-    assert!(all_fields[2].1.is_skipped());
+    assert!(all_fields[2].1.directive().is_skipped());
 }
 
 #[test]
@@ -278,8 +290,8 @@ fn es_fluent_variants_attributes_keys_label_derive_default_snapshot() {
     assert_no_generics(opts.generics());
     assert_eq!(opts.ftl_enum_ident().to_string(), "ProfileVariants");
     assert_eq!(
-        opts.attr_args().key_strings(),
-        Some(vec!["primary".to_string(), "secondary".to_string()])
+        generated_key_names(opts.attr_args()),
+        Some(vec!["primary", "secondary"])
     );
     assert_eq!(
         derive_names(opts.attr_args().derive()),
@@ -322,18 +334,18 @@ fn es_fluent_choice_attributes_none_snapshot() {
         }
     };
 
-    let opts = EnumChoiceOpts::from_derive_input(&input).expect("EnumChoiceOpts should parse");
+    let opts = ChoiceOpts::from_derive_input(&input).expect("ChoiceOpts should parse");
     assert_eq!(opts.ident().to_string(), "Gender");
     assert_no_generics(opts.generics());
     assert_eq!(ignored_enum_variant_count(opts.data()), 3);
-    assert_eq!(opts.attr_args().serialize_all().as_deref(), None);
+    assert_eq!(opts.attr_args().rename_all(), &None);
 }
 
 #[test]
 fn es_fluent_choice_attributes_snake_case_snapshot() {
     let input: DeriveInput = parse_quote! {
         #[derive(EsFluentChoice)]
-        #[fluent_choice(serialize_all = "snake_case")]
+        #[fluent_choice(rename_all = "snake_case")]
         enum Severity {
             VeryLow,
             Low,
@@ -343,21 +355,18 @@ fn es_fluent_choice_attributes_snake_case_snapshot() {
         }
     };
 
-    let opts = EnumChoiceOpts::from_derive_input(&input).expect("EnumChoiceOpts should parse");
+    let opts = ChoiceOpts::from_derive_input(&input).expect("ChoiceOpts should parse");
     assert_eq!(opts.ident().to_string(), "Severity");
     assert_no_generics(opts.generics());
     assert_eq!(ignored_enum_variant_count(opts.data()), 5);
-    assert_eq!(
-        opts.attr_args().serialize_all().as_deref(),
-        Some("snake_case")
-    );
+    assert_eq!(opts.attr_args().rename_all(), &Some(CaseStyle::SnakeCase));
 }
 
 #[test]
 fn es_fluent_choice_attributes_screaming_snake_snapshot() {
     let input: DeriveInput = parse_quote! {
         #[derive(EsFluentChoice)]
-        #[fluent_choice(serialize_all = "SCREAMING_SNAKE_CASE")]
+        #[fluent_choice(rename_all = "SCREAMING_SNAKE_CASE")]
         enum Emphasis {
             None,
             Light,
@@ -366,12 +375,12 @@ fn es_fluent_choice_attributes_screaming_snake_snapshot() {
         }
     };
 
-    let opts = EnumChoiceOpts::from_derive_input(&input).expect("EnumChoiceOpts should parse");
+    let opts = ChoiceOpts::from_derive_input(&input).expect("ChoiceOpts should parse");
     assert_eq!(opts.ident().to_string(), "Emphasis");
     assert_no_generics(opts.generics());
     assert_eq!(ignored_enum_variant_count(opts.data()), 4);
     assert_eq!(
-        opts.attr_args().serialize_all().as_deref(),
-        Some("SCREAMING_SNAKE_CASE")
+        opts.attr_args().rename_all(),
+        &Some(CaseStyle::ScreamingSnakeCase)
     );
 }

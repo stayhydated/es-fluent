@@ -1,16 +1,12 @@
 ---
 source: crates/es-fluent-derive/src/macros/utils.rs
-assertion_line: 468
 expression: tokens
 ---
 impl ::es_fluent::FluentLabel for Languages {
-    fn localize_label<__EsFluentLocalizer: ::es_fluent::FluentLocalizer + ?Sized>(
-        localizer: &__EsFluentLocalizer,
-    ) -> String {
-        ::es_fluent::__private::localize_label(
-            localizer,
-            "es-fluent-lang",
-            "es-fluent-lang-label",
-        )
+    fn fluent_label_domain() -> ::es_fluent::registry::StaticFluentDomain {
+        ::es_fluent::registry::__macro::static_domain("es-fluent-lang")
+    }
+    fn fluent_label_id() -> ::es_fluent::registry::StaticFluentEntryId {
+        ::es_fluent::registry::__macro::static_entry_id("es-fluent-lang-label")
     }
 }

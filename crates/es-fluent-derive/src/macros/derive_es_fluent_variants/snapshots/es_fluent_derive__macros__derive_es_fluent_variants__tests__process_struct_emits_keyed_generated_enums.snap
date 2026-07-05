@@ -3,7 +3,7 @@ source: crates/es-fluent-derive/src/macros/derive_es_fluent_variants/mod.rs
 expression: tokens
 ---
 ///`label` variants of [`LoginForm`].
-#[derive(Debug)]
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub enum LoginFormLabelVariants {
     ///The `username` `label` variant of [`LoginForm`].
     Username,
@@ -13,31 +13,42 @@ pub enum LoginFormLabelVariants {
 impl ::es_fluent::FluentMessage for LoginFormLabelVariants {
     fn to_fluent_string_with(
         &self,
-        localize: &mut dyn for<'__es_fluent_message> FnMut(
-            &str,
-            &str,
-            Option<
-                &::std::collections::HashMap<
-                    &str,
-                    ::es_fluent::FluentValue<'__es_fluent_message>,
-                >,
-            >,
-        ) -> String,
+        localize: &mut ::es_fluent::FluentMessageLookup<'_>,
     ) -> String {
         match self {
             Self::Username => {
                 localize(
-                    env!("CARGO_PKG_NAME"),
-                    "login_form_label_variants-username",
+                    ::es_fluent::registry::StaticFluentDomain::from_package_name(
+                        env!("CARGO_PKG_NAME"),
+                    ),
+                    ::es_fluent::registry::__macro::static_entry_id(
+                        "login_form_label_variants-username",
+                    ),
                     None,
                 )
             }
             Self::Password => {
                 localize(
-                    env!("CARGO_PKG_NAME"),
-                    "login_form_label_variants-password",
+                    ::es_fluent::registry::StaticFluentDomain::from_package_name(
+                        env!("CARGO_PKG_NAME"),
+                    ),
+                    ::es_fluent::registry::__macro::static_entry_id(
+                        "login_form_label_variants-password",
+                    ),
                     None,
                 )
+            }
+        }
+    }
+}
+impl ::es_fluent::EsFluentChoice for LoginFormLabelVariants {
+    fn as_fluent_choice(&self) -> ::es_fluent::registry::StaticFluentVariantKey {
+        match self {
+            Self::Username => {
+                ::es_fluent::registry::__macro::static_variant_key("username")
+            }
+            Self::Password => {
+                ::es_fluent::registry::__macro::static_variant_key("password")
             }
         }
     }
@@ -47,39 +58,78 @@ impl ::es_fluent::FluentMessage for LoginFormLabelVariants {
 mod __es_fluent_inventory_LoginFormLabelVariants {
     use super::*;
     static VARIANTS: &[::es_fluent::registry::FtlVariant] = &[
-        ::es_fluent::registry::FtlVariant {
-            name: "Username",
-            ftl_key: "login_form_label_variants-username",
-            args: &[],
-            module_path: module_path!(),
-            line: line!(),
-        },
-        ::es_fluent::registry::FtlVariant {
-            name: "Password",
-            ftl_key: "login_form_label_variants-password",
-            args: &[],
-            module_path: module_path!(),
-            line: line!(),
-        },
-    ];
-    static TYPE_INFO: ::es_fluent::registry::FtlTypeInfo = ::es_fluent::registry::FtlTypeInfo {
-        type_kind: ::es_fluent::meta::TypeKind::Enum,
-        type_name: "LoginFormLabelVariants",
-        variants: VARIANTS,
-        file_path: file!(),
-        module_path: module_path!(),
-        namespace: Some(
-            ::es_fluent::registry::NamespaceRule::Literal(
-                ::std::borrow::Cow::Borrowed("ui"),
+        ::es_fluent::registry::__macro::ftl_variant(
+            "Username",
+            ::es_fluent::registry::__macro::static_entry_id(
+                "login_form_label_variants-username",
             ),
+            &[],
+            module_path!(),
+            line!(),
         ),
-    };
+        ::es_fluent::registry::__macro::ftl_variant(
+            "Password",
+            ::es_fluent::registry::__macro::static_entry_id(
+                "login_form_label_variants-password",
+            ),
+            &[],
+            module_path!(),
+            line!(),
+        ),
+    ];
+    static TYPE_INFO: ::es_fluent::registry::FtlTypeInfo = ::es_fluent::registry::__macro::ftl_type_info(
+        ::es_fluent::meta::TypeKind::Enum,
+        "LoginFormLabelVariants",
+        VARIANTS,
+        file!(),
+        module_path!(),
+        Some(::es_fluent::registry::__macro::namespace_literal("ui")),
+    );
     ::es_fluent::__inventory::submit!(
         ::es_fluent::registry::RegisteredFtlType(& TYPE_INFO)
     );
 }
+#[doc(hidden)]
+#[allow(non_snake_case)]
+mod __es_fluent_label_inventory_LoginFormLabelVariants {
+    use super::*;
+    static VARIANTS: &[::es_fluent::registry::FtlVariant] = &[
+        ::es_fluent::registry::__macro::ftl_variant(
+            "LoginFormLabelVariants",
+            ::es_fluent::registry::__macro::static_entry_id(
+                "login_form_label_variants_label",
+            ),
+            &[],
+            module_path!(),
+            line!(),
+        ),
+    ];
+    static TYPE_INFO: ::es_fluent::registry::FtlTypeInfo = ::es_fluent::registry::__macro::ftl_type_info(
+        ::es_fluent::meta::TypeKind::Enum,
+        "LoginFormLabelVariants",
+        VARIANTS,
+        file!(),
+        module_path!(),
+        Some(::es_fluent::registry::__macro::namespace_literal("ui")),
+    );
+    ::es_fluent::__inventory::submit!(
+        ::es_fluent::registry::RegisteredFtlType(& TYPE_INFO)
+    );
+}
+impl ::es_fluent::FluentLabel for LoginFormLabelVariants {
+    fn fluent_label_domain() -> ::es_fluent::registry::StaticFluentDomain {
+        ::es_fluent::registry::StaticFluentDomain::from_package_name(
+            env!("CARGO_PKG_NAME"),
+        )
+    }
+    fn fluent_label_id() -> ::es_fluent::registry::StaticFluentEntryId {
+        ::es_fluent::registry::__macro::static_entry_id(
+            "login_form_label_variants_label",
+        )
+    }
+}
 ///`placeholder` variants of [`LoginForm`].
-#[derive(Debug)]
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub enum LoginFormPlaceholderVariants {
     ///The `username` `placeholder` variant of [`LoginForm`].
     Username,
@@ -89,31 +139,42 @@ pub enum LoginFormPlaceholderVariants {
 impl ::es_fluent::FluentMessage for LoginFormPlaceholderVariants {
     fn to_fluent_string_with(
         &self,
-        localize: &mut dyn for<'__es_fluent_message> FnMut(
-            &str,
-            &str,
-            Option<
-                &::std::collections::HashMap<
-                    &str,
-                    ::es_fluent::FluentValue<'__es_fluent_message>,
-                >,
-            >,
-        ) -> String,
+        localize: &mut ::es_fluent::FluentMessageLookup<'_>,
     ) -> String {
         match self {
             Self::Username => {
                 localize(
-                    env!("CARGO_PKG_NAME"),
-                    "login_form_placeholder_variants-username",
+                    ::es_fluent::registry::StaticFluentDomain::from_package_name(
+                        env!("CARGO_PKG_NAME"),
+                    ),
+                    ::es_fluent::registry::__macro::static_entry_id(
+                        "login_form_placeholder_variants-username",
+                    ),
                     None,
                 )
             }
             Self::Password => {
                 localize(
-                    env!("CARGO_PKG_NAME"),
-                    "login_form_placeholder_variants-password",
+                    ::es_fluent::registry::StaticFluentDomain::from_package_name(
+                        env!("CARGO_PKG_NAME"),
+                    ),
+                    ::es_fluent::registry::__macro::static_entry_id(
+                        "login_form_placeholder_variants-password",
+                    ),
                     None,
                 )
+            }
+        }
+    }
+}
+impl ::es_fluent::EsFluentChoice for LoginFormPlaceholderVariants {
+    fn as_fluent_choice(&self) -> ::es_fluent::registry::StaticFluentVariantKey {
+        match self {
+            Self::Username => {
+                ::es_fluent::registry::__macro::static_variant_key("username")
+            }
+            Self::Password => {
+                ::es_fluent::registry::__macro::static_variant_key("password")
             }
         }
     }
@@ -123,34 +184,73 @@ impl ::es_fluent::FluentMessage for LoginFormPlaceholderVariants {
 mod __es_fluent_inventory_LoginFormPlaceholderVariants {
     use super::*;
     static VARIANTS: &[::es_fluent::registry::FtlVariant] = &[
-        ::es_fluent::registry::FtlVariant {
-            name: "Username",
-            ftl_key: "login_form_placeholder_variants-username",
-            args: &[],
-            module_path: module_path!(),
-            line: line!(),
-        },
-        ::es_fluent::registry::FtlVariant {
-            name: "Password",
-            ftl_key: "login_form_placeholder_variants-password",
-            args: &[],
-            module_path: module_path!(),
-            line: line!(),
-        },
-    ];
-    static TYPE_INFO: ::es_fluent::registry::FtlTypeInfo = ::es_fluent::registry::FtlTypeInfo {
-        type_kind: ::es_fluent::meta::TypeKind::Enum,
-        type_name: "LoginFormPlaceholderVariants",
-        variants: VARIANTS,
-        file_path: file!(),
-        module_path: module_path!(),
-        namespace: Some(
-            ::es_fluent::registry::NamespaceRule::Literal(
-                ::std::borrow::Cow::Borrowed("ui"),
+        ::es_fluent::registry::__macro::ftl_variant(
+            "Username",
+            ::es_fluent::registry::__macro::static_entry_id(
+                "login_form_placeholder_variants-username",
             ),
+            &[],
+            module_path!(),
+            line!(),
         ),
-    };
+        ::es_fluent::registry::__macro::ftl_variant(
+            "Password",
+            ::es_fluent::registry::__macro::static_entry_id(
+                "login_form_placeholder_variants-password",
+            ),
+            &[],
+            module_path!(),
+            line!(),
+        ),
+    ];
+    static TYPE_INFO: ::es_fluent::registry::FtlTypeInfo = ::es_fluent::registry::__macro::ftl_type_info(
+        ::es_fluent::meta::TypeKind::Enum,
+        "LoginFormPlaceholderVariants",
+        VARIANTS,
+        file!(),
+        module_path!(),
+        Some(::es_fluent::registry::__macro::namespace_literal("ui")),
+    );
     ::es_fluent::__inventory::submit!(
         ::es_fluent::registry::RegisteredFtlType(& TYPE_INFO)
     );
+}
+#[doc(hidden)]
+#[allow(non_snake_case)]
+mod __es_fluent_label_inventory_LoginFormPlaceholderVariants {
+    use super::*;
+    static VARIANTS: &[::es_fluent::registry::FtlVariant] = &[
+        ::es_fluent::registry::__macro::ftl_variant(
+            "LoginFormPlaceholderVariants",
+            ::es_fluent::registry::__macro::static_entry_id(
+                "login_form_placeholder_variants_label",
+            ),
+            &[],
+            module_path!(),
+            line!(),
+        ),
+    ];
+    static TYPE_INFO: ::es_fluent::registry::FtlTypeInfo = ::es_fluent::registry::__macro::ftl_type_info(
+        ::es_fluent::meta::TypeKind::Enum,
+        "LoginFormPlaceholderVariants",
+        VARIANTS,
+        file!(),
+        module_path!(),
+        Some(::es_fluent::registry::__macro::namespace_literal("ui")),
+    );
+    ::es_fluent::__inventory::submit!(
+        ::es_fluent::registry::RegisteredFtlType(& TYPE_INFO)
+    );
+}
+impl ::es_fluent::FluentLabel for LoginFormPlaceholderVariants {
+    fn fluent_label_domain() -> ::es_fluent::registry::StaticFluentDomain {
+        ::es_fluent::registry::StaticFluentDomain::from_package_name(
+            env!("CARGO_PKG_NAME"),
+        )
+    }
+    fn fluent_label_id() -> ::es_fluent::registry::StaticFluentEntryId {
+        ::es_fluent::registry::__macro::static_entry_id(
+            "login_form_placeholder_variants_label",
+        )
+    }
 }

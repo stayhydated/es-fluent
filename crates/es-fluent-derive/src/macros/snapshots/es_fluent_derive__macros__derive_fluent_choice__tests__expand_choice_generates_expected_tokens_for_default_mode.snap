@@ -3,9 +3,11 @@ source: crates/es-fluent-derive/src/macros/derive_fluent_choice.rs
 expression: default_tokens
 ---
 impl ::es_fluent::EsFluentChoice for ChoiceDefault {
-    fn as_fluent_choice(&self) -> &'static str {
+    fn as_fluent_choice(&self) -> ::es_fluent::registry::StaticFluentVariantKey {
         match self {
-            Self::VeryHigh => "VeryHigh",
+            Self::VeryHigh => {
+                ::es_fluent::registry::__macro::static_variant_key("very-high")
+            }
         }
     }
 }

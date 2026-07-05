@@ -19,9 +19,9 @@ pub enum LoginError {
     }, // exposed as $username in the ftl file
     Something(String, String, String), // exposed as $f0, $f1, $f2 in the ftl file
     SomethingArgNamed(
-        #[fluent(arg_name = "input")] String,
-        #[fluent(arg_name = "expected")] String,
-        #[fluent(arg_name = "details")] String,
+        #[fluent(arg = "input")] String,
+        #[fluent(arg = "expected")] String,
+        #[fluent(arg = "details")] String,
     ), // exposed as $input, $expected, $details
 }
 
@@ -31,11 +31,8 @@ pub struct WelcomeMessage<'a> {
     pub count: i32,    // exposed as $count in the ftl file
 }
 
-// #[derive(EsFluentChoice)]
-use es_fluent::EsFluentChoice;
-
-#[derive(EsFluent, EsFluentChoice)]
-#[fluent_choice(serialize_all = "snake_case")]
+// Unit-only #[derive(EsFluent)] enums infer EsFluentChoice for selector fields.
+#[derive(EsFluent)]
 pub enum GenderChoice {
     Male,
     Female,
@@ -45,8 +42,8 @@ pub enum GenderChoice {
 #[derive(EsFluent)]
 pub struct Greeting<'a> {
     pub name: &'a str,
-    #[fluent(choice)] // Matches $gender -> [male]...
-    pub gender: &'a GenderChoice,
+    #[fluent(selector)] // Matches $gender -> [male]...
+    pub gender: Option<&'a GenderChoice>,
 }
 
 #[derive(EsFluent)]
@@ -68,6 +65,12 @@ pub struct LoginFormVariants {
     pub password: String,
 }
 
+#[derive(EsFluent)]
+pub struct ActiveFormField {
+    #[fluent(selector)]
+    pub field: LoginFormVariantsLabelVariants,
+}
+
 // Enums are supported too.
 #[derive(EsFluentVariants)]
 pub enum SettingsTab {
@@ -76,7 +79,7 @@ pub enum SettingsTab {
     Privacy,
 }
 
-// #[derive(EsFluentLabel)] - origin only
+// #[derive(EsFluentLabel)] - type label
 use es_fluent::EsFluentLabel;
 #[derive(EsFluentLabel)]
 pub enum GenderLabelOnly {
@@ -85,10 +88,9 @@ pub enum GenderLabelOnly {
     Other,
 }
 
-// #[derive(EsFluentLabel)] - origin and members combined with EsFluentVariants
+// #[derive(EsFluentLabel)] - type and generated variant labels combined with EsFluentVariants
 use es_fluent::EsFluentVariants;
 #[derive(EsFluentLabel, EsFluentVariants)]
-#[fluent_label(origin, variants)]
 #[fluent_variants(keys = ["label", "description"])]
 pub struct LoginFormCombined {
     pub username: String,

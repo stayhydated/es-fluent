@@ -1,0 +1,5 @@
+error: Attribute error in choice container: Fluent variant key contains invalid character ' '; use ASCII letters, digits, '_' or '-'
+ --> tests/ui/fluent_choice_invalid_generated_value.rs:6:5
+  |
+6 |     VeryHigh,
+  |     ^^^^^^^^

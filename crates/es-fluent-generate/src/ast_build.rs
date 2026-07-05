@@ -1,5 +1,6 @@
 use crate::model::{OwnedVariant, compare_type_infos};
 use crate::value::ValueFormatter;
+use es_fluent_shared::EsFluentResult;
 use es_fluent_shared::registry::FtlTypeInfo;
 use fluent_syntax::ast;
 
@@ -13,7 +14,7 @@ pub(crate) fn create_group_comment_entry(type_name: &str) -> ast::Entry<String> 
 /// Create a message entry from an owned variant definition.
 pub(crate) fn create_message_entry(variant: &OwnedVariant) -> ast::Entry<String> {
     let message_id = ast::Identifier {
-        name: variant.ftl_key.clone(),
+        name: variant.entry_id().as_str().to_string(),
     };
 
     let base_value = ValueFormatter::expand(&variant.name);
@@ -24,7 +25,7 @@ pub(crate) fn create_message_entry(variant: &OwnedVariant) -> ast::Entry<String>
         elements.push(ast::PatternElement::Placeable {
             expression: ast::Expression::Inline(ast::InlineExpression::VariableReference {
                 id: ast::Identifier {
-                    name: arg_name.clone(),
+                    name: arg_name.to_string(),
                 },
             }),
         });
@@ -41,8 +42,10 @@ pub(crate) fn create_message_entry(variant: &OwnedVariant) -> ast::Entry<String>
 }
 
 /// Build a full target resource from the current registered type infos.
-pub(crate) fn build_target_resource(items: &[&FtlTypeInfo]) -> ast::Resource<String> {
-    let items = crate::model::merge_ftl_type_infos(items);
+pub(crate) fn build_target_resource(
+    items: &[&FtlTypeInfo],
+) -> EsFluentResult<ast::Resource<String>> {
+    let items = crate::model::merge_ftl_type_infos(items)?;
     let mut body: Vec<ast::Entry<String>> = Vec::new();
     let mut sorted_items = items.to_vec();
     sorted_items.sort_by(compare_type_infos);
@@ -55,5 +58,5 @@ pub(crate) fn build_target_resource(items: &[&FtlTypeInfo]) -> ast::Resource<Str
         }
     }
 
-    ast::Resource { body }
+    Ok(ast::Resource { body })
 }

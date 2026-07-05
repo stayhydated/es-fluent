@@ -1,11 +1,10 @@
 use super::{
-    I18nModuleRegistration, LanguageSelectionPolicy, Localizer, ModuleDiscoveryError,
-    ModuleRegistrationKind,
+    FluentArgumentMap, I18nModuleRegistration, LanguageSelectionPolicy, Localizer,
+    ModuleDiscoveryError, ModuleRegistrationKind,
 };
 use crate::asset_localization::ModuleData;
-use fluent_bundle::FluentValue;
+use es_fluent_shared::registry::{StaticFluentDomain, StaticFluentEntryId};
 use parking_lot::RwLock;
-use std::collections::HashMap;
 use std::io;
 use std::sync::Arc;
 use unic_langid::LanguageIdentifier;
@@ -76,6 +75,15 @@ fn load_runtime_modules(
     modules
 }
 
+fn load_runtime_follower_modules(
+    discovered_modules: Vec<&'static dyn I18nModuleRegistration>,
+) -> Vec<&'static dyn I18nModuleRegistration> {
+    load_runtime_modules(discovered_modules)
+        .into_iter()
+        .filter(|module| !module.contributes_to_language_selection())
+        .collect()
+}
+
 fn unexpected_missing_localizer(module: &ModuleData) -> crate::localization::LocalizationError {
     io::Error::other(format!(
         "runtime i18n module '{}' did not create a localizer during language selection",
@@ -126,7 +134,7 @@ pub(crate) fn format_supported_languages(languages: &[LanguageIdentifier]) -> St
 }
 
 pub(crate) fn format_module_support(data: &ModuleData) -> String {
-    if data.domain == data.name {
+    if data.domain() == data.name {
         return format!(
             "{} (supports: {})",
             data.name,
@@ -137,7 +145,7 @@ pub(crate) fn format_module_support(data: &ModuleData) -> String {
     format!(
         "{} (domain: {}, supports: {})",
         data.name,
-        data.domain,
+        data.domain(),
         format_supported_languages(data.supported_languages)
     )
 }
@@ -167,8 +175,8 @@ impl FluentManager {
 
     /// Creates a new `FluentManager` with strict registry validation.
     ///
-    /// This returns an error instead of panicking when discovery finds invalid
-    /// module metadata or unresolvable duplicate registrations.
+    /// Returns all invalid module metadata and unresolvable duplicate
+    /// registration errors from discovery.
     pub fn try_new_with_discovered_modules() -> Result<Self, Vec<ModuleDiscoveryError>> {
         Self::try_discover_runtime_modules().map(|modules| Self::from_discovered_modules(&modules))
     }
@@ -187,7 +195,25 @@ impl FluentManager {
         })
     }
 
-    /// Creates a new manager from previously discovered runtime modules.
+    /// Discovers runtime-capable modules that follow another backend's locale.
+    ///
+    /// These modules provide runtime lookup but do not count as application
+    /// content support. Asset-backed integrations use this for utility modules
+    /// such as typed language labels.
+    pub fn try_discover_runtime_follower_modules()
+    -> Result<DiscoveredRuntimeI18nModules, Vec<ModuleDiscoveryError>> {
+        let discovered_modules = super::try_filter_module_registry(
+            inventory::iter::<&'static dyn I18nModuleRegistration>()
+                .copied()
+                .collect::<Vec<_>>(),
+        )?;
+
+        Ok(DiscoveredRuntimeI18nModules {
+            modules: load_runtime_follower_modules(discovered_modules).into(),
+        })
+    }
+
+    /// Creates a new manager from already discovered runtime modules.
     pub fn from_discovered_modules(discovered: &DiscoveredRuntimeI18nModules) -> Self {
         Self {
             modules: discovered.modules.iter().copied().collect(),
@@ -378,15 +404,15 @@ impl FluentManager {
         Ok(())
     }
 
-    /// Localizes a message by its ID.
+    /// Localizes a message by its validated static ID.
     ///
     /// This searches localizers in discovery order and returns the first match.
     /// Use [`Self::localize_in_domain`] when the caller needs domain-scoped
     /// lookup instead of first-match behavior.
     pub fn localize<'a>(
         &self,
-        id: &str,
-        args: Option<&HashMap<&str, FluentValue<'a>>>,
+        id: StaticFluentEntryId,
+        args: Option<&FluentArgumentMap<'a>>,
     ) -> Option<String> {
         for (_, localizer) in self.localizers.read().iter() {
             if let Some(message) = localizer.localize(id, args) {
@@ -396,12 +422,12 @@ impl FluentManager {
         None
     }
 
-    /// Localizes a message by its ID within a specific domain.
+    /// Localizes a message by its validated static ID within a validated static domain.
     pub fn localize_in_domain<'a>(
         &self,
-        domain: &str,
-        id: &str,
-        args: Option<&HashMap<&str, FluentValue<'a>>>,
+        domain: StaticFluentDomain,
+        id: StaticFluentEntryId,
+        args: Option<&FluentArgumentMap<'a>>,
     ) -> Option<String> {
         for (data, localizer) in self.localizers.read().iter() {
             if data.domain == domain
@@ -422,14 +448,16 @@ impl FluentManager {
         &self,
         f: &mut dyn FnMut(
             &mut dyn for<'a> FnMut(
-                &str,
-                &str,
-                Option<&HashMap<&str, FluentValue<'a>>>,
+                StaticFluentDomain,
+                StaticFluentEntryId,
+                Option<&'a FluentArgumentMap<'a>>,
             ) -> Option<String>,
         ),
     ) {
         let localizers = self.localizers.read();
-        let mut lookup = |domain: &str, id: &str, args: Option<&HashMap<&str, FluentValue<'_>>>| {
+        let mut lookup = |domain: StaticFluentDomain,
+                          id: StaticFluentEntryId,
+                          args: Option<&FluentArgumentMap<'_>>| {
             for (data, localizer) in localizers.iter() {
                 if data.domain == domain
                     && let Some(message) = localizer.localize(id, args)
@@ -449,45 +477,43 @@ mod tests {
     use super::*;
     use crate::asset_localization::{I18nModuleDescriptor, StaticModuleDescriptor};
     use crate::localization::{I18nModule, LocalizationError};
-    use fluent_bundle::FluentValue;
-    use std::collections::HashMap;
     use std::sync::{Arc, Mutex, mpsc};
     use std::time::Duration;
     use unic_langid::{LanguageIdentifier, langid};
 
     static MANAGER_INLINE_METADATA_DATA: ModuleData = ModuleData {
         name: "manager-inline-metadata",
-        domain: "manager-inline-metadata",
+        domain: crate::__macro::static_domain("manager-inline-metadata"),
         supported_languages: &[],
         namespaces: &[],
     };
     static MANAGER_INLINE_RUNTIME_DATA: ModuleData = ModuleData {
         name: "manager-inline-runtime",
-        domain: "manager-inline-runtime",
+        domain: crate::__macro::static_domain("manager-inline-runtime"),
         supported_languages: &[langid!("en")],
         namespaces: &[],
     };
     static MANAGER_INLINE_FOLLOWER_DATA: ModuleData = ModuleData {
         name: "manager-inline-follower",
-        domain: "manager-inline-follower",
+        domain: crate::__macro::static_domain("manager-inline-follower"),
         supported_languages: &[langid!("en")],
         namespaces: &[],
     };
     static MANAGER_SHARED_DOMAIN_FIRST_DATA: ModuleData = ModuleData {
         name: "manager-shared-domain-first",
-        domain: "manager-shared-domain",
+        domain: crate::__macro::static_domain("manager-shared-domain"),
         supported_languages: &[langid!("en")],
         namespaces: &[],
     };
     static MANAGER_SHARED_DOMAIN_SECOND_DATA: ModuleData = ModuleData {
         name: "manager-shared-domain-second",
-        domain: "manager-shared-domain",
+        domain: crate::__macro::static_domain("manager-shared-domain"),
         supported_languages: &[langid!("en")],
         namespaces: &[],
     };
     static MANAGER_SCOPED_LOOKUP_DATA: ModuleData = ModuleData {
         name: "manager-scoped-lookup",
-        domain: "manager-scoped-lookup",
+        domain: crate::__macro::static_domain("manager-scoped-lookup"),
         supported_languages: &[langid!("en"), langid!("fr")],
         namespaces: &[],
     };
@@ -512,6 +538,14 @@ mod tests {
         continue_child: Option<Mutex<mpsc::Receiver<()>>>,
     }
 
+    fn static_domain(value: &'static str) -> StaticFluentDomain {
+        crate::__macro::static_domain(value)
+    }
+
+    fn static_entry(value: &'static str) -> StaticFluentEntryId {
+        crate::__macro::static_entry_id(value)
+    }
+
     impl Localizer for ManagerInlineLocalizer {
         fn select_language(&self, _lang: &LanguageIdentifier) -> Result<(), LocalizationError> {
             Ok(())
@@ -519,8 +553,8 @@ mod tests {
 
         fn localize<'a>(
             &self,
-            id: &str,
-            _args: Option<&HashMap<&str, FluentValue<'a>>>,
+            id: StaticFluentEntryId,
+            _args: Option<&FluentArgumentMap<'a>>,
         ) -> Option<String> {
             (id == "inline").then(|| self.0.to_string())
         }
@@ -533,8 +567,8 @@ mod tests {
 
         fn localize<'a>(
             &self,
-            id: &str,
-            _args: Option<&HashMap<&str, FluentValue<'a>>>,
+            id: StaticFluentEntryId,
+            _args: Option<&FluentArgumentMap<'a>>,
         ) -> Option<String> {
             (id == self.id).then(|| self.value.to_string())
         }
@@ -569,8 +603,8 @@ mod tests {
 
         fn localize<'a>(
             &self,
-            id: &str,
-            _args: Option<&HashMap<&str, FluentValue<'a>>>,
+            id: StaticFluentEntryId,
+            _args: Option<&FluentArgumentMap<'a>>,
         ) -> Option<String> {
             if id == "child" {
                 if let Some(child_seen) = &self.child_seen {
@@ -589,7 +623,8 @@ mod tests {
                 }
             }
 
-            matches!(id, "child" | "parent").then(|| format!("{}-{id}", self.language))
+            matches!(id.as_str(), "child" | "parent")
+                .then(|| format!("{}-{}", self.language, id.as_str()))
         }
     }
 
@@ -661,6 +696,18 @@ mod tests {
     }
 
     #[test]
+    fn load_runtime_follower_modules_keeps_only_non_selecting_registrations() {
+        let modules = load_runtime_follower_modules(vec![
+            &MANAGER_INLINE_METADATA as &dyn I18nModuleRegistration,
+            &MANAGER_INLINE_RUNTIME as &dyn I18nModuleRegistration,
+            &MANAGER_INLINE_FOLLOWER as &dyn I18nModuleRegistration,
+        ]);
+
+        assert_eq!(modules.len(), 1);
+        assert_eq!(modules[0].data().name, "manager-inline-follower");
+    }
+
+    #[test]
     fn private_diagnostic_helpers_format_errors_and_missing_localizers() {
         let missing = unexpected_missing_localizer(&MANAGER_INLINE_RUNTIME_DATA);
         assert!(matches!(missing, LocalizationError::IoError(_)));
@@ -711,7 +758,7 @@ mod tests {
             .expect_err("followers alone should not make a locale supported");
 
         assert!(matches!(err, LocalizationError::LanguageNotSupported(_)));
-        assert_eq!(manager.localize("inline", None), None);
+        assert_eq!(manager.localize(static_entry("inline"), None), None);
     }
 
     #[test]
@@ -726,7 +773,7 @@ mod tests {
             .expect("external support should let follower modules commit");
 
         assert_eq!(
-            manager.localize("inline", None),
+            manager.localize(static_entry("inline"), None),
             Some("follower".to_string())
         );
     }
@@ -743,11 +790,15 @@ mod tests {
             .expect("runtime module should support the locale");
 
         assert_eq!(
-            manager.localize("inline", None),
+            manager.localize(static_entry("inline"), None),
             Some("runtime".to_string())
         );
         assert_eq!(
-            manager.localize_in_domain("manager-inline-runtime", "inline", None),
+            manager.localize_in_domain(
+                static_domain("manager-inline-runtime"),
+                static_entry("inline"),
+                None
+            ),
             Some("runtime".to_string())
         );
     }
@@ -767,11 +818,19 @@ mod tests {
             .expect("shared-domain modules should support the locale");
 
         assert_eq!(
-            manager.localize_in_domain("manager-shared-domain", "first-message", None),
+            manager.localize_in_domain(
+                static_domain("manager-shared-domain"),
+                static_entry("first-message"),
+                None
+            ),
             Some("first".to_string())
         );
         assert_eq!(
-            manager.localize_in_domain("manager-shared-domain", "second-message", None),
+            manager.localize_in_domain(
+                static_domain("manager-shared-domain"),
+                static_entry("second-message"),
+                None
+            ),
             Some("second".to_string())
         );
     }
@@ -796,10 +855,18 @@ mod tests {
         let render = std::thread::spawn(move || {
             let mut rendered = None;
             render_manager.with_lookup(&mut |lookup| {
-                let child = lookup("manager-scoped-lookup", "child", None)
-                    .expect("child lookup should resolve");
-                let parent = lookup("manager-scoped-lookup", "parent", None)
-                    .expect("parent lookup should resolve");
+                let child = lookup(
+                    static_domain("manager-scoped-lookup"),
+                    static_entry("child"),
+                    None,
+                )
+                .expect("child lookup should resolve");
+                let parent = lookup(
+                    static_domain("manager-scoped-lookup"),
+                    static_entry("parent"),
+                    None,
+                )
+                .expect("parent lookup should resolve");
                 rendered = Some(format!("{parent}:{child}"));
             });
             rendered.expect("with_lookup should run callback")
@@ -851,7 +918,11 @@ mod tests {
             .expect("localizer swap thread should complete without panicking");
 
         assert_eq!(
-            manager.localize_in_domain("manager-scoped-lookup", "parent", None),
+            manager.localize_in_domain(
+                static_domain("manager-scoped-lookup"),
+                static_entry("parent"),
+                None
+            ),
             Some("fr-parent".to_string())
         );
     }

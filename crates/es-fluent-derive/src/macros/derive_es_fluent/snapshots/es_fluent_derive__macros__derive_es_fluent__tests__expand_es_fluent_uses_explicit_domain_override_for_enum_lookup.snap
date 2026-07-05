@@ -5,19 +5,16 @@ expression: tokens
 impl ::es_fluent::FluentMessage for Languages {
     fn to_fluent_string_with(
         &self,
-        localize: &mut dyn for<'__es_fluent_message> FnMut(
-            &str,
-            &str,
-            Option<
-                &::std::collections::HashMap<
-                    &str,
-                    ::es_fluent::FluentValue<'__es_fluent_message>,
-                >,
-            >,
-        ) -> String,
+        localize: &mut ::es_fluent::FluentMessageLookup<'_>,
     ) -> String {
         match self {
-            Self::En => localize("es-fluent-lang", "es-fluent-lang-en", None),
+            Self::En => {
+                localize(
+                    ::es_fluent::registry::__macro::static_domain("es-fluent-lang"),
+                    ::es_fluent::registry::__macro::static_entry_id("es-fluent-lang-en"),
+                    None,
+                )
+            }
         }
     }
 }
@@ -26,23 +23,30 @@ impl ::es_fluent::FluentMessage for Languages {
 mod __es_fluent_inventory_Languages {
     use super::*;
     static VARIANTS: &[::es_fluent::registry::FtlVariant] = &[
-        ::es_fluent::registry::FtlVariant {
-            name: "En",
-            ftl_key: "es-fluent-lang-en",
-            args: &[],
-            module_path: module_path!(),
-            line: line!(),
-        },
+        ::es_fluent::registry::__macro::ftl_variant(
+            "En",
+            ::es_fluent::registry::__macro::static_entry_id("es-fluent-lang-en"),
+            &[],
+            module_path!(),
+            line!(),
+        ),
     ];
-    static TYPE_INFO: ::es_fluent::registry::FtlTypeInfo = ::es_fluent::registry::FtlTypeInfo {
-        type_kind: ::es_fluent::meta::TypeKind::Enum,
-        type_name: "Languages",
-        variants: VARIANTS,
-        file_path: file!(),
-        module_path: module_path!(),
-        namespace: None,
-    };
+    static TYPE_INFO: ::es_fluent::registry::FtlTypeInfo = ::es_fluent::registry::__macro::ftl_type_info(
+        ::es_fluent::meta::TypeKind::Enum,
+        "Languages",
+        VARIANTS,
+        file!(),
+        module_path!(),
+        None,
+    );
     ::es_fluent::__inventory::submit!(
         ::es_fluent::registry::RegisteredFtlType(& TYPE_INFO)
     );
+}
+impl ::es_fluent::EsFluentChoice for Languages {
+    fn as_fluent_choice(&self) -> ::es_fluent::registry::StaticFluentVariantKey {
+        match self {
+            Self::En => ::es_fluent::registry::__macro::static_variant_key("en"),
+        }
+    }
 }

@@ -1,15 +1,19 @@
 //! Inventory collection functionality for CLI commands.
 
-use es_fluent_runner::{ExpectedKey, InventoryData, RunnerMetadataStore};
-use std::collections::{HashMap, HashSet};
+use es_fluent_runner::{ExpectedKey, InventoryData, PackageName, RunnerMetadataStore};
+use es_fluent_shared::fluent::{FluentArgumentName, FluentEntryId};
+use es_fluent_shared::resource::{ModuleResourceSpec, ResourceRoute};
+use es_fluent_shared::source::{SourceFile, SourceLine};
+use std::collections::{BTreeMap, BTreeSet, btree_map::Entry};
 use std::path::Path;
 
 /// Intermediate metadata for a key during collection.
-#[derive(Default)]
 struct KeyMeta {
-    variables: HashSet<String>,
-    source_file: Option<String>,
-    source_line: Option<u32>,
+    variables: BTreeSet<FluentArgumentName>,
+    resource: ModuleResourceSpec,
+    source_file: Option<SourceFile>,
+    source_line: SourceLine,
+    source_description: String,
 }
 
 /// Collects inventory data for a crate and writes it to `inventory.json`.
@@ -22,33 +26,62 @@ struct KeyMeta {
 /// * `crate_name` - The name of the crate to collect inventory for (e.g., "my-crate")
 ///
 pub fn write_inventory_for_crate(crate_name: &str) -> Result<(), es_fluent_runner::RunnerIoError> {
-    let crate_ident = crate_name.replace('-', "_");
+    let manifest_dir = std::env::current_dir()?;
+    write_inventory_for_crate_at(crate_name, &manifest_dir)
+}
+
+pub fn write_inventory_for_crate_at(
+    crate_name: &str,
+    manifest_dir: &Path,
+) -> Result<(), es_fluent_runner::RunnerIoError> {
+    let package_name = PackageName::try_new(crate_name)?;
+    let crate_ident = package_name.rust_module_prefix();
 
     // Collect all registered type infos for this crate
     let type_infos: Vec<_> = es_fluent::registry::get_all_ftl_type_infos()
         .filter(|info| {
-            info.module_path == crate_ident
-                || info.module_path.starts_with(&format!("{}::", crate_ident))
+            info.module_path() == crate_ident.as_str()
+                || info
+                    .module_path()
+                    .starts_with(&format!("{}::", crate_ident.as_str()))
         })
         .collect();
 
     // Build a map of expected keys with their metadata
-    let mut keys_map: HashMap<String, KeyMeta> = HashMap::new();
+    let mut keys_map: BTreeMap<FluentEntryId, KeyMeta> = BTreeMap::new();
     for info in &type_infos {
-        for variant in info.variants {
-            let key = variant.ftl_key.to_string();
-            let vars: HashSet<String> = variant.args.iter().map(|s| s.to_string()).collect();
-            let entry = keys_map.entry(key).or_insert_with(|| KeyMeta {
-                variables: HashSet::new(),
-                source_file: if info.file_path.is_empty() {
-                    None
-                } else {
-                    Some(info.file_path.to_string())
+        let resource = ResourceRoute::from_namespace(
+            info.try_resolved_namespace(manifest_dir)
+                .map_err(|details| {
+                    es_fluent_runner::RunnerIoError::Message(format!(
+                        "invalid namespace for type '{}': {details}",
+                        info.type_name()
+                    ))
+                })?,
+        )
+        .resource_spec(crate_name, true);
+        for variant in info.variants() {
+            let key = variant.entry_id();
+            let vars: BTreeSet<FluentArgumentName> = variant.argument_names().into_iter().collect();
+            let source_description = info.source_description_for(variant);
+            let entry = match keys_map.entry(key.clone()) {
+                Entry::Vacant(entry) => entry.insert(KeyMeta {
+                    variables: BTreeSet::new(),
+                    resource: resource.clone(),
+                    source_file: info.source_file(),
+                    source_line: variant.source_line(),
+                    source_description: source_description.clone(),
+                }),
+                Entry::Occupied(entry) => {
+                    return Err(es_fluent_runner::RunnerIoError::Message(format!(
+                        "duplicate generated FTL key '{}' from {} and {}",
+                        key.as_str(),
+                        entry.get().source_description,
+                        source_description
+                    )));
                 },
-                source_line: Some(variant.line),
-            });
+            };
             entry.variables.extend(vars);
-            // Keep the first source location we encounter
         }
     }
 
@@ -58,70 +91,106 @@ pub fn write_inventory_for_crate(crate_name: &str) -> Result<(), es_fluent_runne
         .map(|(key, meta)| ExpectedKey {
             key,
             variables: meta.variables.into_iter().collect(),
+            resource: Some(meta.resource),
             source_file: meta.source_file,
-            source_line: meta.source_line,
+            source_line: Some(meta.source_line),
         })
         .collect();
 
     let data = InventoryData { expected_keys };
 
-    RunnerMetadataStore::new(Path::new(".")).write_inventory(crate_name, &data)
+    RunnerMetadataStore::new(Path::new(".")).write_inventory(&package_name, &data)
 }
 
 #[cfg(test)]
 #[serial_test::serial(process)]
 mod tests {
     use super::*;
-    use es_fluent::registry::{FtlTypeInfo, FtlVariant, NamespaceRule, RegisteredFtlType};
+    use es_fluent::registry::{
+        __macro, FtlTypeInfo, FtlVariant, RegisteredFtlType, StaticFluentArgumentName,
+        StaticFluentEntryId,
+    };
     use es_fluent_shared::meta::TypeKind;
-    use std::borrow::Cow;
 
     static VARIANTS: &[FtlVariant] = &[
-        FtlVariant {
-            name: "Primary",
-            ftl_key: "my_key",
-            args: &["name", "count"],
-            module_path: "test_crate",
-            line: 42,
-        },
-        FtlVariant {
-            name: "Secondary",
-            ftl_key: "my_key",
-            args: &["extra"],
-            module_path: "test_crate",
-            line: 55,
-        },
+        FtlVariant::new(
+            "Primary",
+            __macro::static_entry_id("my_key"),
+            &[
+                __macro::static_argument_name("name"),
+                __macro::static_argument_name("count"),
+            ],
+            "test_crate",
+            42,
+        ),
+        FtlVariant::new(
+            "Secondary",
+            __macro::static_entry_id("secondary_key"),
+            &[__macro::static_argument_name("extra")],
+            "test_crate",
+            55,
+        ),
     ];
 
-    static INFO: FtlTypeInfo = FtlTypeInfo {
-        type_kind: TypeKind::Struct,
-        type_name: "InventoryType",
-        variants: VARIANTS,
-        file_path: "src/lib.rs",
-        module_path: "test_crate",
-        namespace: Some(NamespaceRule::Literal(Cow::Borrowed("ui"))),
-    };
+    static INFO: FtlTypeInfo = FtlTypeInfo::new(
+        TypeKind::Struct,
+        "InventoryType",
+        VARIANTS,
+        "src/lib.rs",
+        "test_crate",
+        Some(__macro::namespace_literal("ui")),
+    );
 
     es_fluent::__inventory::submit! {
         RegisteredFtlType(&INFO)
     }
 
-    static VARIANTS_NO_FILE: &[FtlVariant] = &[FtlVariant {
-        name: "NoFilePath",
-        ftl_key: "empty_file_key",
-        args: &[],
-        module_path: "test_crate_empty_file",
-        line: 7,
-    }];
+    static DUPLICATE_VARIANTS: &[FtlVariant] = &[
+        FtlVariant::new(
+            "Primary",
+            __macro::static_entry_id("duplicated_key"),
+            &[__macro::static_argument_name("name")],
+            "test_crate_duplicate_inventory",
+            42,
+        ),
+        FtlVariant::new(
+            "Secondary",
+            __macro::static_entry_id("duplicated_key"),
+            &[__macro::static_argument_name("extra")],
+            "test_crate_duplicate_inventory",
+            55,
+        ),
+    ];
 
-    static INFO_NO_FILE: FtlTypeInfo = FtlTypeInfo {
-        type_kind: TypeKind::Struct,
-        type_name: "InventoryTypeNoFile",
-        variants: VARIANTS_NO_FILE,
-        file_path: "",
-        module_path: "test_crate_empty_file",
-        namespace: None,
-    };
+    static DUPLICATE_INFO: FtlTypeInfo = FtlTypeInfo::new(
+        TypeKind::Struct,
+        "DuplicateInventoryType",
+        DUPLICATE_VARIANTS,
+        "src/lib.rs",
+        "test_crate_duplicate_inventory",
+        Some(__macro::namespace_literal("ui")),
+    );
+
+    es_fluent::__inventory::submit! {
+        RegisteredFtlType(&DUPLICATE_INFO)
+    }
+
+    static VARIANTS_NO_FILE: &[FtlVariant] = &[FtlVariant::new(
+        "NoFilePath",
+        __macro::static_entry_id("empty_file_key"),
+        &[],
+        "test_crate_empty_file",
+        7,
+    )];
+
+    static INFO_NO_FILE: FtlTypeInfo = FtlTypeInfo::new(
+        TypeKind::Struct,
+        "InventoryTypeNoFile",
+        VARIANTS_NO_FILE,
+        "",
+        "test_crate_empty_file",
+        None,
+    );
 
     es_fluent::__inventory::submit! {
         RegisteredFtlType(&INFO_NO_FILE)
@@ -152,21 +221,52 @@ mod tests {
             let keys = json["expected_keys"]
                 .as_array()
                 .expect("expected_keys array");
-            assert_eq!(keys.len(), 1);
+            assert_eq!(keys.len(), 2);
 
             let key = &keys[0];
             assert_eq!(key["key"], "my_key");
+            assert_eq!(key["resource"]["key"], "test-crate/ui");
+            assert_eq!(key["resource"]["locale_relative_path"], "test-crate/ui.ftl");
             assert_eq!(key["source_file"], "src/lib.rs");
             assert_eq!(key["source_line"], 42);
 
-            let mut vars: Vec<_> = key["variables"]
+            let vars: Vec<_> = key["variables"]
                 .as_array()
                 .expect("variables array")
                 .iter()
                 .filter_map(|value| value.as_str())
                 .collect();
-            vars.sort_unstable();
-            assert_eq!(vars, vec!["count", "extra", "name"]);
+            assert_eq!(vars, vec!["count", "name"]);
+
+            let key = &keys[1];
+            assert_eq!(key["key"], "secondary_key");
+            assert_eq!(key["resource"]["key"], "test-crate/ui");
+            assert_eq!(key["resource"]["locale_relative_path"], "test-crate/ui.ftl");
+            assert_eq!(key["source_file"], "src/lib.rs");
+            assert_eq!(key["source_line"], 55);
+            let vars: Vec<_> = key["variables"]
+                .as_array()
+                .expect("variables array")
+                .iter()
+                .filter_map(|value| value.as_str())
+                .collect();
+            assert_eq!(vars, vec!["extra"]);
+        });
+    }
+
+    #[test]
+    fn write_inventory_rejects_duplicate_registered_keys() {
+        with_temp_cwd(|_| {
+            let err = write_inventory_for_crate("test-crate-duplicate-inventory")
+                .expect_err("duplicate inventory should fail");
+
+            let message = err.to_string();
+            assert!(message.contains("duplicate generated FTL key 'duplicated_key'"));
+            assert!(message.contains("DuplicateInventoryType"));
+            assert!(message.contains("Primary"));
+            assert!(message.contains("Secondary"));
+            assert!(message.contains("src/lib.rs:42"));
+            assert!(message.contains("src/lib.rs:55"));
         });
     }
 
@@ -207,5 +307,21 @@ mod tests {
             assert!(key["source_file"].is_null());
             assert_eq!(key["source_line"], 7);
         });
+    }
+
+    #[test]
+    fn static_inventory_wrappers_validate_manual_values() {
+        assert!(
+            StaticFluentEntryId::try_new("_invalid")
+                .expect_err("invalid message id")
+                .to_string()
+                .contains("must start with an ASCII letter")
+        );
+        assert!(
+            StaticFluentArgumentName::try_new("not valid")
+                .expect_err("invalid arg")
+                .to_string()
+                .contains("contains invalid character")
+        );
     }
 }

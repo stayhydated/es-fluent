@@ -3,14 +3,13 @@ source: crates/es-fluent-derive/src/macros/derive_es_fluent_label/mod.rs
 expression: tokens
 ---
 impl ::es_fluent::FluentLabel for LoginForm {
-    fn localize_label<__EsFluentLocalizer: ::es_fluent::FluentLocalizer + ?Sized>(
-        localizer: &__EsFluentLocalizer,
-    ) -> String {
-        ::es_fluent::__private::localize_label(
-            localizer,
+    fn fluent_label_domain() -> ::es_fluent::registry::StaticFluentDomain {
+        ::es_fluent::registry::StaticFluentDomain::from_package_name(
             env!("CARGO_PKG_NAME"),
-            "login_form_label",
         )
+    }
+    fn fluent_label_id() -> ::es_fluent::registry::StaticFluentEntryId {
+        ::es_fluent::registry::__macro::static_entry_id("login_form_label")
     }
 }
 #[doc(hidden)]
@@ -18,22 +17,22 @@ impl ::es_fluent::FluentLabel for LoginForm {
 mod __es_fluent_label_inventory_LoginForm {
     use super::*;
     static VARIANTS: &[::es_fluent::registry::FtlVariant] = &[
-        ::es_fluent::registry::FtlVariant {
-            name: "LoginForm",
-            ftl_key: "login_form_label",
-            args: &[],
-            module_path: module_path!(),
-            line: line!(),
-        },
+        ::es_fluent::registry::__macro::ftl_variant(
+            "LoginForm",
+            ::es_fluent::registry::__macro::static_entry_id("login_form_label"),
+            &[],
+            module_path!(),
+            line!(),
+        ),
     ];
-    static TYPE_INFO: ::es_fluent::registry::FtlTypeInfo = ::es_fluent::registry::FtlTypeInfo {
-        type_kind: ::es_fluent::meta::TypeKind::Struct,
-        type_name: "LoginForm",
-        variants: VARIANTS,
-        file_path: file!(),
-        module_path: module_path!(),
-        namespace: None,
-    };
+    static TYPE_INFO: ::es_fluent::registry::FtlTypeInfo = ::es_fluent::registry::__macro::ftl_type_info(
+        ::es_fluent::meta::TypeKind::Struct,
+        "LoginForm",
+        VARIANTS,
+        file!(),
+        module_path!(),
+        None,
+    );
     ::es_fluent::__inventory::submit!(
         ::es_fluent::registry::RegisteredFtlType(& TYPE_INFO)
     );

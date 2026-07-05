@@ -1,34 +1,29 @@
 //! Common utility functions shared across CLI commands.
 
 use crate::core::CrateInfo;
-use crate::utils::ui;
 #[cfg(test)]
 use anyhow::{Context as _, Result};
-#[cfg(test)]
 #[cfg(test)]
 use std::path::Path;
 
 /// Filter crates by package name if specified.
 ///
 /// Returns all crates if `package` is `None`, otherwise returns only the crate
-/// with the matching name. Prints a warning if the filter matches no crates.
+/// with the matching name.
 pub fn filter_crates_by_package(
     crates: Vec<CrateInfo>,
     package: Option<&String>,
 ) -> Vec<CrateInfo> {
     match package {
-        Some(pkg) => {
-            let filtered: Vec<_> = crates.into_iter().filter(|c| &c.name == pkg).collect();
-            if filtered.is_empty() {
-                ui::Ui::print_package_not_found(pkg);
-            }
-            filtered
-        },
+        Some(pkg) => crates
+            .into_iter()
+            .filter(|c| c.name.as_str() == pkg)
+            .collect(),
         None => crates,
     }
 }
 
-/// Partition crates into valid (has lib.rs) and skipped (missing lib.rs).
+/// Partition crates into valid (has a library target) and skipped (missing a library target).
 ///
 /// Returns a tuple of (valid_crates, skipped_crates).
 pub fn partition_by_lib_rs(crates: &[CrateInfo]) -> (Vec<&CrateInfo>, Vec<&CrateInfo>) {
@@ -53,11 +48,11 @@ mod tests {
 
     fn make_crate_info(name: &str, has_lib_rs: bool) -> CrateInfo {
         CrateInfo {
-            name: name.to_string(),
-            manifest_dir: PathBuf::new(),
-            src_dir: PathBuf::new(),
-            i18n_config_path: PathBuf::new(),
-            ftl_output_dir: PathBuf::new(),
+            name: es_fluent_runner::PackageName::try_new(name).expect("valid package name"),
+            manifest_dir: crate::core::ManifestDir::from_discovered(PathBuf::new()),
+            src_dir: crate::core::SourceDir::from_discovered(PathBuf::new()),
+            i18n_config_path: crate::core::DiscoveredI18nConfigPath::from_discovered(PathBuf::new()),
+            ftl_output_dir: crate::core::DiscoveredFtlOutputDir::from_discovered(PathBuf::new()),
             has_lib_rs,
             fluent_features: Vec::new(),
         }

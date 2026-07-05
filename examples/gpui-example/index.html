@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>es-fluent GPUI demo</title>
+    <base data-trunk-public-url />
+    <link
+      data-trunk
+      rel="rust"
+      data-initializer="../scripts/trunk-loader.js"
+      data-wasm-demo-name="GPUI"
+      data-wasm-demo-description="Launching the localized GPUI example with Trunk-managed assets."
+      data-wasm-bootstrap-module="./gpui_example.js"
+      data-wasm-bootstrap-export="run"
+    />
+    <style>
+      html,
+      body {
+        margin: 0;
+        width: 100%;
+        height: 100%;
+        overflow: hidden;
+      }
+
+      body {
+        background: #000;
+        color: #fff;
+      }
+    </style>
+  </head>
+  <body></body>
+</html>

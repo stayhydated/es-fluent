@@ -1,6 +1,7 @@
 use es_fluent_shared::EsFluentError;
+use es_fluent_shared::registry::StaticFluentEntryId;
 use fluent_bundle::{
-    FluentArgs, FluentError, FluentResource, FluentValue, bundle::FluentBundle,
+    FluentArgs as BundleFluentArgs, FluentError, FluentResource, bundle::FluentBundle,
     memoizer::MemoizerKind,
 };
 use fluent_fallback::{
@@ -13,6 +14,8 @@ use std::borrow::Borrow;
 use std::collections::HashMap;
 use std::sync::Arc;
 use unic_langid::LanguageIdentifier;
+
+use super::FluentArgumentMap;
 
 pub type LocalizationError = EsFluentError;
 pub type SyncFluentBundle =
@@ -119,13 +122,11 @@ pub fn build_sync_bundle(
 }
 
 /// Converts hash-map arguments into `FluentArgs`.
-pub fn build_fluent_args<'a>(
-    args: Option<&HashMap<&str, FluentValue<'a>>>,
-) -> Option<FluentArgs<'a>> {
+pub fn build_fluent_args<'a>(args: Option<&FluentArgumentMap<'a>>) -> Option<BundleFluentArgs<'a>> {
     args.map(|args| {
-        let mut fluent_args = FluentArgs::new();
+        let mut fluent_args = BundleFluentArgs::new();
         for (key, value) in args {
-            fluent_args.set((*key).to_string(), value.clone());
+            fluent_args.set(key.as_str().to_string(), value.clone());
         }
         fluent_args
     })
@@ -137,14 +138,14 @@ pub fn build_fluent_args<'a>(
 /// Returns the formatted value and collected formatting errors otherwise.
 pub fn localize_with_bundle<'a, R, M>(
     bundle: &FluentBundle<R, M>,
-    id: &str,
-    args: Option<&HashMap<&str, FluentValue<'a>>>,
+    id: StaticFluentEntryId,
+    args: Option<&FluentArgumentMap<'a>>,
 ) -> Option<(String, Vec<FluentError>)>
 where
     R: Borrow<FluentResource>,
     M: MemoizerKind,
 {
-    let message = bundle.get_message(id)?;
+    let message = bundle.get_message(id.as_str())?;
     let pattern = message.value()?;
     let fluent_args = build_fluent_args(args);
     let mut errors = Vec::new();
@@ -155,8 +156,8 @@ where
 #[doc(hidden)]
 pub fn localize_with_fallback_resources<'a>(
     locale_resources: &[(LanguageIdentifier, Vec<Arc<FluentResource>>)],
-    id: &str,
-    args: Option<&HashMap<&str, FluentValue<'a>>>,
+    id: StaticFluentEntryId,
+    args: Option<&FluentArgumentMap<'a>>,
 ) -> (Option<String>, Vec<FallbackLocalizationError>) {
     if locale_resources.is_empty() {
         return (None, Vec::new());
@@ -178,17 +179,17 @@ pub fn localize_with_fallback_resources<'a>(
     let fluent_args = build_fluent_args(args);
     let mut errors = Vec::new();
 
-    let value =
-        match localization
-            .bundles()
-            .format_value_sync(id, fluent_args.as_ref(), &mut errors)
-        {
-            Ok(value) => value.map(|value| value.into_owned()),
-            Err(error) => {
-                errors.push(error);
-                None
-            },
-        };
+    let value = match localization.bundles().format_value_sync(
+        id.as_str(),
+        fluent_args.as_ref(),
+        &mut errors,
+    ) {
+        Ok(value) => value.map(|value| value.into_owned()),
+        Err(error) => {
+            errors.push(error);
+            None
+        },
+    };
 
     (value, errors)
 }
@@ -206,9 +207,17 @@ pub fn fallback_errors_are_fatal(errors: &[FallbackLocalizationError]) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use fluent_fallback::{env::LocalesProvider, generator::BundleGenerator};
+    use fluent_bundle::FluentValue;
     use rustc_hash::FxHashSet;
     use unic_langid::langid;
+
+    fn static_entry(value: &'static str) -> StaticFluentEntryId {
+        crate::__macro::static_entry_id(value)
+    }
+
+    fn static_arg(value: &'static str) -> es_fluent_shared::registry::StaticFluentArgumentName {
+        crate::__macro::static_argument_name(value)
+    }
 
     fn resource(source: &str) -> Arc<FluentResource> {
         Arc::new(FluentResource::try_new(source.to_string()).expect("test FTL should parse"))
@@ -260,7 +269,7 @@ mod tests {
 
         let iter_results = generator
             .bundles_iter(
-                vec![langid!("de"), en.clone(), fr.clone()].into_iter(),
+                vec![langid!("de"), en, fr].into_iter(),
                 empty_resource_ids(),
             )
             .collect::<Vec<_>>();
@@ -283,22 +292,22 @@ mod tests {
         let add_errors = add_resources_to_bundle(&mut bundle, vec![first, duplicate]);
         assert!(!add_errors.is_empty());
 
-        let mut args = HashMap::new();
-        args.insert("name", FluentValue::from("Mark"));
+        let mut args = FluentArgumentMap::default();
+        args.insert(static_arg("name"), FluentValue::from("Mark"));
         assert!(build_fluent_args(None).is_none());
         assert!(build_fluent_args(Some(&args)).is_some());
 
-        let (value, errors) =
-            localize_with_bundle(&bundle, "hello", Some(&args)).expect("message should be present");
+        let (value, errors) = localize_with_bundle(&bundle, static_entry("hello"), Some(&args))
+            .expect("message should be present");
         assert!(value.contains("Hello"));
         assert!(value.contains("Mark"));
         assert!(errors.is_empty());
 
-        let (_value, errors) =
-            localize_with_bundle(&bundle, "needs-name", None).expect("message should be present");
+        let (_value, errors) = localize_with_bundle(&bundle, static_entry("needs-name"), None)
+            .expect("message should be present");
         assert!(!errors.is_empty());
-        assert!(localize_with_bundle(&bundle, "missing", None).is_none());
-        assert!(localize_with_bundle(&bundle, "attr-only", None).is_none());
+        assert!(localize_with_bundle(&bundle, static_entry("missing"), None).is_none());
+        assert!(localize_with_bundle(&bundle, static_entry("attr-only"), None).is_none());
 
         let (sync_bundle, sync_errors) = build_sync_bundle(&lang, vec![resource("sync = Sync")]);
         assert!(sync_errors.is_empty());
@@ -307,31 +316,34 @@ mod tests {
 
     #[test]
     fn fallback_resource_localization_uses_ordered_locale_resources() {
-        let mut args = HashMap::new();
-        args.insert("name", FluentValue::from("Mark"));
+        let mut args = FluentArgumentMap::default();
+        args.insert(static_arg("name"), FluentValue::from("Mark"));
         let locale_resources = vec![
             (langid!("en-US"), vec![resource("hello = Howdy { $name }")]),
             (langid!("en"), vec![resource("fallback-only = Fallback")]),
         ];
 
         let (value, errors) =
-            localize_with_fallback_resources(&locale_resources, "hello", Some(&args));
+            localize_with_fallback_resources(&locale_resources, static_entry("hello"), Some(&args));
         let value = value.expect("localized value should be present");
         assert!(value.contains("Howdy"));
         assert!(value.contains("Mark"));
         assert!(!fallback_errors_are_fatal(&errors));
 
-        let (fallback, errors) =
-            localize_with_fallback_resources(&locale_resources, "fallback-only", None);
+        let (fallback, errors) = localize_with_fallback_resources(
+            &locale_resources,
+            static_entry("fallback-only"),
+            None,
+        );
         assert_eq!(fallback, Some("Fallback".to_string()));
         assert!(!fallback_errors_are_fatal(&errors));
 
         let (missing, errors) =
-            localize_with_fallback_resources(&locale_resources, "missing", None);
+            localize_with_fallback_resources(&locale_resources, static_entry("missing"), None);
         assert_eq!(missing, None);
         assert!(!fallback_errors_are_fatal(&errors));
 
-        let (empty, errors) = localize_with_fallback_resources(&[], "hello", None);
+        let (empty, errors) = localize_with_fallback_resources(&[], static_entry("hello"), None);
         assert_eq!(empty, None);
         assert!(errors.is_empty());
         assert!(!fallback_errors_are_fatal(&[]));

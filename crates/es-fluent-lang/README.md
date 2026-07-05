@@ -15,14 +15,17 @@ Generates a strongly-typed enum of all available languages in your project. It a
 
 ```rs
 use es_fluent_lang::es_fluent_language;
-use es_fluent::EsFluent;
 use strum::EnumIter;
 
 // Define an empty enum, and the macro fills it
 #[es_fluent_language]
-#[derive(Debug, Clone, Copy, PartialEq, Eq, EsFluent, EnumIter)]
+#[derive(EnumIter)]
 pub enum Languages {}
 ```
+
+The macro derives `Clone`, `Copy`, `Debug`, `Eq`, `Hash`, and `PartialEq`
+automatically. Add derives such as `EnumIter` only when your application needs
+them.
 
 If your `assets_dir` contains the same locales as the executable README example
 (`en`, `fr-FR`, and `zh-CN`), this generates:
@@ -41,21 +44,20 @@ It also implements:
 - `FromStr`: Parses string codes (e.g., "en", "fr-FR", or "zh-CN") into the enum variant.
 - `TryFrom<&LanguageIdentifier>` / `TryFrom<LanguageIdentifier>`: Converts from a locale ID and returns an error for unsupported locales.
 - `Into<LanguageIdentifier>`: Converts back to a standard locale ID.
+- `FluentMessage`: Renders labels through a manager with `localize_message(...)`.
 
-For user-facing labels, derive `EsFluent` on the generated enum and call
-manager-backed `localize_message(...)` instead of relying on `Display`.
+For user-facing labels, call manager-backed `localize_message(...)` instead of
+relying on `Display`.
 
 If you want to provide your own language-name translations, use
 `#[es_fluent_language(custom)]`. Custom mode skips the built-in
-`es-fluent-lang` runtime hook. When combined with `#[derive(EsFluent)]`, it
-also leaves inventory registration enabled so your own FTL resources can
-provide the labels.
+`es-fluent-lang` runtime hook and registers the enum with inventory so your own
+FTL resources can provide the labels.
 
 ### Feature Flags
 
 - `macros` (default): Enables the `#[es_fluent_language]` macro.
 - `localized-langs`: Format language names in the currently selected UI language instead of as autonyms.
-- `bevy`: Backward-compatible feature for Bevy projects. The WASM force-link keepalive is no longer Bevy-specific.
 
 ## Standard Translations
 

@@ -1,0 +1,20 @@
+error[E0277]: the trait bound `NotChoice: EsFluentChoice` is not satisfied
+  --> tests/ui/bad_selector_field.rs:10:12
+   |
+10 |     value: NotChoice,
+   |            ^^^^^^^^^ unsatisfied trait bound
+   |
+help: the trait `EsFluentChoice` is not implemented for `NotChoice`
+  --> tests/ui/bad_selector_field.rs:5:1
+   |
+ 5 | struct NotChoice;
+   | ^^^^^^^^^^^^^^^^
+note: required by a bound in `__es_fluent_choice_value`
+  --> tests/ui/bad_selector_field.rs:7:10
+   |
+ 7 | #[derive(EsFluent)]
+   |          ^^^^^^^^ required by this bound in `__es_fluent_choice_value`
+...
+10 |     value: NotChoice,
+   |     ----- required by a bound in this function
+   = note: this error originates in the derive macro `EsFluent` (in Nightly builds, run with -Z macro-backtrace for more info)

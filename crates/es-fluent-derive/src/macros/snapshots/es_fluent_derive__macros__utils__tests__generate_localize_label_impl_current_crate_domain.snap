@@ -3,13 +3,12 @@ source: crates/es-fluent-derive/src/macros/utils.rs
 expression: tokens
 ---
 impl ::es_fluent::FluentLabel for Greeting {
-    fn localize_label<__EsFluentLocalizer: ::es_fluent::FluentLocalizer + ?Sized>(
-        localizer: &__EsFluentLocalizer,
-    ) -> String {
-        ::es_fluent::__private::localize_label(
-            localizer,
+    fn fluent_label_domain() -> ::es_fluent::registry::StaticFluentDomain {
+        ::es_fluent::registry::StaticFluentDomain::from_package_name(
             env!("CARGO_PKG_NAME"),
-            "hello",
         )
+    }
+    fn fluent_label_id() -> ::es_fluent::registry::StaticFluentEntryId {
+        ::es_fluent::registry::__macro::static_entry_id("hello")
     }
 }

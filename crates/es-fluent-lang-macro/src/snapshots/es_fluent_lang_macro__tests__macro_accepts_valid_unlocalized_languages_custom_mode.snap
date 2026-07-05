@@ -1,26 +1,85 @@
 ---
 source: crates/es-fluent-lang-macro/src/lib.rs
+assertion_line: 857
 expression: pretty_tokens(&custom_output)
 ---
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 enum CustomLanguages {
-    #[fluent(key = "en-US")]
     EnUs,
-    #[fluent(key = "zz")]
     Zz,
 }
-impl From<CustomLanguages> for es_fluent::unic_langid::LanguageIdentifier {
-    fn from(val: CustomLanguages) -> Self {
-        match val {
-            CustomLanguages::EnUs => es_fluent::unic_langid::langid!("en-US"),
-            CustomLanguages::Zz => es_fluent::unic_langid::langid!("zz"),
+impl ::es_fluent::FluentMessage for CustomLanguages {
+    fn to_fluent_string_with(
+        &self,
+        localize: &mut ::es_fluent::FluentMessageLookup<'_>,
+    ) -> String {
+        match self {
+            Self::EnUs => {
+                localize(
+                    ::es_fluent::registry::StaticFluentDomain::from_package_name(
+                        env!("CARGO_PKG_NAME"),
+                    ),
+                    ::es_fluent::registry::__macro::static_entry_id("en-US"),
+                    None,
+                )
+            }
+            Self::Zz => {
+                localize(
+                    ::es_fluent::registry::StaticFluentDomain::from_package_name(
+                        env!("CARGO_PKG_NAME"),
+                    ),
+                    ::es_fluent::registry::__macro::static_entry_id("zz"),
+                    None,
+                )
+            }
         }
     }
 }
-impl From<&CustomLanguages> for es_fluent::unic_langid::LanguageIdentifier {
+#[doc(hidden)]
+#[allow(non_snake_case)]
+mod __es_fluent_language_inventory_custom_languages {
+    use super::*;
+    static VARIANTS: &[::es_fluent::registry::FtlVariant] = &[
+        ::es_fluent::registry::__macro::ftl_variant(
+            "EnUs",
+            ::es_fluent::registry::__macro::static_entry_id("en-US"),
+            &[],
+            module_path!(),
+            line!(),
+        ),
+        ::es_fluent::registry::__macro::ftl_variant(
+            "Zz",
+            ::es_fluent::registry::__macro::static_entry_id("zz"),
+            &[],
+            module_path!(),
+            line!(),
+        ),
+    ];
+    static TYPE_INFO: ::es_fluent::registry::FtlTypeInfo = ::es_fluent::registry::__macro::ftl_type_info(
+        ::es_fluent::meta::TypeKind::Enum,
+        "CustomLanguages",
+        VARIANTS,
+        file!(),
+        module_path!(),
+        None,
+    );
+    ::es_fluent::__inventory::submit!(
+        ::es_fluent::registry::RegisteredFtlType(& TYPE_INFO)
+    );
+}
+impl From<CustomLanguages> for ::es_fluent::unic_langid::LanguageIdentifier {
+    fn from(val: CustomLanguages) -> Self {
+        match val {
+            CustomLanguages::EnUs => ::es_fluent::unic_langid::langid!("en-US"),
+            CustomLanguages::Zz => ::es_fluent::unic_langid::langid!("zz"),
+        }
+    }
+}
+impl From<&CustomLanguages> for ::es_fluent::unic_langid::LanguageIdentifier {
     fn from(val: &CustomLanguages) -> Self {
         match val {
-            CustomLanguages::EnUs => es_fluent::unic_langid::langid!("en-US"),
-            CustomLanguages::Zz => es_fluent::unic_langid::langid!("zz"),
+            CustomLanguages::EnUs => ::es_fluent::unic_langid::langid!("en-US"),
+            CustomLanguages::Zz => ::es_fluent::unic_langid::langid!("zz"),
         }
     }
 }
@@ -28,9 +87,9 @@ impl From<&CustomLanguages> for es_fluent::unic_langid::LanguageIdentifier {
 pub enum CustomLanguagesLanguageConversionError {
     InvalidLanguageIdentifier {
         input: String,
-        source: es_fluent::unic_langid::LanguageIdentifierError,
+        source: ::es_fluent::unic_langid::LanguageIdentifierError,
     },
-    UnsupportedLanguageIdentifier(es_fluent::unic_langid::LanguageIdentifier),
+    UnsupportedLanguageIdentifier(::es_fluent::unic_langid::LanguageIdentifier),
 }
 impl ::std::fmt::Display for CustomLanguagesLanguageConversionError {
     fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
@@ -52,11 +111,11 @@ impl ::std::error::Error for CustomLanguagesLanguageConversionError {
         }
     }
 }
-impl ::std::convert::TryFrom<&es_fluent::unic_langid::LanguageIdentifier>
+impl ::std::convert::TryFrom<&::es_fluent::unic_langid::LanguageIdentifier>
 for CustomLanguages {
     type Error = CustomLanguagesLanguageConversionError;
     fn try_from(
-        lang: &es_fluent::unic_langid::LanguageIdentifier,
+        lang: &::es_fluent::unic_langid::LanguageIdentifier,
     ) -> Result<Self, Self::Error> {
         let lang_str = lang.to_string();
         match lang_str.as_str() {
@@ -72,11 +131,11 @@ for CustomLanguages {
         }
     }
 }
-impl ::std::convert::TryFrom<es_fluent::unic_langid::LanguageIdentifier>
+impl ::std::convert::TryFrom<::es_fluent::unic_langid::LanguageIdentifier>
 for CustomLanguages {
     type Error = CustomLanguagesLanguageConversionError;
     fn try_from(
-        lang: es_fluent::unic_langid::LanguageIdentifier,
+        lang: ::es_fluent::unic_langid::LanguageIdentifier,
     ) -> Result<Self, Self::Error> {
         Self::try_from(&lang)
     }
@@ -85,7 +144,7 @@ impl ::std::str::FromStr for CustomLanguages {
     type Err = CustomLanguagesLanguageConversionError;
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let lang = s
-            .parse::<es_fluent::unic_langid::LanguageIdentifier>()
+            .parse::<::es_fluent::unic_langid::LanguageIdentifier>()
             .map_err(|source| {
                 CustomLanguagesLanguageConversionError::InvalidLanguageIdentifier {
                     input: s.to_string(),

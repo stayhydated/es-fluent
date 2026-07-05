@@ -22,6 +22,9 @@ runtime integrations.
   discovery for integrations that need many request-local managers without
   repeating inventory validation. Metadata-only registrations are validated but
   are not stored in this cache.
+- `FluentManager::try_discover_runtime_follower_modules()`: discovers only
+  runtime modules that follow another backend's selected locale without
+  counting as locale support.
 - `LanguageSelectionPolicy` plus `FluentManager::select_language_strict()`: choose
   between best-effort locale switching and transactional switching
 - `I18nModule` and `I18nModuleRegistration`: discovery and registration contracts
@@ -35,12 +38,22 @@ runtime integrations.
 - `FluentManager::new_with_discovered_modules()` and
   `FluentManager::try_new_with_discovered_modules()`: strict discovery helpers
   that fail fast on invalid metadata or repeated registrations of the same kind
-- `Localizer`: runtime formatter interface used by managers
+- `Localizer`: runtime formatter interface used by managers; lookup receives
+  `StaticFluentEntryId` and `FluentArgumentMap` instead of raw message ID strings
 - `EmbeddedAssets` and `EmbeddedI18nModule`: reusable support for embedded assets
 - `BundleBuildError`: structured diagnostics for embedded locale switches that
   fail while assembling a Fluent bundle
-- `ModuleData`, `I18nModuleDescriptor`, and resource-plan helpers for asset-driven
-  managers such as Bevy
+- `ModuleData`, `StaticFluentDomain`, `StaticFluentEntryId`,
+  `StaticFluentArgumentName`, `FluentArgumentMap`, `I18nModuleDescriptor`, and
+  resource-plan helpers for asset-driven managers such as Bevy
+- `ResourceKey` and `LocaleRelativeFtlPath` for typed resource-plan parts:
+  use `try_new(...)` for dynamic values, or `from_static_path(...)` for
+  validated static literals before constructing a `ModuleResourceSpec`
+
+The embedded asset APIs are behind the default `embedded` feature, which carries
+the `rust-embed` dependency. Asset managers that do not need `RustEmbed`, such
+as Bevy and Dioxus integrations, can depend on this crate with default features
+disabled.
 
 ## Who should use it
 
@@ -57,15 +70,18 @@ integration or reusing the shared fallback and module-registration logic.
 localizers. Prefer typed `localize_message(...)` wrappers or
 `FluentManager::localize_in_domain()` for multi-module apps; use
 `localize(...)` directly only for simple single-domain apps or intentional
-first-match lookup.
+first-match lookup. `FluentManager`, custom `Localizer` implementations, and the
+higher-level `es_fluent::FluentLocalizer` trait all keep lookup on validated
+`StaticFluentDomain`, `StaticFluentEntryId`, and typed argument maps. Convert to
+raw strings only at the final Fluent bundle lookup boundary.
 
-Strict discovery is now the default constructor behavior. Construction does not
-select a language, so custom runtime integrations must select the initial
+Constructors use strict discovery by default. Construction does not select a
+language, so custom runtime integrations must select the initial
 language before lookup:
 
 ```rust,no_run
 # fn main() -> Result<(), Box<dyn std::error::Error>> {
-use es_fluent_manager_core::FluentManager;
+use es_fluent_manager_core::{FluentManager, StaticFluentDomain, StaticFluentEntryId};
 use unic_langid::langid;
 
 let manager = FluentManager::try_new_with_discovered_modules().map_err(|errors| {
@@ -73,7 +89,11 @@ let manager = FluentManager::try_new_with_discovered_modules().map_err(|errors| 
 })?;
 manager.select_language(&langid!("en"))?;
 
-let value = manager.localize_in_domain("app", "hello", None);
+let value = manager.localize_in_domain(
+    StaticFluentDomain::try_new("app")?,
+    StaticFluentEntryId::try_new("hello")?,
+    None,
+);
 # let _ = value;
 # Ok(())
 # }

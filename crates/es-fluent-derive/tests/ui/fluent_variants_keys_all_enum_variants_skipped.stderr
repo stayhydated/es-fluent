@@ -1,0 +1,6 @@
+error: Attribute error in variants container: `#[fluent_variants(keys = ...)]` requires at least one unskipped field or variant for generated variant enums
+       help: remove `keys = [...]`, or leave at least one field or variant without `#[fluent_variants(skip)]`
+ --> tests/ui/fluent_variants_keys_all_enum_variants_skipped.rs:6:27
+  |
+6 | #[fluent_variants(keys = ["label"])]
+  |                           ^^^^^^^

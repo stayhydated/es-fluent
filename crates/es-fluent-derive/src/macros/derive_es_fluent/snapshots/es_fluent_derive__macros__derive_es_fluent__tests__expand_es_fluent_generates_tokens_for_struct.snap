@@ -5,30 +5,27 @@ expression: struct_tokens
 impl ::es_fluent::FluentMessage for User {
     fn to_fluent_string_with(
         &self,
-        localize: &mut dyn for<'__es_fluent_message> FnMut(
-            &str,
-            &str,
-            Option<
-                &::std::collections::HashMap<
-                    &str,
-                    ::es_fluent::FluentValue<'__es_fluent_message>,
-                >,
-            >,
-        ) -> String,
+        localize: &mut ::es_fluent::FluentMessageLookup<'_>,
     ) -> String {
         {
-            let mut args = ::std::collections::HashMap::new();
+            let mut args = ::es_fluent::FluentArgs::new();
             {
                 use ::es_fluent::__private::IntoFluentArgumentValue as _;
                 args.insert(
-                    "id",
+                    ::es_fluent::registry::__macro::static_argument_name("id"),
                     (::es_fluent::__private::FluentBorrowedArgumentValue::new(
                         &(self.id),
                     ))
                         .into_fluent_argument_value(localize),
                 );
             }
-            localize(env!("CARGO_PKG_NAME"), "user", Some(&args))
+            localize(
+                ::es_fluent::registry::StaticFluentDomain::from_package_name(
+                    env!("CARGO_PKG_NAME"),
+                ),
+                ::es_fluent::registry::__macro::static_entry_id("user"),
+                Some(&args),
+            )
         }
     }
 }
@@ -37,22 +34,22 @@ impl ::es_fluent::FluentMessage for User {
 mod __es_fluent_inventory_User {
     use super::*;
     static VARIANTS: &[::es_fluent::registry::FtlVariant] = &[
-        ::es_fluent::registry::FtlVariant {
-            name: "User",
-            ftl_key: "user",
-            args: &["id"],
-            module_path: module_path!(),
-            line: line!(),
-        },
+        ::es_fluent::registry::__macro::ftl_variant(
+            "User",
+            ::es_fluent::registry::__macro::static_entry_id("user"),
+            &[::es_fluent::registry::__macro::static_argument_name("id")],
+            module_path!(),
+            line!(),
+        ),
     ];
-    static TYPE_INFO: ::es_fluent::registry::FtlTypeInfo = ::es_fluent::registry::FtlTypeInfo {
-        type_kind: ::es_fluent::meta::TypeKind::Struct,
-        type_name: "User",
-        variants: VARIANTS,
-        file_path: file!(),
-        module_path: module_path!(),
-        namespace: None,
-    };
+    static TYPE_INFO: ::es_fluent::registry::FtlTypeInfo = ::es_fluent::registry::__macro::ftl_type_info(
+        ::es_fluent::meta::TypeKind::Struct,
+        "User",
+        VARIANTS,
+        file!(),
+        module_path!(),
+        None,
+    );
     ::es_fluent::__inventory::submit!(
         ::es_fluent::registry::RegisteredFtlType(& TYPE_INFO)
     );

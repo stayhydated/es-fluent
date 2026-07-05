@@ -151,15 +151,15 @@ pub(crate) fn handle_asset_loading(
 mod tests {
     use super::*;
     use bevy::asset::{AssetLoadError, AssetPath, Assets};
-    use es_fluent_manager_core::{ModuleResourceSpec, ResourceLoadError};
+    use es_fluent_manager_core::{LocaleRelativeFtlPath, ModuleResourceSpec, ResourceLoadError};
     use unic_langid::langid;
 
     fn spec(key: &str, required: bool) -> ModuleResourceSpec {
-        ModuleResourceSpec {
-            key: ResourceKey::new(key),
-            locale_relative_path: format!("{key}.ftl"),
-            required,
-        }
+        let resource_key = ResourceKey::try_new(key)
+            .unwrap_or_else(|error| panic!("test resource key '{key}' should be valid: {error}"));
+        let locale_relative_path = LocaleRelativeFtlPath::try_new(format!("{key}.ftl"))
+            .unwrap_or_else(|error| panic!("test FTL path '{key}.ftl' should be valid: {error}"));
+        ModuleResourceSpec::new(resource_key, locale_relative_path, required)
     }
 
     #[test]
@@ -237,7 +237,7 @@ mod tests {
     #[test]
     fn loaded_asset_without_registered_spec_is_ignored() {
         let lang = langid!("en");
-        let resource_key = ResourceKey::new("app");
+        let resource_key = ResourceKey::from_static_path("app");
         let mut ftl_assets = Assets::<FtlAsset>::default();
         let handle = ftl_assets.add(FtlAsset {
             content: "hello = Hello".to_string(),
@@ -308,10 +308,8 @@ mod tests {
                 id: handle.id(),
                 path: AssetPath::from("i18n/en/app.ftl"),
                 error: AssetLoadError::MissingAssetLoader {
-                    loader_name: None,
                     asset_type_id: None,
-                    extension: Some("ftl".to_string()),
-                    asset_path: Some("i18n/en/app.ftl".to_string()),
+                    asset_path: "i18n/en/app.ftl".to_string(),
                 },
             },
         );
@@ -354,11 +352,11 @@ mod tests {
                 .contains_key(&(lang.clone(), resource_spec.key.clone()))
         );
 
-        app.world_mut()
-            .resource_mut::<Assets<FtlAsset>>()
-            .get_mut(handle.id())
-            .expect("asset should exist")
-            .content = "hello = {".to_string();
+        {
+            let mut ftl_assets = app.world_mut().resource_mut::<Assets<FtlAsset>>();
+            let mut asset = ftl_assets.get_mut(handle.id()).expect("asset should exist");
+            asset.content = "hello = {".to_string();
+        }
         app.world_mut()
             .write_message(AssetEvent::Modified { id: handle.id() });
         app.update();
@@ -389,10 +387,8 @@ mod tests {
             id: handle.id(),
             path: AssetPath::from("i18n/en/app.ftl"),
             error: AssetLoadError::MissingAssetLoader {
-                loader_name: None,
                 asset_type_id: None,
-                extension: Some("ftl".to_string()),
-                asset_path: Some("i18n/en/app.ftl".to_string()),
+                asset_path: "i18n/en/app.ftl".to_string(),
             },
         });
         app.update();

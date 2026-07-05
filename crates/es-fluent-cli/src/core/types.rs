@@ -1,20 +1,78 @@
-use std::path::PathBuf;
+use es_fluent_runner::PackageName;
+use std::ops::Deref;
+use std::path::{Path, PathBuf};
 use std::time::Duration;
+
+macro_rules! typed_discovered_dir {
+    ($name:ident, $doc:literal) => {
+        #[doc = $doc]
+        #[derive(Clone, Debug, Eq, Hash, PartialEq)]
+        pub struct $name(PathBuf);
+
+        impl $name {
+            /// Wrap a path that has already been accepted by crate discovery.
+            pub fn from_discovered(path: PathBuf) -> Self {
+                Self(path)
+            }
+
+            pub fn as_path(&self) -> &Path {
+                &self.0
+            }
+        }
+
+        impl AsRef<Path> for $name {
+            fn as_ref(&self) -> &Path {
+                self.as_path()
+            }
+        }
+
+        impl From<$name> for PathBuf {
+            fn from(path: $name) -> Self {
+                path.0
+            }
+        }
+
+        impl Deref for $name {
+            type Target = Path;
+
+            fn deref(&self) -> &Self::Target {
+                self.as_path()
+            }
+        }
+    };
+}
+
+typed_discovered_dir!(
+    ManifestDir,
+    "A crate manifest directory path accepted by workspace discovery."
+);
+typed_discovered_dir!(
+    SourceDir,
+    "A crate source directory path derived during discovery."
+);
+typed_discovered_dir!(
+    DiscoveredI18nConfigPath,
+    "An i18n.toml path accepted by workspace discovery."
+);
+typed_discovered_dir!(
+    DiscoveredFtlOutputDir,
+    "A fallback FTL output directory path resolved during discovery."
+);
 
 /// Information about a crate that uses es-fluent.
 #[derive(Clone, Debug)]
 pub struct CrateInfo {
     /// The name of the crate.
-    pub name: String,
+    pub name: PackageName,
     /// The path to the crate's manifest directory.
-    pub manifest_dir: PathBuf,
+    pub manifest_dir: ManifestDir,
     /// The path to the crate's src directory.
-    pub src_dir: PathBuf,
+    pub src_dir: SourceDir,
     /// The path to the i18n.toml config file.
-    pub i18n_config_path: PathBuf,
+    pub i18n_config_path: DiscoveredI18nConfigPath,
     /// The path to the FTL output directory (e.g., assets/i18n/en).
-    pub ftl_output_dir: PathBuf,
-    /// Whether the crate has a lib.rs (required for inventory linking).
+    pub ftl_output_dir: DiscoveredFtlOutputDir,
+    /// Whether the crate has a Cargo library target (required for inventory linking).
     pub has_lib_rs: bool,
     /// Feature flags that enable es-fluent derives in the crate.
     pub fluent_features: Vec<String>,
@@ -37,7 +95,7 @@ pub struct WorkspaceInfo {
 #[derive(Clone, Debug)]
 pub struct GenerateResult {
     /// The name of the crate.
-    pub name: String,
+    pub name: PackageName,
     /// How long the generation took.
     pub duration: Duration,
     /// Number of FTL resource keys generated.
@@ -53,7 +111,7 @@ pub struct GenerateResult {
 impl GenerateResult {
     /// Create a new successful result.
     pub fn success(
-        name: String,
+        name: PackageName,
         duration: Duration,
         resource_count: usize,
         output: Option<String>,
@@ -70,7 +128,7 @@ impl GenerateResult {
     }
 
     /// Create a new error result.
-    pub fn failure(name: String, duration: Duration, error: String) -> Self {
+    pub fn failure(name: PackageName, duration: Duration, error: String) -> Self {
         Self {
             name,
             duration,
@@ -85,7 +143,7 @@ impl GenerateResult {
 /// The state of a crate in the workspace (used by TUI).
 #[derive(Clone, Debug)]
 pub enum CrateState {
-    /// The crate is missing lib.rs, so generation cannot work.
+    /// The crate is missing a Cargo library target, so generation cannot work.
     MissingLibRs,
     /// FTL files are currently being generated.
     Generating,

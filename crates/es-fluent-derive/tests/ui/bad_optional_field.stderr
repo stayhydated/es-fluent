@@ -1,0 +1,6 @@
+error: Attribute error in message field: `#[fluent(optional)]` is not supported in message field `value`
+       help: accepted keys here are skip, selector, arg, and value
+ --> tests/ui/bad_optional_field.rs:7:14
+  |
+7 |     #[fluent(optional)]
+  |              ^^^^^^^^

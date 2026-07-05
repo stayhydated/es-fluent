@@ -44,7 +44,7 @@ fn run(i18n: &i18n::I18n, locale: Languages) {
     println!("\n=== Using Choices ===");
     let greeting = Greeting {
         name: "John",
-        gender: &GenderChoice::Male,
+        gender: Some(&GenderChoice::Male),
     };
     println!("Greeting: {}", i18n.localize_message(&greeting));
 
@@ -54,12 +54,22 @@ fn run(i18n: &i18n::I18n, locale: Languages) {
         i18n.localize_message(&LoginFormVariantsLabelVariants::Username)
     );
     println!(
+        "ActiveFormField: {}",
+        i18n.localize_message(&ActiveFormField {
+            field: LoginFormVariantsLabelVariants::Username,
+        })
+    );
+    println!(
         "SettingsTab Notifications: {}",
         i18n.localize_message(&SettingsTabVariants::Notifications)
     );
 
     println!("\n=== Type-level Labels ===");
     println!("GenderLabelOnly: {}", GenderLabelOnly::localize_label(i18n));
+    println!(
+        "GenderLabelOnly maybe: {:?}",
+        GenderLabelOnly::try_localize_label(i18n)
+    );
     println!(
         "LoginFormCombined Description: {}",
         LoginFormCombinedDescriptionVariants::localize_label(i18n)

@@ -1,0 +1,6 @@
+error: Attribute error: namespace 'blocked' is not in the allowed list configured in i18n.toml
+       help: allowed namespaces are: allowed
+ --> tests/ui_namespace/namespace_not_allowed.rs:4:22
+  |
+4 | #[fluent(namespace = "blocked")]
+  |                      ^^^^^^^^^

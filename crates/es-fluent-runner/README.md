@@ -9,8 +9,8 @@ place.
 
 ## What it provides
 
-- `RunnerRequest` and `RunnerParseMode`: serialized commands sent to the runner
-  binary
+- `RunnerRequest` with typed package names, `i18n.toml` paths, and the shared
+  `FluentParseMode`: serialized commands sent to the runner binary
 - `RunnerResult`, `InventoryData`, and `ExpectedKey`: serialized metadata written
   back to disk
 - Helpers for `.es-fluent/metadata/{crate}/result.json` and

@@ -31,16 +31,22 @@ jobs:
       - name: Run local es-fluent-cli check
         run: cargo es-fluent-local check --path . --all
 
+      - name: Run FTL ownership check
+        run: cargo xtask check ftl-ownership
+
   test:
     name: test (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
-        os:
-          - ubuntu-latest
-          - macos-latest
-          - windows-latest
+        include:
+          - os: ubuntu-latest
+            command: cargo test --workspace --all-features
+          - os: macos-latest
+            command: cargo test --workspace --all-features
+          - os: windows-latest
+            command: cargo test --workspace --all-features
 
     steps:
       - uses: actions/checkout@v6
@@ -59,7 +65,7 @@ jobs:
         uses: ./.github/actions/install-linux-deps
 
       - name: Run tests
-        run: cargo test --workspace --all-features
+        run: ${{ matrix.command }}
 
   dioxus-manager-feature-matrix:
     name: dioxus manager (${{ matrix.name }})
@@ -74,8 +80,43 @@ jobs:
             command: cargo test -p es-fluent-manager-dioxus --no-default-features --features client
           - name: ssr-test
             command: cargo test -p es-fluent-manager-dioxus --no-default-features --features ssr
+          - name: client-ssr-test
+            command: cargo test -p es-fluent-manager-dioxus --no-default-features --features client,ssr
           - name: client-wasm-check
             command: cargo check -p es-fluent-manager-dioxus --target wasm32-unknown-unknown --no-default-features --features client
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+
+      - name: Setup sccache
+        uses: mozilla-actions/sccache-action@v0.0.10
+
+      - name: Setup mold
+        uses: rui314/setup-mold@v1
+
+      - name: Install Linux dependencies
+        uses: ./.github/actions/install-linux-deps
+
+      - name: Run check
+        run: ${{ matrix.command }}
+
+  dioxus-integration-surface:
+    name: dioxus integration surface (${{ matrix.name }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: core
+            command: cargo test -p es-fluent-manager-core
+          - name: web-server
+            command: cargo test -p web --lib --no-default-features
+          - name: web-client
+            command: cargo check -p web --features web
 
     steps:
       - uses: actions/checkout@v6
@@ -129,13 +170,16 @@ jobs:
         uses: ./.github/actions/install-linux-deps
 
       - name: Lint code
-        run: cargo clippy --workspace --all-features
+        run: cargo clippy --workspace --all-features --all-targets -- -D warnings
 
   machete:
     runs-on: ubuntu-latest
 
     steps:
       - uses: actions/checkout@v6
+
+      - name: Setup sccache
+        uses: mozilla-actions/sccache-action@v0.0.10
 
       - name: Machete
         uses: bnjbvr/cargo-machete@main

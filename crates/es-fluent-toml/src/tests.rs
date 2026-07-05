@@ -46,6 +46,17 @@ fn config_document(
     toml::Value::Table(config)
 }
 
+fn i18n_config(fallback_language: &str, assets_dir: &str) -> I18nConfig {
+    I18nConfig::builder()
+        .fallback_language(
+            fallback_language
+                .parse::<LanguageIdentifier>()
+                .expect("test fallback language"),
+        )
+        .assets_dir(assets_dir)
+        .build()
+}
+
 #[test]
 fn test_read_from_path_success() {
     let temp_dir = TempDir::new().unwrap();
@@ -57,7 +68,7 @@ fn test_read_from_path_success() {
     assert!(result.is_ok());
 
     let config = result.unwrap();
-    assert_eq!(config.fallback_language, "en");
+    assert_eq!(config.fallback_language_id(), "en");
     assert_eq!(config.assets_dir, PathBuf::from("i18n"));
 }
 
@@ -102,36 +113,156 @@ fn test_read_from_path_rejects_noncanonical_fallback_language() {
 
 #[test]
 fn test_assets_dir_path() {
-    let config = I18nConfig {
-        fallback_language: "en-US".to_string(),
-        assets_dir: PathBuf::from("locales"),
-        fluent_feature: None,
-        namespaces: None,
-    };
+    let config = i18n_config("en-US", "locales");
 
     assert_eq!(config.assets_dir_path(), PathBuf::from("locales"));
 }
 
 #[test]
+fn test_read_from_path_normalizes_assets_dir_inside_crate() {
+    let temp_dir = TempDir::new().unwrap();
+    let config_path = temp_dir.path().join("i18n.toml");
+
+    write_toml(
+        &config_path,
+        &config_document("en", "assets/../i18n", None, None),
+    );
+
+    let config = I18nConfig::read_from_path(&config_path).expect("config should parse");
+
+    assert_eq!(config.assets_dir, PathBuf::from("i18n"));
+}
+
+#[test]
+fn test_read_from_path_rejects_assets_dir_outside_crate() {
+    let temp_dir = TempDir::new().unwrap();
+    let config_path = temp_dir.path().join("i18n.toml");
+
+    for assets_dir in ["../outside/i18n", "/tmp/es-fluent-i18n"] {
+        write_toml(&config_path, &config_document("en", assets_dir, None, None));
+
+        let err =
+            I18nConfig::read_from_path(&config_path).expect_err("assets_dir should be rejected");
+
+        assert!(
+            matches!(err, I18nConfigError::InvalidAssetsDir { ref path, .. } if path == assets_dir),
+            "unexpected error for {assets_dir}: {err:?}"
+        );
+    }
+}
+
+#[test]
+fn test_assets_dir_from_base_rejects_programmatic_escape() {
+    let temp_dir = TempDir::new().unwrap();
+    let escaping = i18n_config("en", "../outside/i18n");
+
+    let err = escaping
+        .assets_dir_from_base(Some(temp_dir.path()))
+        .expect_err("escaping assets_dir should be rejected");
+
+    assert!(matches!(
+        err,
+        I18nConfigError::InvalidAssetsDir { reason, .. }
+            if reason.contains("inside the crate root")
+    ));
+}
+
+#[cfg(unix)]
+#[test]
+fn test_assets_dir_from_base_rejects_symlink_escape() {
+    let temp_dir = TempDir::new().unwrap();
+    let outside = TempDir::new().unwrap();
+    std::os::unix::fs::symlink(outside.path(), temp_dir.path().join("i18n"))
+        .expect("create assets symlink");
+    let config = i18n_config("en", "i18n");
+
+    let err = config
+        .assets_dir_from_base(Some(temp_dir.path()))
+        .expect_err("symlinked assets_dir should be rejected");
+
+    assert!(matches!(
+        err,
+        I18nConfigError::InvalidAssetsDir { path, reason }
+            if path == "i18n" && reason.contains("inside the crate root")
+    ));
+}
+
+#[cfg(unix)]
+#[test]
+fn test_assets_dir_from_base_rejects_symlinked_parent_escape() {
+    let temp_dir = TempDir::new().unwrap();
+    let outside = TempDir::new().unwrap();
+    std::os::unix::fs::symlink(outside.path(), temp_dir.path().join("linked"))
+        .expect("create parent symlink");
+    let config = i18n_config("en", "linked/i18n");
+
+    let err = config
+        .assets_dir_from_base(Some(temp_dir.path()))
+        .expect_err("assets_dir under symlinked parent should be rejected");
+
+    assert!(matches!(
+        err,
+        I18nConfigError::InvalidAssetsDir { path, reason }
+            if path == "linked/i18n" && reason.contains("inside the crate root")
+    ));
+}
+
+#[cfg(unix)]
+#[test]
+fn test_assets_dir_from_base_rejects_in_crate_symlinked_assets_dir() {
+    let temp_dir = TempDir::new().unwrap();
+    fs::create_dir_all(temp_dir.path().join("real-i18n")).unwrap();
+    std::os::unix::fs::symlink(
+        temp_dir.path().join("real-i18n"),
+        temp_dir.path().join("i18n"),
+    )
+    .expect("create assets symlink");
+    let config = i18n_config("en", "i18n");
+
+    let err = config
+        .assets_dir_from_base(Some(temp_dir.path()))
+        .expect_err("symlinked assets_dir should be rejected");
+
+    assert!(matches!(
+        err,
+        I18nConfigError::InvalidAssetsDir { path, reason }
+            if path == "i18n" && reason.contains("not symlinks")
+    ));
+}
+
+#[cfg(unix)]
+#[test]
+fn test_assets_dir_from_base_rejects_in_crate_symlinked_parent() {
+    let temp_dir = TempDir::new().unwrap();
+    fs::create_dir_all(temp_dir.path().join("real-parent/i18n")).unwrap();
+    std::os::unix::fs::symlink(
+        temp_dir.path().join("real-parent"),
+        temp_dir.path().join("linked"),
+    )
+    .expect("create parent symlink");
+    let config = i18n_config("en", "linked/i18n");
+
+    let err = config
+        .assets_dir_from_base(Some(temp_dir.path()))
+        .expect_err("assets_dir under symlinked parent should be rejected");
+
+    assert!(matches!(
+        err,
+        I18nConfigError::InvalidAssetsDir { path, reason }
+            if path == "linked/i18n" && reason.contains("not symlinks")
+    ));
+}
+
+#[test]
 fn test_fallback_language_id() {
-    let config = I18nConfig {
-        fallback_language: "en-US".to_string(),
-        assets_dir: PathBuf::from("i18n"),
-        fluent_feature: None,
-        namespaces: None,
-    };
+    let config = i18n_config("en-US", "i18n");
 
     assert_eq!(config.fallback_language_id(), "en-US");
 }
 
 #[test]
 fn test_fallback_language_identifier_success() {
-    let config = I18nConfig {
-        fallback_language: "en-US".to_string(),
-        assets_dir: PathBuf::from("i18n"),
-        fluent_feature: None,
-        namespaces: None,
-    };
+    let config = i18n_config("en-US", "i18n");
 
     let lang = config.fallback_language_identifier().unwrap();
 
@@ -139,20 +270,39 @@ fn test_fallback_language_identifier_success() {
 }
 
 #[test]
-fn test_fallback_language_identifier_invalid() {
-    let config = I18nConfig {
+fn test_raw_config_rejects_invalid_fallback_language() {
+    let result = RawI18nConfig {
         fallback_language: "invalid-lang!".to_string(),
         assets_dir: PathBuf::from("i18n"),
         fluent_feature: None,
         namespaces: None,
-    };
-
-    let result = config.fallback_language_identifier();
+        check_fallback_copies: true,
+    }
+    .validate();
 
     assert!(matches!(
         result,
         Err(I18nConfigError::InvalidFallbackLanguageIdentifier { name, .. })
             if name == "invalid-lang!"
+    ));
+}
+
+#[test]
+fn test_raw_config_rejects_invalid_namespace() {
+    let result = RawI18nConfig {
+        fallback_language: "en".to_string(),
+        assets_dir: PathBuf::from("i18n"),
+        fluent_feature: None,
+        namespaces: Some(vec!["../ui".to_string()]),
+        check_fallback_copies: true,
+    }
+    .validate();
+
+    assert!(matches!(
+        result,
+        Err(I18nConfigError::InvalidNamespace { namespace, source })
+            if namespace == "../ui"
+                && source == NamespacePathError::CurrentOrParentSegment
     ));
 }
 
@@ -168,12 +318,7 @@ fn test_available_languages_collects_directories() {
     fs::create_dir(assets.join("zh-Hans")).unwrap();
     fs::write(assets.join("README.txt"), "ignored file").unwrap();
 
-    let config = I18nConfig {
-        fallback_language: "en".to_string(),
-        assets_dir: PathBuf::from("i18n"),
-        fluent_feature: None,
-        namespaces: None,
-    };
+    let config = i18n_config("en", "i18n");
 
     let languages = config
         .available_languages_from_base(Some(manifest_dir))
@@ -193,12 +338,7 @@ fn test_available_languages_allows_language_only() {
     fs::create_dir(&assets).unwrap();
     fs::create_dir(assets.join("en")).unwrap();
 
-    let config = I18nConfig {
-        fallback_language: "en".to_string(),
-        assets_dir: PathBuf::from("i18n"),
-        fluent_feature: None,
-        namespaces: None,
-    };
+    let config = i18n_config("en", "i18n");
 
     let languages = config
         .available_languages_from_base(Some(manifest_dir))
@@ -217,12 +357,7 @@ fn test_available_locale_names_reject_noncanonical_directory_names() {
     fs::create_dir(assets.join("en-us")).unwrap();
     fs::create_dir(assets.join("fr")).unwrap();
 
-    let config = I18nConfig {
-        fallback_language: "en-US".to_string(),
-        assets_dir: PathBuf::from("i18n"),
-        fluent_feature: None,
-        namespaces: None,
-    };
+    let config = i18n_config("en-US", "i18n");
 
     let locale_err = config
         .available_locale_names_from_base(Some(manifest_dir))
@@ -238,6 +373,58 @@ fn test_available_locale_names_reject_noncanonical_directory_names() {
         .expect_err("noncanonical locale directories should fail");
     assert!(matches!(
         language_err,
+        I18nConfigError::NonCanonicalLanguageIdentifier { name, canonical }
+            if name == "en-us" && canonical == "en-US"
+    ));
+}
+
+#[test]
+fn test_root_assets_ignore_crate_directories_when_discovering_locales() {
+    let temp_dir = TempDir::new().unwrap();
+    let manifest_dir = temp_dir.path();
+    fs::create_dir(manifest_dir.join("en")).unwrap();
+    fs::create_dir(manifest_dir.join("fr-FR")).unwrap();
+    fs::create_dir(manifest_dir.join("bin")).unwrap();
+    fs::create_dir(manifest_dir.join("dev")).unwrap();
+    fs::create_dir(manifest_dir.join("doc")).unwrap();
+    fs::create_dir(manifest_dir.join("lib")).unwrap();
+    fs::create_dir(manifest_dir.join("man")).unwrap();
+    fs::create_dir(manifest_dir.join("src")).unwrap();
+    fs::create_dir(manifest_dir.join("target")).unwrap();
+    fs::create_dir(manifest_dir.join(".git")).unwrap();
+
+    let config = i18n_config("en", ".");
+
+    let locale_names = config
+        .available_locale_names_from_base(Some(manifest_dir))
+        .expect("crate-root assets should ignore non-locale project directories");
+    assert_eq!(locale_names, vec!["en", "fr-FR"]);
+
+    let languages = config
+        .available_languages_from_base(Some(manifest_dir))
+        .expect("crate-root assets should ignore non-locale project directories");
+    let language_names = languages
+        .into_iter()
+        .map(|language| language.to_string())
+        .collect::<Vec<_>>();
+    assert_eq!(language_names, vec!["en", "fr-FR"]);
+}
+
+#[test]
+fn test_root_assets_still_reject_noncanonical_locale_directories() {
+    let temp_dir = TempDir::new().unwrap();
+    let manifest_dir = temp_dir.path();
+    fs::create_dir(manifest_dir.join("en")).unwrap();
+    fs::create_dir(manifest_dir.join("en-us")).unwrap();
+    fs::create_dir(manifest_dir.join("src")).unwrap();
+
+    let config = i18n_config("en", ".");
+
+    let err = config
+        .available_locale_names_from_base(Some(manifest_dir))
+        .expect_err("noncanonical locale directories should still fail");
+    assert!(matches!(
+        err,
         I18nConfigError::NonCanonicalLanguageIdentifier { name, canonical }
             if name == "en-us" && canonical == "en-US"
     ));
@@ -265,10 +452,13 @@ fn test_resolved_layout_helpers_delegate_to_underlying_config() {
     assert_eq!(layout.fallback_language(), "en-US");
     assert_eq!(layout.locale_dir("fr"), temp_dir.path().join("i18n/fr"));
     assert_eq!(layout.fluent_features(), vec!["fluent", "i18n"]);
-    assert_eq!(
-        layout.allowed_namespaces(),
-        Some(&["ui".to_string(), "errors".to_string()][..])
-    );
+    let allowed_namespaces = layout
+        .allowed_namespaces()
+        .unwrap()
+        .iter()
+        .map(ResolvedNamespace::as_str)
+        .collect::<Vec<_>>();
+    assert_eq!(allowed_namespaces, vec!["ui", "errors"]);
 
     let mut locales = layout.available_locale_names().unwrap();
     locales.sort();
@@ -291,12 +481,7 @@ fn test_available_languages_and_locale_names_use_manifest_env() {
     fs::create_dir_all(assets_dir.join("en")).unwrap();
     fs::create_dir_all(assets_dir.join("fr")).unwrap();
 
-    let config = I18nConfig {
-        fallback_language: "en".to_string(),
-        assets_dir: PathBuf::from("i18n"),
-        fluent_feature: None,
-        namespaces: None,
-    };
+    let config = i18n_config("en", "i18n");
 
     crate::test_utils::with_manifest_env(Some(temp_dir.path()), || {
         let mut locale_names = config.available_locale_names().unwrap();
@@ -315,7 +500,6 @@ fn test_available_languages_and_locale_names_use_manifest_env() {
 }
 
 #[rstest]
-#[case(Some(string_value("fluent")), Some(vec!["fluent"]))]
 #[case(
     Some(toml::Value::Array(vec![
         string_value("fluent"),
@@ -337,18 +521,49 @@ fn test_fluent_feature_parsing(
     );
 
     let config = I18nConfig::read_from_path(&config_path).unwrap();
-    let actual = config.fluent_feature.map(|feature| feature.as_vec());
+    let actual = config.fluent_feature;
     let expected =
         expected.map(|values| values.into_iter().map(str::to_string).collect::<Vec<_>>());
     assert_eq!(actual, expected);
 }
 
 #[test]
-fn test_fluent_feature_is_empty_variants() {
-    assert!(FluentFeature::Single(String::new()).is_empty());
-    assert!(!FluentFeature::Single("fluent".to_string()).is_empty());
-    assert!(FluentFeature::Multiple(Vec::new()).is_empty());
-    assert!(!FluentFeature::Multiple(vec!["fluent".to_string()]).is_empty());
+fn test_check_fallback_copies_defaults_to_true_and_parses_false() {
+    let temp_dir = TempDir::new().unwrap();
+    let config_path = temp_dir.path().join("i18n.toml");
+
+    write_toml(&config_path, &config_document("en", "i18n", None, None));
+    let config = I18nConfig::read_from_path(&config_path).unwrap();
+    assert!(config.check_fallback_copies);
+
+    let mut disabled = table([
+        ("fallback_language", string_value("en")),
+        ("assets_dir", string_value("i18n")),
+    ]);
+    disabled.insert(
+        "check_fallback_copies".to_string(),
+        toml::Value::Boolean(false),
+    );
+    write_toml(&config_path, &toml::Value::Table(disabled));
+
+    let config = I18nConfig::read_from_path(&config_path).unwrap();
+    assert!(!config.check_fallback_copies);
+}
+
+#[test]
+fn test_fluent_feature_requires_array_shape() {
+    let temp_dir = TempDir::new().unwrap();
+    let config_path = temp_dir.path().join("i18n.toml");
+
+    write_toml(
+        &config_path,
+        &config_document("en", "i18n", Some(string_value("fluent")), None),
+    );
+
+    let error =
+        I18nConfig::read_from_path(&config_path).expect_err("string fluent_feature is invalid");
+
+    assert!(error.to_string().contains("Failed to parse config"));
 }
 
 #[test]
@@ -359,12 +574,7 @@ fn test_available_languages_uses_manifest_env_when_base_not_provided() {
     fs::create_dir(&assets).unwrap();
     fs::create_dir(assets.join("en")).unwrap();
 
-    let config = I18nConfig {
-        fallback_language: "en".to_string(),
-        assets_dir: PathBuf::from("i18n"),
-        fluent_feature: None,
-        namespaces: None,
-    };
+    let config = i18n_config("en", "i18n");
 
     let languages = crate::test_utils::with_manifest_env(Some(temp_dir.path()), || {
         config.available_languages()
@@ -383,12 +593,7 @@ fn test_available_languages_uses_manifest_env_when_base_not_provided() {
 #[serial_test::serial(manifest)]
 fn test_validate_assets_dir_reports_missing_and_non_directory() {
     let temp_dir = TempDir::new().unwrap();
-    let config = I18nConfig {
-        fallback_language: "en".to_string(),
-        assets_dir: PathBuf::from("i18n"),
-        fluent_feature: None,
-        namespaces: None,
-    };
+    let config = i18n_config("en", "i18n");
 
     let missing = crate::test_utils::with_manifest_env(Some(temp_dir.path()), || {
         config.validate_assets_dir()
@@ -411,12 +616,7 @@ fn test_validate_assets_dir_reports_missing_and_non_directory() {
 #[test]
 fn test_available_languages_reports_missing_assets_directory_consistently() {
     let temp_dir = TempDir::new().unwrap();
-    let config = I18nConfig {
-        fallback_language: "en".to_string(),
-        assets_dir: PathBuf::from("i18n"),
-        fluent_feature: None,
-        namespaces: None,
-    };
+    let config = i18n_config("en", "i18n");
 
     let err = config
         .available_languages_from_base(Some(temp_dir.path()))
@@ -441,7 +641,7 @@ fn test_manifest_dir_helper_methods() {
     );
 
     let config = I18nConfig::from_manifest_dir(temp_dir.path()).expect("config");
-    assert_eq!(config.fallback_language, "en-US");
+    assert_eq!(config.fallback_language_id(), "en-US");
     assert_eq!(config.assets_dir, PathBuf::from("locales"));
 
     let assets = I18nConfig::assets_dir_from_manifest_dir(temp_dir.path()).expect("assets");
@@ -458,12 +658,7 @@ fn test_available_languages_rejects_invalid_language_directory() {
     fs::create_dir(&assets).unwrap();
     fs::create_dir(assets.join("invalid-lang!")).unwrap();
 
-    let config = I18nConfig {
-        fallback_language: "en".to_string(),
-        assets_dir: PathBuf::from("i18n"),
-        fluent_feature: None,
-        namespaces: None,
-    };
+    let config = i18n_config("en", "i18n");
 
     let err = config
         .available_languages_from_base(Some(temp_dir.path()))
@@ -481,12 +676,7 @@ fn test_available_languages_accepts_variant_language_directory() {
     fs::create_dir(&assets).unwrap();
     fs::create_dir(assets.join("en-oxendict")).unwrap();
 
-    let config = I18nConfig {
-        fallback_language: "en".to_string(),
-        assets_dir: PathBuf::from("i18n"),
-        fluent_feature: None,
-        namespaces: None,
-    };
+    let config = i18n_config("en", "i18n");
 
     let languages = config
         .available_languages_from_base(Some(temp_dir.path()))
@@ -503,10 +693,13 @@ fn test_available_languages_accepts_variant_language_directory() {
 
 #[test]
 fn test_collect_language_entries_propagates_directory_iteration_errors() {
-    let err = collect_language_entries([Err(std::io::Error::new(
-        std::io::ErrorKind::PermissionDenied,
-        "boom",
-    ))])
+    let err = collect_language_entries(
+        [Err(std::io::Error::new(
+            std::io::ErrorKind::PermissionDenied,
+            "boom",
+        ))],
+        LanguageEntryMode::Strict,
+    )
     .expect_err("directory iteration errors should not be dropped");
 
     assert!(matches!(
@@ -517,12 +710,7 @@ fn test_collect_language_entries_propagates_directory_iteration_errors() {
 
 #[test]
 fn test_fallback_language_identifier_accepts_variants() {
-    let config = I18nConfig {
-        fallback_language: "en-oxendict".to_string(),
-        assets_dir: PathBuf::from("i18n"),
-        fluent_feature: None,
-        namespaces: None,
-    };
+    let config = i18n_config("en-oxendict", "i18n");
 
     let language = config
         .fallback_language_identifier()

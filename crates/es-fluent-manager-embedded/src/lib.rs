@@ -1,8 +1,10 @@
 #![doc = include_str!("../README.md")]
 
-use es_fluent::{FluentLocalizer, FluentLocalizerExt, FluentMessage, FluentValue};
+use es_fluent::{
+    FluentArgs, FluentLocalizer, FluentLocalizerExt, FluentLocalizerLookup, FluentMessage,
+    registry::{StaticFluentDomain, StaticFluentEntryId},
+};
 use es_fluent_manager_core::{FluentManager, ModuleDiscoveryError};
-use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
 use tracing::info;
 use unic_langid::LanguageIdentifier;
@@ -11,7 +13,7 @@ use unic_langid::LanguageIdentifier;
 pub use es_fluent::__inventory;
 
 #[doc(hidden)]
-pub use es_fluent::__rust_embed;
+pub use rust_embed as __rust_embed;
 
 #[doc(hidden)]
 pub use es_fluent_manager_core as __manager_core;
@@ -71,8 +73,7 @@ struct ActiveSelection {
 /// Explicit embedded localization context.
 ///
 /// Construct this once during application startup, keep it in application state,
-/// and pass it to code that needs localization. No context-free `es-fluent`
-/// context is installed.
+/// and pass it to code that needs localization.
 #[derive(Clone)]
 pub struct EmbeddedI18n {
     manager: Arc<FluentManager>,
@@ -212,32 +213,36 @@ impl EmbeddedI18n {
 impl FluentLocalizer for EmbeddedI18n {
     fn localize<'a>(
         &self,
-        id: &str,
-        args: Option<&HashMap<&str, FluentValue<'a>>>,
+        id: StaticFluentEntryId,
+        args: Option<&FluentArgs<'a>>,
     ) -> Option<String> {
-        self.manager.localize(id, args)
+        FluentManager::localize(self.manager.as_ref(), id, args.map(FluentArgs::as_raw))
     }
 
     fn localize_in_domain<'a>(
         &self,
-        domain: &str,
-        id: &str,
-        args: Option<&HashMap<&str, FluentValue<'a>>>,
+        domain: StaticFluentDomain,
+        id: StaticFluentEntryId,
+        args: Option<&FluentArgs<'a>>,
     ) -> Option<String> {
-        self.manager.localize_in_domain(domain, id, args)
+        FluentManager::localize_in_domain(
+            self.manager.as_ref(),
+            domain,
+            id,
+            args.map(FluentArgs::as_raw),
+        )
     }
 
-    fn with_lookup(
-        &self,
-        f: &mut dyn FnMut(
-            &mut dyn for<'a> FnMut(
-                &str,
-                &str,
-                Option<&HashMap<&str, FluentValue<'a>>>,
-            ) -> Option<String>,
-        ),
-    ) {
-        self.manager.with_lookup(f);
+    fn with_lookup(&self, f: &mut dyn FnMut(&mut FluentLocalizerLookup<'_>)) {
+        FluentManager::with_lookup(self.manager.as_ref(), &mut |lookup| {
+            let mut typed_lookup =
+                |domain: StaticFluentDomain,
+                 id: StaticFluentEntryId,
+                 args: Option<&FluentArgs<'_>>| {
+                    lookup(domain, id, args.map(FluentArgs::as_raw))
+                };
+            f(&mut typed_lookup);
+        });
     }
 }
 
@@ -253,7 +258,7 @@ mod tests {
     static TEST_SUPPORTED_LANGUAGES: &[LanguageIdentifier] = &[langid!("en-US"), langid!("fr")];
     static TEST_MODULE_DATA: ModuleData = ModuleData {
         name: "embedded-test-module",
-        domain: "embedded-test-module",
+        domain: es_fluent_manager_core::__macro::static_domain("embedded-test-module"),
         supported_languages: TEST_SUPPORTED_LANGUAGES,
         namespaces: &[],
     };
@@ -297,15 +302,15 @@ mod tests {
 
         fn localize<'a>(
             &self,
-            id: &str,
-            _args: Option<&HashMap<&str, FluentValue<'a>>>,
+            id: StaticFluentEntryId,
+            _args: Option<&es_fluent_manager_core::FluentArgumentMap<'a>>,
         ) -> Option<String> {
             let selected = self
                 .selected
                 .lock()
                 .expect("test localizer language lock should not be poisoned")
                 .to_string();
-            let value = match (selected.as_str(), id) {
+            let value = match (selected.as_str(), id.as_str()) {
                 ("en-US", "hello") => "Hello",
                 ("fr", "hello") => "Bonjour",
                 _ => return None,
@@ -320,13 +325,13 @@ mod tests {
     impl FluentMessage for TestMessage {
         fn to_fluent_string_with(
             &self,
-            localize: &mut dyn for<'a> FnMut(
-                &str,
-                &str,
-                Option<&HashMap<&str, FluentValue<'a>>>,
-            ) -> String,
+            localize: &mut es_fluent::FluentMessageLookup<'_>,
         ) -> String {
-            localize("embedded-test-module", "hello", None)
+            localize(
+                es_fluent::registry::__macro::static_domain("embedded-test-module"),
+                es_fluent::registry::__macro::static_entry_id("hello"),
+                None,
+            )
         }
     }
 
@@ -341,6 +346,14 @@ mod tests {
         });
     }
 
+    fn static_domain(value: &'static str) -> StaticFluentDomain {
+        StaticFluentDomain::try_new(value).expect("valid test domain")
+    }
+
+    fn static_entry(value: &'static str) -> StaticFluentEntryId {
+        StaticFluentEntryId::try_new(value).expect("valid test message id")
+    }
+
     #[test]
     fn embedded_i18n_instances_select_languages_independently() {
         force_inventory_link();
@@ -352,8 +365,8 @@ mod tests {
         assert_eq!(
             es_fluent::FluentLocalizer::localize_in_domain(
                 &en,
-                "embedded-test-module",
-                "hello",
+                static_domain("embedded-test-module"),
+                static_entry("hello"),
                 None
             ),
             Some("Hello".to_string())
@@ -361,8 +374,8 @@ mod tests {
         assert_eq!(
             es_fluent::FluentLocalizer::localize_in_domain(
                 &fr,
-                "embedded-test-module",
-                "hello",
+                static_domain("embedded-test-module"),
+                static_entry("hello"),
                 None
             ),
             Some("Bonjour".to_string())
@@ -374,8 +387,8 @@ mod tests {
         assert_eq!(
             es_fluent::FluentLocalizer::localize_in_domain(
                 &en,
-                "embedded-test-module",
-                "hello",
+                static_domain("embedded-test-module"),
+                static_entry("hello"),
                 None
             ),
             Some("Bonjour".to_string())
@@ -383,8 +396,8 @@ mod tests {
         assert_eq!(
             es_fluent::FluentLocalizer::localize_in_domain(
                 &fr,
-                "embedded-test-module",
-                "hello",
+                static_domain("embedded-test-module"),
+                static_entry("hello"),
                 None
             ),
             Some("Bonjour".to_string())
@@ -396,8 +409,8 @@ mod tests {
         assert_eq!(
             es_fluent::FluentLocalizer::localize_in_domain(
                 &en,
-                "embedded-test-module",
-                "hello",
+                static_domain("embedded-test-module"),
+                static_entry("hello"),
                 None
             ),
             Some("Bonjour".to_string())
@@ -405,8 +418,8 @@ mod tests {
         assert_eq!(
             es_fluent::FluentLocalizer::localize_in_domain(
                 &fr,
-                "embedded-test-module",
-                "hello",
+                static_domain("embedded-test-module"),
+                static_entry("hello"),
                 None
             ),
             Some("Hello".to_string())
@@ -422,8 +435,8 @@ mod tests {
         assert_eq!(
             es_fluent::FluentLocalizer::localize_in_domain(
                 &i18n,
-                "embedded-test-module",
-                "hello",
+                static_domain("embedded-test-module"),
+                static_entry("hello"),
                 None
             ),
             Some("Hello".to_string())
@@ -436,13 +449,46 @@ mod tests {
     }
 
     #[test]
+    fn embedded_i18n_strict_initialization_tracks_active_language() {
+        force_inventory_link();
+        let i18n = EmbeddedI18n::try_new_with_language_strict(langid!("en-US"))
+            .expect("strict embedded i18n should initialize");
+
+        i18n.select_language_strict(langid!("en-US"))
+            .expect("strictly selecting the active language should be a no-op");
+        assert_eq!(
+            es_fluent::FluentLocalizer::localize_in_domain(
+                &i18n,
+                static_domain("embedded-test-module"),
+                static_entry("hello"),
+                None
+            ),
+            Some("Hello".to_string())
+        );
+        assert_eq!(
+            es_fluent::FluentLocalizer::localize_in_domain(
+                &i18n,
+                static_domain("embedded-test-module"),
+                static_entry("unknown"),
+                None
+            ),
+            None
+        );
+
+        i18n.select_language(langid!("en-US"))
+            .expect("best-effort selection should store its own active policy");
+        i18n.select_language(langid!("en-US"))
+            .expect("best-effort selecting the active language should be a no-op");
+    }
+
+    #[test]
     fn embedded_i18n_try_new_builds_context_before_language_selection() {
         force_inventory_link();
         let i18n = EmbeddedI18n::try_new().expect("embedded i18n should initialize");
         let cloned = i18n.clone();
 
         assert_eq!(
-            es_fluent::FluentLocalizer::localize(&i18n, "hello", None),
+            es_fluent::FluentLocalizer::localize(&i18n, static_entry("hello"), None),
             None
         );
         assert_eq!(i18n.localize_message(&TestMessage), "hello");
@@ -452,8 +498,8 @@ mod tests {
         assert_eq!(
             es_fluent::FluentLocalizer::localize_in_domain(
                 &i18n,
-                "embedded-test-module",
-                "hello",
+                static_domain("embedded-test-module"),
+                static_entry("hello"),
                 None
             ),
             Some("Bonjour".to_string())
@@ -463,7 +509,7 @@ mod tests {
     #[test]
     fn embedded_init_error_display_and_source_match_error_kind() {
         use es_fluent_manager_core::{ModuleDiscoveryError, ModuleRegistrationKind};
-        use std::error::Error;
+        use std::error::Error as _;
 
         let discovery = EmbeddedInitError::ModuleDiscovery(vec![
             ModuleDiscoveryError::DuplicateModuleRegistration {

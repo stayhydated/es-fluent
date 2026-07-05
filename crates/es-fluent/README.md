@@ -17,11 +17,6 @@ This framework gives you:
 - [Language Enum Generation](../es-fluent-lang/README.md)
 - Integration via the [embedded manager](../es-fluent-manager-embedded/README.md), the [Dioxus manager](../es-fluent-manager-dioxus/README.md), or [es-fluent-manager-bevy](../es-fluent-manager-bevy/README.md) for [Bevy](https://bevy.org/)
 
-## Examples
-
-- [bevy](../../examples/bevy-example) ([online demo](https://stayhydated.github.io/es-fluent/bevy-example/))
-- [gpui](../../examples/gpui-example)
-
 ## Used in
 
 - [koruma](https://github.com/stayhydated/koruma)
@@ -29,7 +24,7 @@ This framework gives you:
 - [gpui-table](https://github.com/stayhydated/gpui-table)
 - [gpui-storybook](https://github.com/stayhydated/gpui-storybook)
 
-## Version compatibility
+## Version Matrix
 
 | Surface                                           | Version line | Runtime        |
 | :------------------------------------------------ | :----------- | :------------- |
@@ -53,8 +48,9 @@ es-fluent-manager-embedded = "0.16"
 # For Dioxus apps, enable only the runtime surface you use.
 # es-fluent-manager-dioxus = { version = "0.7", features = ["client"] }
 # es-fluent-manager-dioxus = { version = "0.7", features = ["ssr"] }
+# es-fluent-manager-dioxus = { version = "0.7", features = ["client", "ssr"] }
 
-# For Bevy integration: replace `es-fluent-manager-embedded` with  `es-fluent-manager-bevy`
+# For Bevy integration, use `es-fluent-manager-bevy`.
 # es-fluent-manager-bevy = "0.18.13"
 ```
 
@@ -114,8 +110,10 @@ fn main() -> Result<(), String> {
 }
 ```
 
-Prefer `localize_message(...)` on the concrete manager handle. Raw string-ID
-lookup remains available in `es-fluent-manager-core` for integration code.
+Prefer `localize_message(...)` on the concrete manager handle. The public
+manager and `FluentLocalizer` lookup paths receive `StaticFluentDomain`,
+`StaticFluentEntryId`, and typed Fluent argument maps, so derived message
+rendering keeps validated IDs typed until the final Fluent bundle lookup.
 Application-facing APIs are intentionally enum-first. Custom integrations that
 need to distinguish missing lookups from message ID fallback can use
 `FluentLocalizerExt::try_localize_message(...)`.
@@ -157,46 +155,48 @@ fn main() -> Result<(), String> {
 For Dioxus, `es-fluent-manager-dioxus` provides a provider component,
 hook-based client helpers, typed context-bound localization, and signal-backed
 locale state behind the `client` feature. Its `ssr` feature provides a
-request-scoped runtime. Dioxus code should use
-`DioxusI18n::localize_message(...)`, `ManagedI18n::localize_message(...)`, or
-typed label helpers through the component or SSR request context.
-Dioxus does not use the generic embedded localizer handle or install a
-process-wide localizer.
+request-scoped runtime. Dioxus translations are loaded through generated
+Dioxus asset modules; pass `dioxus_i18n_asset_modules()` to the provider or SSR
+runtime. Dioxus code should use
+`DioxusAssetI18nHandle::localize_message(...)` or typed label helpers through
+the component or SSR request context. Runtime follower modules such as
+`es-fluent-lang` language labels are discovered automatically and follow the
+selected asset-backed locale.
+During `dx serve` debug WASM runs, changed generated FTL assets refresh the
+provider context through Dioxus asset hot reload while preserving the requested
+locale when possible.
 For Bevy, systems that need direct localization can request `BevyI18n` as a
 `SystemParam` and call `localize_message(...)` on it. The plugin also exposes
 `RequestedLanguageId` and `ActiveLanguageId` for systems that need to
-distinguish user intent from the currently published locale. Detailed Bevy
-asset readiness and fallback-manager behavior is documented in
-`crates/es-fluent-manager-bevy/docs/ARCHITECTURE.md`.
+distinguish user intent from the currently published locale.
 
 ## Project configuration
 
-For a new crate, start with the CLI scaffold:
+Create `i18n.toml` next to your crate's `Cargo.toml`, create the fallback
+locale directory, and expose an i18n module from your library target when you
+use manager macros:
 
-```sh
-cargo es-fluent init
+```rust,ignore
+// src/i18n.rs
+pub use es_fluent_manager_embedded::{
+    EmbeddedI18n as I18n, EmbeddedInitError, LocalizationError,
+};
+
+es_fluent_manager_embedded::define_i18n_module!();
 ```
 
-This creates `i18n.toml`, `assets/locales/en/`, `src/i18n.rs`, and a
-`pub mod i18n;` declaration in `src/lib.rs`. Use `--manager dioxus` or
-`--manager bevy` for framework-specific scaffolding, and `--build-rs` to add
-locale asset rebuild tracking. Use `--locales fr-FR,zh-CN` to create more
-locale directories, `--namespaces ui,errors` to write a namespace allowlist,
-and `--update-cargo-toml` to add the matching dependencies. When `--build-rs`
-is also passed, the manifest update includes `es-fluent-build` under
-`[build-dependencies]`. For Dioxus manifests, `--dioxus-runtime client`,
-`--dioxus-runtime ssr`, or
-`--dioxus-runtime client,ssr` selects the generated manager features; omitting
-it enables both.
+```rust,ignore
+// src/lib.rs
+pub mod i18n;
+```
 
-Before writing anything, `init` checks generated-file conflicts, directory
-targets, and `Cargo.toml` parseability when manifest updates are requested.
+Use the Dioxus or Bevy manager crate in that module for framework-specific
+integrations. If manager macros scan locale assets at compile time, add
+`es-fluent-build` under `[build-dependencies]` and call
+`es_fluent_build::track_i18n_assets();` from `build.rs` so Cargo rebuilds when
+locale files are added, removed, or renamed.
 
-`init` creates a library target because CLI inventory collection reads library
-targets. Put derived message types in `src/lib.rs` or another library crate;
-binary-only derived types in `src/main.rs` are not discovered by `generate`.
-
-Or create an `i18n.toml` next to your `Cargo.toml` manually:
+Create an `i18n.toml` next to your `Cargo.toml`:
 
 ```toml
 # Default fallback language (required)
@@ -265,7 +265,7 @@ pub struct Dialog {
 }
 
 #[derive(EsFluent)]
-#[fluent(namespace(file(relative)))]
+#[fluent(namespace = file_relative)]
 pub enum Gender {
     Male,
     Female,
@@ -280,28 +280,23 @@ pub enum Gender {
 use es_fluent::EsFluentLabel;
 
 #[derive(EsFluentLabel)]
-#[fluent_label(origin)]
 #[fluent(namespace = "forms")]
 pub enum GenderLabel { Male, Female, Other }
 
 #[derive(EsFluentLabel)]
-#[fluent_label(origin)]
 #[fluent(namespace = file)]
 pub enum Status { Active, Inactive }
 
 #[derive(EsFluentLabel)]
-#[fluent_label(origin)]
-#[fluent(namespace(file(relative)))]
+#[fluent(namespace = file_relative)]
 pub struct UserProfile;
 
 #[derive(EsFluentLabel)]
-#[fluent_label(origin)]
 #[fluent(namespace = folder)]
 pub enum FolderStatus { Active, Inactive }
 
 #[derive(EsFluentLabel)]
-#[fluent_label(origin)]
-#[fluent(namespace(folder(relative)))]
+#[fluent(namespace = folder_relative)]
 pub struct FolderUserProfile;
 ```
 
@@ -334,11 +329,11 @@ resource for non-namespaced messages.
 
 ### Namespace Values
 
-- `namespace = "name"` - explicit namespace string
+- `namespace = "name"` - explicit namespace string. Literal namespaces must be safe locale-relative paths: no empty segments, `.`/`..`, backslashes, absolute paths, surrounding whitespace, or `.ftl` suffix.
 - `namespace = file` - uses the source file stem (e.g., `src/ui/button.rs` -> `button`)
-- `namespace(file(relative))` - uses the file path relative to the crate root, strips `src/`, and removes the extension (e.g., `src/ui/button.rs` -> `ui/button`)
+- `namespace = file_relative` - uses the file path relative to the crate root, strips `src/`, and removes the extension (e.g., `src/ui/button.rs` -> `ui/button`)
 - `namespace = folder` - uses the source file parent folder (e.g., `src/ui/button.rs` -> `ui`)
-- `namespace(folder(relative))` - uses the parent folder path relative to the crate root, strips `src/` when nested, and keeps `src` for root module files (e.g., `src/ui/button.rs` -> `ui`)
+- `namespace = folder_relative` - uses the parent folder path relative to the crate root, strips `src/` when nested, and keeps `src` for root module files (e.g., `src/ui/button.rs` -> `ui`)
 
 Literal string namespaces are validated at compile time as safe relative namespace paths. If `namespaces = [...]` is set in `i18n.toml`, both the compiler and the CLI validate that string-based namespaces used by your code are in that allowlist.
 
@@ -361,9 +356,9 @@ pub enum LoginError {
     UserNotFound { username: String }, // exposed as $username in the ftl file
     Something(String, String, String), // exposed as $f0, $f1, $f2 in the ftl file
     SomethingArgNamed(
-        #[fluent(arg_name = "input")] String,
-        #[fluent(arg_name = "expected")] String,
-        #[fluent(arg_name = "details")] String,
+        #[fluent(arg = "input")] String,
+        #[fluent(arg = "expected")] String,
+        #[fluent(arg = "details")] String,
     ), // exposed as $input, $expected, $details
 }
 
@@ -384,14 +379,42 @@ let _ = i18n.localize_message(&welcome);
 
 Common derive attributes:
 
-- `arg_name = "..."` on a field renames that exposed Fluent argument (works on struct fields, enum named fields, and enum tuple fields).
+- `arg = "..."` on a field renames that exposed Fluent argument (works on struct fields, enum named fields, and enum tuple fields).
 - `#[fluent(skip)]` on a field excludes that field from generated arguments.
-- `#[fluent(value = "...")]` or `#[fluent(value(...))]` transforms a field before inserting it as a Fluent argument.
-- `#[fluent(key = "...")]` on an enum variant overrides that variant's key suffix.
-- `#[fluent(resource = "...")]` on an enum overrides the base key, `domain = "..."` routes lookup to a specific manager domain, and `skip_inventory` suppresses CLI inventory registration.
-- `domain = "..."` is enum-only. Struct messages resolve in the current crate's domain.
-- Optional-argument omission is generated for direct `Option<T>` fields, including paths like `std::option::Option<T>`. Type aliases to `Option<T>` are treated like ordinary field types.
+- `#[fluent(value = |x: &String| x.len())]` transforms a field before inserting it as a Fluent argument.
+- Plain `Option<T>` fields are inferred as optional Fluent arguments and are omitted when `None`.
+- `#[fluent(selector)]` on `Option<T>` fields creates an optional selector argument.
+- `#[fluent(selector)]` and `#[fluent(value = ...)]` are mutually exclusive on the same field. Explicit value attributes override `Option<T>` inference.
+- `#[fluent(key = "...")]` on an enum variant overrides that variant's key suffix. On unit-only `EsFluent` enums, it also overrides the inferred selector value.
+- `#[fluent(skip)]` and `#[fluent(key = "...")]` cannot be combined on the same enum variant.
+- `#[fluent(id = "...")]` on an enum overrides the base key, and `domain = "..."` routes lookup to a specific manager domain.
+- `id = "..."` and `domain = "..."` are enum-only. Struct message containers accept `namespace = ...`; struct messages resolve in the current crate's domain.
+- Generated FTL keys must be unique within each output file. `generate`, `clean`, and `check` fail when two derived items produce the same key.
 - `#[fluent_variants(skip)]` omits a struct field or enum variant from generated variant enums; `keys = [...]` values must be lowercase snake_case.
+
+Rendering through a callback:
+
+```rs
+use es_fluent::{EsFluent, FluentArgs, FluentMessage};
+
+#[derive(EsFluent)]
+pub struct UsernameRequired {
+    #[fluent(value = |value: &String| value.trim().to_string())]
+    value: String,
+}
+
+let message = UsernameRequired {
+    value: "  mark  ".to_string(),
+};
+
+let mut lookup = |domain, id, args: Option<&FluentArgs<'_>>| {
+    // Applications usually forward these values to an es-fluent manager.
+    // Koruma and GPUI integrations use this same callback shape for validator refs.
+    format!("{domain}:{id}:{:?}", args.map(FluentArgs::as_raw))
+};
+
+let rendered = message.to_fluent_string_with(&mut lookup);
+```
 
 Skipped single-field enum variants:
 
@@ -422,15 +445,17 @@ let _ = i18n.localize_message(&TransactionError::Network(NetworkError::ApiUnavai
 network_error-ApiUnavailable = API is unavailable
 ```
 
-### `#[derive(EsFluentChoice)]`
+### Choices
 
-Allows an enum to be used _inside_ another message as a selector (e.g., for gender or status).
+Unit-only enums that derive `EsFluent` can be used _inside_ another message as selectors (e.g., for gender or status). Variants serialize as kebab-case by default, so `GenderChoice::Male` becomes `male` and a compound variant like `VeryFriendly` becomes `very-friendly`.
+Derived choice values are emitted as validated `StaticFluentVariantKey` values.
+Use `#[fluent_choice(rename_all = "...")]` on the same enum to change selector casing. Styles that generate invalid selector values, such as values containing spaces, are rejected at compile time.
+Use standalone `#[derive(EsFluentChoice)]` only for selector enums that should not also be registered as messages.
 
 ```rs
-use es_fluent::{EsFluent, EsFluentChoice};
+use es_fluent::EsFluent;
 
-#[derive(EsFluent, EsFluentChoice)]
-#[fluent_choice(serialize_all = "snake_case")]
+#[derive(EsFluent)]
 pub enum GenderChoice {
     Male,
     Female,
@@ -440,12 +465,12 @@ pub enum GenderChoice {
 #[derive(EsFluent)]
 pub struct Greeting<'a> {
     pub name: &'a str,
-    #[fluent(choice)] // Matches $gender -> [male]...
-    pub gender: &'a GenderChoice,
+    #[fluent(selector)] // Matches $gender -> [male]...
+    pub gender: Option<&'a GenderChoice>,
 }
 
 use es_fluent::FluentMessage;
-let greeting = Greeting { name: "John", gender: &GenderChoice::Male };
+let greeting = Greeting { name: "John", gender: Some(&GenderChoice::Male) };
 let _ = i18n.localize_message(&greeting);
 ```
 
@@ -456,7 +481,7 @@ useful for generating UI labels, placeholders, or descriptions for a form
 object, and it can also expose enum variants as localizable keys.
 
 ```rs
-use es_fluent::EsFluentVariants;
+use es_fluent::{EsFluent, EsFluentVariants};
 
 #[derive(EsFluentVariants)]
 #[fluent_variants(keys = ["label", "description"])]
@@ -469,8 +494,17 @@ pub struct LoginFormVariants {
 // LoginFormVariantsLabelVariants::{Variants} -> (login_form_variants_label_variants-{variant})
 // LoginFormVariantsDescriptionVariants::{Variants} -> (login_form_variants_description_variants-{variant})
 
+#[derive(EsFluent)]
+pub struct ActiveFormField {
+    #[fluent(selector)]
+    pub field: LoginFormVariantsLabelVariants,
+}
+
 use es_fluent::FluentMessage;
 let _ = i18n.localize_message(&LoginFormVariantsLabelVariants::Username);
+let _ = i18n.localize_message(&ActiveFormField {
+    field: LoginFormVariantsLabelVariants::Username,
+});
 
 #[derive(EsFluentVariants)]
 pub enum SettingsTab {
@@ -486,14 +520,19 @@ pub enum SettingsTab {
 let _ = i18n.localize_message(&SettingsTabVariants::Notifications);
 ```
 
+Generated variant enums derive `Clone`, `Copy`, `Debug`, `Eq`, `Hash`, and
+`PartialEq` automatically and implement `EsFluentChoice`, so they can be used
+directly in `#[fluent(selector)]` fields. Add `derive(...)` inside
+`#[fluent_variants(...)]` only for additional traits; `EsFluentChoice` is
+already inferred.
+
 ### `#[derive(EsFluentLabel)]`
 
 Generates a helper implementation of the `FluentLabel` trait and registers the
 type's name as a key. This is similar to `EsFluentVariants` (which registers
 field- or variant-derived keys), but for the parent type itself.
 
-- `origin`: Enabled by default. `#[derive(EsFluentLabel)]` and `#[derive(EsFluentLabel)] #[fluent_label(origin)]` both generate the type-level label. Use `#[fluent_label(origin = false)]` when deriving only variant labels through `EsFluentVariants`.
-- `#[fluent_label(origin)]`: Explicitly generates an implementation where `localize_label(localizer)` returns the base key for the type.
+- `#[derive(EsFluentLabel)]` generates typed label metadata plus `localize_label(localizer)` and `try_localize_label(localizer)`.
 
 ```rs
 use es_fluent::EsFluentLabel;
@@ -510,13 +549,24 @@ pub enum GenderLabelOnly {
 
 use es_fluent::FluentLabel;
 let _ = GenderLabelOnly::localize_label(&i18n);
+let _ = GenderLabelOnly::try_localize_label(&i18n);
+let _ = GenderLabelOnly::fluent_label_id();
+let _ = GenderLabelOnly::fallback_label();
+let _ = es_fluent::fallback_label::<GenderLabelOnly>();
 ```
 
-- `#[fluent_label(variants)]`: Can be combined with `EsFluentVariants` derives to generate keys for variants.
+Use `fallback_label::<T>()` only when generated metadata, tests, or integration
+scaffolding cannot access a runtime localization context. It keeps the input
+typed through `FluentLabel`, then renders the generated label id as readable
+fallback text. UI code that has an `EmbeddedI18n`, `FluentManager`, or framework
+manager should continue to call `T::localize_label(&i18n)` so labels follow the
+active locale.
+
+`#[derive(EsFluentVariants)]` also gives each generated variant enum a label
+key inferred from the generated enum name.
 
 ```rs
 #[derive(EsFluentVariants, EsFluentLabel)]
-#[fluent_label(origin, variants)]
 #[fluent_variants(keys = ["label", "description"])]
 pub struct LoginFormCombined {
     pub username: String,

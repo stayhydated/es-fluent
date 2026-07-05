@@ -1,0 +1,6 @@
+error: Attribute error in variants container: `#[fluent_variants(skip)]` cannot be used in variants container `LoginError`
+       help: accepted keys here are keys, derive, and namespace
+ --> tests/ui/fluent_variants_invalid_location.rs:4:19
+  |
+4 | #[fluent_variants(skip)]
+  |                   ^^^^

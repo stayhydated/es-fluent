@@ -4,8 +4,9 @@
 //!
 //! - Enum variants should preserve their original casing (PascalCase) in FTL keys
 //! - Struct fields should use their original casing (snake_case) in FTL keys
+//! - Generated selector values default to kebab-case
 
-use es_fluent::EsFluentVariants;
+use es_fluent::{EsFluentChoice as _, EsFluentVariants};
 use es_fluent_generate::FluentParseMode;
 use tempfile::TempDir;
 
@@ -38,7 +39,7 @@ fn test_enum_variants_preserves_pascal_case_in_ftl_output() {
     let all_infos = es_fluent::registry::get_all_ftl_type_infos();
     let usa_state_infos: Vec<_> = all_infos
         .into_iter()
-        .filter(|info| info.type_name == "USAStateLabelVariants")
+        .filter(|info| info.type_name() == "USAStateLabelVariants")
         .collect();
 
     assert!(
@@ -95,6 +96,36 @@ fn test_enum_variants_preserves_pascal_case_in_ftl_output() {
 }
 
 #[test]
+fn test_generated_enum_variants_infer_kebab_case_selector_values() {
+    assert_eq!(
+        USAStateLabelVariants::California
+            .as_fluent_choice()
+            .as_str(),
+        "california"
+    );
+    assert_eq!(
+        USAStateLabelVariants::NewYork.as_fluent_choice().as_str(),
+        "new-york"
+    );
+}
+
+#[test]
+fn test_generated_struct_variants_infer_field_selector_values() {
+    assert_eq!(
+        UserProfileDescriptionVariants::FirstName
+            .as_fluent_choice()
+            .as_str(),
+        "first-name"
+    );
+    assert_eq!(
+        UserProfileDescriptionVariants::PostalCode
+            .as_fluent_choice()
+            .as_str(),
+        "postal-code"
+    );
+}
+
+#[test]
 fn test_struct_variants_preserves_snake_case_in_ftl_output() {
     let temp_dir = TempDir::new().unwrap();
     let i18n_path = temp_dir.path().join("i18n");
@@ -103,7 +134,7 @@ fn test_struct_variants_preserves_snake_case_in_ftl_output() {
     let all_infos = es_fluent::registry::get_all_ftl_type_infos();
     let user_profile_infos: Vec<_> = all_infos
         .into_iter()
-        .filter(|info| info.type_name == "UserProfileDescriptionVariants")
+        .filter(|info| info.type_name() == "UserProfileDescriptionVariants")
         .collect();
 
     assert!(

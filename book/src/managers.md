@@ -7,8 +7,8 @@ your own asset pipeline.
 | Manager                      | Best for                 | How it works                                                 |
 | ---------------------------- | ------------------------ | ------------------------------------------------------------ |
 | `es-fluent-manager-embedded` | CLIs, TUIs, desktop apps | Compiles FTL files into the binary                           |
-| `es-fluent-manager-dioxus`   | Dioxus apps              | Uses embedded assets plus Dioxus hooks or request-scoped SSR |
-| `es-fluent-manager-bevy`     | Bevy games and apps      | Loads FTL files via Bevy's `AssetServer`                     |
+| `es-fluent-manager-dioxus`   | Dioxus apps              | Uses Dioxus `asset!` loading plus hooks or request-scoped SSR |
+| `es-fluent-manager-bevy`     | Bevy games and apps      | Uses Bevy embedded assets for generated FTL and Bevy assets for custom resources |
 
 ---
 
@@ -22,9 +22,10 @@ Bundles your translations directly into the binary and returns an explicit manag
 - **Explicit Context**: Keep the manager handle in application state and pass it to code that localizes messages.
 - **Thread Safe**: Safe to use from multiple threads after initialization.
 
-Enable the `debug-embed` Cargo feature for debug targets that cannot read
-locale files from the filesystem. It forwards `rust-embed`'s debug embedding
-mode through the manager crate.
+WASM builds embed debug assets automatically because browser targets cannot
+read locale files from the filesystem. For other debug targets with the same
+constraint, enable the `debug-embed` Cargo feature; it forwards `rust-embed`'s
+debug embedding mode through the manager crate.
 
 ### Quick Start
 
@@ -53,7 +54,6 @@ use es_fluent_manager_embedded::EmbeddedI18n;
 use unic_langid::langid;
 
 #[derive(EsFluent, EsFluentLabel)]
-#[fluent_label(origin)]
 enum MyMessage {
     Hello { name: String },
 }
@@ -69,12 +69,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 ```
 
 For types that derive `EsFluentLabel`, pass the same explicit context to
-`localize_label(...)`:
+`localize_label(...)`. Use `try_localize_label(...)` when missing labels should
+return `None` instead of the key fallback:
 
 ```rust
 use es_fluent::FluentLabel as _;
 
 let title = MyMessage::localize_label(&i18n);
+let maybe_title = MyMessage::try_localize_label(&i18n);
 ```
 
 If you have a [Language Enum](language_enum.md), you can pass it directly since it implements `Into<LanguageIdentifier>`:
@@ -140,10 +142,14 @@ Most applications should prefer a concrete manager crate instead of wiring a raw
 `FluentManager` into application state manually. `FluentManager` remains a
 low-level integration point; import `es_fluent::FluentLocalizerExt as _` if
 custom integration code needs generic `localize_message(...)` or fallible
-`try_localize_message(...)` on a raw manager. Typed rendering uses a
-render-scoped lookup, so nested message arguments and the outer message use the
-same active localizer set during a concurrent language switch. Most application
-code should stay on derived messages and concrete manager handles.
+`try_localize_message(...)` on a raw manager. Manager-core lookup and the
+`es_fluent::FluentLocalizer` trait receive `StaticFluentDomain`,
+`StaticFluentEntryId`, and typed Fluent argument maps, so raw strings only
+appear at the final Fluent bundle lookup boundary.
+Typed rendering uses a render-scoped lookup, so nested message arguments and the
+outer message use the same active localizer set during a concurrent language
+switch. Most application code should stay on derived messages and concrete
+manager handles.
 
 The embedded manager also uses strict discovery and returns initialization
 errors before the manager is returned:
@@ -160,26 +166,33 @@ requested language has been selected successfully.
 
 ## Dioxus Manager (`es-fluent-manager-dioxus`)
 
-Dioxus integration for `es-fluent`.
+Dioxus integration for `es-fluent` using Dioxus `asset!` loading.
 
 Enable the runtime surface your crate uses:
 
+Client apps:
+
 ```toml
-# Client apps
 es-fluent-manager-dioxus = { version = "0.7", features = ["client"] }
-
-# SSR
-es-fluent-manager-dioxus = { version = "0.7", features = ["ssr"] }
-
-# Browser WASM debug builds that use define_i18n_module!
-es-fluent-manager-dioxus = { version = "0.7", features = ["client", "debug-embed"] }
 ```
 
-The crate has no default runtime feature. The `define_i18n_module!` macro is always available.
+Server-side rendering:
 
-- `client`: Dioxus provider, hook/context runtime, and signal-backed locale state for interactive rendering.
-- `debug-embed`: embeds macro-discovered FTL files even in debug builds, which browser WASM clients need because they cannot use filesystem fallback lookup.
-- `ssr`: request-scoped Dioxus SSR runtime with cached module discovery.
+```toml
+es-fluent-manager-dioxus = { version = "0.7", features = ["ssr"] }
+```
+
+Fullstack or static rendering that uses both paths:
+
+```toml
+es-fluent-manager-dioxus = { version = "0.7", features = ["client", "ssr"] }
+```
+
+The crate has no default runtime feature. The `define_i18n_module!` macro is
+always available and emits Dioxus asset registrations.
+
+- `client`: Dioxus provider, hook/context runtime, async asset loading, and signal-backed locale state for interactive rendering.
+- `ssr`: request-scoped SSR helpers backed by the same Dioxus asset module set.
 
 ### Define the Module
 
@@ -192,21 +205,23 @@ the library target:
 es_fluent_manager_dioxus::define_i18n_module!();
 ```
 
-Putting the module macro only in `src/main.rs` is runtime-only. It is safe only
-when derived message types are still reachable from a library target, or when
-you accept that binary-only derived types are not discovered by the CLI.
+The macro registers the generated Dioxus asset module with inventory and also
+generates explicit helpers: `dioxus_i18n_asset_modules()`,
+`dioxus_i18n_asset_module()`, `load_dioxus_i18n_assets(...)`, and
+`load_dioxus_i18n_assets_with_policy(...)`. Dioxus `asset!` requires
+`assets_dir` to point inside the crate, such as `assets/locales`.
 
 ### Client Quick Start
 
 ```rust
 use dioxus::prelude::*;
 use es_fluent::{EsFluent, EsFluentLabel, FluentLabel as _};
-use es_fluent_manager_dioxus::{I18nProvider, use_i18n};
+use es_fluent_manager_dioxus::{DioxusAssetI18nProvider, use_i18n};
 use unic_langid::langid;
 
 fn app() -> Element {
     rsx! {
-        I18nProvider {
+        DioxusAssetI18nProvider {
             initial_language: langid!("en"),
             LocaleButton {}
         }
@@ -215,7 +230,6 @@ fn app() -> Element {
 
 #[derive(Clone, Copy, EsFluent, EsFluentLabel)]
 #[fluent(namespace = "ui")]
-#[fluent_label(origin)]
 enum UiMessage {
     Hello,
 }
@@ -224,7 +238,7 @@ enum UiMessage {
 fn LocaleButton() -> Element {
     let i18n = match use_i18n() {
         Ok(i18n) => i18n,
-        Err(error) => return rsx! { "Failed to initialize i18n: {error}" },
+        Err(error) => return rsx! { "Missing i18n context: {error}" },
     };
     let label = i18n.localize_message(&UiMessage::Hello);
     let title = UiMessage::localize_label(&i18n);
@@ -242,11 +256,35 @@ fn LocaleButton() -> Element {
 }
 ```
 
-Client apps should localize through the `DioxusI18n` context provided by `I18nProvider`, `use_init_i18n(...)`, `use_init_i18n_strict(...)`, or `use_provide_i18n(...)`. Those hooks initialize once; changing the initial language, selection policy, or provided manager after the first render does not replace the installed context. Use `localize_message(...)` for typed context-bound lookup. `DioxusI18n` implements `FluentLocalizer`, so `#[derive(EsFluentLabel)]` values can call `MyType::localize_label(&i18n)` in client components. Raw string-ID lookup is not exposed as a client convenience API; keep application code on derived messages and labels. Startup selection defaults to best effort; pass `selection_policy: LanguageSelectionPolicy::Strict`, call `use_init_i18n_with_policy(..., LanguageSelectionPolicy::Strict)`, or call `use_init_i18n_strict(...)` when every discovered module must support the startup locale. Locale switches use fallible `select_language(...)` or `select_language_strict(...)`; after a manager is handed to the Dioxus provider, route language changes through those `DioxusI18n` methods so the Dioxus signal stays aligned with manager state. `ManagedI18n` clones are shared handles; language selection and requested-language updates are serialized, while localization reads use render-scoped manager snapshots so independent typed renders can run concurrently. `requested_language()` tracks the requested locale, while `peek_requested_language()` reads it without subscribing.
+Client apps should localize through the `DioxusAssetI18nHandle` context
+provided by `DioxusAssetI18nProvider`, `use_init_asset_i18n(...)`, or
+`use_provide_asset_i18n(...)`. `DioxusAssetI18nProvider` loads the
+inventory-discovered module set asynchronously, renders `loading` while assets are being read,
+renders `fallback` on load failure, and provides context after loading
+succeeds. Use `localize_message(...)` for typed context-bound lookup.
+`DioxusAssetI18nHandle` implements `FluentLocalizer`, so
+`#[derive(EsFluentLabel)]` values can call `MyType::localize_label(&i18n)` or
+`MyType::try_localize_label(&i18n)` in client components. Locale switches use fallible `select_language(...)` or
+`select_language_strict(...)`, and `requested_language()` tracks the requested
+locale while `peek_requested_language()` reads it without subscribing.
+
+Dioxus application translations come from inventory-discovered generated
+Dioxus asset modules.
+Runtime follower modules that do not count as locale support, such as
+`es-fluent-lang` for typed language picker labels, are discovered automatically
+and follow the selected asset-backed locale.
+To use an explicit subset of Dioxus asset-backed translations, build a static
+slice of `dioxus_i18n_asset_module()` references and pass
+`DioxusI18nAssetModules::new(...)` to the provider and SSR runtime.
+In debug WASM builds served by `dx serve`, changed FTL assets are reloaded from
+Dioxus asset hot-reload messages and the provider updates subscribed
+components while preserving the requested locale when possible.
 
 Dioxus localizes through explicit component or request context. Keeping lookup context-bound avoids cross-root, hot-reload, test, and SSR request leakage.
 
-If initialization cannot complete, the hook still provides a failed context to keep hook order stable for callers that inspect the returned `Result` directly. `I18nProvider` logs that failure once per provider instance and renders `fallback` when one is supplied; without a fallback it renders children with a failed i18n context, so descendants that call `use_i18n()` receive the same initialization error. `I18nProviderStrict` is the fail-closed rendering variant: it renders fallback when one is supplied and otherwise renders an empty vnode. Strictness in the component name refers to rendering behavior; use `selection_policy: LanguageSelectionPolicy::Strict` for strict startup locale selection. Descendants can call `try_use_i18n()` to distinguish a missing provider from a failed provider. Event handlers and async tasks can call `consume_i18n()` or `try_consume_i18n()` while the Dioxus runtime is active.
+Descendants can call `try_use_i18n()` to distinguish a missing provider from a
+loaded provider. Event handlers and async tasks can call `consume_asset_i18n()` or
+`try_consume_asset_i18n()` while the Dioxus runtime is active.
 
 ### SSR Quick Start
 
@@ -268,8 +306,9 @@ fn App(i18n: SsrI18n) -> Element {
     rsx! { div { "{title}" } }
 }
 
-fn render(runtime: &SsrI18nRuntime) -> Result<String, Box<dyn std::error::Error>> {
-    let i18n = runtime.request(langid!("en"))?;
+async fn render() -> Result<String, Box<dyn std::error::Error>> {
+    let runtime = SsrI18nRuntime::discovered();
+    let i18n = runtime.request(langid!("en")).await?;
     let mut dom = VirtualDom::new_with_props(
         App,
         AppProps {
@@ -281,11 +320,21 @@ fn render(runtime: &SsrI18nRuntime) -> Result<String, Box<dyn std::error::Error>
 }
 ```
 
-Create one `SsrI18nRuntime` during startup, then create one `SsrI18n` per request. The runtime caches the first validated module-discovery result for its lifetime, including discovery or validation failures; construct a new runtime to retry after a failed discovery. Each request creates fresh manager/localizer state so request languages remain isolated. `request(...)` uses best-effort initial language selection; use `request_strict(...)` when every discovered module must support the request locale.
+Create one `SsrI18nRuntime`, then create one `SsrI18n` per request.
+`SsrI18nRuntime::discovered()` uses inventory-discovered Dioxus asset modules;
+`SsrI18nRuntime::new(...)` accepts an explicit module subset.
+`request(...)` and `request_strict(...)` are async because Dioxus asset reads
+are async; `request_blocking(...)` and `request_strict_blocking(...)` are
+available for static generation or other synchronous SSR entry points.
 
 The render helpers do not install context automatically; pass `SsrI18n` as a prop or call `provide_context()` from a component when using hook-based lookup.
 
-SSR components should receive a cloned `SsrI18n` as a prop or through app-owned context and call `localize_message(...)` or `MyType::localize_label(&i18n)`. If SSR components use the Dioxus hook API, enable both `ssr` and `client` features because `SsrI18n::provide_context(...)` is compiled behind `client`, then call `i18n.provide_context()?` from an app-owned provider component.
+SSR components should receive a cloned `SsrI18n` as a prop or through app-owned
+context and call `localize_message(...)` or `MyType::localize_label(&i18n)`.
+Use `MyType::try_localize_label(&i18n)` when missing labels should not fall
+back to the key.
+If SSR components use the Dioxus hook API, enable both `ssr` and `client`
+features because `SsrI18n::provide_context(...)` is compiled behind `client`.
 
 ---
 
@@ -295,11 +344,13 @@ Seamless [Bevy](https://bevyengine.org/) integration for `es-fluent`. This plugi
 
 ### Features
 
-- **Asset Loading**: Loads `.ftl` files via Bevy's `AssetServer`.
-- **Hot Reloading**: Supports hot-reloading of translations during development.
+- **Owner Resources**: Loads generated module resources from the crate that owns the localization domain.
+- **Asset Loading**: Custom metadata-only registrations can still load `.ftl` files via Bevy's `AssetServer`.
+- **Hot Reloading**: Supports hot-reloading for resources loaded through Bevy's asset pipeline during development.
 - **Reactive UI**: The `FluentText` component automatically refreshes text when the locale changes.
 - **Bevy-native Context**: Systems can request `BevyI18n` as a `SystemParam` for direct localization.
-- **Explicit Context**: Localization comes from Bevy resources instead of a context-free bridge.
+- **Explicit Context**: Localization uses Bevy resources and `BevyI18n` system params.
+- **Composable Scheduling**: Runtime and text-refresh systems are labeled with `I18nSet` for normal Bevy ordering.
 
 ### Quick Start
 
@@ -335,10 +386,13 @@ fn main() {
 }
 ```
 
-By default, `I18nPlugin` loads locales from `locales` relative to Bevy's asset
-root, matching `assets_dir = "assets/locales"` in `i18n.toml`. If your Bevy
-asset root is `assets` but translations live in `assets/i18n`, configure the
-path explicitly:
+Generated Bevy module registrations register the owning crate's `.ftl` files
+from that crate's configured `assets_dir` as Bevy embedded assets; consuming
+apps should not copy dependency-owned domain files into their own asset tree.
+`asset_path` is only used for custom metadata-only registrations that do not
+provide owner embedded assets.
+If your Bevy asset root is `assets` but those custom resources live in
+`assets/i18n`, configure the path explicitly:
 
 ```rust
 use es_fluent_manager_bevy::{I18nPlugin, I18nPluginConfig};
@@ -354,20 +408,18 @@ not install a process-wide localization hook.
 #### Advanced behavior
 
 Plugin startup also uses strict module discovery, so invalid or duplicate i18n
-module registrations are reported through `I18nPluginStartupError` instead of
-being normalized silently. When setup fails, the plugin skips localization
-runtime setup and leaves the error resource in the app world for diagnostics.
-Failed hot reloads or locale switches keep the last accepted locale active
-instead of publishing a broken update. A failed hot reload records diagnostics
-but keeps the previous ready cache selectable until a later rebuild succeeds.
+module registrations are reported through `I18nPluginStartupError`. When setup
+fails, the plugin skips localization runtime setup and leaves the error resource
+in the app world for diagnostics. Failed hot reloads or locale switches keep
+the last accepted locale active. A failed hot reload records diagnostics but
+keeps the previous ready cache selectable until a later rebuild succeeds.
 
 Generated message lookup is domain-scoped. If separate domains define the same
 message ID, Bevy keeps typed domain-scoped lookup available and leaves raw
 unscoped lookup unavailable for the ambiguous merged locale.
 
 Locales with only optional resources, or with missing optional resources, are
-still treated as ready. They publish an empty Bevy cache instead of remaining
-pending indefinitely.
+treated as ready and publish an empty Bevy cache.
 
 Use `RequestedLanguageId` to read the latest user intent and `ActiveLanguageId`
 to read the currently published locale. `LocaleChangedEvent` refers to
@@ -376,9 +428,11 @@ falls back to a resolved locale, Bevy publishes the requested locale for change
 events and ECS resources while using the resolved locale for ready bundle
 lookup. Runtime fallback managers are best-effort: Bevy asks them to select the
 requested locale first, then the resolved locale, but rejection does not block
-Bevy asset-backed locale publication. Only metadata-only Bevy registrations
-create Bevy asset availability; runtime localizer registrations are reserved
-for the fallback manager and do not make a locale wait on Bevy asset bundles.
+Bevy resource-backed locale publication. Metadata-only Bevy registrations
+create Bevy resource availability either from owner-provided embedded asset
+handles or, for custom registrations, Bevy asset handles. Runtime localizer
+registrations are reserved for the fallback manager and do not make a locale
+wait on Bevy resource bundles.
 When attached, runtime fallback selection tells `FluentManager` that Bevy assets
 have already proved application locale support, so follower-only utility modules
 such as `es-fluent-lang` can be committed without making runtime-only locales
@@ -408,12 +462,27 @@ fn update_title(i18n: BevyI18n) {
 }
 ```
 
+#### Schedule Ordering
+
+`I18nPlugin` labels its systems with `I18nSet` so app systems can use Bevy's standard `.before(...)` and `.after(...)` ordering APIs. `AssetWatch`, `AssetLoading`, `BundleRebuild`, `LocaleChange`, and `LocaleSync` run in `Update`. `TextUpdate` runs in `PostUpdate` after locale-aware `FluentText` values have refreshed and Bevy `Text` components have been written.
+
+```rust
+use bevy::prelude::*;
+use es_fluent_manager_bevy::I18nSet;
+
+fn persist_locale_choice() {}
+fn sync_window_title() {}
+
+app.add_systems(Update, persist_locale_choice.after(I18nSet::LocaleSync));
+app.add_systems(PostUpdate, sync_window_title.after(I18nSet::TextUpdate));
+```
+
 #### 3. Define Localizable Components (Recommended)
 
 Prefer the `BevyFluentText` derive macro. It auto-registers your type with `I18nPlugin` via inventory, so you don't have to call any registration functions manually.
 
 If a field depends on the active locale (like the `Languages` enum from [Language Enum](language_enum.md)), mark it with `#[locale]`. The macro will generate `RefreshForLocale` and register the locale-aware systems for you.
-`#[locale]` is supported on named struct fields and named enum variant fields, and you can mark more than one named field in the same variant when they all need refresh behavior.
+`#[locale]` is supported on named struct fields and named enum variant fields, and you can mark more than one named field in the same variant when they all need refresh behavior. Each `#[locale]` field type must implement `TryFrom<&LanguageIdentifier>`.
 
 `RefreshForLocale` receives the originally requested locale, not the fallback resource locale. For example, if `en-GB` falls back to `en` assets, locale-aware fields still refresh with `en-GB`.
 

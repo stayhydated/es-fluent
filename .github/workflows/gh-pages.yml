@@ -2,7 +2,7 @@ name: Deploy to GitHub Pages
 
 on:
   push:
-    branches: [master]
+    branches: [no]
   workflow_dispatch:
 
 permissions:
@@ -28,6 +28,11 @@ jobs:
         with:
           targets: wasm32-unknown-unknown
 
+      - name: Install nightly toolchain for GPUI demo
+        run: |
+          rustup toolchain install nightly --profile minimal
+          rustup target add wasm32-unknown-unknown --toolchain nightly
+
       - name: Install build tools
         run: |
           cargo install just
@@ -41,6 +46,7 @@ jobs:
       - name: Build web site
         run: |
           env -u RUSTC_WRAPPER cargo xtask build bevy-demo
+          env -u RUSTC_WRAPPER cargo xtask build gpui-demo
           cargo xtask build book
           cargo xtask build llms-txt
           cargo xtask build web

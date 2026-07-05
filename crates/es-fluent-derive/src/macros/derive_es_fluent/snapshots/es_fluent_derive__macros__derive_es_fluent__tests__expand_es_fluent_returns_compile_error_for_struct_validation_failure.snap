@@ -1,0 +1,8 @@
+---
+source: crates/es-fluent-derive/src/macros/derive_es_fluent/mod.rs
+assertion_line: 189
+expression: validation_tokens
+---
+::core::compile_error! {
+    "Attribute error in message field: Cannot use #[fluent(arg = \"...\")] on a skipped field"
+}

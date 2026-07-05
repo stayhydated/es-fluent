@@ -23,6 +23,9 @@ translations. In that mode, the generated enum is inventory-visible and your
 FTL files become the source of truth for the display labels.
 
 For example, locale folders named `en`, `fr-FR`, and `zh-CN` generate enum
-variants `En`, `FrFr`, and `ZhCn`.
+variants `En`, `FrFr`, and `ZhCn`. The macro implements `FluentMessage`
+directly, so manager-backed `localize_message(...)` works without also deriving
+`EsFluent`. It also derives `Clone`, `Copy`, `Debug`, `Eq`, `Hash`, and
+`PartialEq` on the generated enum automatically.
 
 See the [es-fluent-lang documentation](https://docs.rs/es-fluent-lang) for full usage details.

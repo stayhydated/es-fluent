@@ -1,0 +1,7 @@
+---
+source: crates/es-fluent-derive-core/tests/validation_tests.rs
+assertion_line: 272
+expression: err.to_string()
+---
+Attribute error in enum variant: `#[fluent(arg = ...)]` is a field-only attribute and cannot be used on enum variant `Something`
+help: move the attribute to a field inside the variant, for example `Something(#[fluent(arg = "name")] T)`

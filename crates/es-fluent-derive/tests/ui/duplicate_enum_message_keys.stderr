@@ -1,0 +1,7 @@
+error: Attribute error in enum variant: generated message id 'login_error-same' collides with an earlier generated item
+       note: first generated message id 'login_error-same' was seen earlier
+       help: rename one source item or skip one generated item
+ --> tests/ui/duplicate_enum_message_keys.rs:8:5
+  |
+8 |     InvalidPassword,
+  |     ^^^^^^^^^^^^^^^

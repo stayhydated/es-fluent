@@ -5,20 +5,19 @@ expression: tokens
 impl ::es_fluent::FluentMessage for LoginError {
     fn to_fluent_string_with(
         &self,
-        localize: &mut dyn for<'__es_fluent_message> FnMut(
-            &str,
-            &str,
-            Option<
-                &::std::collections::HashMap<
-                    &str,
-                    ::es_fluent::FluentValue<'__es_fluent_message>,
-                >,
-            >,
-        ) -> String,
+        localize: &mut ::es_fluent::FluentMessageLookup<'_>,
     ) -> String {
         match self {
             Self::Something(_, _) => {
-                localize(env!("CARGO_PKG_NAME"), "login_error-Something", None)
+                localize(
+                    ::es_fluent::registry::StaticFluentDomain::from_package_name(
+                        env!("CARGO_PKG_NAME"),
+                    ),
+                    ::es_fluent::registry::__macro::static_entry_id(
+                        "login_error-Something",
+                    ),
+                    None,
+                )
             }
         }
     }
@@ -28,22 +27,22 @@ impl ::es_fluent::FluentMessage for LoginError {
 mod __es_fluent_inventory_LoginError {
     use super::*;
     static VARIANTS: &[::es_fluent::registry::FtlVariant] = &[
-        ::es_fluent::registry::FtlVariant {
-            name: "Something",
-            ftl_key: "login_error-Something",
-            args: &[],
-            module_path: module_path!(),
-            line: line!(),
-        },
+        ::es_fluent::registry::__macro::ftl_variant(
+            "Something",
+            ::es_fluent::registry::__macro::static_entry_id("login_error-Something"),
+            &[],
+            module_path!(),
+            line!(),
+        ),
     ];
-    static TYPE_INFO: ::es_fluent::registry::FtlTypeInfo = ::es_fluent::registry::FtlTypeInfo {
-        type_kind: ::es_fluent::meta::TypeKind::Enum,
-        type_name: "LoginError",
-        variants: VARIANTS,
-        file_path: file!(),
-        module_path: module_path!(),
-        namespace: None,
-    };
+    static TYPE_INFO: ::es_fluent::registry::FtlTypeInfo = ::es_fluent::registry::__macro::ftl_type_info(
+        ::es_fluent::meta::TypeKind::Enum,
+        "LoginError",
+        VARIANTS,
+        file!(),
+        module_path!(),
+        None,
+    );
     ::es_fluent::__inventory::submit!(
         ::es_fluent::registry::RegisteredFtlType(& TYPE_INFO)
     );

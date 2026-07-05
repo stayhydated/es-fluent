@@ -1,8 +1,10 @@
 use crate::{I18nBundle, I18nDomainBundles, I18nResource};
 use bevy::ecs::system::SystemParam;
 use bevy::prelude::*;
-use es_fluent::{FluentLocalizer, FluentLocalizerExt, FluentMessage, FluentValue};
-use std::collections::HashMap;
+use es_fluent::{
+    FluentArgs, FluentLocalizer, FluentLocalizerExt, FluentMessage,
+    registry::{StaticFluentDomain, StaticFluentEntryId},
+};
 use unic_langid::LanguageIdentifier;
 
 /// Bevy-native localization context for systems.
@@ -45,19 +47,24 @@ impl<'w> BevyI18n<'w> {
 impl<'w> FluentLocalizer for BevyI18n<'w> {
     fn localize<'a>(
         &self,
-        id: &str,
-        args: Option<&HashMap<&str, FluentValue<'a>>>,
+        id: StaticFluentEntryId,
+        args: Option<&FluentArgs<'a>>,
     ) -> Option<String> {
-        self.i18n_resource.localize(id, args, &self.i18n_bundle)
+        self.i18n_resource
+            .localize(id, args.map(FluentArgs::as_raw), &self.i18n_bundle)
     }
 
     fn localize_in_domain<'a>(
         &self,
-        domain: &str,
-        id: &str,
-        args: Option<&HashMap<&str, FluentValue<'a>>>,
+        domain: StaticFluentDomain,
+        id: StaticFluentEntryId,
+        args: Option<&FluentArgs<'a>>,
     ) -> Option<String> {
-        self.i18n_resource
-            .localize_in_domain(&self.i18n_domain_bundles, domain, id, args)
+        self.i18n_resource.localize_in_domain(
+            &self.i18n_domain_bundles,
+            domain,
+            id,
+            args.map(FluentArgs::as_raw),
+        )
     }
 }

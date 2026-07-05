@@ -25,54 +25,228 @@ fn normalize_temp_paths(text: &str, manifest_dir: &Path) -> String {
         .replace(manifest_escaped.as_str(), "<manifest-dir>")
 }
 
-mod validate_struct_tests {
+mod attribute_context_tests {
     use super::*;
 
     #[test]
-    #[cfg_attr(not(target_os = "linux"), ignore = "insta snapshots are Linux-only")]
-    fn multiple_defaults_produces_error() {
+    fn message_struct_container_rejects_enum_only_fluent_keys() {
+        for input in [
+            parse_quote! {
+                #[derive(EsFluent)]
+                #[fluent(domain = "shared")]
+                pub struct LoginForm {
+                    username: String,
+                }
+            },
+            parse_quote! {
+                #[derive(EsFluent)]
+                #[fluent(id = "shared")]
+                pub struct LoginForm {
+                    username: String,
+                }
+            },
+        ] {
+            let err =
+                es_fluent_derive_core::validation::validate_es_fluent_attribute_context(&input)
+                    .expect_err("struct-only context should reject enum-only keys");
+            let message = err.to_string();
+            assert!(message.contains("message struct container"));
+            assert!(message.contains("accepted key here is namespace"));
+        }
+    }
+
+    #[test]
+    fn message_struct_container_rejects_unsupported_default_field_key() {
         let input: DeriveInput = parse_quote! {
             #[derive(EsFluent)]
-            pub struct TestStruct {
+            pub struct LoginForm {
                 #[fluent(default)]
-                field1: String,
-                #[fluent(default)]
-                field2: i32,
+                username: String,
             }
         };
 
-        let opts = StructOpts::from_derive_input(&input).expect("StructOpts should parse");
-        let err = es_fluent_derive_core::validation::validate_struct(&opts)
-            .expect_err("Expected validation error");
+        let err = es_fluent_derive_core::validation::validate_es_fluent_attribute_context(&input)
+            .expect_err("unsupported default key should fail in raw validation");
+        let message = err.to_string();
+        assert!(message.contains("#[fluent(default)]"));
+        assert!(message.contains("message field"));
+        assert!(message.contains("accepted keys here are skip, selector, arg, and value"));
+    }
 
-        assert_snapshot!(
-            "validate_struct_multiple_defaults_produces_error",
+    #[test]
+    fn message_container_unknown_keys_use_shape_specific_help() {
+        let struct_input: DeriveInput = parse_quote! {
+            #[derive(EsFluent)]
+            #[fluent(unknown)]
+            pub struct LoginForm {
+                username: String,
+            }
+        };
+        let err =
+            es_fluent_derive_core::validation::validate_es_fluent_attribute_context(&struct_input)
+                .expect_err("unknown struct key should fail");
+        assert!(err.to_string().contains("message struct container"));
+        assert!(err.to_string().contains("accepted key here is namespace"));
+
+        let enum_input: DeriveInput = parse_quote! {
+            #[derive(EsFluent)]
+            #[fluent(unknown)]
+            pub enum LoginError {
+                InvalidPassword,
+            }
+        };
+        let err =
+            es_fluent_derive_core::validation::validate_es_fluent_attribute_context(&enum_input)
+                .expect_err("unknown enum key should fail");
+        assert!(err.to_string().contains("message enum container"));
+        assert!(
             err.to_string()
+                .contains("accepted keys here are id, domain, and namespace")
         );
     }
 
     #[test]
-    #[cfg_attr(not(target_os = "linux"), ignore = "insta snapshots are Linux-only")]
-    fn multiple_defaults_tuple_struct_produces_error() {
+    fn message_attribute_context_aggregates_container_variant_and_field_errors() {
         let input: DeriveInput = parse_quote! {
             #[derive(EsFluent)]
-            pub struct TestTupleStruct(
-                #[fluent(default)]
-                String,
-                #[fluent(default)]
-                i32,
-            );
+            #[fluent(unknown)]
+            pub enum LoginError {
+                #[fluent(value = |value| value.to_string())]
+                InvalidPassword(
+                    #[fluent(default)]
+                    String,
+                ),
+            }
         };
 
-        let opts = StructOpts::from_derive_input(&input).expect("StructOpts should parse");
-        let err = es_fluent_derive_core::validation::validate_struct(&opts)
-            .expect_err("Expected validation error");
+        let err = es_fluent_derive_core::validation::validate_es_fluent_attribute_context(&input)
+            .expect_err("multiple malformed attributes should be aggregated");
+        let es_fluent_derive_core::error::EsFluentCoreError::StructuredAttributeErrors(errors) =
+            err
+        else {
+            panic!("expected aggregated structured errors");
+        };
 
-        assert_snapshot!(
-            "validate_struct_multiple_defaults_tuple_struct_produces_error",
+        assert_eq!(errors.len(), 3);
+        let rendered = errors
+            .iter()
+            .map(ToString::to_string)
+            .collect::<Vec<_>>()
+            .join("\n");
+        assert!(rendered.contains("message enum container"));
+        assert!(rendered.contains("enum variant"));
+        assert!(rendered.contains("message field"));
+    }
+
+    #[test]
+    fn enum_fluent_keys_remain_allowed_on_enum_containers() {
+        let input: DeriveInput = parse_quote! {
+            #[derive(EsFluent)]
+            #[fluent(id = "login_error", domain = "auth", namespace = "errors")]
+            pub enum LoginError {
+                InvalidPassword,
+            }
+        };
+
+        es_fluent_derive_core::validation::validate_es_fluent_attribute_context(&input)
+            .expect("enum-only keys should pass on enum containers");
+    }
+
+    #[test]
+    fn variants_variant_context_reports_variants_variant() {
+        let input: DeriveInput = parse_quote! {
+            #[derive(EsFluentVariants)]
+            pub enum LoginError {
+                #[fluent_variants(keys = ["label"])]
+                InvalidPassword,
+            }
+        };
+
+        let err = es_fluent_derive_core::validation::validate_es_fluent_variants_attribute_context(
+            &input,
+        )
+        .expect_err("container-only fluent_variants key should fail on variant");
+        assert!(err.to_string().contains("variants variant"));
+        assert!(err.to_string().contains("accepted key here is skip"));
+    }
+
+    #[test]
+    fn label_and_variants_reject_unused_parent_resource() {
+        let label_input: DeriveInput = parse_quote! {
+            #[derive(EsFluentLabel)]
+            #[fluent(id = "login_error")]
+            pub enum LoginError {
+                InvalidPassword,
+            }
+        };
+        let err = es_fluent_derive_core::validation::validate_es_fluent_label_attribute_context(
+            &label_input,
+        )
+        .expect_err("resource is ignored by EsFluentLabel");
+        assert!(err.to_string().contains("label container"));
+        assert!(
             err.to_string()
+                .contains("accepted parent keys here are domain and namespace")
+        );
+
+        let variants_input: DeriveInput = parse_quote! {
+            #[derive(EsFluentVariants)]
+            #[fluent(id = "login_error")]
+            pub enum LoginError {
+                InvalidPassword,
+            }
+        };
+        let err = es_fluent_derive_core::validation::validate_es_fluent_variants_attribute_context(
+            &variants_input,
+        )
+        .expect_err("resource is ignored by EsFluentVariants");
+        assert!(err.to_string().contains("variants container"));
+        assert!(
+            err.to_string()
+                .contains("accepted parent keys here are domain and namespace")
         );
     }
+
+    #[test]
+    fn struct_parent_contexts_reject_unused_domain() {
+        let label_input: DeriveInput = parse_quote! {
+            #[derive(EsFluentLabel)]
+            #[fluent(domain = "auth")]
+            pub struct LoginForm {
+                username: String,
+            }
+        };
+        let err = es_fluent_derive_core::validation::validate_es_fluent_label_attribute_context(
+            &label_input,
+        )
+        .expect_err("domain is ignored by struct EsFluentLabel");
+        assert!(err.to_string().contains("label container"));
+        assert!(
+            err.to_string()
+                .contains("accepted parent key here is namespace")
+        );
+
+        let variants_input: DeriveInput = parse_quote! {
+            #[derive(EsFluentVariants)]
+            #[fluent(domain = "auth")]
+            pub struct LoginForm {
+                username: String,
+            }
+        };
+        let err = es_fluent_derive_core::validation::validate_es_fluent_variants_attribute_context(
+            &variants_input,
+        )
+        .expect_err("domain is ignored by struct EsFluentVariants");
+        assert!(err.to_string().contains("variants container"));
+        assert!(
+            err.to_string()
+                .contains("accepted parent key here is namespace")
+        );
+    }
+}
+
+mod validate_struct_tests {
+    use super::*;
 
     #[test]
     fn empty_unit_struct_succeeds() {
@@ -99,43 +273,6 @@ mod validate_struct_tests {
     }
 
     #[test]
-    fn single_default_succeeds() {
-        let input: DeriveInput = parse_quote! {
-            #[derive(EsFluent)]
-            pub struct TestStruct {
-                #[fluent(default)]
-                field1: String,
-                field2: i32,
-            }
-        };
-
-        let opts = StructOpts::from_derive_input(&input).expect("StructOpts should parse");
-        es_fluent_derive_core::validation::validate_struct(&opts)
-            .expect("Validation should succeed");
-    }
-
-    #[test]
-    #[cfg_attr(not(target_os = "linux"), ignore = "insta snapshots are Linux-only")]
-    fn skip_and_default_conflict_produces_error() {
-        let input: DeriveInput = parse_quote! {
-            #[derive(EsFluent)]
-            pub struct TestStruct {
-                #[fluent(skip, default)]
-                field1: String,
-            }
-        };
-
-        let opts = StructOpts::from_derive_input(&input).expect("StructOpts should parse");
-        let err = es_fluent_derive_core::validation::validate_struct(&opts)
-            .expect_err("Expected validation error");
-
-        assert_snapshot!(
-            "validate_struct_skip_and_default_conflict_produces_error",
-            err.to_string()
-        );
-    }
-
-    #[test]
     fn no_defaults_succeeds() {
         let input: DeriveInput = parse_quote! {
             #[derive(EsFluent)]
@@ -151,11 +288,11 @@ mod validate_struct_tests {
     }
 
     #[test]
-    fn arg_name_on_named_struct_field_succeeds() {
+    fn arg_on_named_struct_field_succeeds() {
         let input: DeriveInput = parse_quote! {
             #[derive(EsFluent)]
             pub struct TestStruct {
-                #[fluent(arg_name = "display_name")]
+                #[fluent(arg = "display_name")]
                 name: String,
                 value: String,
             }
@@ -167,29 +304,27 @@ mod validate_struct_tests {
     }
 
     #[test]
-    fn empty_struct_arg_name_fails() {
+    fn empty_struct_arg_fails() {
         let input: DeriveInput = parse_quote! {
             #[derive(EsFluent)]
             pub struct TestStruct {
-                #[fluent(arg_name = "")]
+                #[fluent(arg = "")]
                 value: String,
             }
         };
 
-        let opts = StructOpts::from_derive_input(&input).expect("StructOpts should parse");
-        let err = es_fluent_derive_core::validation::validate_struct(&opts)
-            .expect_err("empty arg_name should fail");
+        let err = StructOpts::from_derive_input(&input).expect_err("empty arg should fail");
 
-        assert!(err.to_string().contains("cannot be empty"));
+        assert!(err.to_string().contains("must not be empty"));
     }
 
     #[test]
     #[cfg_attr(not(target_os = "linux"), ignore = "insta snapshots are Linux-only")]
-    fn duplicate_struct_arg_name_fails() {
+    fn duplicate_struct_arg_fails() {
         let input: DeriveInput = parse_quote! {
             #[derive(EsFluent)]
             pub struct TestStruct {
-                #[fluent(arg_name = "value")]
+                #[fluent(arg = "value")]
                 first: String,
                 value: String,
             }
@@ -198,26 +333,44 @@ mod validate_struct_tests {
         let opts = StructOpts::from_derive_input(&input).expect("StructOpts should parse");
         let err = es_fluent_derive_core::validation::validate_struct(&opts)
             .expect_err("Expected validation error");
-        assert_snapshot!("validate_struct_duplicate_arg_name_fails", err.to_string());
+        assert_snapshot!("validate_struct_duplicate_arg_fails", err.to_string());
     }
 
     #[test]
     #[cfg_attr(not(target_os = "linux"), ignore = "insta snapshots are Linux-only")]
-    fn arg_name_on_skipped_field_fails() {
+    fn arg_on_skipped_field_fails() {
         let input: DeriveInput = parse_quote! {
             #[derive(EsFluent)]
             pub struct TestStruct {
-                #[fluent(skip, arg_name = "hidden")]
+                #[fluent(skip, arg = "hidden")]
                 hidden: String,
             }
         };
 
-        let opts = StructOpts::from_derive_input(&input).expect("StructOpts should parse");
-        let err = es_fluent_derive_core::validation::validate_struct(&opts)
-            .expect_err("Expected validation error");
+        let err = StructOpts::from_derive_input(&input)
+            .expect_err("arg on skipped field should fail during typed field parsing");
         assert_snapshot!(
-            "validate_struct_arg_name_on_skipped_field_fails",
+            "validate_struct_arg_on_skipped_field_fails",
             err.to_string()
+        );
+    }
+
+    #[test]
+    fn choice_and_value_on_same_struct_field_fails() {
+        let input: DeriveInput = parse_quote! {
+            #[derive(EsFluent)]
+            pub struct TestStruct {
+                #[fluent(selector, value = |name: &String| name.len())]
+                name: String,
+            }
+        };
+
+        let err = StructOpts::from_derive_input(&input)
+            .expect_err("selector and value should conflict during typed field parsing");
+
+        assert!(
+            err.to_string()
+                .contains("Cannot combine #[fluent(selector)] and #[fluent(value = ...)]")
         );
     }
 }
@@ -226,26 +379,26 @@ mod validate_enum_tests {
     use super::*;
 
     #[test]
-    fn field_arg_name_on_single_tuple_variant_succeeds() {
+    fn field_arg_on_single_tuple_variant_succeeds() {
         let input: DeriveInput = parse_quote! {
             #[derive(EsFluent)]
             pub enum TestEnum {
-                Something(#[fluent(arg_name = "value")] String),
+                Something(#[fluent(arg = "value")] String),
             }
         };
 
         let opts = EnumOpts::from_derive_input(&input).expect("EnumOpts should parse");
         es_fluent_derive_core::validation::validate_enum(&opts)
-            .expect("Single tuple field with field-level arg_name should pass");
+            .expect("Single tuple field with field-level arg should pass");
     }
 
     #[test]
-    fn field_arg_name_on_named_variant_succeeds() {
+    fn field_arg_on_named_variant_succeeds() {
         let input: DeriveInput = parse_quote! {
             #[derive(EsFluent)]
             pub enum TestEnum {
                 Named {
-                    #[fluent(arg_name = "display_value")]
+                    #[fluent(arg = "display_value")]
                     value: String,
                 },
             }
@@ -253,35 +406,53 @@ mod validate_enum_tests {
 
         let opts = EnumOpts::from_derive_input(&input).expect("EnumOpts should parse");
         es_fluent_derive_core::validation::validate_enum(&opts)
-            .expect("Named field with field-level arg_name should pass");
+            .expect("Named field with field-level arg should pass");
     }
 
     #[test]
     #[cfg_attr(not(target_os = "linux"), ignore = "insta snapshots are Linux-only")]
-    fn variant_level_arg_name_is_rejected() {
+    fn variant_level_arg_is_rejected() {
         let input: DeriveInput = parse_quote! {
             #[derive(EsFluent)]
             pub enum TestEnum {
-                #[fluent(arg_name = "value")]
+                #[fluent(arg = "value")]
                 Something(String),
             }
         };
 
-        let err = EnumOpts::from_derive_input(&input).expect_err("Expected parse error");
+        let err = es_fluent_derive_core::validation::validate_es_fluent_attribute_context(&input)
+            .expect_err("Expected validation error");
         assert_snapshot!(
-            "validate_enum_variant_level_arg_name_is_rejected",
+            "validate_enum_variant_level_arg_is_rejected",
             err.to_string()
         );
     }
 
     #[test]
+    fn variant_level_skip_and_key_are_allowed_separately() {
+        let input: DeriveInput = parse_quote! {
+            #[derive(EsFluent)]
+            pub enum TestEnum {
+                #[fluent(skip)]
+                Hidden,
+                #[fluent(key = "visible")]
+                Visible(String),
+            }
+        };
+
+        es_fluent_derive_core::validation::validate_es_fluent_attribute_context(&input).expect(
+            "separate variant-level skip and key attributes should pass raw context validation",
+        );
+    }
+
+    #[test]
     #[cfg_attr(not(target_os = "linux"), ignore = "insta snapshots are Linux-only")]
-    fn field_arg_name_duplicate_with_named_field_fails() {
+    fn field_arg_duplicate_with_named_field_fails() {
         let input: DeriveInput = parse_quote! {
             #[derive(EsFluent)]
             pub enum TestEnum {
                 Named {
-                    #[fluent(arg_name = "value")]
+                    #[fluent(arg = "value")]
                     left: String,
                     value: String,
                 },
@@ -292,20 +463,20 @@ mod validate_enum_tests {
         let err = es_fluent_derive_core::validation::validate_enum(&opts)
             .expect_err("Expected validation error");
         assert_snapshot!(
-            "validate_enum_field_arg_name_duplicate_with_named_field_fails",
+            "validate_enum_field_arg_duplicate_with_named_field_fails",
             err.to_string()
         );
     }
 
     #[test]
     #[cfg_attr(not(target_os = "linux"), ignore = "insta snapshots are Linux-only")]
-    fn duplicate_field_arg_name_overrides_fail() {
+    fn duplicate_field_arg_overrides_fail() {
         let input: DeriveInput = parse_quote! {
             #[derive(EsFluent)]
             pub enum TestEnum {
                 Something(
-                    #[fluent(arg_name = "same")] String,
-                    #[fluent(arg_name = "same")] String,
+                    #[fluent(arg = "same")] String,
+                    #[fluent(arg = "same")] String,
                 ),
             }
         };
@@ -314,44 +485,41 @@ mod validate_enum_tests {
         let err = es_fluent_derive_core::validation::validate_enum(&opts)
             .expect_err("Expected validation error");
         assert_snapshot!(
-            "validate_enum_duplicate_field_arg_name_overrides_fail",
+            "validate_enum_duplicate_field_arg_overrides_fail",
             err.to_string()
         );
     }
 
     #[test]
-    fn field_arg_name_on_skipped_variant_field_fails() {
+    fn field_arg_on_skipped_variant_field_fails() {
         let input: DeriveInput = parse_quote! {
             #[derive(EsFluent)]
             pub enum TestEnum {
-                Something(#[fluent(skip, arg_name = "hidden")] String),
+                Something(#[fluent(skip, arg = "hidden")] String),
             }
         };
 
-        let opts = EnumOpts::from_derive_input(&input).expect("EnumOpts should parse");
-        let err = es_fluent_derive_core::validation::validate_enum(&opts)
-            .expect_err("arg_name on skipped field should fail");
+        let err = EnumOpts::from_derive_input(&input)
+            .expect_err("arg on skipped field should fail during typed field parsing");
 
         assert!(
             err.to_string()
-                .contains("cannot be used on a skipped field")
+                .contains("Cannot use #[fluent(arg = \"...\")] on a skipped field")
         );
     }
 
     #[test]
-    fn empty_variant_field_arg_name_fails() {
+    fn empty_variant_field_arg_fails() {
         let input: DeriveInput = parse_quote! {
             #[derive(EsFluent)]
             pub enum TestEnum {
-                Something(#[fluent(arg_name = "")] String),
+                Something(#[fluent(arg = "")] String),
             }
         };
 
-        let opts = EnumOpts::from_derive_input(&input).expect("EnumOpts should parse");
-        let err = es_fluent_derive_core::validation::validate_enum(&opts)
-            .expect_err("empty arg_name should fail");
+        let err = EnumOpts::from_derive_input(&input).expect_err("empty arg should fail");
 
-        assert!(err.to_string().contains("cannot be empty"));
+        assert!(err.to_string().contains("must not be empty"));
     }
 
     #[test]
@@ -360,7 +528,7 @@ mod validate_enum_tests {
             #[derive(EsFluent)]
             pub enum TestEnum {
                 Something(
-                    #[fluent(arg_name = "value")] String,
+                    #[fluent(arg = "value")] String,
                     #[fluent(skip)] String,
                 ),
             }
@@ -369,6 +537,24 @@ mod validate_enum_tests {
         let opts = EnumOpts::from_derive_input(&input).expect("EnumOpts should parse");
         es_fluent_derive_core::validation::validate_enum(&opts)
             .expect("skipped field should not participate in resolved arg names");
+    }
+
+    #[test]
+    fn choice_and_value_on_same_variant_field_fails() {
+        let input: DeriveInput = parse_quote! {
+            #[derive(EsFluent)]
+            pub enum TestEnum {
+                Something(#[fluent(selector, value = |name: &String| name.len())] String),
+            }
+        };
+
+        let err = EnumOpts::from_derive_input(&input)
+            .expect_err("selector and value should conflict during typed field parsing");
+
+        assert!(
+            err.to_string()
+                .contains("Cannot combine #[fluent(selector)] and #[fluent(value = ...)]")
+        );
     }
 }
 
@@ -414,7 +600,7 @@ mod validate_namespace_tests {
         // validation should pass for any literal namespace.
         // This test runs without setting up a config file, so it relies on
         // the graceful fallback behavior.
-        let ns = NamespaceRule::Literal("any_namespace".into());
+        let ns = NamespaceRule::literal("any_namespace").expect("valid namespace");
         with_manifest_dir(None, || {
             es_fluent_derive_core::validation::validate_namespace(&ns, None)
                 .expect("Should pass when no config exists");
@@ -426,7 +612,7 @@ mod validate_namespace_tests {
     fn literal_namespace_reports_parse_errors_from_config() {
         let temp = tempfile::tempdir().expect("tempdir");
         std::fs::write(temp.path().join("i18n.toml"), "not = [valid").expect("write i18n.toml");
-        let ns = NamespaceRule::Literal("ui".into());
+        let ns = NamespaceRule::literal("ui").expect("valid namespace");
 
         let err = with_manifest_dir(Some(temp.path()), || {
             es_fluent_derive_core::validation::validate_namespace(&ns, None)
@@ -443,13 +629,18 @@ mod validate_namespace_tests {
 mod validate_namespace_against_allowed_tests {
     use super::*;
 
+    fn allowed(namespaces: &[&str]) -> Vec<es_fluent_shared::namespace::ResolvedNamespace> {
+        namespaces
+            .iter()
+            .copied()
+            .map(es_fluent_shared::namespace::ResolvedNamespace::new)
+            .collect::<Result<_, _>>()
+            .expect("test namespaces")
+    }
+
     #[test]
     fn valid_namespace_in_allowed_list() {
-        let allowed = vec![
-            "ui".to_string(),
-            "errors".to_string(),
-            "components".to_string(),
-        ];
+        let allowed = allowed(&["ui", "errors", "components"]);
 
         es_fluent_derive_core::validation::validate_namespace_against_allowed("ui", &allowed, None)
             .expect("'ui' should be allowed");
@@ -468,7 +659,7 @@ mod validate_namespace_against_allowed_tests {
     #[test]
     #[cfg_attr(not(target_os = "linux"), ignore = "insta snapshots are Linux-only")]
     fn invalid_namespace_not_in_allowed_list() {
-        let allowed = vec!["ui".to_string(), "errors".to_string()];
+        let allowed = allowed(&["ui", "errors"]);
 
         let err = es_fluent_derive_core::validation::validate_namespace_against_allowed(
             "unknown", &allowed, None,
@@ -484,7 +675,7 @@ mod validate_namespace_against_allowed_tests {
     #[test]
     #[cfg_attr(not(target_os = "linux"), ignore = "insta snapshots are Linux-only")]
     fn empty_allowed_list_rejects_everything() {
-        let allowed: Vec<String> = vec![];
+        let allowed = vec![];
 
         let err = es_fluent_derive_core::validation::validate_namespace_against_allowed(
             "anything", &allowed, None,
@@ -500,7 +691,7 @@ mod validate_namespace_against_allowed_tests {
     #[test]
     #[cfg_attr(not(target_os = "linux"), ignore = "insta snapshots are Linux-only")]
     fn namespace_matching_is_case_sensitive() {
-        let allowed = vec!["UI".to_string(), "Errors".to_string()];
+        let allowed = allowed(&["UI", "Errors"]);
 
         // Exact case should pass
         es_fluent_derive_core::validation::validate_namespace_against_allowed("UI", &allowed, None)
@@ -519,11 +710,7 @@ mod validate_namespace_against_allowed_tests {
 
     #[test]
     fn namespace_with_special_characters() {
-        let allowed = vec![
-            "my-namespace".to_string(),
-            "my_namespace".to_string(),
-            "my.namespace".to_string(),
-        ];
+        let allowed = allowed(&["my-namespace", "my_namespace", "my.namespace"]);
 
         es_fluent_derive_core::validation::validate_namespace_against_allowed(
             "my-namespace",

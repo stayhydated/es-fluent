@@ -2,63 +2,79 @@
 
 use es_fluent::__private::FluentLocalizerExt as _;
 use es_fluent::meta::TypeKind;
-use es_fluent::registry::NamespaceRule;
+use es_fluent::registry::{NamespaceRule, StaticFluentDomain, StaticFluentEntryId};
 use es_fluent::{
-    EsFluent, EsFluentLabel, EsFluentVariants, FluentLabel as _, FluentLocalizer, FluentValue,
+    EsFluent, EsFluentLabel, EsFluentVariants, FluentArgs, FluentLabel as _, FluentLocalizer,
 };
-use std::borrow::Cow;
-use std::collections::HashMap;
 
 struct IdLocalizer;
 struct DomainEchoLocalizer;
+struct MissingLocalizer;
 
 impl FluentLocalizer for IdLocalizer {
     fn localize<'a>(
         &self,
-        id: &str,
-        _args: Option<&HashMap<&str, FluentValue<'a>>>,
+        id: StaticFluentEntryId,
+        _args: Option<&FluentArgs<'a>>,
     ) -> Option<String> {
-        Some(id.to_string())
+        Some(id.as_str().to_string())
     }
 
     fn localize_in_domain<'a>(
         &self,
-        _domain: &str,
-        id: &str,
-        _args: Option<&HashMap<&str, FluentValue<'a>>>,
+        _domain: StaticFluentDomain,
+        id: StaticFluentEntryId,
+        _args: Option<&FluentArgs<'a>>,
     ) -> Option<String> {
-        Some(id.to_string())
+        Some(id.as_str().to_string())
     }
 }
 
 impl FluentLocalizer for DomainEchoLocalizer {
     fn localize<'a>(
         &self,
-        id: &str,
-        _args: Option<&HashMap<&str, FluentValue<'a>>>,
+        id: StaticFluentEntryId,
+        _args: Option<&FluentArgs<'a>>,
     ) -> Option<String> {
         Some(format!("default:{id}"))
     }
 
     fn localize_in_domain<'a>(
         &self,
-        domain: &str,
-        id: &str,
-        _args: Option<&HashMap<&str, FluentValue<'a>>>,
+        domain: StaticFluentDomain,
+        id: StaticFluentEntryId,
+        _args: Option<&FluentArgs<'a>>,
     ) -> Option<String> {
         Some(format!("{domain}:{id}"))
     }
 }
 
+impl FluentLocalizer for MissingLocalizer {
+    fn localize<'a>(
+        &self,
+        _id: StaticFluentEntryId,
+        _args: Option<&FluentArgs<'a>>,
+    ) -> Option<String> {
+        None
+    }
+
+    fn localize_in_domain<'a>(
+        &self,
+        _domain: StaticFluentDomain,
+        _id: StaticFluentEntryId,
+        _args: Option<&FluentArgs<'a>>,
+    ) -> Option<String> {
+        None
+    }
+}
+
 #[derive(EsFluent, EsFluentLabel)]
-#[fluent_label(origin)]
 struct TestStruct {
     field: String,
 }
 
 #[derive(EsFluentLabel, EsFluentVariants)]
 #[fluent_variants(keys = ["label"])]
-#[fluent_label(variants)]
 #[allow(dead_code)]
 struct TestVariantsStruct {
     field: String,
@@ -66,7 +82,6 @@ struct TestVariantsStruct {
 
 #[derive(EsFluentLabel, EsFluentVariants)]
 #[fluent_variants(keys = ["description"])]
-#[fluent_label(variants)]
 #[allow(dead_code)]
 enum TestVariantsEnum {
     VariantA,
@@ -78,7 +93,6 @@ enum TestVariantsEnum {
 struct TestLabelNamespace;
 
 #[derive(EsFluentLabel)]
-#[fluent_label(origin)]
 #[allow(dead_code)]
 enum TestLabelEnumKind {
     Ready,
@@ -94,19 +108,13 @@ struct TestVariantsNamespace {
 #[derive(EsFluentLabel, EsFluentVariants)]
 #[fluent(namespace = "shared_ns")]
 #[fluent_variants(keys = ["label"])]
-#[fluent_label(origin, variants)]
 #[allow(dead_code)]
 struct TestSharedNamespace {
     field: String,
 }
 
 #[derive(EsFluent, EsFluentLabel, EsFluentVariants)]
-#[fluent(
-    domain = "custom-domain",
-    resource = "custom-domain",
-    namespace = "custom_ns"
-)]
-#[fluent_label(origin, variants)]
+#[fluent(domain = "custom-domain", namespace = "custom_ns")]
 #[allow(dead_code)]
 enum TestCustomDomain {
     Ready,
@@ -115,8 +123,19 @@ enum TestCustomDomain {
 #[test]
 fn test_derive_label_struct() {
     // Basic FluentLabel on struct
+    assert_eq!(TestStruct::fluent_label_domain(), env!("CARGO_PKG_NAME"));
+    assert_eq!(TestStruct::fluent_label_id(), "test_struct_label");
+    assert_eq!(
+        TestStruct::try_localize_label(&IdLocalizer),
+        Some("test_struct_label".to_string())
+    );
+    assert_eq!(TestStruct::try_localize_label(&MissingLocalizer), None);
     assert_eq!(
         TestStruct::localize_label(&IdLocalizer),
+        "test_struct_label"
+    );
+    assert_eq!(
+        TestStruct::localize_label(&MissingLocalizer),
         "test_struct_label"
     );
 }
@@ -144,7 +163,7 @@ fn test_derive_label_variants() {
 #[test]
 fn test_derive_label_namespace_from_fluent() {
     let infos: Vec<_> = es_fluent::registry::get_all_ftl_type_infos()
-        .filter(|info| info.type_name == "TestLabelNamespace")
+        .filter(|info| info.type_name() == "TestLabelNamespace")
         .collect();
 
     assert_eq!(
@@ -152,17 +171,16 @@ fn test_derive_label_namespace_from_fluent() {
         1,
         "Expected one registration for TestLabelNamespace"
     );
-    assert_eq!(
-        infos[0].namespace,
-        Some(NamespaceRule::Literal(Cow::Borrowed("label_ns")))
+    assert!(
+        matches!(infos[0].namespace(), Some(NamespaceRule::Literal(namespace)) if namespace == "label_ns")
     );
-    assert_eq!(infos[0].type_kind, TypeKind::Struct);
+    assert_eq!(infos[0].type_kind(), &TypeKind::Struct);
 }
 
 #[test]
-fn test_derive_label_origin_preserves_type_kind() {
+fn test_derive_label_preserves_type_kind() {
     let infos: Vec<_> = es_fluent::registry::get_all_ftl_type_infos()
-        .filter(|info| info.type_name == "TestLabelEnumKind")
+        .filter(|info| info.type_name() == "TestLabelEnumKind")
         .collect();
 
     assert_eq!(
@@ -170,49 +188,75 @@ fn test_derive_label_origin_preserves_type_kind() {
         1,
         "Expected one registration for TestLabelEnumKind"
     );
-    assert_eq!(infos[0].type_kind, TypeKind::Enum);
+    assert_eq!(infos[0].type_kind(), &TypeKind::Enum);
 }
 
 #[test]
 fn test_derive_variants_namespace_from_fluent() {
     let infos: Vec<_> = es_fluent::registry::get_all_ftl_type_infos()
-        .filter(|info| info.type_name == "TestVariantsNamespaceVariants")
+        .filter(|info| info.type_name() == "TestVariantsNamespaceVariants")
         .collect();
 
     assert_eq!(
         infos.len(),
-        1,
-        "Expected one registration for TestVariantsNamespaceVariants"
+        2,
+        "Expected message + label registrations for TestVariantsNamespaceVariants"
     );
-    assert_eq!(
-        infos[0].namespace,
-        Some(NamespaceRule::Literal(Cow::Borrowed("variants_ns")))
+    assert!(
+        infos
+            .iter()
+            .all(|info| matches!(info.namespace(), Some(NamespaceRule::Literal(namespace)) if namespace == "variants_ns"))
     );
+}
+
+#[test]
+fn generated_variant_enums_have_inferred_standard_derives() {
+    fn assert_standard_derives<T>()
+    where
+        T: Clone + Copy + std::fmt::Debug + Eq + std::hash::Hash + PartialEq,
+    {
+    }
+
+    assert_standard_derives::<TestVariantsNamespaceVariants>();
+
+    let value = TestVariantsNamespaceVariants::Field;
+    let copied = value;
+    let mut seen = std::collections::HashSet::new();
+    seen.insert(value);
+
+    assert!(seen.contains(&copied));
+    assert_eq!(format!("{value:?}"), "Field");
 }
 
 #[test]
 fn test_derive_label_and_variants_share_fluent_namespace() {
     let infos: Vec<_> = es_fluent::registry::get_all_ftl_type_infos()
         .filter(|info| {
-            info.type_name == "TestSharedNamespace"
-                || info.type_name == "TestSharedNamespaceLabelVariants"
+            info.type_name() == "TestSharedNamespace"
+                || info.type_name() == "TestSharedNamespaceLabelVariants"
         })
         .collect();
 
     assert_eq!(
         infos.len(),
         3,
-        "Expected origin + variants + variants-label registrations"
+        "Expected type-label + variants + variants-label registrations"
     );
     assert!(
         infos
             .iter()
-            .all(|info| info.namespace == Some(NamespaceRule::Literal(Cow::Borrowed("shared_ns"))))
+            .all(|info| matches!(info.namespace(), Some(NamespaceRule::Literal(namespace)) if namespace == "shared_ns"))
     );
 }
 
 #[test]
 fn test_derive_label_and_variants_share_fluent_domain() {
+    assert_eq!(TestCustomDomain::fluent_label_domain(), "custom-domain");
+    assert_eq!(
+        TestCustomDomainVariants::fluent_label_domain(),
+        "custom-domain"
+    );
+
     assert_eq!(
         TestCustomDomain::localize_label(&DomainEchoLocalizer),
         "custom-domain:test_custom_domain_label"
@@ -223,7 +267,7 @@ fn test_derive_label_and_variants_share_fluent_domain() {
     );
     assert_eq!(
         DomainEchoLocalizer.localize_message(&TestCustomDomain::Ready),
-        "custom-domain:custom-domain-Ready"
+        "custom-domain:test_custom_domain-Ready"
     );
     assert_eq!(
         DomainEchoLocalizer.localize_message(&TestCustomDomainVariants::Ready),

@@ -7,7 +7,10 @@ mod registry;
 #[cfg(test)]
 mod tests;
 
-use crate::asset_localization::{I18nModuleDescriptor, ModuleResourceSpec, StaticModuleDescriptor};
+use crate::asset_localization::{
+    I18nModuleDescriptor, ModuleResourceSpec, ResourceKey, StaticModuleDescriptor,
+};
+use es_fluent_shared::registry::{StaticFluentArgumentName, StaticFluentEntryId};
 use fluent_bundle::FluentValue;
 use std::collections::HashMap;
 use unic_langid::LanguageIdentifier;
@@ -21,6 +24,7 @@ pub use manager::{DiscoveredRuntimeI18nModules, FluentManager};
 pub use registry::{ModuleDiscoveryError, ModuleRegistrationKind, try_filter_module_registry};
 
 pub type LocalizationErrorResult<T> = Result<T, LocalizationError>;
+pub type FluentArgumentMap<'a> = HashMap<StaticFluentArgumentName, FluentValue<'a>>;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum LanguageSelectionPolicy {
@@ -36,11 +40,11 @@ pub trait Localizer: Send + Sync {
     /// need the same behavior should perform that resolution here before
     /// returning [`LocalizationError::LanguageNotSupported`].
     fn select_language(&self, lang: &LanguageIdentifier) -> es_fluent_shared::EsFluentResult<()>;
-    /// Localizes a message by its ID.
+    /// Localizes a message by its validated static ID.
     fn localize<'a>(
         &self,
-        id: &str,
-        args: Option<&HashMap<&str, FluentValue<'a>>>,
+        id: StaticFluentEntryId,
+        args: Option<&FluentArgumentMap<'a>>,
     ) -> Option<String>;
 }
 
@@ -89,6 +93,21 @@ pub trait I18nModuleRegistration: I18nModuleDescriptor {
         &self,
         _lang: &LanguageIdentifier,
     ) -> Option<Vec<ModuleResourceSpec>> {
+        None
+    }
+
+    /// Returns owner-provided Fluent source for a locale resource, when this
+    /// registration owns loadable resource bytes.
+    ///
+    /// Asset-driven integrations may return `None` and let the host asset
+    /// pipeline load the resource. Generated registrations that can embed their
+    /// owner crate's FTL files should return `Some` so consumers do not need
+    /// app-local copies of dependency-owned domain files.
+    fn resource_content_for_language(
+        &self,
+        _lang: &LanguageIdentifier,
+        _resource_key: &ResourceKey,
+    ) -> Option<&'static str> {
         None
     }
 }

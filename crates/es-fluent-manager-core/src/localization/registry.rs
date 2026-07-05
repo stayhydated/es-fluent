@@ -169,7 +169,7 @@ fn inspect_module_registry(
 
     for module in modules {
         let data = module.data();
-        let inspection = inspections.entry((data.name, data.domain)).or_default();
+        let inspection = inspections.entry((data.name, data.domain())).or_default();
         inspection.chosen_data.get_or_insert(data);
 
         match module.registration_kind() {
@@ -192,21 +192,19 @@ mod tests {
     use super::*;
     use crate::asset_localization::{I18nModuleDescriptor, StaticModuleDescriptor};
     use crate::localization::{I18nModule, LocalizationError, Localizer};
-    use fluent_bundle::FluentValue;
-    use std::collections::HashMap;
     use std::error::Error as _;
     use unic_langid::{LanguageIdentifier, langid};
 
     static REGISTRY_TEST_LANGUAGES: &[LanguageIdentifier] = &[langid!("en")];
     static REGISTRY_TEST_DATA: ModuleData = ModuleData {
         name: "registry-test",
-        domain: "registry-domain",
+        domain: crate::__macro::static_domain("registry-domain"),
         supported_languages: REGISTRY_TEST_LANGUAGES,
         namespaces: &[],
     };
     static REGISTRY_INVALID_DATA: ModuleData = ModuleData {
         name: "registry-invalid",
-        domain: "registry-invalid",
+        domain: crate::__macro::static_domain("registry-invalid"),
         supported_languages: &[],
         namespaces: &[" ../escape "],
     };
@@ -228,8 +226,8 @@ mod tests {
 
         fn localize<'a>(
             &self,
-            _id: &str,
-            _args: Option<&HashMap<&str, FluentValue<'a>>>,
+            _id: crate::StaticFluentEntryId,
+            _args: Option<&crate::FluentArgumentMap<'a>>,
         ) -> Option<String> {
             None
         }

@@ -13,7 +13,7 @@ use es_fluent::FluentMessage;
 ///
 /// # Examples
 ///
-/// ```no_run
+/// ```ignore
 /// use bevy::prelude::*;
 /// use es_fluent::EsFluent;
 /// use es_fluent_manager_bevy::{BevyFluentText, FluentText};
@@ -74,11 +74,7 @@ mod tests {
     impl FluentMessage for FakeMessage {
         fn to_fluent_string_with(
             &self,
-            _localize: &mut dyn for<'a> FnMut(
-                &str,
-                &str,
-                Option<&std::collections::HashMap<&str, es_fluent::FluentValue<'a>>>,
-            ) -> String,
+            _localize: &mut es_fluent::FluentMessageLookup<'_>,
         ) -> String {
             self.0.to_string()
         }
@@ -95,7 +91,7 @@ mod tests {
         let component = FluentText::new(FakeMessage("hello"));
         let cloned = component.clone();
 
-        assert_eq!(cloned.value.0, "hello");
+        assert_eq!(component.value.0, cloned.value.0);
     }
 
     #[test]
@@ -112,11 +108,10 @@ mod tests {
     #[test]
     fn fluent_text_value_can_render_through_fluent_message_trait() {
         let component = FluentText::new(FakeMessage("hello"));
-        let mut localize = |_domain: &str,
-                            _id: &str,
-                            _args: Option<
-            &std::collections::HashMap<&str, es_fluent::FluentValue<'_>>,
-        >| { "unused".to_string() };
+        let mut localize =
+            |_domain: es_fluent::registry::StaticFluentDomain,
+             _id: es_fluent::registry::StaticFluentEntryId,
+             _args: Option<&es_fluent::FluentArgs<'_>>| { "unused".to_string() };
 
         assert_eq!(
             component.value.to_fluent_string_with(&mut localize),

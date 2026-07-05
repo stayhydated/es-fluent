@@ -1,43 +1,50 @@
 use super::*;
-use es_fluent::registry::{FtlTypeInfo, FtlVariant, NamespaceRule};
+use es_fluent::registry::{__macro, FtlTypeInfo, FtlVariant};
 use es_fluent_shared::meta::TypeKind;
 use fs_err as fs;
-use std::borrow::Cow;
 use std::path::Path;
 use toml::Value;
 
 static EMPTY_VARIANTS: &[FtlVariant] = &[];
-static ALLOWED_INFO: FtlTypeInfo = FtlTypeInfo {
-    type_kind: TypeKind::Struct,
-    type_name: "AllowedType",
-    variants: EMPTY_VARIANTS,
-    file_path: "src/lib.rs",
-    module_path: "test_crate",
-    namespace: Some(NamespaceRule::Literal(Cow::Borrowed("ui"))),
-};
-static DISALLOWED_INFO: FtlTypeInfo = FtlTypeInfo {
-    type_kind: TypeKind::Struct,
-    type_name: "DisallowedType",
-    variants: EMPTY_VARIANTS,
-    file_path: "src/lib.rs",
-    module_path: "test_crate",
-    namespace: Some(NamespaceRule::Literal(Cow::Borrowed("errors"))),
-};
-static CLEAN_VARIANTS: &[FtlVariant] = &[FtlVariant {
-    name: "Key1",
-    ftl_key: "group_a-Key1",
-    args: &[],
-    module_path: "test",
-    line: 0,
-}];
-static CLEAN_INFO: FtlTypeInfo = FtlTypeInfo {
-    type_kind: TypeKind::Enum,
-    type_name: "GroupA",
-    variants: CLEAN_VARIANTS,
-    file_path: "src/lib.rs",
-    module_path: "coverage_test_crate",
-    namespace: None,
-};
+static ALLOWED_INFO: FtlTypeInfo = FtlTypeInfo::new(
+    TypeKind::Struct,
+    "AllowedType",
+    EMPTY_VARIANTS,
+    "src/lib.rs",
+    "test_crate",
+    Some(__macro::namespace_literal("ui")),
+);
+static DISALLOWED_INFO: FtlTypeInfo = FtlTypeInfo::new(
+    TypeKind::Struct,
+    "DisallowedType",
+    EMPTY_VARIANTS,
+    "src/lib.rs",
+    "test_crate",
+    Some(__macro::namespace_literal("errors")),
+);
+static INVALID_NAMESPACE_INFO: FtlTypeInfo = FtlTypeInfo::new(
+    TypeKind::Struct,
+    "InvalidNamespaceType",
+    EMPTY_VARIANTS,
+    "src/lib.rs",
+    "test_crate",
+    Some(__macro::namespace_literal("../escape")),
+);
+static CLEAN_VARIANTS: &[FtlVariant] = &[FtlVariant::new(
+    "Key1",
+    __macro::static_entry_id("group_a-Key1"),
+    &[],
+    "test",
+    0,
+)];
+static CLEAN_INFO: FtlTypeInfo = FtlTypeInfo::new(
+    TypeKind::Enum,
+    "GroupA",
+    CLEAN_VARIANTS,
+    "src/lib.rs",
+    "coverage_test_crate",
+    None,
+);
 es_fluent::__inventory::submit! {
     es_fluent::registry::RegisteredFtlType(&CLEAN_INFO)
 }
@@ -315,6 +322,23 @@ fn validate_namespaces_allows_configured_namespaces_only() {
             type_name,
             ..
         } if namespace == "errors" && type_name == "DisallowedType"
+    ));
+}
+
+#[test]
+fn validate_namespaces_rejects_malformed_namespace_paths() {
+    let temp = tempfile::tempdir().expect("tempdir");
+
+    let err = super::inventory::validate_namespaces(&[&INVALID_NAMESPACE_INFO], temp.path())
+        .expect_err("malformed namespace should fail");
+
+    assert!(matches!(
+        err,
+        GeneratorError::InvalidNamespacePath {
+            namespace,
+            type_name,
+            details: es_fluent_shared::namespace::NamespacePathError::CurrentOrParentSegment,
+        } if namespace == "../escape" && type_name == "InvalidNamespaceType"
     ));
 }
 

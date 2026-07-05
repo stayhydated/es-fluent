@@ -1,35 +1,273 @@
 //! This module provides types for representing FTL variants and type information.
 
+use crate::fluent::{
+    FluentArgumentName, FluentDomain, FluentEntryId, FluentIdentifierError, FluentMessageId,
+    FluentVariantKey,
+};
 use crate::meta::TypeKind;
-pub use crate::namespace::NamespaceRule;
-use std::convert::AsRef;
+pub use crate::namespace::{NamespacePathError, NamespaceRule, ResolvedNamespace};
+use crate::source::{SourceFile, SourceLine, SourceLocation};
+use std::borrow::Borrow;
 use std::path::Path;
+
+/// Static Fluent domain emitted by derive macros.
+#[derive(derive_more::AsRef, Clone, Copy, Debug, derive_more::Display, Eq, Hash, PartialEq)]
+#[as_ref(str)]
+pub struct StaticFluentDomain(&'static str);
+
+impl StaticFluentDomain {
+    /// Creates a static domain from a caller-validated value.
+    ///
+    /// Derive macros emit this only after validating the domain during macro
+    /// expansion. Manual callers should prefer [`Self::try_new`].
+    pub(crate) const fn new_unchecked(value: &'static str) -> Self {
+        Self(value)
+    }
+
+    /// Validates and creates a static domain.
+    pub fn try_new(value: &'static str) -> Result<Self, FluentIdentifierError> {
+        FluentDomain::try_new(value)?;
+        Ok(Self(value))
+    }
+
+    /// Validates and creates the default domain derived from `CARGO_PKG_NAME`.
+    ///
+    /// Generated code uses this for implicit current-package domains because
+    /// the package name is only known in the consuming crate.
+    #[allow(
+        clippy::panic,
+        clippy::unwrap_used,
+        reason = "invalid package names should fail immediately when generated localization code is used"
+    )]
+    pub fn from_package_name(value: &'static str) -> Self {
+        Self::try_new(value).unwrap_or_else(|error| {
+            panic!("CARGO_PKG_NAME '{value}' is not a valid Fluent domain: {error}")
+        })
+    }
+
+    pub fn as_str(self) -> &'static str {
+        self.0
+    }
+
+    pub fn domain_name(self) -> FluentDomain {
+        FluentDomain::from_valid_static(self.0)
+    }
+}
+
+impl Borrow<str> for StaticFluentDomain {
+    fn borrow(&self) -> &str {
+        self.0
+    }
+}
+
+impl PartialEq<&str> for StaticFluentDomain {
+    fn eq(&self, other: &&str) -> bool {
+        self.0 == *other
+    }
+}
+
+/// Static Fluent message identifier emitted by derive macros.
+#[derive(derive_more::AsRef, Clone, Copy, Debug, derive_more::Display, Eq, Hash, PartialEq)]
+#[as_ref(str)]
+pub struct StaticFluentEntryId(&'static str);
+
+impl StaticFluentEntryId {
+    /// Creates a static message id from a caller-validated value.
+    ///
+    /// Derive macros emit this only after validating the message id during macro
+    /// expansion. Manual callers should prefer [`Self::try_new`].
+    pub(crate) const fn new_unchecked(value: &'static str) -> Self {
+        Self(value)
+    }
+
+    /// Validates and creates a static message id.
+    pub fn try_new(value: &'static str) -> Result<Self, FluentIdentifierError> {
+        FluentMessageId::try_new(value)?;
+        Ok(Self(value))
+    }
+
+    pub fn as_str(self) -> &'static str {
+        self.0
+    }
+
+    pub fn message_id(self) -> FluentMessageId {
+        FluentMessageId::from_valid_static(self.0)
+    }
+
+    pub fn entry_id(self) -> FluentEntryId {
+        FluentEntryId::from_valid_static(self.0)
+    }
+}
+
+impl Borrow<str> for StaticFluentEntryId {
+    fn borrow(&self) -> &str {
+        self.0
+    }
+}
+
+impl PartialEq<&str> for StaticFluentEntryId {
+    fn eq(&self, other: &&str) -> bool {
+        self.0 == *other
+    }
+}
+
+/// Static Fluent argument name emitted by derive macros.
+#[derive(derive_more::AsRef, Clone, Copy, Debug, derive_more::Display, Eq, Hash, PartialEq)]
+#[as_ref(str)]
+pub struct StaticFluentArgumentName(&'static str);
+
+impl StaticFluentArgumentName {
+    /// Creates a static argument name from a caller-validated value.
+    ///
+    /// Derive macros emit this only after validating the name during macro
+    /// expansion. Manual callers should prefer [`Self::try_new`].
+    pub(crate) const fn new_unchecked(value: &'static str) -> Self {
+        Self(value)
+    }
+
+    /// Validates and creates a static argument name.
+    pub fn try_new(value: &'static str) -> Result<Self, FluentIdentifierError> {
+        FluentArgumentName::try_new(value)?;
+        Ok(Self(value))
+    }
+
+    pub fn as_str(self) -> &'static str {
+        self.0
+    }
+
+    pub fn argument_name(self) -> FluentArgumentName {
+        FluentArgumentName::from_valid_static(self.0)
+    }
+}
+
+impl Borrow<str> for StaticFluentArgumentName {
+    fn borrow(&self) -> &str {
+        self.0
+    }
+}
+
+impl PartialEq<&str> for StaticFluentArgumentName {
+    fn eq(&self, other: &&str) -> bool {
+        self.0 == *other
+    }
+}
+
+/// Static Fluent select variant key emitted by derive macros.
+#[derive(derive_more::AsRef, Clone, Copy, Debug, derive_more::Display, Eq, Hash, PartialEq)]
+#[as_ref(str)]
+pub struct StaticFluentVariantKey(&'static str);
+
+impl StaticFluentVariantKey {
+    /// Creates a static variant key from a caller-validated value.
+    ///
+    /// Derive macros emit this only after validating the key during macro
+    /// expansion. Manual callers should prefer [`Self::try_new`].
+    pub(crate) const fn new_unchecked(value: &'static str) -> Self {
+        Self(value)
+    }
+
+    /// Validates and creates a static select variant key.
+    pub fn try_new(value: &'static str) -> Result<Self, FluentIdentifierError> {
+        FluentVariantKey::try_new(value)?;
+        Ok(Self(value))
+    }
+
+    pub fn as_str(self) -> &'static str {
+        self.0
+    }
+
+    pub fn variant_key(self) -> FluentVariantKey {
+        FluentVariantKey::from_valid_static(self.0)
+    }
+}
+
+impl Borrow<str> for StaticFluentVariantKey {
+    fn borrow(&self) -> &str {
+        self.0
+    }
+}
+
+impl PartialEq<&str> for StaticFluentVariantKey {
+    fn eq(&self, other: &&str) -> bool {
+        self.0 == *other
+    }
+}
 
 /// A variant representing a single FTL key entry.
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
 pub struct FtlVariant {
-    pub name: &'static str,
-    pub ftl_key: &'static str,
-    pub args: &'static [&'static str],
+    name: &'static str,
+    ftl_key: StaticFluentEntryId,
+    args: &'static [StaticFluentArgumentName],
     /// The module path from `module_path!()`.
-    pub module_path: &'static str,
+    module_path: &'static str,
     /// The line number from `line!()` macro.
-    pub line: u32,
+    line: u32,
+}
+
+impl FtlVariant {
+    /// Creates static variant metadata from validated static parts.
+    pub const fn new(
+        name: &'static str,
+        ftl_key: StaticFluentEntryId,
+        args: &'static [StaticFluentArgumentName],
+        module_path: &'static str,
+        line: u32,
+    ) -> Self {
+        Self {
+            name,
+            ftl_key,
+            args,
+            module_path,
+            line,
+        }
+    }
+
+    pub fn name(&self) -> &'static str {
+        self.name
+    }
+
+    pub fn args(&self) -> &'static [StaticFluentArgumentName] {
+        self.args
+    }
+
+    pub fn module_path(&self) -> &'static str {
+        self.module_path
+    }
+
+    pub fn entry_id(&self) -> FluentEntryId {
+        self.ftl_key.entry_id()
+    }
+
+    /// Returns the validated Fluent message id for this variant.
+    pub fn message_id(&self) -> FluentMessageId {
+        self.ftl_key.message_id()
+    }
+
+    /// Returns the validated Fluent argument names for this variant.
+    pub fn argument_names(&self) -> Vec<FluentArgumentName> {
+        self.args.iter().map(|arg| arg.argument_name()).collect()
+    }
+
+    /// Returns typed source line metadata for this variant.
+    pub fn source_line(&self) -> SourceLine {
+        SourceLine::new(self.line)
+    }
 }
 
 /// Type information for FTL registration, used by derive macros and the CLI.
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
 pub struct FtlTypeInfo {
-    pub type_kind: TypeKind,
-    pub type_name: &'static str,
-    pub variants: &'static [FtlVariant],
+    type_kind: TypeKind,
+    type_name: &'static str,
+    variants: &'static [FtlVariant],
     /// The file path where this type is defined (from `file!()` macro).
-    pub file_path: &'static str,
+    file_path: &'static str,
     /// The module path where this type is defined (from `module_path!()` macro).
-    pub module_path: &'static str,
+    module_path: &'static str,
     /// Optional namespace for FTL file output. If Some, the type will be written to
     /// `{lang}/{crate}/{namespace}.ftl` instead of `{lang}/{crate}.ftl`.
-    pub namespace: Option<NamespaceRule>,
+    namespace: Option<NamespaceRule>,
 }
 
 impl AsRef<FtlTypeInfo> for FtlTypeInfo {
@@ -39,17 +277,160 @@ impl AsRef<FtlTypeInfo> for FtlTypeInfo {
 }
 
 impl FtlTypeInfo {
+    /// Creates static type metadata from validated static parts.
+    pub const fn new(
+        type_kind: TypeKind,
+        type_name: &'static str,
+        variants: &'static [FtlVariant],
+        file_path: &'static str,
+        module_path: &'static str,
+        namespace: Option<NamespaceRule>,
+    ) -> Self {
+        Self {
+            type_kind,
+            type_name,
+            variants,
+            file_path,
+            module_path,
+            namespace,
+        }
+    }
+
+    pub fn type_kind(&self) -> &TypeKind {
+        &self.type_kind
+    }
+
+    pub fn type_name(&self) -> &'static str {
+        self.type_name
+    }
+
+    pub fn variants(&self) -> &'static [FtlVariant] {
+        self.variants
+    }
+
+    pub fn file_path(&self) -> &'static str {
+        self.file_path
+    }
+
+    pub fn module_path(&self) -> &'static str {
+        self.module_path
+    }
+
+    pub fn namespace(&self) -> Option<&NamespaceRule> {
+        self.namespace.as_ref()
+    }
+
+    /// Returns typed source file metadata when this type has a recorded file path.
+    pub fn source_file(&self) -> Option<SourceFile> {
+        SourceFile::new(self.file_path)
+    }
+
+    /// Returns typed source location metadata for the given variant.
+    pub fn source_location_for(&self, variant: &FtlVariant) -> Option<SourceLocation> {
+        SourceLocation::new(self.file_path, variant.line)
+    }
+
+    /// Returns a stable human-readable source description for diagnostics.
+    pub fn source_description_for(&self, variant: &FtlVariant) -> String {
+        let item = format!("type '{}' variant '{}'", self.type_name, variant.name);
+        match self.source_location_for(variant) {
+            Some(location) => format!(
+                "{item} at {}:{}",
+                location.file().as_str(),
+                location.line().get()
+            ),
+            None => format!("{item} at line {}", variant.source_line().get()),
+        }
+    }
+
     /// Resolve the namespace for this type, if configured.
     pub fn resolved_namespace(&self, manifest_dir: &Path) -> Option<String> {
         self.namespace
             .as_ref()
             .map(|rule| rule.resolve(self.file_path, Some(manifest_dir)))
     }
+
+    /// Resolve and validate the namespace for this type, if configured.
+    pub fn try_resolved_namespace(
+        &self,
+        manifest_dir: &Path,
+    ) -> Result<Option<ResolvedNamespace>, NamespacePathError> {
+        self.namespace
+            .as_ref()
+            .map(|rule| rule.try_resolve(self.file_path, Some(manifest_dir)))
+            .transpose()
+    }
+}
+
+/// Constructors used by generated macro output.
+///
+/// These functions keep generated metadata on a narrow construction surface
+/// while the public structs expose read-only accessors.
+#[doc(hidden)]
+pub mod __macro {
+    use super::{
+        FtlTypeInfo, FtlVariant, NamespaceRule, ResolvedNamespace, StaticFluentArgumentName,
+        StaticFluentDomain, StaticFluentEntryId, StaticFluentVariantKey,
+    };
+    use crate::meta::TypeKind;
+
+    pub const fn static_domain(value: &'static str) -> StaticFluentDomain {
+        StaticFluentDomain::new_unchecked(value)
+    }
+
+    pub const fn static_entry_id(value: &'static str) -> StaticFluentEntryId {
+        StaticFluentEntryId::new_unchecked(value)
+    }
+
+    pub const fn static_argument_name(value: &'static str) -> StaticFluentArgumentName {
+        StaticFluentArgumentName::new_unchecked(value)
+    }
+
+    pub const fn static_variant_key(value: &'static str) -> StaticFluentVariantKey {
+        StaticFluentVariantKey::new_unchecked(value)
+    }
+
+    pub const fn namespace_literal(value: &'static str) -> NamespaceRule {
+        NamespaceRule::Literal(ResolvedNamespace::from_static_unchecked(value))
+    }
+
+    pub const fn ftl_variant(
+        name: &'static str,
+        ftl_key: StaticFluentEntryId,
+        args: &'static [StaticFluentArgumentName],
+        module_path: &'static str,
+        line: u32,
+    ) -> FtlVariant {
+        FtlVariant::new(name, ftl_key, args, module_path, line)
+    }
+
+    pub const fn ftl_type_info(
+        type_kind: TypeKind,
+        type_name: &'static str,
+        variants: &'static [FtlVariant],
+        file_path: &'static str,
+        module_path: &'static str,
+        namespace: Option<NamespaceRule>,
+    ) -> FtlTypeInfo {
+        FtlTypeInfo::new(
+            type_kind,
+            type_name,
+            variants,
+            file_path,
+            module_path,
+            namespace,
+        )
+    }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::NamespaceRule;
+    use super::{
+        FtlTypeInfo, NamespacePathError, NamespaceRule, StaticFluentArgumentName,
+        StaticFluentDomain, StaticFluentEntryId, StaticFluentVariantKey,
+    };
+    use crate::meta::TypeKind;
+    use crate::registry::FtlVariant;
     use std::path::PathBuf;
 
     fn test_manifest_dir() -> PathBuf {
@@ -58,6 +439,15 @@ mod tests {
         } else {
             PathBuf::from("/repo/app")
         }
+    }
+
+    #[test]
+    fn static_variant_key_validates_and_exposes_typed_value() {
+        let key = StaticFluentVariantKey::try_new("very-high").expect("valid variant key");
+
+        assert_eq!(key.as_str(), "very-high");
+        assert_eq!(key.variant_key().as_str(), "very-high");
+        assert!(StaticFluentVariantKey::try_new("not valid").is_err());
     }
 
     #[test]
@@ -151,5 +541,131 @@ mod tests {
             Some(&manifest_dir),
         );
         assert_eq!(namespace, "src");
+    }
+
+    #[test]
+    fn ftl_type_info_try_resolved_namespace_returns_validated_namespace() {
+        let manifest_dir = test_manifest_dir();
+        let info = FtlTypeInfo::new(
+            TypeKind::Enum,
+            "ButtonCopy",
+            &[],
+            "src/ui/button.rs",
+            "demo",
+            Some(NamespaceRule::FileRelative),
+        );
+
+        let namespace = info
+            .try_resolved_namespace(&manifest_dir)
+            .expect("namespace should resolve")
+            .expect("namespace configured");
+
+        assert_eq!(namespace.as_str(), "ui/button");
+        assert_eq!(
+            namespace.try_resource_key("demo").unwrap().as_str(),
+            "demo/ui/button"
+        );
+    }
+
+    #[test]
+    fn ftl_type_info_try_resolved_namespace_rejects_invalid_literal() {
+        let manifest_dir = test_manifest_dir();
+        let info = FtlTypeInfo::new(
+            TypeKind::Enum,
+            "EscapingCopy",
+            &[],
+            "src/lib.rs",
+            "demo",
+            Some(super::__macro::namespace_literal("../escape")),
+        );
+
+        let err = info
+            .try_resolved_namespace(&manifest_dir)
+            .expect_err("invalid literal should fail");
+
+        assert_eq!(err, NamespacePathError::CurrentOrParentSegment);
+    }
+
+    #[test]
+    fn ftl_type_info_exposes_typed_source_metadata() {
+        static VARIANTS: &[FtlVariant] = &[FtlVariant::new(
+            "Ready",
+            StaticFluentEntryId::new_unchecked("status-Ready"),
+            &[],
+            "demo",
+            42,
+        )];
+        let info = FtlTypeInfo::new(
+            TypeKind::Enum,
+            "Status",
+            VARIANTS,
+            "src/status.rs",
+            "demo",
+            None,
+        );
+
+        assert_eq!(info.source_file().unwrap().as_str(), "src/status.rs");
+        assert_eq!(VARIANTS[0].entry_id().as_str(), "status-Ready");
+        assert_eq!(VARIANTS[0].message_id().as_str(), "status-Ready");
+        assert_eq!(VARIANTS[0].argument_names(), Vec::new());
+        assert_eq!(VARIANTS[0].source_line().get(), 42);
+
+        let location = info.source_location_for(&VARIANTS[0]).unwrap();
+        assert_eq!(location.file().as_str(), "src/status.rs");
+        assert_eq!(location.line().get(), 42);
+    }
+
+    #[test]
+    fn empty_type_file_path_has_no_typed_source_location() {
+        static VARIANTS: &[FtlVariant] = &[FtlVariant::new(
+            "Ready",
+            StaticFluentEntryId::new_unchecked("status-Ready"),
+            &[],
+            "demo",
+            42,
+        )];
+        let info = FtlTypeInfo::new(TypeKind::Enum, "Status", VARIANTS, "", "demo", None);
+
+        assert!(info.source_file().is_none());
+        assert!(info.source_location_for(&VARIANTS[0]).is_none());
+    }
+
+    #[test]
+    fn static_fluent_wrappers_validate_manual_construction() {
+        assert_eq!(
+            StaticFluentEntryId::try_new("_invalid")
+                .unwrap_err()
+                .to_string(),
+            "Fluent message id must start with an ASCII letter"
+        );
+        assert_eq!(
+            StaticFluentEntryId::try_new("-shared-term")
+                .unwrap_err()
+                .to_string(),
+            "Fluent message id must start with an ASCII letter"
+        );
+        assert_eq!(
+            StaticFluentDomain::try_new("app-domain")
+                .expect("domain")
+                .domain_name()
+                .as_str(),
+            "app-domain"
+        );
+        assert_eq!(
+            StaticFluentDomain::try_new("app-domain")
+                .expect("domain")
+                .as_str(),
+            "app-domain"
+        );
+        assert_eq!(
+            StaticFluentDomain::from_package_name("package-domain").as_str(),
+            "package-domain"
+        );
+        assert_eq!(
+            StaticFluentArgumentName::try_new("not valid")
+                .unwrap_err()
+                .to_string(),
+            "Fluent argument name contains invalid character ' '; use ASCII letters, digits, '_' or '-'"
+        );
     }
 }

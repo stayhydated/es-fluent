@@ -17,21 +17,23 @@ pub use fluent_bundle::FluentValue;
 pub use inventory as __inventory;
 
 #[doc(hidden)]
-pub use rust_embed as __rust_embed;
-
-#[doc(hidden)]
 pub use es_fluent_manager_core as __manager_core;
 
 #[doc(hidden)]
 pub use unic_langid;
 
 mod traits;
-pub use traits::{EsFluentChoice, FluentLabel, FluentLocalizer, FluentLocalizerExt, FluentMessage};
+pub use traits::{
+    EsFluentChoice, FluentArgs, FluentLabel, FluentLocalizer, FluentLocalizerExt,
+    FluentLocalizerLookup, FluentMessage, FluentMessageLookup, fallback_label,
+    humanize_fluent_entry_id,
+};
 
 #[doc(hidden)]
 pub mod __private {
     pub use crate::traits::{
         FluentArgumentValue, FluentBorrowedArgumentValue, FluentLocalizerExt,
-        FluentOptionalArgumentValue, IntoFluentArgumentValue, IntoFluentValue, localize_label,
+        FluentOptionalArgumentValue, IntoFluentArgumentValue, IntoFluentValue, fallback_label,
+        humanize_fluent_entry_id, localize_label,
     };
 }
