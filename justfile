@@ -17,6 +17,9 @@ clippy:
 check:
     cargo check --workspace --all-features
 
+ftl-check:
+    cargo es-fluent-local check --all
+
 ftl-ownership:
     cargo xtask check ftl-ownership
 

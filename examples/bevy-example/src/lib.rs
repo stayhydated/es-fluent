@@ -2,6 +2,7 @@ use bevy::{
     color::palettes::basic::*,
     input_focus::{FocusCause, InputFocus},
     prelude::*,
+    window::{Window, WindowPlugin},
     winit::WinitSettings,
 };
 use es_fluent::EsFluent;
@@ -40,15 +41,23 @@ const PRESSED_BUTTON: Color = Color::srgb(0.35, 0.75, 0.35);
 pub fn run() {
     let mut app = App::new();
 
+    let default_plugins = DefaultPlugins.set(WindowPlugin {
+        primary_window: Some(Window {
+            fit_canvas_to_parent: true,
+            ..default()
+        }),
+        ..default()
+    });
+
     #[cfg(not(target_arch = "wasm32"))]
-    app.add_plugins(DefaultPlugins.set(AssetPlugin {
+    app.add_plugins(default_plugins.set(AssetPlugin {
         watch_for_changes_override: Some(cfg!(debug_assertions)),
         file_path: concat!(env!("CARGO_MANIFEST_DIR"), "/assets").to_string(),
         ..default()
     }));
 
     #[cfg(target_arch = "wasm32")]
-    app.add_plugins(DefaultPlugins.set(AssetPlugin {
+    app.add_plugins(default_plugins.set(AssetPlugin {
         file_path: "assets".to_string(),
         meta_check: bevy::asset::AssetMetaCheck::Never,
         ..default()
