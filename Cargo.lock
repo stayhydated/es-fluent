@@ -3618,18 +3618,18 @@ checksum = "790eea4361631c5e7d22598ecd5723ff611904e3344ce8720784c93e3d83d40b"
 
 [[package]]
 name = "crossbeam-channel"
-version = "0.5.15"
+version = "0.5.16"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "82b8f8f868b36967f9606790d1903570de9ceaf870a7bf9fbbd3016d636a2cb2"
+checksum = "d85363c37faeca707aef026efa9f3b34d077bce547e48f770770625c6013679e"
 dependencies = [
  "crossbeam-utils",
 ]
 
 [[package]]
 name = "crossbeam-deque"
-version = "0.8.6"
+version = "0.8.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9dd111b7b7f7d55b72c0a6ae361660ee5853c9af73f70c3c2ef6858b950e2e51"
+checksum = "5181e0de7b61eb03a81e347d6dd8797bae9da5146707b51077e2d71a54ec0ceb"
 dependencies = [
  "crossbeam-epoch",
  "crossbeam-utils",
@@ -3637,27 +3637,27 @@ dependencies = [
 
 [[package]]
 name = "crossbeam-epoch"
-version = "0.9.18"
+version = "0.9.19"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5b82ac4a3c2ca9c3460964f020e1402edd5753411d7737aa39c3714ad1b5420e"
+checksum = "4279b0f31df31b4add8aeae57d40f3b5e53aad2b531e89b982bd75ed1898851d"
 dependencies = [
  "crossbeam-utils",
 ]
 
 [[package]]
 name = "crossbeam-queue"
-version = "0.3.12"
+version = "0.3.13"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0f58bbc28f91df819d0aa2a2c00cd19754769c2fad90579b3592b1c9ba7a3115"
+checksum = "803d13fb3b09d88be9f4dbc29062c66b19bf7170867ceb746d2a8689bf6c7a26"
 dependencies = [
  "crossbeam-utils",
 ]
 
 [[package]]
 name = "crossbeam-utils"
-version = "0.8.21"
+version = "0.8.22"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d0a5c400df2834b80a4c3327b3aad3a4c4cd4de0629063962b03235697506a28"
+checksum = "61803da095bee82a81bb1a452ecc25d3b2f1416d1897eb86430c6159ef717c17"
 
 [[package]]
 name = "crossterm"
@@ -6160,7 +6160,7 @@ dependencies = [
 [[package]]
 name = "gpui"
 version = "0.2.2"
-source = "git+https://github.com/zed-industries/zed#050e6f3407e0a003ca45a572b8d4132cef5b6dfd"
+source = "git+https://github.com/zed-industries/zed#eeff97950f7ccfd5b2f73b48f7267bd0df5e4bfb"
 replace = "gpui 0.2.2 (git+https://github.com/zed-industries/zed?rev=c545fb67d0ce13e335bff76f7c08986000333f2c)"
 
 [[package]]
@@ -6362,7 +6362,7 @@ dependencies = [
 [[package]]
 name = "gpui_macros"
 version = "0.1.0"
-source = "git+https://github.com/zed-industries/zed#050e6f3407e0a003ca45a572b8d4132cef5b6dfd"
+source = "git+https://github.com/zed-industries/zed#eeff97950f7ccfd5b2f73b48f7267bd0df5e4bfb"
 dependencies = [
  "heck 0.5.0",
  "proc-macro2",
@@ -8154,7 +8154,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7122d987ec5f704ee56f6e5b41a7d93722e9aae27ae07cafa4036c4d3f9757de"
 dependencies = [
  "log",
- "tendril 0.5.0",
+ "tendril 0.5.1",
  "web_atoms",
 ]
 
@@ -8207,9 +8207,9 @@ dependencies = [
 
 [[package]]
 name = "mdbook-core"
-version = "0.5.3"
+version = "0.5.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6fc1c4da7fd9e2e412f3891428f9468fab890ed159723ed0892bb85a049ac1c1"
+checksum = "8725b7f8e94a5c40a00c907e4006301ba2fc06722de489a0cb19db1823fdf200"
 dependencies = [
  "anyhow",
  "regex",
@@ -8245,9 +8245,9 @@ dependencies = [
 
 [[package]]
 name = "mdbook-html"
-version = "0.5.3"
+version = "0.5.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "85ed2140251689f928615f0a5615413eb072eb28e003d179257aa4f034c95513"
+checksum = "8d25933e4d7cbaa342db9ab9f414c2a09b1c59becb63ad344520370d822ab28a"
 dependencies = [
  "anyhow",
  "ego-tree",
@@ -8269,9 +8269,9 @@ dependencies = [
 
 [[package]]
 name = "mdbook-markdown"
-version = "0.5.3"
+version = "0.5.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2cb3ca9eadf02ce206118a0b9c264718723d669b110c01a720fa9a0786f30642"
+checksum = "9ca553aa4330b15fa2c706aef373bc714cc719513d1da73c17be3dba208b9aab"
 dependencies = [
  "pulldown-cmark",
  "regex",
@@ -8280,9 +8280,9 @@ dependencies = [
 
 [[package]]
 name = "mdbook-preprocessor"
-version = "0.5.3"
+version = "0.5.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8eff7b4afaafd664a649a03b8891ad8199aef359a35b911ad6c31acab38ed209"
+checksum = "f8e75b08763e31982701d5b2680124bd4bd9bed4a4e1b5a499381320ccae199f"
 dependencies = [
  "anyhow",
  "mdbook-core",
@@ -8292,9 +8292,9 @@ dependencies = [
 
 [[package]]
 name = "mdbook-renderer"
-version = "0.5.3"
+version = "0.5.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e607259410d53aa5cdaf5b6c1c6b3fd61f2e0f0523ebf457d34cd4f0b71e2a88"
+checksum = "75d378308f820f05c6c89e4ec552a3c64a0cc10ccab7dcc93a2baa3bc714ea1b"
 dependencies = [
  "anyhow",
  "mdbook-core",
@@ -8304,9 +8304,9 @@ dependencies = [
 
 [[package]]
 name = "mdbook-summary"
-version = "0.5.3"
+version = "0.5.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "cae8a734e5e35b0bc145b46d01fd27e266ba647dcdb9b8c907cb6a29eca9122b"
+checksum = "2453622fa7236139365a9acd20314ab859ff747d57ba36ff0d476b64adc75cf8"
 dependencies = [
  "anyhow",
  "mdbook-core",
@@ -12415,12 +12415,11 @@ dependencies = [
 
 [[package]]
 name = "tendril"
-version = "0.5.0"
+version = "0.5.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c4790fc369d5a530f4b544b094e31388b9b3a37c0f4652ade4505945f5660d24"
+checksum = "5fed54709c5b3a53d09bb1c113ea4f5ceafd1e772ddcb0030a82e1d56c087b08"
 dependencies = [
  "new_debug_unreachable",
- "utf-8",
 ]
 
 [[package]]
@@ -15256,18 +15255,18 @@ checksum = "6df3dc4292935e51816d896edcd52aa30bc297907c26167fec31e2b0c6a32524"
 
 [[package]]
 name = "zerocopy"
-version = "0.8.52"
+version = "0.8.53"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ce1022995ff5ff5d841ad7d994facc23098cd40152f2c1d11cd607c6f530653f"
+checksum = "75726053136156d419e285b9b7eddaaea9e3fea6ce32eed44a89901f0bd98de1"
 dependencies = [
  "zerocopy-derive",
 ]
 
 [[package]]
 name = "zerocopy-derive"
-version = "0.8.52"
+version = "0.8.53"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1ae7f38b72ec2a254e2b87ef277cf2cd4fb97cbebf944faa6f33354da0867930"
+checksum = "4714fd92cf900833d49538023a9b3915155210801d1c1169eba513b2addefd71"
 dependencies = [
  "proc-macro2",
  "quote",
