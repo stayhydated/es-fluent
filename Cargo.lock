@@ -12018,18 +12018,18 @@ checksum = "a2eb9349b6444b326872e140eb1cf5e7c522154d69e7a0ffb0fb81c06b37543f"
 [[package]]
 name = "stayhydated-dioxus"
 version = "0.1.0"
-source = "git+https://github.com/stayhydated/shared#42efffd23442a16c20d0deb55f4f3bca6ee81f5d"
 dependencies = [
- "derive_more",
  "dioxus",
+ "dioxus-free-icons",
+ "dioxus-primitives",
  "stayhydated-dioxus-core",
  "strum 0.28.0",
+ "web-sys",
 ]
 
 [[package]]
 name = "stayhydated-dioxus-core"
 version = "0.1.0"
-source = "git+https://github.com/stayhydated/shared#42efffd23442a16c20d0deb55f4f3bca6ee81f5d"
 dependencies = [
  "bon",
  "bytemuck",
@@ -12045,7 +12045,6 @@ dependencies = [
 [[package]]
 name = "stayhydated-site"
 version = "0.1.0"
-source = "git+https://github.com/stayhydated/shared#42efffd23442a16c20d0deb55f4f3bca6ee81f5d"
 dependencies = [
  "bon",
  "dioxus",
@@ -12054,7 +12053,6 @@ dependencies = [
 [[package]]
 name = "stayhydated-xtask"
 version = "0.1.0"
-source = "git+https://github.com/stayhydated/shared#42efffd23442a16c20d0deb55f4f3bca6ee81f5d"
 dependencies = [
  "anyhow",
  "bon",

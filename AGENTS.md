@@ -5,271 +5,167 @@ workspace.
 
 Use it to decide:
 
-1. whether a crate or surface is user-facing, public integration, or internal,
-2. where documentation and durable source-of-truth details belong,
-3. which related code docs, user docs, examples, generated outputs, and skills
-   must change together,
-4. which validation command should run before handoff.
+- which crate or surface owns a change,
+- whether the surface is user-facing, public integration, generated, validation,
+  or internal,
+- which docs, examples, generated outputs, fixtures, skill references, and tests
+  must stay synchronized,
+- which repository command is the narrowest useful validation.
 
-For most application code, start with `crates/es-fluent`.
+Start with `crates/es-fluent` for the public application API,
+`crates/es-fluent-cli` for CLI behavior, and `just --list` for the repository
+command index.
 
 ## Project Summary
 
-`es-fluent` is a Rust localization ecosystem built on top of
-[Project Fluent](https://projectfluent.org/).
-
-Its priorities are:
-
-1. **Type safety**: keep Rust code and translation files aligned at compile time.
-2. **Ergonomics**: make common localization workflows require minimal boilerplate.
-3. **Developer experience**: provide tooling that generates, validates, and keeps FTL files in sync.
+`es-fluent` is a Rust localization workspace built on Project Fluent. It
+provides typed derive macros, runtime managers, CLI tooling, generated FTL file
+maintenance, examples, an mdBook, and a Dioxus-rendered web site.
 
 ## Quick Decision Flow
 
-Before editing, classify the change:
-
-1. **Find the surface in the workspace map.** Use its audience label to decide
-   how much public explanation the change needs.
-2. **Keep source-of-truth details close to the thing they describe.** Use code,
-   tests, Rust docs, module docs, local comments, examples, READMEs, and the
-   book instead of standalone architecture documents.
-3. **Assert code/docs sync before handoff.** For any API, CLI, generated-output,
-   or workflow change, check the implementation, tests, Rust docs/module docs,
-   user-facing docs, examples, and skill guidance that describe the same behavior.
-4. **Sync public workflow changes.** If behavior, commands, generated output,
-   or recommended usage changes, update the relevant example, README, book page,
-   and `skills/use-es-fluent` guidance in the same change when applicable.
-5. **Validate narrowly.** Run the smallest command that proves the edited
-   behavior or documentation surface is still sound.
+1. Find the edited surface in the workspace map and use its audience label to
+   decide which public docs or validation surfaces are part of the same change.
+2. Keep implementation details close to the code, Rust docs, tests, fixtures,
+   snapshots, examples, generator inputs, or source docs that prove the behavior.
+3. For public API, CLI, generated-output, or workflow changes, update the owning
+   implementation, tests, Rust docs, user-facing docs, examples, and
+   `skills/use-es-fluent` guidance that describe the same behavior.
+4. For generated or ignored outputs, change the source, generator, example,
+   book source, or web source first; regenerate with the evidenced command when
+   the output itself matters.
+5. Validate with the narrowest command that proves the edited behavior or docs
+   surface.
 
 ## Audience Labels
 
-These labels describe the crate or surface itself, not the documentation file
-being edited:
-
-- **User-facing**: normal entry points for application developers.
-- **Public integration**: public crates meant for extensions, integrations, or
-  deeper customization. These are usually not the default starting point.
-- **Internal**: workspace plumbing, implementation details, and maintenance tooling.
-
-## Documentation Placement
-
-### User-Facing Documentation
-
-Treat these surfaces as user-facing:
-
-- every `README.md` in the workspace,
-- the mdBook under `book/`.
-
-Even README files for internal crates should explain:
-
-- who the crate is for,
-- what it does,
-- what most users should use instead.
-
-Keep user-facing documentation example-first. Prefer Rust snippets over
-prose-only explanations when showing behavior changes.
-
-### Source-of-Truth Documentation
-
-Use code and its associated documentation as the source of truth:
-
-- API contracts belong in Rust docs and public examples.
-- Public crate READMEs are often included as crate docs with
-  `#![doc = include_str!("../README.md")]`; keep README content, Rust docs, and
-  examples aligned when public APIs change.
-- Internal invariants belong in tests, snapshots, module docs, or focused code
-  comments.
-- Maintenance workflow guidance belongs in this file or the relevant tool docs.
-- Public workflows belong in READMEs, `examples/readme`, the book, and
-  `skills/use-es-fluent` when applicable.
-
-Do not add standalone `docs/ARCHITECTURE.md` files. If a deleted architecture
-document contained important durable knowledge, move that knowledge into the
-nearest code, test, README, or book page that owns the behavior.
-
-### Skill Guidance
-
-`skills/use-es-fluent` is public application-developer guidance, not repo-local
-maintenance guidance. Keep maintainer-only details in this guide or near the
-code they affect.
-
-Update it when user-facing workflows, CLI behavior, generated output,
-integration patterns, or recommended usage change.
-
-## Synchronization Rules
-
-When a substantive change modifies a public workflow, public feature, or
-user-visible API shape:
-
-1. Update the implementation and the Rust docs/module docs that own the API
-   contract.
-2. Update the executable example in `examples/readme` when relevant.
-3. Update the affected user-facing `README.md` files.
-4. Update the matching `book/src/*.md` pages.
-5. Update `skills/use-es-fluent` when public usage guidance changes.
-6. Keep these surfaces aligned in the same change unless there is a documented reason not to.
-
-`examples/readme` is the canonical source of truth for usage examples.
-
-For CLI behavior, keep `crates/es-fluent-cli/README.md`, `book/src/cli.md`,
-`skills/use-es-fluent/references/cli-workflow.md`, and the relevant root README
-sections in sync. `crates/es-fluent-cli/tests/main_smoke.rs` contains tests that
-assert parts of this public documentation contract.
-
-Generated outputs are not independent source-of-truth files. Update their
-sources or generator first:
-
-- `.ftl` files and `.es-fluent/metadata` come from es-fluent CLI discovery and
-  generation.
-- `book/book`, `web/public/book`, `web/public/llms*`, demo bundles under
-  `web/public`, and `web/dist` come from `xtask`/web build commands.
+- **User-facing**: default application crates, CLI behavior, examples, public
+  READMEs, the mdBook, and the published web site.
+- **Public integration**: crates or macros intended for custom integrations or
+  deeper extension work.
+- **Generated/source-of-truth**: generators, ignored generated outputs, locale
+  metadata, and source files that produce generated artifacts.
+- **Validation**: tests, fixtures, snapshots, UI stderr files, and examples that
+  encode expected behavior.
+- **Internal**: workspace plumbing, implementation details, and maintenance
+  tooling.
 
 ## Workspace Map
 
-### Main User-Facing Entry Points
+### Main User-Facing Surfaces
 
-- `crates/es-fluent`
-  Audience: **User-facing**
-  Role: ecosystem facade, default entry point, and home of the registry types (`FtlTypeInfo`, `FtlVariant`, `RegisteredFtlType`).
+- `crates/es-fluent`: facade crate, derive re-exports, public runtime traits,
+  and default application entry point.
+- `crates/es-fluent-cli`: `cargo es-fluent` binary, public GitHub Action
+  wrapper, and CLI docs.
+- `crates/es-fluent-manager-embedded`, `crates/es-fluent-manager-dioxus`,
+  `crates/es-fluent-manager-bevy`: runtime managers for embedded/general Rust,
+  Dioxus client/SSR, and Bevy.
+- `crates/es-fluent-lang`: typed language enum and localized language labels.
+- `crates/es-fluent-build`: build-script helper for tracking locale asset
+  rebuilds.
 
-- `crates/es-fluent-cli`
-  Audience: **User-facing**
-  Role: primary CLI (`cargo es-fluent`) for generating, checking, cleaning, syncing, formatting, and inspecting FTL files.
+### Public Integration Surfaces
 
-- `crates/es-fluent-manager-embedded`
-  Audience: **User-facing**
-  Role: zero-setup backend for embedding FTL files in the binary.
+- `crates/es-fluent-derive`: proc-macro crate behind the facade derives.
+- `crates/es-fluent-lang-macro`: proc macro behind `es-fluent-lang`.
+- `crates/es-fluent-manager-core`: shared runtime contracts and manager
+  abstractions.
+- `crates/es-fluent-manager-macros`: manager module registration and Bevy text
+  macros.
 
-- `crates/es-fluent-manager-dioxus`
-  Audience: **User-facing**
-  Role: Dioxus integration for provider/hook client localization and request-scoped SSR.
+### Internal Implementation and Tooling
 
-- `crates/es-fluent-manager-bevy`
-  Audience: **User-facing**
-  Role: Bevy integration for ECS and assets.
+- `crates/es-fluent-shared`, `crates/es-fluent-derive-core`,
+  `crates/es-fluent-toml`, `crates/es-fluent-generate`,
+  `crates/es-fluent-cli-helpers`, `crates/es-fluent-runner`: shared metadata,
+  derive validation, config parsing, FTL generation, runner helpers, and runner
+  protocol types.
+- `xtask`: repository maintenance commands for generated book, `llms.txt`, demo
+  bundles, web builds, FTL ownership checks, and release planning.
 
-- `crates/es-fluent-lang`
-  Audience: **User-facing**
-  Role: runtime language identification and localized language names for UI language pickers.
+### Docs, Examples, and Web
 
-### Public Integration Crates
+- `README.md` and crate `README.md` files are user-facing. Many crate READMEs
+  are included as crate docs with `#![doc = include_str!("../README.md")]`.
+- `book/src`: mdBook source for public workflows. `book/book` is generated.
+- `examples/readme`: canonical executable README examples; keep it aligned with
+  root README and relevant book pages.
+- `examples/bevy-example`, `examples/gpui-example`,
+  `examples/example-shared-lib`: integration examples and shared example code.
+- `web`: Dioxus-rendered GitHub Pages site and Dioxus integration example.
 
-- `crates/es-fluent-derive`
-  Audience: **Public integration**
-  Role: proc-macro crate for `#[derive(EsFluent)]`. Most users should depend on `es-fluent` instead of this crate directly.
+### Generated and Validation Surfaces
 
-- `crates/es-fluent-lang-macro`
-  Audience: **Public integration**
-  Role: generates type-safe language enums from asset folders. Most users should access this through `es-fluent-lang`.
+- `.es-fluent/`: ignored local runner workspace and metadata generated by the
+  local CLI alias.
+- `web/public/book`, `web/public/llms*`, `web/public/llms/`,
+  `web/public/bevy-demo`, `web/public/gpui-demo`, and `web/dist`: ignored
+  outputs from `xtask` and web build commands.
+- `crates/*/tests`, `crates/*/tests/fixtures`,
+  `crates/*/tests/snapshots`, `crates/*/src/snapshots`,
+  `crates/*/tests/ui/*.stderr`, and `*.snap` files: validation contracts for
+  CLI behavior, derive diagnostics, generated FTL output, manager macros, and
+  runtime behavior.
 
-- `crates/es-fluent-build`
-  Audience: **Public integration**
-  Role: build-script helper crate for locale asset rebuild tracking.
+## Synchronization Rules
 
-- `crates/es-fluent-manager-core`
-  Audience: **Public integration**
-  Role: abstract traits for localization backends (`I18nModule`, `Localizer`).
+- When public API or manager behavior changes, update the owning crate README,
+  Rust docs/module docs, relevant examples, root README, and matching
+  `book/src/*.md` pages.
+- When CLI behavior changes, keep `crates/es-fluent-cli/README.md`,
+  `book/src/cli.md`, `skills/use-es-fluent/references/cli-workflow.md`, and the
+  relevant root README sections aligned. `crates/es-fluent-cli/tests/main_smoke.rs`
+  asserts parts of this public documentation contract.
+- When public usage guidance changes, update `skills/use-es-fluent` or the
+  relevant reference file in the same change as docs and examples.
+- When localizable Rust types, `i18n.toml`, or locale assets change, keep the
+  affected `.ftl` assets, CLI metadata expectations, examples, and docs aligned.
+  Use the local `cargo es-fluent-local` alias when generated FTL or metadata is
+  the affected surface.
+- When book, web, demo, or `llms.txt` behavior changes, edit the source under
+  `book/src`, `web/src`, `web/assets`, `examples`, or `xtask`, then rebuild the
+  affected generated surface when needed.
+- When a named command, boundary, generated-output flow, or public workflow in
+  this guide changes, update `AGENTS.md` in the same change.
 
-- `crates/es-fluent-manager-macros`
-  Audience: **Public integration**
-  Role: macros for asset discovery and module registration. Most users consume this indirectly through manager crates.
+## Repository Standards
 
-### Internal Crates
-
-- `crates/es-fluent-shared`
-  Audience: **Internal**
-  Role: shared runtime-safe types, naming helpers, namespace rules, path utilities, and common errors.
-
-- `crates/es-fluent-derive-core`
-  Audience: **Internal**
-  Role: shared build-time derive logic, including option parsing and validation.
-
-- `crates/es-fluent-toml`
-  Audience: **Internal**
-  Role: `i18n.toml` parsing and path resolution shared by macros and CLI tooling.
-
-- `crates/es-fluent-cli-helpers`
-  Audience: **Internal**
-  Role: runtime logic executed inside the temporary runner crate.
-
-- `crates/es-fluent-runner`
-  Audience: **Internal**
-  Role: runner protocol types and `.es-fluent/metadata` path helpers.
-
-- `crates/es-fluent-generate`
-  Audience: **Internal**
-  Role: FTL AST manipulation, diffing, formatting, and merge behavior.
-
-- `xtask`
-  Audience: **Internal**
-  Role: maintenance task runner.
-
-### Examples and Web Surfaces
-
-- `examples/example-shared-lib`
-  Shared example library used by multiple examples.
-
-- `examples/bevy-example`
-  Bevy integration example using `es-fluent-manager-bevy`.
-
-- `examples/gpui-example`
-  GPUI integration example using `es-fluent-manager-embedded`.
-
-- `examples/readme`
-  Canonical executable documentation examples. Keep this in sync with the root `README.md` and the book.
-
-- `web`
-  Audience: **User-facing**
-  Role: Dioxus-rendered GitHub Pages site hosting WASM demos, `llms.txt`, and
-  the mdBook; also an example for `es-fluent-manager-dioxus`.
-
-- `book`
-  Audience: **User-facing**
-  Role: mdBook for public workflows and public crate usage.
+- This workspace is pre-1.0 (`workspace.package.version = "0.16.0"`). Keep
+  docs, examples, tests, generated outputs, and guidance on the current API and
+  command shape; add legacy aliases or compatibility layers only when requested
+  or backed by an explicit repository policy.
+- Keep dependency versions and workspace path dependencies in root `Cargo.toml`.
+  Member crates use `workspace = true`; examples may use path dependencies for
+  local example crates.
+- Keep user-facing docs example-first. Public crate README changes often need
+  matching Rust docs because crate roots include README content.
+- `insta` snapshots are a repository testing convention; use or update
+  snapshots when they are the local validation surface for the changed behavior.
+- Use `bun` for JavaScript and TypeScript dependency/scripts work in this
+  workspace; root `package.json` declares `packageManager = "bun@1.3.10"`.
 
 ## Validation and Editing Rules
 
-### Validation After Changes
-
-- Validation is the default after code or workflow changes.
-- Run the narrowest command that proves the edited behavior works for the
-  affected crate, docs, example, or web surface.
-- Prefer targeted crate, example, docs, or web checks before full-workspace validation.
-- Use `just check`, `just test`, or a more specific `justfile` recipe when the change spans multiple surfaces.
-- Use `cargo es-fluent-local check --path . --all` or the relevant
-  `cargo es-fluent-local` subcommand when proving generated FTL output or
-  locale metadata is current in this repository.
-- Use `just test-docs` for Rust documentation builds, `cargo xtask build book`
-  for mdBook output, `cargo xtask build llms-txt` for `llms.txt` output, and
-  `cargo xtask build web`/`just web-build` for published web artifacts when
-  those surfaces are affected.
-- If validation cannot be run, state why and what remains unvalidated.
-- Do not claim a change works unless it was validated, generated from a source of truth, or the remaining risk is explicitly documented.
-
-### When Editing Docs
-
-- Keep READMEs and the book user-facing.
-- Keep implementation detail near the code, tests, or module docs that own it.
-- Do not add standalone `docs/ARCHITECTURE.md` files.
-- Prefer examples over prose-only explanations.
-- Sync `examples/readme`, relevant READMEs, book pages, and
-  `skills/use-es-fluent` when public usage guidance changes.
-
-### When Editing Rust Crates
-
-- Use `cargo` for build, test, and run tasks.
-- Keep dependency versions in the workspace root `Cargo.toml`.
-- Use `workspace = true` in member crates.
-- Let each crate choose its own dependency features in its own `Cargo.toml`.
-- Use `path` dependencies only in the root `Cargo.toml` and in examples.
-- Non-example crates should reference workspace crates with `workspace = true`, not explicit paths.
-
-### When Writing Tests
-
-- Prefer [insta](https://insta.rs/) for snapshot tests when it fits better than assertion-heavy unit tests.
-- Prefer raw multiline strings, or `quote! { ... }` in macro contexts, over escaped single-line literals for embedded Rust code.
-
-### When Editing JavaScript/Typescript
-
-- Use [bun](https://bun.com/) for dependency management and running scripts.
+- Start with `just --list`; use the `justfile` rather than duplicating the full
+  command inventory here.
+- For Rust code, prefer the narrowest package or surface check first. Use
+  `just check`, `just clippy`, `just test`, or `just ci` when the change spans
+  multiple workspace surfaces.
+- For Dioxus manager feature behavior, run
+  `just test-dioxus-manager-feature-matrix`.
+- For generated FTL output or locale metadata, run
+  `cargo es-fluent-local check --path . --all`; use
+  `cargo es-fluent-local fmt --all` when formatting FTL files.
+- For FTL ownership changes, run `just ftl-ownership`.
+- For Rust documentation builds, run `just test-docs`.
+- For mdBook, `llms.txt`, demos, and the published web surface, use the
+  relevant `cargo xtask build book`, `cargo xtask build llms-txt`,
+  `cargo xtask build bevy-demo`, `cargo xtask build gpui-demo`,
+  `cargo xtask build web`, or the aggregate `just web-build`.
+- For `web` integration changes covered by CI, use the relevant CI command:
+  `cargo test -p web --lib --no-default-features` or
+  `cargo check -p web --features web`.
+- If validation cannot be run, state why and what remains unvalidated. Do not
+  claim a change works unless it was validated or the remaining risk is
+  explicitly documented.
