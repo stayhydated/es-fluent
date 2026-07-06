@@ -44,7 +44,7 @@ Prefer a library-reachable module, usually `src/i18n.rs` declared from
 `src/lib.rs`, so `cargo es-fluent generate` can discover localizable types from
 the library target:
 
-```ignore
+```rs
 // a i18n.toml file must exist in the root of the crate
 es_fluent_manager_dioxus::define_i18n_module!();
 ```
@@ -61,7 +61,7 @@ as static web output.
 
 ## Client
 
-```ignore
+```rs
 use dioxus::prelude::*;
 use es_fluent::{EsFluent, EsFluentLabel, FluentLabel as _};
 use es_fluent_manager_dioxus::{DioxusAssetI18nProvider, use_i18n};
@@ -133,7 +133,7 @@ context-bound avoids cross-root, hot-reload, test, and SSR request leakage.
 
 ## SSR
 
-```ignore
+```rs
 use dioxus::prelude::*;
 use es_fluent::EsFluent;
 use es_fluent_manager_dioxus::ssr::{SsrI18n, SsrI18nRuntime};
