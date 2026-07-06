@@ -17,7 +17,6 @@ use es_fluent_derive_core::{
 };
 use heck::{ToSnakeCase as _, ToUpperCamelCase as _};
 use proc_macro::TokenStream;
-use proc_macro_error2::proc_macro_error;
 use proc_macro2::Span;
 use quote::{format_ident, quote, quote_spanned};
 use syn::{
@@ -60,7 +59,6 @@ impl CratePaths {
 /// - NOT link to the built-in `es-fluent-lang` runtime (you provide your own translations)
 /// - Register the enum with inventory (so it appears in generated FTL files)
 /// - Make your FTL files the source of truth for language labels
-#[proc_macro_error]
 #[proc_macro_attribute]
 pub fn es_fluent_language(attr: TokenStream, item: TokenStream) -> TokenStream {
     expand_es_fluent_language(attr.into(), item.into()).into()

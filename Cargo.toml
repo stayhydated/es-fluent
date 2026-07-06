@@ -33,7 +33,7 @@ publish = true
 readme = "README.md"
 repository = "https://github.com/stayhydated/es-fluent"
 rust-version = "1.96"
-version = "0.16.0"
+version = "0.17.0"
 
 [workspace.dependencies]
 anyhow = "1.0"
@@ -56,42 +56,40 @@ dioxus = { default-features = false, version = "0.7" }
 dioxus-core = { default-features = false, version = "0.7" }
 dioxus-core-macro = { default-features = false, version = "0.7" }
 dioxus-hooks = { default-features = false, version = "0.7" }
-dioxus-html = { default-features = false, version = "0.7" }
 dioxus-signals = { default-features = false, version = "0.7" }
 dioxus-ssr = { default-features = false, version = "0.7" }
-es-fluent = { path = "crates/es-fluent", version = "0.16.0" }
-es-fluent-build = { path = "crates/es-fluent-build", version = "0.16.0" }
-es-fluent-derive = { path = "crates/es-fluent-derive", version = "0.16.0" }
-es-fluent-derive-core = { path = "crates/es-fluent-derive-core", version = "0.16.0" }
-es-fluent-generate = { path = "crates/es-fluent-generate", version = "0.16.0" }
-es-fluent-lang = { path = "crates/es-fluent-lang", version = "0.16.0" }
-es-fluent-lang-macro = { path = "crates/es-fluent-lang-macro", version = "0.16.0" }
+es-fluent = { path = "crates/es-fluent", version = "0.17.0" }
+es-fluent-build = { path = "crates/es-fluent-build", version = "0.17.0" }
+es-fluent-derive = { path = "crates/es-fluent-derive", version = "0.17.0" }
+es-fluent-derive-core = { path = "crates/es-fluent-derive-core", version = "0.17.0" }
+es-fluent-generate = { path = "crates/es-fluent-generate", version = "0.17.0" }
+es-fluent-lang = { path = "crates/es-fluent-lang", version = "0.17.0" }
+es-fluent-lang-macro = { path = "crates/es-fluent-lang-macro", version = "0.17.0" }
 es-fluent-manager-bevy = { default-features = false, path = "crates/es-fluent-manager-bevy", version = "0.19.0" }
-es-fluent-manager-core = { default-features = false, path = "crates/es-fluent-manager-core", version = "0.16.0" }
-es-fluent-manager-dioxus = { default-features = false, path = "crates/es-fluent-manager-dioxus", version = "0.7.0" }
-es-fluent-manager-embedded = { path = "crates/es-fluent-manager-embedded", version = "0.16.0" }
-es-fluent-manager-macros = { path = "crates/es-fluent-manager-macros", version = "0.16.0" }
-es-fluent-runner = { path = "crates/es-fluent-runner", version = "0.16.0" }
-es-fluent-shared = { path = "crates/es-fluent-shared", version = "0.16.0" }
-es-fluent-toml = { path = "crates/es-fluent-toml", version = "0.16.0" }
+es-fluent-manager-core = { default-features = false, path = "crates/es-fluent-manager-core", version = "0.17.0" }
+es-fluent-manager-dioxus = { default-features = false, path = "crates/es-fluent-manager-dioxus", version = "0.7.1" }
+es-fluent-manager-embedded = { path = "crates/es-fluent-manager-embedded", version = "0.17.0" }
+es-fluent-manager-macros = { path = "crates/es-fluent-manager-macros", version = "0.17.0" }
+es-fluent-runner = { path = "crates/es-fluent-runner", version = "0.17.0" }
+es-fluent-shared = { path = "crates/es-fluent-shared", version = "0.17.0" }
+es-fluent-toml = { path = "crates/es-fluent-toml", version = "0.17.0" }
 fluent-bundle = "0.16"
 fluent-fallback = "0.7"
 fluent-syntax = "0.12"
 fs-err = "3.3"
 futures = "0.3"
 getset = "0.1"
-gpui = { git = "https://github.com/zed-industries/zed", rev = "b077f41a9f26ae5ed7fadfea55a501d34afb25de" }
-gpui-component = { branch = "tree-sitter-optional", git = "https://github.com/stayhydated/gpui-component" }
+gpui = { git = "https://github.com/zed-industries/zed", rev = "c545fb67d0ce13e335bff76f7c08986000333f2c" }
+gpui-component = { git = "https://github.com/longbridge/gpui-component" }
 gpui_platform = { features = [
   "font-kit",
   "x11",
   "wayland",
   "runtime_shaders",
-], git = "https://github.com/zed-industries/zed", rev = "b077f41a9f26ae5ed7fadfea55a501d34afb25de" }
+], git = "https://github.com/zed-industries/zed", rev = "c545fb67d0ce13e335bff76f7c08986000333f2c" }
 heck = "0.5"
 icu_experimental = "0.5"
 icu_locale = "2.2"
-icu_locale_core = "2.2"
 indexmap = "2.14"
 indicatif = "0.18"
 insta = "1.48"
@@ -106,21 +104,19 @@ path-slash = "0.2"
 predicates = "3.1"
 prettyplease = "0.2"
 proc-macro-crate = "3.5"
-proc-macro-error2 = "2.0"
 proc-macro2 = "1.0"
 quote = "1.0"
 ratatui = "0.30"
 rstest = "0.26"
 rust-embed = "8.11"
 rustc-hash = "2.1"
-schemars = "1.2"
 serde = "1.0"
 serde_json = "1.0"
 serial_test = "3.5"
 similar = "3.1"
-stayhydated-dioxus = { git = "https://github.com/stayhydated/stayhydated" }
-stayhydated-site = { git = "https://github.com/stayhydated/stayhydated" }
-stayhydated-xtask = { git = "https://github.com/stayhydated/stayhydated" }
+stayhydated-dioxus = { git = "https://github.com/stayhydated/shared", rev = "12c0941370cc5faf774798b625d840c662930702" }
+stayhydated-site = { git = "https://github.com/stayhydated/shared", rev = "12c0941370cc5faf774798b625d840c662930702" }
+stayhydated-xtask = { git = "https://github.com/stayhydated/shared", rev = "12c0941370cc5faf774798b625d840c662930702" }
 strum = "0.28"
 syn = "2.0"
 temp-env = "0.3"
@@ -141,7 +137,7 @@ web = { path = "web" }
 web-sys = "0.3"
 
 [replace]
-"https://github.com/zed-industries/zed#gpui@0.2.2" = { git = "https://github.com/zed-industries/zed", rev = "b077f41a9f26ae5ed7fadfea55a501d34afb25de" }
+"https://github.com/zed-industries/zed#gpui@0.2.2" = { git = "https://github.com/zed-industries/zed", rev = "c545fb67d0ce13e335bff76f7c08986000333f2c" }
 
 [profile.dev]
 codegen-units = 16
@@ -160,12 +156,6 @@ opt-level = 3
 [profile.wasm-dev]
 inherits = "dev"
 opt-level = 1
-
-[profile.server-dev]
-inherits = "dev"
-
-[profile.android-dev]
-inherits = "dev"
 
 [workspace.lints.rust]
 unexpected_cfgs = { check-cfg = [ "cfg(coverage)" ], level = "deny" }

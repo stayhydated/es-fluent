@@ -766,7 +766,7 @@ impl EsFluentLabelExpansion {
         let ftl_key = model.message_id().clone();
         let label_inventory = label_inventory_model(
             original_ident,
-            model.type_kind().clone(),
+            *model.type_kind(),
             ftl_key.clone(),
             &opts,
             &container_context,

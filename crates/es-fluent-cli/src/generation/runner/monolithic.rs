@@ -214,7 +214,9 @@ pub fn prepare_monolithic_runner_crate(workspace: &WorkspaceInfo) -> Result<Path
 
     fs::write(
         temp_store.base_dir().join(".gitignore"),
-        GitignoreTemplate.render().unwrap(),
+        GitignoreTemplate
+            .render()
+            .context("Failed to render .es-fluent/.gitignore")?,
     )
     .context("Failed to write .es-fluent/.gitignore")?;
 
@@ -244,8 +246,13 @@ pub fn prepare_monolithic_runner_crate(workspace: &WorkspaceInfo) -> Result<Path
     runner_crate.write_cargo_config(&render_cargo_config_toml(&config.target_dir)?)?;
 
     let main_rs = MonolithicMainRsTemplate { crates: crate_deps };
-    fs::write(src_dir.join("main.rs"), main_rs.render().unwrap())
-        .context("Failed to write .es-fluent/src/main.rs")?;
+    fs::write(
+        src_dir.join("main.rs"),
+        main_rs
+            .render()
+            .context("Failed to render .es-fluent/src/main.rs")?,
+    )
+    .context("Failed to write .es-fluent/src/main.rs")?;
 
     let workspace_lock = workspace.root_dir.join("Cargo.lock");
     let runner_lock = temp_store.base_dir().join("Cargo.lock");

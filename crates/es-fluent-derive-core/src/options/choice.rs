@@ -5,7 +5,7 @@ use heck::{
     ToShoutySnakeCase as _, ToSnakeCase as _, ToTitleCase as _, ToTrainCase as _,
 };
 use strum::IntoEnumIterator as _;
-use strum::{Display, EnumIter, EnumString};
+use strum::{Display, EnumIter, EnumString, IntoStaticStr};
 
 #[derive(FromDeriveInput, Getters)]
 #[darling(supports(enum_unit), attributes(fluent_choice))]
@@ -25,31 +25,36 @@ pub struct ChoiceAttributeArgs {
     rename_all: Option<CaseStyle>,
 }
 
-#[derive(Clone, Copy, Debug, Display, EnumIter, EnumString, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Display, EnumIter, EnumString, Eq, IntoStaticStr, PartialEq)]
+#[strum(const_into_str)]
 pub enum CaseStyle {
-    #[strum(serialize = "snake_case")]
+    #[strum(to_string = "snake_case")]
     SnakeCase,
-    #[strum(serialize = "PascalCase")]
+    #[strum(to_string = "PascalCase")]
     PascalCase,
-    #[strum(serialize = "camelCase")]
+    #[strum(to_string = "camelCase")]
     CamelCase,
-    #[strum(serialize = "kebab-case")]
+    #[strum(to_string = "kebab-case")]
     KebabCase,
-    #[strum(serialize = "SCREAMING_SNAKE_CASE")]
+    #[strum(to_string = "SCREAMING_SNAKE_CASE")]
     ScreamingSnakeCase,
-    #[strum(serialize = "SCREAMING-KEBAB-CASE")]
+    #[strum(to_string = "SCREAMING-KEBAB-CASE")]
     ScreamingKebabCase,
-    #[strum(serialize = "Title Case")]
+    #[strum(to_string = "Title Case")]
     TitleCase,
-    #[strum(serialize = "Train-Case")]
+    #[strum(to_string = "Train-Case")]
     TrainCase,
-    #[strum(serialize = "lowercase")]
+    #[strum(to_string = "lowercase")]
     Lowercase,
-    #[strum(serialize = "UPPERCASE")]
+    #[strum(to_string = "UPPERCASE")]
     Uppercase,
 }
 
 impl CaseStyle {
+    pub const fn label(self) -> &'static str {
+        self.into_str()
+    }
+
     pub fn apply(&self, s: &str) -> String {
         match self {
             CaseStyle::SnakeCase => s.to_snake_case(),
@@ -71,7 +76,7 @@ impl FromMeta for CaseStyle {
         let (value, _span) = super::string_literal_value(item)?;
         value.parse::<Self>().map_err(|message| {
             let supported = Self::iter()
-                .map(|style| style.to_string())
+                .map(CaseStyle::label)
                 .collect::<Vec<_>>()
                 .join(", ");
             darling::Error::custom(format!(
@@ -91,6 +96,10 @@ mod tests {
 
     #[test]
     fn case_style_apply_covers_all_variants() {
+        const KEBAB_CASE_LABEL: &str = CaseStyle::KebabCase.label();
+
+        assert_eq!(KEBAB_CASE_LABEL, "kebab-case");
+        assert_eq!(CaseStyle::SnakeCase.label(), "snake_case");
         assert_eq!(CaseStyle::SnakeCase.apply("HelloWorld"), "hello_world");
         assert_eq!(CaseStyle::PascalCase.apply("hello world"), "HelloWorld");
         assert_eq!(CaseStyle::CamelCase.apply("hello world"), "helloWorld");

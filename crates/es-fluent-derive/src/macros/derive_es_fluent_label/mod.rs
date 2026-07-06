@@ -40,7 +40,7 @@ fn expand_es_fluent_label_with_context(
     let inventory_output = if let Some(label) = label_model.label() {
         crate::macros::utils::label_inventory_output(
             expansion.ident(),
-            label_model.type_kind().clone(),
+            *label_model.type_kind(),
             label_model.namespace().cloned(),
             label.clone(),
         )

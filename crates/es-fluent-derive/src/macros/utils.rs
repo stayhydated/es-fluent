@@ -400,7 +400,7 @@ pub fn message_inventory_output<'a>(
     InventoryOutput::MessageEntries(InventoryModuleInput {
         ident,
         module_name_prefix,
-        type_kind: model.type_kind().clone(),
+        type_kind: *model.type_kind(),
         entries: model.messages().to_vec(),
         namespace: model.namespace().cloned(),
     })

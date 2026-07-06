@@ -2,8 +2,9 @@ use crate::components::{FooterPanel, PageHeader};
 use crate::site::routing::PageKind;
 use dioxus::prelude::*;
 use stayhydated_dioxus::{
-    FeatureCard, HeroListPanel, HeroPanelItem, LinkTarget, ProjectHero, ProjectHeroActions,
-    ProjectHomeShell, ProjectSurfaceSection, feature_card_reveal_style, hero_reveal_style,
+    FeatureCard, HeroListPanel, HeroPanelItem, LinkTarget, Project, ProjectHero,
+    ProjectHeroActions, ProjectHomeShell, ProjectSurfaceSection, feature_card_reveal_style,
+    hero_reveal_style,
 };
 
 #[component]
@@ -36,9 +37,11 @@ pub(crate) fn HomePage() -> Element {
                 actions: Some(rsx! {
                     ProjectHeroActions::<crate::site::routing::AppRoute> {
                         book: crate::site::routing::book_href().as_str(),
+                        docs: Project::EsFluent.rustdoc_href(),
                         demos: LinkTarget::route(crate::site::routing::app_route(PageKind::Demos)),
-                        primary_label: "Read the book",
-                        secondary_label: "View demos",
+                        book_label: "Read the book",
+                        docs_label: "Read the docs",
+                        demos_label: "View demos",
                     }
                 }),
             }
