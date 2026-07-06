@@ -79,14 +79,14 @@ fluent-syntax = "0.12"
 fs-err = "3.3"
 futures = "0.3"
 getset = "0.1"
-gpui = { git = "https://github.com/zed-industries/zed", rev = "b077f41a9f26ae5ed7fadfea55a501d34afb25de" }
-gpui-component = { branch = "tree-sitter-optional", git = "https://github.com/stayhydated/gpui-component" }
+gpui = { git = "https://github.com/zed-industries/zed", rev = "c545fb67d0ce13e335bff76f7c08986000333f2c" }
+gpui-component = { git = "https://github.com/longbridge/gpui-component" }
 gpui_platform = { features = [
   "font-kit",
   "x11",
   "wayland",
   "runtime_shaders",
-], git = "https://github.com/zed-industries/zed", rev = "b077f41a9f26ae5ed7fadfea55a501d34afb25de" }
+], git = "https://github.com/zed-industries/zed", rev = "c545fb67d0ce13e335bff76f7c08986000333f2c" }
 heck = "0.5"
 icu_experimental = "0.5"
 icu_locale = "2.2"
@@ -137,7 +137,7 @@ web = { path = "web" }
 web-sys = "0.3"
 
 [replace]
-"https://github.com/zed-industries/zed#gpui@0.2.2" = { git = "https://github.com/zed-industries/zed", rev = "b077f41a9f26ae5ed7fadfea55a501d34afb25de" }
+"https://github.com/zed-industries/zed#gpui@0.2.2" = { git = "https://github.com/zed-industries/zed", rev = "c545fb67d0ce13e335bff76f7c08986000333f2c" }
 
 [profile.dev]
 codegen-units = 16
