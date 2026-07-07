@@ -808,13 +808,6 @@ fn validate_tree_workspace_setup(
     all_locales: bool,
 ) -> Result<(), CliError> {
     for krate in &workspace.crates {
-        if let Some(error) = super::common::library_target_path_setup_error(krate) {
-            return Err(CliError::Other(error));
-        }
-        if let Some(error) = super::common::library_i18n_module_declaration_setup_error(krate) {
-            return Err(CliError::Other(error));
-        }
-
         let ctx = LocaleContext::from_crate(krate, all_locales)
             .map_err(|error| CliError::Other(format!("{}: {}", krate.name, error)))?;
         validate_tree_locale_setup(&ctx, all_locales)
