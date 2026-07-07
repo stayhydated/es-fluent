@@ -131,10 +131,6 @@ maintenance, examples, an mdBook, and a Dioxus-rendered web site.
 
 ## Repository Standards
 
-- This workspace is pre-1.0 (`workspace.package.version = "0.16.0"`). Keep
-  docs, examples, tests, generated outputs, and guidance on the current API and
-  command shape; add legacy aliases or compatibility layers only when requested
-  or backed by an explicit repository policy.
 - Keep dependency versions and workspace path dependencies in root `Cargo.toml`.
   Member crates use `workspace = true`; examples may use path dependencies for
   local example crates.
