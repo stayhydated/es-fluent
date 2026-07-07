@@ -22,9 +22,6 @@ jobs:
       - name: Setup sccache
         uses: mozilla-actions/sccache-action@v0.0.10
 
-      - name: Setup mold
-        uses: rui314/setup-mold@v1
-
       - name: Install Linux dependencies
         uses: ./.github/actions/install-linux-deps
 
@@ -55,10 +52,6 @@ jobs:
 
       - name: Setup sccache
         uses: mozilla-actions/sccache-action@v0.0.10
-
-      - name: Setup mold
-        if: runner.os == 'Linux'
-        uses: rui314/setup-mold@v1
 
       - name: Install Linux dependencies
         if: runner.os == 'Linux'
@@ -95,9 +88,6 @@ jobs:
       - name: Setup sccache
         uses: mozilla-actions/sccache-action@v0.0.10
 
-      - name: Setup mold
-        uses: rui314/setup-mold@v1
-
       - name: Install Linux dependencies
         uses: ./.github/actions/install-linux-deps
 
@@ -127,9 +117,6 @@ jobs:
 
       - name: Setup sccache
         uses: mozilla-actions/sccache-action@v0.0.10
-
-      - name: Setup mold
-        uses: rui314/setup-mold@v1
 
       - name: Install Linux dependencies
         uses: ./.github/actions/install-linux-deps
@@ -163,9 +150,6 @@ jobs:
       - name: Setup sccache
         uses: mozilla-actions/sccache-action@v0.0.10
 
-      - name: Setup mold
-        uses: rui314/setup-mold@v1
-
       - name: Install Linux dependencies
         uses: ./.github/actions/install-linux-deps
 
@@ -195,9 +179,6 @@ jobs:
       - name: Setup sccache
         uses: mozilla-actions/sccache-action@v0.0.10
 
-      - name: Setup mold
-        uses: rui314/setup-mold@v1
-
       - name: Install Linux dependencies
         uses: ./.github/actions/install-linux-deps
 
@@ -213,26 +194,6 @@ jobs:
         run: |
           cargo llvm-cov clean --workspace
           cargo llvm-cov --workspace --all-features --cobertura --output-path=target/cobertura.xml --exclude xtask --exclude web
-
-      - name: Upload coverage artifact
-        uses: actions/upload-artifact@v7
-        with:
-          name: coverage-cobertura
-          path: target/cobertura.xml
-          if-no-files-found: error
-
-  codecov-publish:
-    runs-on: ubuntu-latest
-    needs: rust-coverage
-
-    steps:
-      - uses: actions/checkout@v7
-
-      - name: Download coverage artifact
-        uses: actions/download-artifact@v8
-        with:
-          name: coverage-cobertura
-          path: target
 
       - name: Codecov publish
         uses: codecov/codecov-action@v7
