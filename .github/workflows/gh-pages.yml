@@ -35,9 +35,10 @@ jobs:
           rustup toolchain install nightly --profile minimal
           rustup target add wasm32-unknown-unknown --toolchain nightly
 
+      - uses: cargo-bins/cargo-binstall@main
+
       - name: Install build tools
         run: |
-          cargo install cargo-binstall --locked
           cargo binstall trunk --version "$TRUNK_VERSION" --no-confirm
           cargo binstall dioxus-cli --version "$DIOXUS_CLI_VERSION" --no-confirm
         env:
