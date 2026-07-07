@@ -182,12 +182,11 @@ jobs:
       - name: Install Linux dependencies
         uses: ./.github/actions/install-linux-deps
 
+      - uses: cargo-bins/cargo-binstall@main
+
       - name: Install cargo-llvm-cov
         shell: bash
-        run: |
-          if ! command -v cargo-llvm-cov &> /dev/null; then
-            cargo install cargo-llvm-cov --locked
-          fi
+        run: cargo binstall cargo-llvm-cov --locked --no-confirm
 
       - name: Run coverage
         shell: bash
