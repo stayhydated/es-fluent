@@ -17,6 +17,10 @@ concurrency:
 jobs:
   build:
     runs-on: ubuntu-latest
+    env:
+      TRUNK_VERSION: "0.21.14"
+      DIOXUS_CLI_VERSION: "0.7.9"
+      TRUNK_SKIP_VERSION_CHECK: "true"
     steps:
       - uses: actions/checkout@v7
 
@@ -33,8 +37,9 @@ jobs:
 
       - name: Install build tools
         run: |
-          cargo install trunk
-          cargo install dioxus-cli
+          cargo install cargo-binstall --locked
+          cargo binstall trunk --version "$TRUNK_VERSION" --no-confirm
+          cargo binstall dioxus-cli --version "$DIOXUS_CLI_VERSION" --no-confirm
         env:
           SCCACHE_GHA_ENABLED: "true"
           RUSTC_WRAPPER: "sccache"
