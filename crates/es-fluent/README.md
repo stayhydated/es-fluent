@@ -38,20 +38,20 @@ Add `es-fluent`; derive macros are enabled by default:
 
 ```toml
 [dependencies]
-es-fluent = "0.16"
+es-fluent = "*"
 unic-langid = "0.9"
 
 # If you want to register modules with the embedded context and localize at runtime:
 # Default zero-setup runtime manager for this quick start.
-es-fluent-manager-embedded = "0.16"
+es-fluent-manager-embedded = "*"
 
 # For Dioxus apps, enable only the runtime surface you use.
-# es-fluent-manager-dioxus = { version = "0.7", features = ["client"] }
-# es-fluent-manager-dioxus = { version = "0.7", features = ["ssr"] }
-# es-fluent-manager-dioxus = { version = "0.7", features = ["client", "ssr"] }
+# es-fluent-manager-dioxus = { version = "*", features = ["client"] }
+# es-fluent-manager-dioxus = { version = "*", features = ["ssr"] }
+# es-fluent-manager-dioxus = { version = "*", features = ["client", "ssr"] }
 
 # For Bevy integration, use `es-fluent-manager-bevy`.
-# es-fluent-manager-bevy = "0.18.13"
+# es-fluent-manager-bevy = "*"
 ```
 
 `es_fluent_manager_embedded::EmbeddedI18n::try_new_with_language(...)` is the simplest embedded startup path:
@@ -75,8 +75,8 @@ application state and use typed lookup on that handle:
 
 ```toml
 [dependencies]
-es-fluent = "0.16"
-es-fluent-manager-embedded = "0.16"
+es-fluent = "*"
+es-fluent-manager-embedded = "*"
 ```
 
 Register the embedded module from a library-reachable module, usually
@@ -124,8 +124,8 @@ extension trait for generic typed lookup:
 
 ```toml
 [dependencies]
-es-fluent = "0.16"
-es-fluent-manager-core = "0.16"
+es-fluent = "*"
+es-fluent-manager-core = "*"
 ```
 
 ```rs
@@ -235,7 +235,7 @@ only use the derive macros do not need this setup.
 
 ```toml
 [build-dependencies]
-es-fluent-build = "0.16"
+es-fluent-build = "*"
 ```
 
 ```rust,no_run

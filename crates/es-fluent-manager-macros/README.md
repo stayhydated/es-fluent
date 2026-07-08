@@ -70,5 +70,5 @@ And add this to your `Cargo.toml`:
 
 ```toml
 [build-dependencies]
-es-fluent-build = "0.16"
+es-fluent-build = "*"
 ```
