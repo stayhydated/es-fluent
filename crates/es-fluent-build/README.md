@@ -15,7 +15,7 @@ and one runtime manager. Add this crate only under `[build-dependencies]`.
 
 ```toml
 [build-dependencies]
-es-fluent-build = "0.16"
+es-fluent-build = "*"
 ```
 
 ```rust,no_run

@@ -445,29 +445,6 @@ fn locale_setup_issues_for_crates(
     let mut issue_crates = HashSet::new();
 
     for krate in crates {
-        if let Some(error) = super::common::library_target_path_setup_error(krate) {
-            issue_crates.insert(krate.name.to_string());
-            issues.push(ValidationIssue::ValidationExecution(
-                ValidationExecutionError {
-                    src: NamedSource::new(&krate.name, String::new()),
-                    crate_name: krate.name.to_string(),
-                    help: error,
-                },
-            ));
-            continue;
-        }
-        if let Some(error) = super::common::library_i18n_module_declaration_setup_error(krate) {
-            issue_crates.insert(krate.name.to_string());
-            issues.push(ValidationIssue::ValidationExecution(
-                ValidationExecutionError {
-                    src: NamedSource::new(&krate.name, String::new()),
-                    crate_name: krate.name.to_string(),
-                    help: error,
-                },
-            ));
-            continue;
-        }
-
         let ctx = match crate::ftl::LocaleContext::from_crate(krate, false) {
             Ok(ctx) => ctx,
             Err(error) => {

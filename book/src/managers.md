@@ -126,7 +126,7 @@ integration code:
 
 ```toml
 [dependencies]
-es-fluent-manager-core = "0.16"
+es-fluent-manager-core = "*"
 ```
 
 ```rust
@@ -173,19 +173,19 @@ Enable the runtime surface your crate uses:
 Client apps:
 
 ```toml
-es-fluent-manager-dioxus = { version = "0.7", features = ["client"] }
+es-fluent-manager-dioxus = { version = "*", features = ["client"] }
 ```
 
 Server-side rendering:
 
 ```toml
-es-fluent-manager-dioxus = { version = "0.7", features = ["ssr"] }
+es-fluent-manager-dioxus = { version = "*", features = ["ssr"] }
 ```
 
 Fullstack or static rendering that uses both paths:
 
 ```toml
-es-fluent-manager-dioxus = { version = "0.7", features = ["client", "ssr"] }
+es-fluent-manager-dioxus = { version = "*", features = ["client", "ssr"] }
 ```
 
 The crate has no default runtime feature. The `define_i18n_module!` macro is

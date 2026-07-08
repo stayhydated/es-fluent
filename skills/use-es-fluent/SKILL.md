@@ -46,5 +46,5 @@ with:
 
 ```toml
 [build-dependencies]
-es-fluent-build = "0.16"
+es-fluent-build = "*"
 ```

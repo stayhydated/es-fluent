@@ -5,9 +5,9 @@ one runtime manager, and optionally the language-enum helper.
 
 ```toml
 [dependencies]
-es-fluent = "0.16"
-es-fluent-manager-embedded = "0.16"
-es-fluent-lang = "0.16"
+es-fluent = "*"
+es-fluent-manager-embedded = "*"
+es-fluent-lang = "*"
 ```
 
 Install the CLI separately:

@@ -99,14 +99,10 @@ as setup errors before runner metadata or Cargo build output is prepared.
 Existing fallback `.ftl` output paths, such as `i18n/en/my-crate.ftl`, must be
 real files, not symlinks; directory-valued FTL paths are rejected before runner
 metadata or Cargo build output is prepared.
-For crates with a custom `[lib].path`, existing library target path components
-must be real in-crate paths, not symlinks; symlinked or escaping library target
-paths are reported before runner metadata or Cargo build output is prepared.
-If a generated `i18n.rs` module exists, runner-backed generation also requires
-that path to be a real file and the library target to declare it with
-`pub mod i18n;`; symlinked or non-file module paths, inline `mod i18n { ... }`
-definitions, non-public declarations, and missing declarations are reported
-before runner metadata or Cargo build output is prepared.
+Rust library target layout, module declarations, and module reachability are
+validated by Cargo when the runner crate compiles. If the selected library
+cannot compile, runner-backed generation fails after preparing `.es-fluent`
+metadata and Cargo build output.
 
 Use `--dry-run` to preview locale-file changes without editing FTL files. Like
 `status`, runner-backed dry runs may still prepare `.es-fluent` metadata and
@@ -135,11 +131,10 @@ cargo es-fluent watch
 `generate`, but it does not accept `--dry-run` or `--force-run` and always
 writes generation output. The same generation path setup checks apply before
 the TUI opens. File-valued paths such as `i18n` or `i18n/en`,
-directory-valued fallback `.ftl` paths, and invalid generated `i18n.rs` module
-setup are rejected before runner metadata is prepared. Changes to `.ftl` files
-are ignored so generated writes do not trigger a loop. For crates whose library
-target lives at the crate root, top-level `.es-fluent` and `target` output is
-also ignored.
+and directory-valued fallback `.ftl` paths are rejected before runner metadata
+is prepared. Changes to `.ftl` files are ignored so generated writes do not
+trigger a loop. For crates whose library target lives at the crate root,
+top-level `.es-fluent` and `target` output is also ignored.
 
 ### Check
 
@@ -180,16 +175,14 @@ symlinked fallback locale directory, locale-looking asset paths that are files
 or symlinks instead of real directories,
 directory-valued FTL paths such as
 `my-crate.ftl`, and non-canonical locale directory names like `i18n/en-us`.
-It also reports symlinked or escaping Cargo library target paths, generated
-`i18n.rs` paths that are symlinks or not files, and library `i18n`
-declarations that are inline, non-public, or missing when a generated module
-file exists. Crates with setup errors are reported before runner
-collection for those crates; if every selected crate has setup errors, `check`
-exits with those validation errors without preparing `.es-fluent` runner
-metadata or Cargo build output. Setup-invalid crates are excluded from the
-temporary runner crate, so unrelated Rust compile errors in those crates do not
-hide valid-crate validation issues. JSON `crates_checked` counts only crates
-that reached inventory collection and FTL validation.
+Crates with setup errors are reported before runner collection for those crates;
+if every selected crate has setup errors, `check` exits with those validation
+errors without preparing `.es-fluent` runner metadata or Cargo build output.
+Setup-invalid crates are excluded from the temporary runner crate, so unrelated
+Rust compile errors in those crates do not hide valid-crate validation issues.
+If setup is valid but the selected library cannot compile, `check` reports the
+Cargo failure during Rust inventory collection. JSON `crates_checked` counts
+only crates that reached inventory collection and FTL validation.
 In JSON mode, discovery, command-level, and validation failures are reported in
 the `issues` list and the command exits non-zero when any issue is present.
 Command-level failures, such as an unknown crate passed to `--ignore`, use
@@ -232,8 +225,6 @@ not symlinks; files such as `i18n` or `i18n/en` are reported as setup errors
 before clean runs.
 Existing fallback `.ftl` paths must be real files, not symlinks;
 directory-valued FTL paths are reported before runner-backed clean starts.
-Runner-backed clean uses the same generated `i18n.rs` module setup checks as
-generation before runner metadata or Cargo build output is prepared.
 
 When the main crate file has zero non-namespaced registered Rust types, `clean`
 deletes that stale main file. When a namespaced file has zero registered Rust
@@ -469,10 +460,8 @@ may prepare `.es-fluent` runner metadata and Cargo build output to collect Rust
 source locations for selected crates that have library targets. Crates without
 library targets still render from their discovered FTL files, but their message
 and variable rows fall back to FTL links or plain labels because there is no
-Rust inventory to link. Tree setup errors, such as directory-valued FTL paths
-and symlinked or escaping Cargo library target paths, generated `i18n.rs` paths
-that are symlinks or not files, and invalid library `i18n` declarations, are
-reported before that Rust-link collection starts. If setup is valid but the
+Rust inventory to link. Tree setup errors, such as directory-valued FTL paths,
+are reported before that Rust-link collection starts. If setup is valid but the
 selected library cannot compile, Rust-link collection can fail before rendering
 the tree. Use `--link-mode ftl` for file-only text inspection because it uses
 only discovered FTL files.
@@ -497,9 +486,8 @@ symlinks instead of real directories, locale-looking asset paths that are files
 or symlinks instead of real directories, missing, file-valued, or symlinked
 fallback locale directories, directory-valued FTL paths such as
 `my-crate.ftl`, and non-canonical locale directory names such as `i18n/en-us`,
-plus symlinked or escaping Cargo library target paths, generated `i18n.rs`
-paths that are symlinks or not files, and library `i18n` declarations that are
-inline, non-public, or missing when a generated module file exists.
+plus Cargo failures from runner-backed generation or validation when a selected
+library cannot compile.
 The JSON field `generation_stale_crates` counts crates whose generation dry run
 would change at least one file.
 Sync or orphan-file checks can also add setup-style errors, such as parse errors
@@ -616,12 +604,8 @@ renders crates without library targets from discovered FTL files, but only
 crates with library targets can contribute Rust source links. Commands that
 print the shared discovery summary, such as `fmt` and `clean --orphaned`,
 report the missing library target as a notice.
-When a custom `[lib].path` exists, runner-backed commands require the existing
-library target path components to stay inside the crate and avoid symlinks;
-violations are reported before `.es-fluent` runner metadata or Cargo build
-output is prepared. Runner-backed commands for the same workspace serialize
-access to the shared `.es-fluent` runner cache, so concurrent invocations may
-wait for one another.
+Runner-backed commands for the same workspace serialize access to the shared
+`.es-fluent` runner cache, so concurrent invocations may wait for one another.
 
 Workarounds:
 

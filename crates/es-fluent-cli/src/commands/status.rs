@@ -253,14 +253,6 @@ fn collect_status_setup_errors(workspace: &WorkspaceCrates) -> Vec<String> {
     }
 
     for krate in &workspace.crates {
-        if let Some(error) = super::common::library_target_path_setup_error(krate) {
-            setup_errors.push(error);
-            continue;
-        }
-        if let Some(error) = super::common::library_i18n_module_declaration_setup_error(krate) {
-            setup_errors.push(error);
-        }
-
         let ctx = match crate::ftl::LocaleContext::from_crate(krate, true) {
             Ok(ctx) => ctx,
             Err(error) => {
@@ -800,65 +792,6 @@ mod tests {
             !errors
                 .iter()
                 .any(|error| error.contains("locale path 'en' is not a directory"))
-        );
-    }
-
-    #[test]
-    fn collect_status_setup_errors_reports_undeclared_i18n_module_file() {
-        let temp = crate::test_fixtures::create_test_crate_workspace();
-        fs::write(
-            temp.path().join("src/i18n.rs"),
-            "es_fluent_manager_embedded::define_i18n_module!();\n",
-        )
-        .expect("write generated i18n module");
-        let workspace = WorkspaceCrates::discover(WorkspaceArgs {
-            path: Some(temp.path().to_path_buf()),
-            package: None,
-        })
-        .expect("discover workspace");
-
-        let errors = collect_status_setup_errors(&workspace);
-
-        assert!(
-            errors.iter().any(|error| {
-                error.contains("src/lib.rs does not declare module `i18n`")
-                    && error.contains("pub mod i18n;")
-            }),
-            "expected missing i18n module declaration setup error, got {errors:?}"
-        );
-    }
-
-    #[cfg(unix)]
-    #[test]
-    fn collect_status_setup_errors_reports_symlinked_i18n_module_file() {
-        let temp = crate::test_fixtures::create_test_crate_workspace();
-        let outside = tempfile::tempdir().expect("outside tempdir");
-        fs::write(
-            temp.path().join("src/lib.rs"),
-            "pub mod i18n;\npub fn marker() {}\n",
-        )
-        .expect("declare i18n module");
-        fs::write(outside.path().join("i18n.rs"), "pub fn external() {}\n")
-            .expect("write outside i18n module");
-        std::os::unix::fs::symlink(
-            outside.path().join("i18n.rs"),
-            temp.path().join("src/i18n.rs"),
-        )
-        .expect("create i18n module symlink");
-        let workspace = WorkspaceCrates::discover(WorkspaceArgs {
-            path: Some(temp.path().to_path_buf()),
-            package: None,
-        })
-        .expect("discover workspace");
-
-        let errors = collect_status_setup_errors(&workspace);
-
-        assert!(
-            errors.iter().any(|error| {
-                error.contains("src/i18n.rs is a symlink")
-                    && error.contains("real Rust module file")
-            }),
-            "expected symlinked i18n module setup error, got {errors:?}"
         );
     }
 

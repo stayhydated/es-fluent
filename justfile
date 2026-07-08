@@ -12,10 +12,10 @@ fmt:
     rumdl fmt .
 
 clippy:
-    cargo clippy --workspace --all-features --all-targets -- -D warnings
+    cargo clippy --workspace --all-features --all-targets --locked -- -D warnings
 
 check:
-    cargo check --workspace --all-features
+    cargo check --workspace --all-features --all-targets --locked
 
 ftl-check:
     cargo es-fluent-local check --all
@@ -24,7 +24,7 @@ ftl-ownership:
     cargo xtask check ftl-ownership
 
 test: test-dioxus-manager-feature-matrix
-    cargo test --workspace --all-features --all-targets
+    cargo test --workspace --all-features --all-targets --locked
 
 test-dioxus-manager-feature-matrix:
     cargo check -p es-fluent-manager-dioxus --no-default-features
@@ -40,7 +40,7 @@ test-publish:
     cargo xtask release plan
 
 test-docs:
-    cargo doc --workspace --all-features --no-deps --open
+    cargo doc --workspace --all-features --no-deps --locked --open
 
 ci: fmt check ftl-ownership clippy test cov
     cargo machete
