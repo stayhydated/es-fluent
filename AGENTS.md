@@ -155,6 +155,10 @@ maintenance, examples, an mdBook, and a Dioxus-rendered web site.
   `cargo es-fluent-local fmt --all` when formatting FTL files.
 - For FTL ownership changes, run `just ftl-ownership`.
 - For Rust documentation builds, run `just test-docs`.
+- For release ordering or package metadata changes, run `just test-publish`; it
+  uses `cargo xtask release plan`, matching the CI package job.
+- CI also runs docs, release package-plan, cargo-machete, coverage, and Codecov
+  publishing from `.github/workflows/ci.yml`.
 - For mdBook, `llms.txt`, demos, and the published web surface, use the
   relevant `cargo xtask build book`, `cargo xtask build llms-txt`,
   `cargo xtask build bevy-demo`, `cargo xtask build gpui-demo`,
