@@ -77,7 +77,7 @@ fn expand_define_i18n_module_tokens(
     let module_data_name = syn::Ident::new(
         &format!(
             "{}_{}",
-            &crate_name.to_uppercase().replace('-', "_"),
+            crate_name.to_uppercase().replace('-', "_"),
             manager_paths.module_data_suffix
         ),
         proc_macro2::Span::call_site(),
@@ -144,7 +144,7 @@ fn generate_embedded_tokens(
     let assets_struct_name = syn::Ident::new(
         &format!(
             "{}I18nAssets",
-            &crate_name.replace('-', "_").to_pascal_case()
+            crate_name.replace('-', "_").to_pascal_case()
         ),
         proc_macro2::Span::call_site(),
     );
@@ -152,7 +152,7 @@ fn generate_embedded_tokens(
     let module_instance_name = syn::Ident::new(
         &format!(
             "{}_I18N_MODULE",
-            &crate_name.to_uppercase().replace('-', "_")
+            crate_name.to_uppercase().replace('-', "_")
         ),
         proc_macro2::Span::call_site(),
     );
@@ -208,7 +208,7 @@ fn generate_bevy_tokens(
     let registration_struct_name = syn::Ident::new(
         &format!(
             "{}I18nRegistration",
-            &crate_name.replace('-', "_").to_pascal_case()
+            crate_name.replace('-', "_").to_pascal_case()
         ),
         proc_macro2::Span::call_site(),
     );
@@ -216,14 +216,14 @@ fn generate_bevy_tokens(
     let registration_instance_name = syn::Ident::new(
         &format!(
             "{}_I18N_REGISTRATION_INSTANCE",
-            &crate_name.to_uppercase().replace('-', "_")
+            crate_name.to_uppercase().replace('-', "_")
         ),
         proc_macro2::Span::call_site(),
     );
     let embedded_assets_name = syn::Ident::new(
         &format!(
             "{}_BEVY_I18N_EMBEDDED_ASSETS",
-            &crate_name.to_uppercase().replace('-', "_")
+            crate_name.to_uppercase().replace('-', "_")
         ),
         proc_macro2::Span::call_site(),
     );
@@ -436,21 +436,21 @@ fn generate_dioxus_asset_loader_tokens(
     let resources_name = syn::Ident::new(
         &format!(
             "{}_DIOXUS_I18N_ASSET_RESOURCES",
-            &crate_name.to_uppercase().replace('-', "_")
+            crate_name.to_uppercase().replace('-', "_")
         ),
         proc_macro2::Span::call_site(),
     );
     let module_instance_name = syn::Ident::new(
         &format!(
             "{}_DIOXUS_I18N_ASSET_MODULE",
-            &crate_name.to_uppercase().replace('-', "_")
+            crate_name.to_uppercase().replace('-', "_")
         ),
         proc_macro2::Span::call_site(),
     );
     let modules_name = syn::Ident::new(
         &format!(
             "{}_DIOXUS_I18N_ASSET_MODULES",
-            &crate_name.to_uppercase().replace('-', "_")
+            crate_name.to_uppercase().replace('-', "_")
         ),
         proc_macro2::Span::call_site(),
     );
