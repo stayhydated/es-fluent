@@ -73,10 +73,23 @@ Format generated FTL:
 cargo es-fluent fmt --all
 ```
 
-Create missing non-fallback locale files from fallback files:
+Sync missing fallback keys into all existing non-fallback locale directories:
 
 ```sh
-cargo es-fluent sync --all --create
+cargo es-fluent sync --all
+```
+
+Create a locale directory and seed its FTL files from the fallback locale:
+
+```sh
+cargo es-fluent add-locale fr-FR
+```
+
+To create locales through the machine-readable `sync` surface, select them
+explicitly; `--create` cannot be combined with `--all`:
+
+```sh
+cargo es-fluent sync --locale fr-FR --create --output json
 ```
 
 Remove generated keys that no longer correspond to Rust derives:
