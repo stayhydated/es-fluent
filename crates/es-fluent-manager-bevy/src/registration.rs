@@ -237,13 +237,9 @@ mod tests {
     impl FluentMessage for PlainMessage {
         fn to_fluent_string_with(
             &self,
-            localize: &mut es_fluent::FluentMessageLookup<'_>,
+            _localize: &mut es_fluent::FluentMessageLookup<'_>,
         ) -> String {
-            localize(
-                es_fluent::registry::__macro::static_domain("registration-test"),
-                es_fluent::registry::__macro::static_entry_id(self.0),
-                None,
-            )
+            self.0.to_string()
         }
     }
 

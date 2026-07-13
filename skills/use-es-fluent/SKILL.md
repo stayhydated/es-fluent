@@ -20,7 +20,7 @@ Start from the user-facing facade. Most application code uses `es-fluent` plus e
 3. Put `define_i18n_module!()` in a library-reachable `src/i18n.rs`, and declare `pub mod i18n;` from `src/lib.rs`.
 4. Derive `EsFluent` for messages. Unit-only `EsFluent` enums and `EsFluentVariants` generated enums infer selector support; use standalone `EsFluentChoice` only for selector enums that should not also be messages or generated variants. Use `EsFluentVariants` for field/variant labels, and `EsFluentLabel` for type-level labels.
 5. Generate and inspect FTL through the es-fluent CLI: `cargo es-fluent generate`, then `cargo es-fluent status --all` or the narrower relevant command.
-6. Localize through an explicit context: `i18n.localize_message(&message)` or `MyType::localize_label(&i18n)`. Use `MyType::try_localize_label(&i18n)` when missing labels should be handled without the key fallback. Use `es_fluent::fallback_label::<MyType>()` only for generated metadata, tests, or integration scaffolding that cannot access a runtime localization context.
+6. Localize through an explicit context: `i18n.localize_message(&message)` or `MyType::localize_label(&i18n)`. These APIs fail hard when a typed Fluent resource is missing. Use `try_localize_message(...)` or `MyType::try_localize_label(&i18n)` only when the caller explicitly handles the missing state.
 
 ## Reference Selection
 

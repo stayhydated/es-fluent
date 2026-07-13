@@ -134,10 +134,12 @@ fn test_derive_label_struct() {
         TestStruct::localize_label(&IdLocalizer),
         "test_struct_label"
     );
-    assert_eq!(
-        TestStruct::localize_label(&MissingLocalizer),
-        "test_struct_label"
-    );
+}
+
+#[test]
+#[should_panic(expected = "missing Fluent label `test_struct_label` in domain `es-fluent`")]
+fn test_derive_label_struct_panics_when_the_label_is_missing() {
+    let _ = TestStruct::localize_label(&MissingLocalizer);
 }
 
 #[test]

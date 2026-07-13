@@ -183,7 +183,7 @@ let title = Gender::localize_label(&i18n);
 let maybe_title = Gender::try_localize_label(&i18n);
 ```
 
-`#[derive(EsFluentLabel)]` generates a type-level label, validated static label metadata, and both fallback and fallible label localization methods. `#[derive(EsFluentVariants)]` also gives generated variant enums label keys inferred from their generated enum names.
+`#[derive(EsFluentLabel)]` generates a type-level label, validated static label metadata, hard-failing `localize_label(...)`, and fallible `try_localize_label(...)`. `#[derive(EsFluentVariants)]` also gives generated variant enums label keys inferred from their generated enum names.
 
 ## Namespaces
 

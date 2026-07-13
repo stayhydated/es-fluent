@@ -301,17 +301,6 @@ mod tests {
                 Text::new("old"),
             ))
             .id();
-        let missing = app
-            .world_mut()
-            .spawn((
-                FluentText::new(DomainLookupMessage {
-                    domain: "app",
-                    id: "missing",
-                }),
-                Text::new("old"),
-            ))
-            .id();
-
         app.update();
 
         assert_eq!(
@@ -328,10 +317,6 @@ mod tests {
                 .expect("fallback text")
                 .0,
             "Parent fallback"
-        );
-        assert_eq!(
-            &app.world().get::<Text>(missing).expect("missing text").0,
-            "missing"
         );
     }
 }

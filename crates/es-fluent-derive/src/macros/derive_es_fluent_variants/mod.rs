@@ -86,8 +86,15 @@ fn expansion_error_to_tokens(error: ExpansionError) -> TokenStream {
 mod tests {
     use crate::macros::ir::inventory_variant_tokens_for_model;
     use crate::macros::utils::CodegenContext;
-    use insta::assert_snapshot;
     use syn::parse_quote;
+
+    macro_rules! assert_snapshot {
+        ($($tokens:tt)*) => {
+            insta::with_settings!({ prepend_module_to_snapshot => false }, {
+                insta::assert_snapshot!($($tokens)*);
+            })
+        };
+    }
 
     #[test]
     fn expand_es_fluent_variants_reports_invalid_fluent_label_attribute() {

@@ -25,15 +25,13 @@ pub use unic_langid;
 mod traits;
 pub use traits::{
     EsFluentChoice, FluentArgs, FluentLabel, FluentLocalizer, FluentLocalizerExt,
-    FluentLocalizerLookup, FluentMessage, FluentMessageLookup, fallback_label,
-    humanize_fluent_entry_id,
+    FluentLocalizerLookup, FluentMessage, FluentMessageLookup,
 };
 
 #[doc(hidden)]
 pub mod __private {
     pub use crate::traits::{
         FluentArgumentValue, FluentBorrowedArgumentValue, FluentLocalizerExt,
-        FluentOptionalArgumentValue, IntoFluentArgumentValue, IntoFluentValue, fallback_label,
-        humanize_fluent_entry_id, localize_label,
+        FluentOptionalArgumentValue, IntoFluentArgumentValue, IntoFluentValue, localize_label,
     };
 }

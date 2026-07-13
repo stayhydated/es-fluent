@@ -69,8 +69,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 ```
 
 For types that derive `EsFluentLabel`, pass the same explicit context to
-`localize_label(...)`. Use `try_localize_label(...)` when missing labels should
-return `None` instead of the key fallback:
+`localize_label(...)`. Missing typed labels are hard failures; use
+`try_localize_label(...)` when a missing label is an expected state that should
+return `None`:
 
 ```rust
 use es_fluent::FluentLabel as _;
@@ -94,8 +95,9 @@ i18n.select_language(Languages::FrFr)?;
 ```
 
 Before a language is selected, raw lookup returns `None`. Typed
-`localize_message(...)` uses its message ID fallback and returns the message ID for
-missing messages until `select_language(...)` succeeds.
+`localize_message(...)` treats that missing resource as a hard failure, so select
+the language before rendering. Use `try_localize_message(...)` only at a boundary
+that explicitly handles the missing state.
 
 `select_language(...)` returns an error if no discovered module can serve the
 requested locale, or if a supported locale's resources would build a broken
@@ -331,8 +333,8 @@ The render helpers do not install context automatically; pass `SsrI18n` as a pro
 
 SSR components should receive a cloned `SsrI18n` as a prop or through app-owned
 context and call `localize_message(...)` or `MyType::localize_label(&i18n)`.
-Use `MyType::try_localize_label(&i18n)` when missing labels should not fall
-back to the key.
+Use `MyType::try_localize_label(&i18n)` when the caller explicitly handles a
+missing label.
 If SSR components use the Dioxus hook API, enable both `ssr` and `client`
 features because `SsrI18n::provide_context(...)` is compiled behind `client`.
 

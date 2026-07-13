@@ -4,9 +4,16 @@ use darling::FromDeriveInput as _;
 use es_fluent_derive_core::options::r#enum::EnumOpts;
 use es_fluent_derive_core::options::r#struct::StructOpts;
 use es_fluent_shared::namespace::NamespaceRule;
-use insta::assert_snapshot;
 use std::path::Path;
 use syn::{DeriveInput, parse_quote};
+
+macro_rules! assert_snapshot {
+    ($($tokens:tt)*) => {
+        insta::with_settings!({ prepend_module_to_snapshot => false }, {
+            insta::assert_snapshot!($($tokens)*);
+        })
+    };
+}
 
 fn with_manifest_dir<T>(manifest_dir: Option<&std::path::Path>, f: impl FnOnce() -> T) -> T {
     temp_env::with_var("CARGO_MANIFEST_DIR", manifest_dir, f)
@@ -627,8 +634,6 @@ mod validate_namespace_tests {
 }
 
 mod validate_namespace_against_allowed_tests {
-    use super::*;
-
     fn allowed(namespaces: &[&str]) -> Vec<es_fluent_shared::namespace::ResolvedNamespace> {
         namespaces
             .iter()

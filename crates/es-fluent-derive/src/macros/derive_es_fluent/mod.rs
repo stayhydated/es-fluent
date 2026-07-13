@@ -41,11 +41,18 @@ fn expansion_error_to_tokens(error: ExpansionError) -> proc_macro2::TokenStream 
 #[serial_test::serial(manifest)]
 mod tests {
     use fs_err as fs;
-    use insta::assert_snapshot;
     use std::path::Path;
     use syn::parse_quote;
     use tempfile::TempDir;
     use toml::Value;
+
+    macro_rules! assert_snapshot {
+        ($($tokens:tt)*) => {
+            insta::with_settings!({ prepend_module_to_snapshot => false }, {
+                insta::assert_snapshot!($($tokens)*);
+            })
+        };
+    }
 
     fn string_value(value: &str) -> Value {
         Value::String(value.to_string())
@@ -254,7 +261,7 @@ mod tests {
 
     #[test]
     #[cfg_attr(not(target_os = "linux"), ignore = "insta snapshots are Linux-only")]
-    fn expand_es_fluent_keeps_later_tuple_default_names_after_field_arg_override() {
+    fn tuple_default_names_survive_arg_override() {
         let enum_input: syn::DeriveInput = parse_quote! {
             enum LoginError {
                 Something(String, #[fluent(arg = "f1")] String, String),
@@ -263,10 +270,7 @@ mod tests {
 
         let tokens =
             crate::snapshot_support::pretty_file_tokens(super::expand_es_fluent(enum_input));
-        assert_snapshot!(
-            "expand_es_fluent_keeps_later_tuple_default_names_after_field_arg_override",
-            tokens
-        );
+        assert_snapshot!("tuple_default_names_survive_arg_override", tokens);
     }
 
     #[test]

@@ -8,4 +8,4 @@ pub use fluent_message::{
     FluentLocalizerExt, FluentLocalizerLookup, FluentMessage, FluentMessageLookup,
     FluentOptionalArgumentValue, IntoFluentArgumentValue, IntoFluentValue,
 };
-pub use label::{FluentLabel, fallback_label, humanize_fluent_entry_id, localize_label};
+pub use label::{FluentLabel, localize_label};

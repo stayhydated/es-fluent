@@ -4853,7 +4853,6 @@ dependencies = [
  "fluent-bundle",
  "inventory",
  "tempfile",
- "tracing",
  "unic-langid",
 ]
 

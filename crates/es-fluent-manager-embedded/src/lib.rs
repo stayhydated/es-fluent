@@ -491,10 +491,11 @@ mod tests {
             es_fluent::FluentLocalizer::localize(&i18n, static_entry("hello"), None),
             None
         );
-        assert_eq!(i18n.localize_message(&TestMessage), "hello");
+        assert_eq!(i18n.try_localize_message(&TestMessage), None);
         cloned
             .select_language(langid!("fr"))
             .expect("language selection should work after initialization");
+        assert_eq!(i18n.localize_message(&TestMessage), "Bonjour");
         assert_eq!(
             es_fluent::FluentLocalizer::localize_in_domain(
                 &i18n,

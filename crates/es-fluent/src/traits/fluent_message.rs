@@ -63,6 +63,7 @@ pub trait FluentMessage {
     fn to_fluent_string_with(&self, localize: &mut FluentMessageLookup<'_>) -> String;
 }
 
+#[diagnostic::do_not_recommend]
 impl<T: FluentMessage + ?Sized> FluentMessage for &T {
     fn to_fluent_string_with(&self, localize: &mut FluentMessageLookup<'_>) -> String {
         (**self).to_fluent_string_with(localize)
@@ -253,9 +254,9 @@ pub trait FluentLocalizerExt: FluentLocalizer {
     /// Attempts to render a derived typed message through this explicit
     /// localizer.
     ///
-    /// Returns `None` if any lookup in the message tree is missing. Use
-    /// `localize_message(...)` when a message ID fallback is
-    /// desired instead.
+    /// Returns `None` if any lookup in the message tree is missing. Use this
+    /// method when missing resources are an expected condition that the caller
+    /// handles explicitly.
     fn try_localize_message<T>(&self, message: &T) -> Option<String>
     where
         T: FluentMessage + ?Sized,
@@ -307,12 +308,11 @@ pub trait FluentLocalizerExt: FluentLocalizer {
 
             value = Some(message.to_fluent_string_with(&mut |domain, id, args| {
                 lookup(domain, id, args).unwrap_or_else(|| {
-                    tracing::warn!(
-                        domain = domain.as_str(),
-                        message_id = id.as_str(),
-                        "missing Fluent message"
-                    );
-                    id.as_str().to_string()
+                    panic!(
+                        "missing Fluent message `{}` in domain `{}`",
+                        id.as_str(),
+                        domain.as_str(),
+                    )
                 })
             }));
         });
@@ -848,7 +848,7 @@ mod tests {
     }
 
     #[test]
-    fn localizer_extension_localizes_typed_messages_with_id_fallback() {
+    fn localizer_extension_localizes_typed_messages() {
         let localizer = StaticLocalizer { value: "Hello" };
 
         assert_eq!(
@@ -864,7 +864,13 @@ mod tests {
             ),
             Some("Hello".to_string())
         );
-        assert_eq!(localizer.localize_message(&MissingMessage), "missing-id");
+    }
+
+    #[test]
+    #[should_panic(expected = "missing Fluent message `missing-id` in domain `missing-domain`")]
+    fn localizer_extension_panics_when_a_typed_message_is_missing() {
+        let localizer = StaticLocalizer { value: "Hello" };
+        let _ = localizer.localize_message(&MissingMessage);
     }
 
     #[test]

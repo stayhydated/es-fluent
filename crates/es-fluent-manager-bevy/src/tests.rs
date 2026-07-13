@@ -1,7 +1,7 @@
 use crate::*;
 use bevy::asset::AssetLoader as _;
 use bevy::prelude::*;
-use es_fluent::FluentValue;
+use es_fluent::{FluentLocalizerExt as _, FluentValue};
 use es_fluent_manager_core::{
     FluentArgumentMap, FluentDomain, LocaleRelativeFtlPath, ModuleResourceSpec, ResourceKey,
     ResourceLoadError, StaticFluentArgumentName, StaticFluentEntryId,
@@ -68,7 +68,7 @@ struct CapturedBevyI18n {
     localized: Option<String>,
     domain_localized: Option<String>,
     message: String,
-    missing_message: String,
+    missing_message: Option<String>,
 }
 
 fn capture_bevy_i18n(i18n: BevyI18n, mut captured: ResMut<CapturedBevyI18n>) {
@@ -87,7 +87,7 @@ fn capture_bevy_i18n(i18n: BevyI18n, mut captured: ResMut<CapturedBevyI18n>) {
         None,
     );
     captured.message = i18n.localize_message(&DomainMessage("hello"));
-    captured.missing_message = i18n.localize_message(&DomainMessage("missing"));
+    captured.missing_message = i18n.try_localize_message(&DomainMessage("missing"));
 }
 
 #[test]
@@ -365,7 +365,7 @@ fn bevy_i18n_system_param_exposes_context_bound_localization() {
     assert_eq!(captured.localized, Some("Hello Bevy".to_string()));
     assert_eq!(captured.domain_localized, Some("Hello Bevy".to_string()));
     assert_eq!(captured.message, "Hello Bevy");
-    assert_eq!(captured.missing_message, "missing");
+    assert_eq!(captured.missing_message, None);
 }
 
 #[test]

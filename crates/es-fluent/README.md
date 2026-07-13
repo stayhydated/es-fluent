@@ -115,8 +115,10 @@ manager and `FluentLocalizer` lookup paths receive `StaticFluentDomain`,
 `StaticFluentEntryId`, and typed Fluent argument maps, so derived message
 rendering keeps validated IDs typed until the final Fluent bundle lookup.
 Application-facing APIs are intentionally enum-first. Custom integrations that
-need to distinguish missing lookups from message ID fallback can use
-`FluentLocalizerExt::try_localize_message(...)`.
+need to handle missing lookups without a hard failure can use
+`FluentLocalizerExt::try_localize_message(...)`. The infallible
+`localize_message(...)` and `localize_label(...)` APIs panic when a typed Fluent
+entry is missing so untranslated keys cannot leak into user-facing output.
 
 For custom runtime integrations, create a `FluentManager`, select the initial
 language, and either wrap it in your integration type or import the public
@@ -551,16 +553,12 @@ use es_fluent::FluentLabel;
 let _ = GenderLabelOnly::localize_label(&i18n);
 let _ = GenderLabelOnly::try_localize_label(&i18n);
 let _ = GenderLabelOnly::fluent_label_id();
-let _ = GenderLabelOnly::fallback_label();
-let _ = es_fluent::fallback_label::<GenderLabelOnly>();
 ```
 
-Use `fallback_label::<T>()` only when generated metadata, tests, or integration
-scaffolding cannot access a runtime localization context. It keeps the input
-typed through `FluentLabel`, then renders the generated label id as readable
-fallback text. UI code that has an `EmbeddedI18n`, `FluentManager`, or framework
-manager should continue to call `T::localize_label(&i18n)` so labels follow the
-active locale.
+Use `try_localize_label(...)` only when a missing label is an expected state the
+caller handles explicitly. Normal UI and generated metadata should localize
+through an `EmbeddedI18n`, `FluentManager`, or framework manager; a missing
+typed label is a hard configuration error.
 
 `#[derive(EsFluentVariants)]` also gives each generated variant enum a label
 key inferred from the generated enum name.
