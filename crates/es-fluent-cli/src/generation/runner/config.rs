@@ -24,7 +24,7 @@ impl TempCrateConfig {
         use crate::generation::cache::MetadataCache;
 
         let target_dir_from_env = std::env::var_os("CARGO_TARGET_DIR").map(PathBuf::from);
-        let manifest_overrides = Self::extract_manifest_overrides(manifest_path);
+        let manifest_overrides = Self::extract_manifest_overrides(manifest_path)?;
 
         let workspace_root = manifest_path.parent().unwrap_or(Path::new("."));
         let temp_dir = RunnerMetadataStore::temp_for_workspace(workspace_root);
@@ -32,10 +32,11 @@ impl TempCrateConfig {
         if let Some(cache) = MetadataCache::load(temp_dir.base_dir())
             && cache.is_valid(workspace_root)
         {
+            let target_dir = target_dir_from_env.unwrap_or_else(|| PathBuf::from(cache.target_dir));
             return Ok(Self {
                 es_fluent_dep: cache.es_fluent_dep,
                 es_fluent_cli_helpers_dep: cache.es_fluent_cli_helpers_dep,
-                target_dir: target_dir_from_env.unwrap_or_else(|| PathBuf::from(cache.target_dir)),
+                target_dir: Self::runner_target_dir(target_dir),
                 manifest_overrides,
             });
         }
@@ -81,9 +82,13 @@ impl TempCrateConfig {
         Ok(Self {
             es_fluent_dep,
             es_fluent_cli_helpers_dep,
-            target_dir,
+            target_dir: Self::runner_target_dir(target_dir),
             manifest_overrides,
         })
+    }
+
+    fn runner_target_dir(target_dir: PathBuf) -> PathBuf {
+        target_dir.join("es-fluent")
     }
 
     fn find_local_dep(
@@ -143,32 +148,65 @@ impl TempCrateConfig {
     /// The runner crate is an isolated workspace root, so it doesn't inherit dependency
     /// overrides from the project's manifest unless we mirror them into the generated
     /// `.es-fluent/Cargo.toml`.
-    pub(super) fn extract_manifest_overrides(manifest_path: &Path) -> ManifestOverrides {
+    pub(super) fn extract_manifest_overrides(manifest_path: &Path) -> Result<ManifestOverrides> {
         let content = match fs::read_to_string(manifest_path) {
             Ok(content) => content,
-            Err(_) => return ManifestOverrides::new(),
+            Err(_) => return Ok(ManifestOverrides::new()),
         };
 
         let parsed: toml::Value = match toml::from_str(&content) {
             Ok(parsed) => parsed,
-            Err(_) => return ManifestOverrides::new(),
+            Err(_) => return Ok(ManifestOverrides::new()),
         };
 
         let Some(table) = parsed.as_table() else {
-            return ManifestOverrides::new();
+            return Ok(ManifestOverrides::new());
         };
 
         let mut overrides = ManifestOverrides::new();
+        let manifest_dir = manifest_path.parent().unwrap_or(Path::new("."));
 
         if let Some(patch) = table.get("patch") {
-            overrides.insert("patch".to_string(), patch.clone());
+            let mut patch = patch.clone();
+            Self::absolutize_override_paths(&mut patch, manifest_dir)?;
+            overrides.insert("patch".to_string(), patch);
         }
 
         if let Some(replace) = table.get("replace") {
-            overrides.insert("replace".to_string(), replace.clone());
+            let mut replace = replace.clone();
+            Self::absolutize_override_paths(&mut replace, manifest_dir)?;
+            overrides.insert("replace".to_string(), replace);
         }
 
-        overrides
+        Ok(overrides)
+    }
+
+    fn absolutize_override_paths(value: &mut toml::Value, manifest_dir: &Path) -> Result<()> {
+        match value {
+            toml::Value::Table(table) => {
+                if let Some(toml::Value::String(path)) = table.get_mut("path") {
+                    let dependency_path = Path::new(path);
+                    if dependency_path.is_relative() {
+                        *path = super::utf8_path_string(
+                            &manifest_dir.join(dependency_path),
+                            "manifest dependency override path",
+                        )?;
+                    }
+                }
+
+                for (_, nested) in table.iter_mut() {
+                    Self::absolutize_override_paths(nested, manifest_dir)?;
+                }
+            },
+            toml::Value::Array(array) => {
+                for nested in array {
+                    Self::absolutize_override_paths(nested, manifest_dir)?;
+                }
+            },
+            _ => {},
+        }
+
+        Ok(())
     }
 
     fn path_dep(path: &Path, context: &str) -> Result<Dependency> {
@@ -296,24 +334,43 @@ mod tests {
             r#"
 [patch.crates-io]
 serde = { version = "1" }
+local-dependency = { path = "../local-dependency" }
 "#,
         )
         .expect("parse patch manifest fixture");
         crate::test_fixtures::toml_helpers::write_toml(&patch_manifest, &patch_value);
-        let overrides = TempCrateConfig::extract_manifest_overrides(&patch_manifest);
+        let overrides = TempCrateConfig::extract_manifest_overrides(&patch_manifest)
+            .expect("extract manifest overrides");
         assert!(overrides.contains_key("patch"));
         assert!(!overrides.contains_key("replace"));
+        assert_eq!(
+            overrides["patch"]["crates-io"]["local-dependency"]["path"].as_str(),
+            Some(
+                temp.path()
+                    .join("../local-dependency")
+                    .to_str()
+                    .expect("UTF-8 fixture path")
+            )
+        );
 
         let invalid_manifest = temp.path().join("invalid.toml");
         crate::test_fixtures::write_file(&invalid_manifest, "not = [valid");
-        assert!(TempCrateConfig::extract_manifest_overrides(&invalid_manifest).is_empty());
+        assert!(
+            TempCrateConfig::extract_manifest_overrides(&invalid_manifest)
+                .expect("ignore invalid manifest")
+                .is_empty()
+        );
 
         let non_table_manifest = temp.path().join("scalar.toml");
         crate::test_fixtures::write_file(
             &non_table_manifest,
             &crate::test_fixtures::toml_helpers::string_value("scalar-value").to_string(),
         );
-        assert!(TempCrateConfig::extract_manifest_overrides(&non_table_manifest).is_empty());
+        assert!(
+            TempCrateConfig::extract_manifest_overrides(&non_table_manifest)
+                .expect("ignore non-table manifest")
+                .is_empty()
+        );
     }
 
     #[test]

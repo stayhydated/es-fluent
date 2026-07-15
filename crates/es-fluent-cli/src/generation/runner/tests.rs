@@ -244,7 +244,8 @@ fn temp_crate_config_extracts_manifest_overrides() {
     );
     crate::test_fixtures::toml_helpers::write_toml(&manifest_path, &cargo_toml);
 
-    let overrides = TempCrateConfig::extract_manifest_overrides(&manifest_path);
+    let overrides = TempCrateConfig::extract_manifest_overrides(&manifest_path)
+        .expect("extract manifest overrides");
     let rendered = toml::to_string(&toml::Value::Table(overrides)).expect("serialize overrides");
     assert!(
         rendered.contains("[replace.\"https://github.com/zed-industries/zed#gpui@0.2.2\"]"),
@@ -293,7 +294,10 @@ fn temp_crate_config_uses_valid_cached_metadata() {
         },
         dep => panic!("expected detailed dependency, got {dep:?}"),
     }
-    assert_eq!(config.target_dir.as_path(), Path::new("/tmp/target"));
+    assert_eq!(
+        config.target_dir.as_path(),
+        Path::new("/tmp/target").join("es-fluent")
+    );
 }
 
 #[test]
@@ -433,8 +437,12 @@ fn prepare_monolithic_runner_crate_serializes_windows_style_paths() {
 
     let cargo_config =
         fs::read_to_string(runner_dir.join(".cargo/config.toml")).expect("read runner config.toml");
+    let runner_target_dir = Path::new(r"C:\work\target").join("es-fluent");
     assert!(
-        cargo_config.contains(r#"target-dir = 'C:\work\target'"#),
+        cargo_config.contains(&format!(
+            "target-dir = '{}'",
+            runner_target_dir.to_string_lossy()
+        )),
         "runner config did not preserve a TOML-safe target dir: {cargo_config}"
     );
     let parsed_config: toml::Value = toml::from_str(&cargo_config).expect("parse config.toml");
@@ -443,7 +451,7 @@ fn prepare_monolithic_runner_crate_serializes_windows_style_paths() {
             .get("build")
             .and_then(|build| build.get("target-dir"))
             .and_then(toml::Value::as_str),
-        Some(r"C:\work\target")
+        Some(runner_target_dir.to_string_lossy().as_ref())
     );
 }
 
@@ -821,7 +829,8 @@ fn run_monolithic_force_run_uses_slow_path_and_writes_runner_cache() {
 "#,
     );
 
-    let binary_path = crate::test_fixtures::fake_runner_binary_path(&workspace.target_dir);
+    let binary_path =
+        crate::test_fixtures::fake_runner_binary_path(&workspace.target_dir.join("es-fluent"));
     crate::test_fixtures::install_fake_runner(
         &binary_path,
         &FakeRunnerBehavior::stdout("cache-metadata\n"),

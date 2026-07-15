@@ -41,6 +41,11 @@ Add `es-fluent`; derive macros are enabled by default:
 es-fluent = "*"
 unic-langid = "0.9"
 
+# Enable ICU4X-localized temporal arguments directly or through Jiff/Chrono.
+# es-fluent = { version = "*", features = ["icu-datetime"] }
+# es-fluent = { version = "*", features = ["jiff"] }
+# es-fluent = { version = "*", features = ["chrono"] }
+
 # If you want to register modules with the embedded context and localize at runtime:
 # Default zero-setup runtime manager for this quick start.
 es-fluent-manager-embedded = "*"
@@ -53,6 +58,12 @@ es-fluent-manager-embedded = "*"
 # For Bevy integration, use `es-fluent-manager-bevy`.
 # es-fluent-manager-bevy = "*"
 ```
+
+The `icu-datetime` feature accepts ICU4X `Date`, `Time`, `DateTime`, and
+`ZonedDateTime` values. The `jiff` and `chrono` features accept their matching
+date/time types and delegate them to the same ICU4X representations, so Fluent
+formats temporal arguments with the active locale. Jiff `Span` and
+`SignedDuration` values retain Jiff's friendly elapsed-duration formatting.
 
 `es_fluent_manager_embedded::EmbeddedI18n::try_new_with_language(...)` is the simplest embedded startup path:
 

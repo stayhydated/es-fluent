@@ -310,6 +310,7 @@ fn validate_runner_temp_dir_entries(dir: &Path) -> Result<()> {
 pub fn get_monolithic_binary_path(workspace: &WorkspaceInfo) -> PathBuf {
     workspace
         .target_dir
+        .join("es-fluent")
         .join("debug")
         .join(format!("es-fluent-runner{}", std::env::consts::EXE_SUFFIX))
 }
