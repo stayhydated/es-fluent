@@ -12,8 +12,7 @@ name = "readme"
 path = "src/main.rs"
 
 [dependencies]
-chrono = { workspace = true }
-es-fluent = { features = [ "chrono" ], workspace = true }
+es-fluent = { features = [ "icu-datetime" ], workspace = true }
 es-fluent-manager-embedded = { workspace = true }
 example-shared-lib = { features = [ "embedded" ], path = "../example-shared-lib" }
 strum = { features = [ "derive" ], workspace = true }

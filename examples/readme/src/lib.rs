@@ -34,7 +34,7 @@ pub struct WelcomeMessage<'a> {
 // Temporal arguments use the active Fluent locale when their es-fluent feature is enabled.
 #[derive(EsFluent)]
 pub struct EventStartsAt {
-    pub starts_at: chrono::DateTime<chrono::FixedOffset>,
+    pub starts_at: std::time::SystemTime,
 }
 
 // Unit-only #[derive(EsFluent)] enums infer EsFluentChoice for selector fields.

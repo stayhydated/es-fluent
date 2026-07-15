@@ -73,17 +73,16 @@ inference as other supported field types.
 
 ```toml
 [dependencies]
-es-fluent = { version = "*", features = ["chrono"] }
-chrono = "0.4"
+es-fluent = { version = "*", features = ["icu-datetime"] }
 ```
 
 ```rust
-use chrono::{DateTime, Utc};
 use es_fluent::EsFluent;
+use std::time::SystemTime;
 
 #[derive(EsFluent)]
 struct EventStartsAt {
-    starts_at: DateTime<Utc>,
+    starts_at: SystemTime,
 }
 ```
 
@@ -91,14 +90,15 @@ struct EventStartsAt {
 event_starts_at = Starts { $starts_at }
 ```
 
-- `icu-datetime`: ICU4X `Date<Gregorian>`, `Time`, `DateTime<Gregorian>`, and
-  `ZonedDateTime<Gregorian, TimeZoneInfo<AtTime>>`.
+- `icu-datetime`: `std::time::SystemTime` plus ICU4X `Date<Gregorian>`, `Time`,
+  `DateTime<Gregorian>`, and `ZonedDateTime<Gregorian, TimeZoneInfo<AtTime>>`.
 - `chrono`: `NaiveDate`, `NaiveTime`, `NaiveDateTime`, and `DateTime<Tz>`.
 - `jiff`: `civil::Date`, `civil::Time`, `civil::DateTime`, `Timestamp`, `Zoned`,
   `Span`, and `SignedDuration`.
 
 Calendar, time, instant, and zoned values use ICU4X's medium formats for the
-active Fluent locale. Jiff durations use Jiff's friendly duration format.
+active Fluent locale. `SystemTime` is rendered as a UTC instant with
+millisecond precision. Jiff durations use Jiff's friendly duration format.
 
 Transparent wrapper variants:
 
