@@ -68,6 +68,10 @@ login_form_variants_label_variants-username = 用户名
 
 network_error-ApiUnavailable = API 不可用
 
+## OperationElapsed
+
+operation_elapsed = 用时 { $elapsed }
+
 ## SettingsTabVariants
 
 settings_tab_variants_label = 设置选项卡变体

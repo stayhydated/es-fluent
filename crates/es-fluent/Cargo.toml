@@ -25,6 +25,7 @@ derive = [ "dep:es-fluent-derive" ]
 icu-datetime = [
   "dep:icu_calendar",
   "dep:icu_datetime",
+  "dep:icu_experimental",
   "dep:icu_locale",
   "dep:icu_provider",
   "dep:icu_time",
@@ -45,6 +46,7 @@ es-fluent-shared = { workspace = true }
 fluent-bundle = { workspace = true }
 icu_calendar = { optional = true, workspace = true }
 icu_datetime = { optional = true, workspace = true }
+icu_experimental = { optional = true, workspace = true }
 icu_locale = { optional = true, workspace = true }
 icu_provider = { optional = true, workspace = true }
 icu_time = { optional = true, workspace = true }

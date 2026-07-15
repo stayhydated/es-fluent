@@ -4874,6 +4874,7 @@ dependencies = [
  "fluent-bundle",
  "icu_calendar",
  "icu_datetime",
+ "icu_experimental",
  "icu_locale",
  "icu_provider",
  "icu_time",

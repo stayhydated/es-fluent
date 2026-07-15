@@ -68,6 +68,10 @@ login_form_variants_label_variants-username = Nom d'utilisateur
 
 network_error-ApiUnavailable = API indisponible
 
+## OperationElapsed
+
+operation_elapsed = Terminé en { $elapsed }
+
 ## SettingsTabVariants
 
 settings_tab_variants_label = Variantes d’onglets de paramètres

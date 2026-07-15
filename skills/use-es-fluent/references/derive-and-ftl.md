@@ -78,27 +78,36 @@ es-fluent = { version = "*", features = ["icu-datetime"] }
 
 ```rust
 use es_fluent::EsFluent;
-use std::time::SystemTime;
+use std::time::{Duration, SystemTime};
 
 #[derive(EsFluent)]
 struct EventStartsAt {
     starts_at: SystemTime,
 }
+
+#[derive(EsFluent)]
+struct OperationElapsed {
+    elapsed: Duration,
+}
 ```
 
 ```ftl
 event_starts_at = Starts { $starts_at }
+operation_elapsed = Completed in { $elapsed }
 ```
 
-- `icu-datetime`: `std::time::SystemTime` plus ICU4X `Date<Gregorian>`, `Time`,
-  `DateTime<Gregorian>`, and `ZonedDateTime<Gregorian, TimeZoneInfo<AtTime>>`.
+- `icu-datetime`: `std::time::SystemTime`, `std::time::Duration`, plus ICU4X
+  `Date<Gregorian>`, `Time`, `DateTime<Gregorian>`, and
+  `ZonedDateTime<Gregorian, TimeZoneInfo<AtTime>>`.
 - `chrono`: `NaiveDate`, `NaiveTime`, `NaiveDateTime`, and `DateTime<Tz>`.
 - `jiff`: `civil::Date`, `civil::Time`, `civil::DateTime`, `Timestamp`, `Zoned`,
   `Span`, and `SignedDuration`.
 
 Calendar, time, instant, and zoned values use ICU4X's medium formats for the
 active Fluent locale. `SystemTime` is rendered as a UTC instant with
-millisecond precision. Jiff durations use Jiff's friendly duration format.
+millisecond precision. `Duration` uses ICU4X's locale-aware short duration
+format after balancing through hours, minutes, seconds, and subsecond units.
+Jiff durations use Jiff's friendly duration format.
 
 Transparent wrapper variants:
 

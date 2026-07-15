@@ -41,6 +41,10 @@ fn run(i18n: &i18n::I18n, locale: Languages) {
         starts_at: UNIX_EPOCH + Duration::from_secs(1_784_035_815),
     };
     println!("EventStartsAt: {}", i18n.localize_message(&event));
+    let operation = OperationElapsed {
+        elapsed: Duration::from_secs(3_723),
+    };
+    println!("OperationElapsed: {}", i18n.localize_message(&operation));
     println!(
         "TransactionError Network: {}",
         i18n.localize_message(&TransactionError::Network(NetworkError::ApiUnavailable))

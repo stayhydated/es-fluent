@@ -37,6 +37,11 @@ pub struct EventStartsAt {
     pub starts_at: std::time::SystemTime,
 }
 
+#[derive(EsFluent)]
+pub struct OperationElapsed {
+    pub elapsed: std::time::Duration,
+}
+
 // Unit-only #[derive(EsFluent)] enums infer EsFluentChoice for selector fields.
 #[derive(EsFluent)]
 pub enum GenderChoice {

@@ -1,6 +1,10 @@
 use crate::FluentValue;
 use ::icu_calendar::Gregorian;
 use ::icu_datetime::{DateTimeFormatter, DateTimeFormatterPreferences, fieldsets};
+use ::icu_experimental::duration::{
+    Duration as IcuDuration, DurationFormatter, ValidatedDurationFormatterOptions,
+    options::{DurationFormatterOptions, FieldDisplay},
+};
 use ::icu_time::zone::{TimeZoneInfo, models::AtTime};
 use fluent_bundle::types::FluentType;
 use intl_memoizer::Memoizable;
@@ -20,6 +24,7 @@ pub(crate) type IcuZonedDateTime =
 enum IcuTemporalRepresentation {
     Date(IcuDate),
     DateTime(IcuDateTime),
+    Duration(IcuDuration),
     Time(IcuTime),
     ZonedDateTime(IcuZonedDateTime),
 }
@@ -45,6 +50,13 @@ impl IcuTemporalValue {
         }
     }
 
+    pub(crate) fn duration(value: IcuDuration, fallback: String) -> Self {
+        Self {
+            representation: IcuTemporalRepresentation::Duration(value),
+            fallback,
+        }
+    }
+
     pub(crate) fn time(value: IcuTime, fallback: String) -> Self {
         Self {
             representation: IcuTemporalRepresentation::Time(value),
@@ -63,8 +75,9 @@ impl IcuTemporalValue {
         match self.representation {
             IcuTemporalRepresentation::Date(_) => 0,
             IcuTemporalRepresentation::DateTime(_) => 1,
-            IcuTemporalRepresentation::Time(_) => 2,
-            IcuTemporalRepresentation::ZonedDateTime(_) => 3,
+            IcuTemporalRepresentation::Duration(_) => 2,
+            IcuTemporalRepresentation::Time(_) => 3,
+            IcuTemporalRepresentation::ZonedDateTime(_) => 4,
         }
     }
 
@@ -76,6 +89,14 @@ impl IcuTemporalValue {
                 }),
             IcuTemporalRepresentation::DateTime(value) => intls
                 .with_try_get::<IcuDateTimeFormatter, _, _>((), |formatter| {
+                    formatter.0.format(value).write_to_string().into_owned()
+                }),
+            IcuTemporalRepresentation::Duration(value) if value == &IcuDuration::default() => intls
+                .with_try_get::<IcuZeroDurationFormatter, _, _>((), |formatter| {
+                    formatter.0.format(value).write_to_string().into_owned()
+                }),
+            IcuTemporalRepresentation::Duration(value) => intls
+                .with_try_get::<IcuDurationFormatter, _, _>((), |formatter| {
                     formatter.0.format(value).write_to_string().into_owned()
                 }),
             IcuTemporalRepresentation::Time(value) => intls
@@ -98,6 +119,14 @@ impl IcuTemporalValue {
                 }),
             IcuTemporalRepresentation::DateTime(value) => intls
                 .with_try_get::<IcuDateTimeFormatter, _, _>((), |formatter| {
+                    formatter.0.format(value).write_to_string().into_owned()
+                }),
+            IcuTemporalRepresentation::Duration(value) if value == &IcuDuration::default() => intls
+                .with_try_get::<IcuZeroDurationFormatter, _, _>((), |formatter| {
+                    formatter.0.format(value).write_to_string().into_owned()
+                }),
+            IcuTemporalRepresentation::Duration(value) => intls
+                .with_try_get::<IcuDurationFormatter, _, _>((), |formatter| {
                     formatter.0.format(value).write_to_string().into_owned()
                 }),
             IcuTemporalRepresentation::Time(value) => intls
@@ -142,18 +171,17 @@ pub(crate) fn into_fluent_value(value: IcuTemporalValue) -> FluentValue<'static>
 
 struct IcuDateFormatter(DateTimeFormatter<fieldsets::YMD>);
 struct IcuDateTimeFormatter(DateTimeFormatter<fieldsets::YMDT>);
+struct IcuDurationFormatter(DurationFormatter);
+struct IcuZeroDurationFormatter(DurationFormatter);
 struct IcuTimeFormatter(DateTimeFormatter<fieldsets::T>);
 struct IcuZonedDateTimeFormatter(
     DateTimeFormatter<fieldsets::Combo<fieldsets::YMDT, fieldsets::zone::LocalizedOffsetShort>>,
 );
 
-fn preferences(
-    language: unic_langid::LanguageIdentifier,
-) -> Result<DateTimeFormatterPreferences, String> {
+fn locale(language: unic_langid::LanguageIdentifier) -> Result<icu_locale::Locale, String> {
     language
         .to_string()
         .parse::<icu_locale::Locale>()
-        .map(Into::into)
         .map_err(|error| error.to_string())
 }
 
@@ -167,7 +195,8 @@ macro_rules! impl_memoizable_formatter {
                 language: unic_langid::LanguageIdentifier,
                 (): Self::Args,
             ) -> Result<Self, Self::Error> {
-                DateTimeFormatter::try_new(preferences(language)?, $field_set)
+                let preferences: DateTimeFormatterPreferences = locale(language)?.into();
+                DateTimeFormatter::try_new(preferences, $field_set)
                     .map(Self)
                     .map_err(|error| error.to_string())
             }
@@ -182,6 +211,39 @@ impl_memoizable_formatter!(
     IcuZonedDateTimeFormatter,
     fieldsets::YMDT::medium().with_zone(fieldsets::zone::LocalizedOffsetShort)
 );
+
+fn duration_formatter(
+    language: unic_langid::LanguageIdentifier,
+    show_zero_seconds: bool,
+) -> Result<DurationFormatter, String> {
+    let mut options = DurationFormatterOptions::default();
+    if show_zero_seconds {
+        options.second_visibility = Some(FieldDisplay::Always);
+    }
+
+    let options =
+        ValidatedDurationFormatterOptions::validate(options).map_err(|error| error.to_string())?;
+    DurationFormatter::try_new(locale(language)?.into(), options).map_err(|error| error.to_string())
+}
+
+macro_rules! impl_memoizable_duration_formatter {
+    ($formatter:ty, $show_zero_seconds:literal) => {
+        impl Memoizable for $formatter {
+            type Args = ();
+            type Error = String;
+
+            fn construct(
+                language: unic_langid::LanguageIdentifier,
+                (): Self::Args,
+            ) -> Result<Self, Self::Error> {
+                duration_formatter(language, $show_zero_seconds).map(Self)
+            }
+        }
+    };
+}
+
+impl_memoizable_duration_formatter!(IcuDurationFormatter, false);
+impl_memoizable_duration_formatter!(IcuZeroDurationFormatter, true);
 
 macro_rules! impl_temporal_argument {
     ($ty:ty, $convert:path) => {
@@ -273,6 +335,22 @@ fn icu_zoned_date_time(value: IcuZonedDateTime) -> IcuTemporalValue {
     IcuTemporalValue::zoned_date_time(value, fallback)
 }
 
+fn std_duration(value: Duration) -> IcuTemporalValue {
+    let fallback = format!("{value:?}");
+    let seconds = value.as_secs();
+    let subsecond_nanoseconds = u64::from(value.subsec_nanos());
+    let duration = IcuDuration {
+        hours: seconds / 3_600,
+        minutes: seconds / 60 % 60,
+        seconds: seconds % 60,
+        milliseconds: subsecond_nanoseconds / 1_000_000,
+        microseconds: subsecond_nanoseconds / 1_000 % 1_000,
+        nanoseconds: subsecond_nanoseconds % 1_000,
+        ..Default::default()
+    };
+    IcuTemporalValue::duration(duration, fallback)
+}
+
 fn duration_milliseconds(duration: Duration) -> i128 {
     i128::from(duration.as_secs()) * 1_000 + i128::from(duration.subsec_millis())
 }
@@ -313,6 +391,7 @@ impl_temporal_argument!(IcuDate, icu_date);
 impl_temporal_argument!(IcuDateTime, icu_date_time);
 impl_temporal_argument!(IcuTime, icu_time);
 impl_temporal_argument!(IcuZonedDateTime, icu_zoned_date_time);
+impl_temporal_argument!(Duration, std_duration);
 impl_temporal_argument!(SystemTime, system_time);
 
 #[cfg(test)]
@@ -328,7 +407,7 @@ mod tests {
             .into_owned()
     }
 
-    fn temporal_values() -> [IcuTemporalValue; 4] {
+    fn temporal_values() -> [IcuTemporalValue; 5] {
         let date = IcuDate::try_new(2026.into(), 7.into(), 14, Gregorian).unwrap();
         let time = IcuTime::try_new(9, 30, 15, 0).unwrap();
         let date_time = IcuDateTime { date, time };
@@ -341,6 +420,7 @@ mod tests {
         [
             icu_date(date),
             icu_date_time(date_time),
+            std_duration(Duration::from_secs(3_723)),
             icu_time(time),
             icu_zoned_date_time(zoned_date_time),
         ]
@@ -367,10 +447,49 @@ mod tests {
             [
                 "Jul 14, 2026",
                 "Jul 14, 2026, 9:30:15\u{202f}AM",
+                "1 hr, 2 min, 3 sec",
                 "9:30:15\u{202f}AM",
                 "Jul 14, 2026, 9:30:15\u{202f}AM GMT+0",
             ]
         );
+    }
+
+    #[test]
+    fn std_duration_uses_locale_aware_short_formatting() {
+        let value = std_duration(Duration::new(3_723, 456_789_123));
+
+        assert_eq!(
+            localized(value.clone(), "en-US"),
+            "1 hr, 2 min, 3 sec, 456 ms, 789 μs, 123 ns"
+        );
+        assert_eq!(
+            localized(value, "fr-FR"),
+            "1\u{202f}h, 2\u{a0}min, 3\u{202f}s, 456\u{202f}ms, 789\u{202f}μs et 123\u{202f}ns"
+        );
+    }
+
+    #[test]
+    fn zero_std_duration_keeps_a_localized_seconds_unit() {
+        let value = std_duration(Duration::ZERO);
+        assert_eq!(localized(value.clone(), "en-US"), "0 sec");
+        assert_eq!(localized(value.clone(), "fr-FR"), "0\u{202f}s");
+        let intls = intl_memoizer::concurrent::IntlLangMemoizer::new("en-US".parse().unwrap());
+        assert_eq!(value.as_string_threadsafe(&intls), "0 sec");
+    }
+
+    #[test]
+    fn std_duration_balances_at_hours_and_preserves_subsecond_units() {
+        let value = std_duration(Duration::new(90_061, 123_456_789));
+        let IcuTemporalRepresentation::Duration(duration) = value.representation else {
+            panic!("expected an ICU4X duration representation");
+        };
+
+        assert_eq!(duration.hours, 25);
+        assert_eq!(duration.minutes, 1);
+        assert_eq!(duration.seconds, 1);
+        assert_eq!(duration.milliseconds, 123);
+        assert_eq!(duration.microseconds, 456);
+        assert_eq!(duration.nanoseconds, 789);
     }
 
     #[test]

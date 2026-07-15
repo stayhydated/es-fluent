@@ -59,12 +59,12 @@ es-fluent-manager-embedded = "*"
 # es-fluent-manager-bevy = "*"
 ```
 
-The `icu-datetime` feature accepts `std::time::SystemTime` and ICU4X `Date`,
-`Time`, `DateTime`, and `ZonedDateTime` values. The `jiff` and `chrono` features
-accept their matching date/time types and delegate them to the same ICU4X
-representations, so Fluent formats temporal arguments with the active locale.
-Jiff `Span` and `SignedDuration` values retain Jiff's friendly elapsed-duration
-formatting.
+The `icu-datetime` feature accepts `std::time::SystemTime`,
+`std::time::Duration`, and ICU4X `Date`, `Time`, `DateTime`, and `ZonedDateTime`
+values. The `jiff` and `chrono` features accept their matching date/time types
+and delegate them to the same ICU4X representations, so Fluent formats temporal
+arguments with the active locale. Jiff `Span` and `SignedDuration` values retain
+Jiff's friendly elapsed-duration formatting.
 
 `es_fluent_manager_embedded::EmbeddedI18n::try_new_with_language(...)` is the simplest embedded startup path:
 
@@ -456,29 +456,37 @@ Temporal fields work like other derived arguments, including borrowed fields,
 
 ```rs
 use es_fluent::EsFluent;
-use std::time::SystemTime;
+use std::time::{Duration, SystemTime};
 
 #[derive(EsFluent)]
 pub struct EventStartsAt {
     pub starts_at: SystemTime,
 }
+
+#[derive(EsFluent)]
+pub struct OperationElapsed {
+    pub elapsed: Duration,
+}
 ```
 
 ```ftl
 event_starts_at = Starts { $starts_at }
+operation_elapsed = Completed in { $elapsed }
 ```
 
 | Feature | Supported field types |
 | --- | --- |
-| `icu-datetime` | `std::time::SystemTime` plus ICU4X `Date<Gregorian>`, `Time`, `DateTime<Gregorian>`, and `ZonedDateTime<Gregorian, TimeZoneInfo<AtTime>>` |
+| `icu-datetime` | `std::time::SystemTime`, `std::time::Duration`, plus ICU4X `Date<Gregorian>`, `Time`, `DateTime<Gregorian>`, and `ZonedDateTime<Gregorian, TimeZoneInfo<AtTime>>` |
 | `chrono` | `NaiveDate`, `NaiveTime`, `NaiveDateTime`, and `DateTime<Tz>` for any `Tz: TimeZone` |
 | `jiff` | `civil::Date`, `civil::Time`, `civil::DateTime`, `Timestamp`, `Zoned`, `Span`, and `SignedDuration` |
 
 Calendar, time, instant, and zoned values use ICU4X's medium localized formats
 for the active Fluent locale. Zoned values include a localized short UTC
 offset. `SystemTime` is treated as a UTC instant on either side of the Unix
-epoch and converted with millisecond precision. Jiff `Span` and
-`SignedDuration` arguments use Jiff's friendly duration format.
+epoch and converted with millisecond precision. `Duration` is balanced through
+hours, minutes, seconds, and subsecond units, then rendered with ICU4X's
+locale-aware short duration format. Jiff `Span` and `SignedDuration` arguments
+use Jiff's friendly duration format.
 
 Rendering through a callback:
 
