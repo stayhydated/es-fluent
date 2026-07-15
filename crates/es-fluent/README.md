@@ -28,9 +28,9 @@ This framework gives you:
 
 | Surface                                           | Version line | Runtime        |
 | :------------------------------------------------ | :----------- | :------------- |
-| `es-fluent`, CLI, embedded manager, language enum | `0.16.x`     | General Rust   |
+| `es-fluent`, CLI, embedded manager, language enum | `0.18.x`     | General Rust   |
 | `es-fluent-manager-dioxus`                        | `0.7.x`      | Dioxus `0.7.x` |
-| `es-fluent-manager-bevy`                          | `0.18.x`     | Bevy `0.18.x`  |
+| `es-fluent-manager-bevy`                          | `0.19.x`     | Bevy `0.19.x`  |
 
 ## Installation
 
@@ -170,19 +170,23 @@ For Dioxus, `es-fluent-manager-dioxus` provides a provider component,
 hook-based client helpers, typed context-bound localization, and signal-backed
 locale state behind the `client` feature. Its `ssr` feature provides a
 request-scoped runtime. Dioxus translations are loaded through generated
-Dioxus asset modules; pass `dioxus_i18n_asset_modules()` to the provider or SSR
-runtime. Dioxus code should use
+Dioxus asset modules registered with inventory. `DioxusAssetI18nProvider` and
+`SsrI18nRuntime::discovered()` use those registrations by default. Dioxus code should use
 `DioxusAssetI18nHandle::localize_message(...)` or typed label helpers through
-the component or SSR request context. Runtime follower modules such as
-`es-fluent-lang` language labels are discovered automatically and follow the
-selected asset-backed locale.
+the component or SSR request context.
+Runtime follower modules such as `es-fluent-lang` language labels are
+discovered automatically and follow the selected asset-backed locale.
 During `dx serve` debug WASM runs, changed generated FTL assets refresh the
 provider context through Dioxus asset hot reload while preserving the requested
 locale when possible.
 For Bevy, systems that need direct localization can request `BevyI18n` as a
 `SystemParam` and call `localize_message(...)` on it. The plugin also exposes
 `RequestedLanguageId` and `ActiveLanguageId` for systems that need to
-distinguish user intent from the currently published locale.
+distinguish user intent from the currently published locale, plus `I18nSet` for
+ordering app systems before or after localization runtime and text-refresh
+phases. Generated Bevy module registrations expose FTL from the crate that owns
+each localization domain as Bevy embedded assets, so apps should not copy
+dependency-owned domain files into their own asset tree.
 
 ## Project configuration
 
@@ -216,7 +220,8 @@ Create an `i18n.toml` next to your `Cargo.toml`:
 # Default fallback language (required)
 fallback_language = "en"
 
-# Path to FTL assets relative to the config file (required)
+# Path to FTL assets relative to the crate root; must stay inside the crate
+# and must not use existing symlinked path components or locale targets (required)
 assets_dir = "assets/locales"
 
 # Features to enable if the crate’s es-fluent derives are gated behind a feature (optional)
@@ -224,20 +229,45 @@ fluent_feature = ["my-feature"]
 
 # Optional allowlist of namespace values for FTL file splitting
 namespaces = ["ui", "errors", "messages"]
+
+# Optional: disable warnings when non-fallback messages copy fallback text
+check_fallback_copies = false
 ```
 
-Locale directory names use canonical BCP-47 tags. The executable README example
-ships `en`, `fr-FR`, and `zh-CN`, with `en` as the fallback locale.
+Locale directory names use canonical BCP-47 tags. Deprecated aliases such as
+`iw` and `src` are rejected; use canonical replacements such as `he` and `sc`.
+The executable README example ships `en`, `fr-FR`, and `zh-CN`, with `en` as
+the fallback locale.
 
 Add a new language later by seeding it from the fallback locale:
 
 ```sh
 cargo es-fluent add-locale fr-FR
+cargo es-fluent add-locale fr-FR,zh-CN
+cargo es-fluent add-locale "fr-FR, zh-CN"
 ```
+
+The fallback locale directory, such as `assets/locales/en`, must exist as a
+directory before syncing or adding target locales; it may be empty before
+generated keys exist. Locale arguments can be passed separately or as
+comma-separated lists; empty comma entries, such as `add-locale fr-FR,`, are
+rejected. Existing target locale paths must be real directories, not symlinks.
+If the requested locale already exists and no fallback keys are missing,
+rerunning `add-locale` is a successful no-op. Duplicate requested locale
+targets are ignored. If `--package` matches no configured crate, locale
+creation exits non-zero instead of reporting success without writing files.
+Locale creation preflights every selected crate for setup, fallback parse, and
+requested-locale path errors before writing any selected crate. Unexpected
+write-time I/O failures after preflight succeeds are still not rolled back.
 
 For pre-commit or CI checks, `cargo es-fluent status --all` reports pending
 generation, formatting, sync, orphan cleanup, and validation work without
-writing files.
+editing project source or locale files. It may prepare `.es-fluent` runner
+metadata and Cargo build output under `target/es-fluent` by default while
+checking valid crates. If `.es-fluent`
+already exists, it and existing entries below it must be real paths, not
+symlinks. Empty selections and setup errors are reported before that runner
+preparation.
 
 ## Incremental builds for locale assets
 
@@ -262,6 +292,11 @@ fn main() {
 ## Namespaces (optional)
 
 You can route specific types into separate `.ftl` files by adding a namespace. All derive macros support the same namespace options:
+
+Use exactly one namespace source for each generated output. When multiple
+derives are combined on one type, put the namespace on `#[fluent(...)]` to
+share it, or put it on the specific `#[fluent_label(...)]` /
+`#[fluent_variants(...)]` output, but do not combine those namespace sources.
 
 ### `EsFluent`
 
@@ -404,6 +439,7 @@ Common derive attributes:
 - `#[fluent(id = "...")]` on an enum overrides the base key, and `domain = "..."` routes lookup to a specific manager domain.
 - `id = "..."` and `domain = "..."` are enum-only. Struct message containers accept `namespace = ...`; struct messages resolve in the current crate's domain.
 - Generated FTL keys must be unique within each output file. `generate`, `clean`, and `check` fail when two derived items produce the same key.
+- For namespaced types, `check` validates the expected namespace file; a key in `{crate}.ftl` still counts as missing if the Rust type belongs in `{crate}/{namespace}.ftl`.
 - `#[fluent_variants(skip)]` omits a struct field or enum variant from generated variant enums; `keys = [...]` values must be lowercase snake_case.
 
 Localized temporal arguments:

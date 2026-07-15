@@ -570,7 +570,7 @@ jobs:
     steps:
       - uses: actions/checkout@v6
       - name: Check FTL files
-        uses: stayhydated/es-fluent/crates/es-fluent-cli@v0.16.0
+        uses: stayhydated/es-fluent/crates/es-fluent-cli@master
         with:
           path: .
           all: true

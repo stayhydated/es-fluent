@@ -60,12 +60,15 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 ```
 
 For types that derive `EsFluentLabel`, pass the same explicit context to
-`localize_label(...)`:
+`localize_label(...)`. Missing typed labels are hard failures; use
+`try_localize_label(...)` when a missing label is an expected state that should
+return `None`:
 
 ```rs
 use es_fluent::FluentLabel as _;
 
 let title = MyMessage::localize_label(&i18n);
+let maybe_title = MyMessage::try_localize_label(&i18n);
 ```
 
 If you prefer to initialize first and decide the locale later, create the
@@ -77,8 +80,9 @@ i18n.select_language(langid!("fr-FR"))?;
 ```
 
 Before a language is selected, raw lookup returns `None`. Typed
-`localize_message(...)` uses its message ID fallback and returns the message ID for
-missing messages until `select_language(...)` succeeds.
+`localize_message(...)` treats that missing resource as a hard failure, so select
+the language before rendering. Use `try_localize_message(...)` only at a boundary
+that explicitly handles the missing state.
 
 `select_language(...)` returns an error if no discovered module can serve the
 requested locale, or if a supported locale's resources would build a broken
