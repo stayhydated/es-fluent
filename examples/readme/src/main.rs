@@ -36,6 +36,12 @@ fn run(i18n: &i18n::I18n, locale: Languages) {
         count: 5,
     };
     println!("WelcomeMessage: {}", i18n.localize_message(&welcome));
+    let event = EventStartsAt {
+        starts_at: "2026-07-14T09:30:15-04:00"
+            .parse()
+            .expect("valid event timestamp"),
+    };
+    println!("EventStartsAt: {}", i18n.localize_message(&event));
     println!(
         "TransactionError Network: {}",
         i18n.localize_message(&TransactionError::Network(NetworkError::ApiUnavailable))

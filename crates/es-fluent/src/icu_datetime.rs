@@ -274,3 +274,54 @@ impl_temporal_argument!(IcuDate, icu_date);
 impl_temporal_argument!(IcuDateTime, icu_date_time);
 impl_temporal_argument!(IcuTime, icu_time);
 impl_temporal_argument!(IcuZonedDateTime, icu_zoned_date_time);
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use ::icu_time::zone::TimeZoneInfo;
+
+    fn temporal_values() -> [IcuTemporalValue; 4] {
+        let date = IcuDate::try_new(2026.into(), 7.into(), 14, Gregorian).unwrap();
+        let time = IcuTime::try_new(9, 30, 15, 0).unwrap();
+        let date_time = IcuDateTime { date, time };
+        let zoned_date_time = IcuZonedDateTime {
+            date,
+            time,
+            zone: TimeZoneInfo::utc().at_date_time(date_time),
+        };
+
+        [
+            icu_date(date),
+            icu_date_time(date_time),
+            icu_time(time),
+            icu_zoned_date_time(zoned_date_time),
+        ]
+    }
+
+    #[test]
+    fn fluent_custom_values_clone_with_equal_temporal_representations() {
+        for temporal_value in temporal_values() {
+            let fluent_value = into_fluent_value(temporal_value);
+            assert_eq!(fluent_value, fluent_value.clone());
+        }
+    }
+
+    #[test]
+    fn all_temporal_representations_format_with_the_threadsafe_memoizer() {
+        let intls = intl_memoizer::concurrent::IntlLangMemoizer::new("en-US".parse().unwrap());
+        let formatted: Vec<_> = temporal_values()
+            .into_iter()
+            .map(|value| value.as_string_threadsafe(&intls).into_owned())
+            .collect();
+
+        assert_eq!(
+            formatted,
+            [
+                "Jul 14, 2026",
+                "Jul 14, 2026, 9:30:15\u{202f}AM",
+                "9:30:15\u{202f}AM",
+                "Jul 14, 2026, 9:30:15\u{202f}AM GMT+0",
+            ]
+        );
+    }
+}

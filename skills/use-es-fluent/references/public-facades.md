@@ -25,6 +25,11 @@ es-fluent = "*"
 unic-langid = "0.9"
 es-fluent-manager-embedded = "*"
 
+# Enable localized temporal arguments for the date/time library in message fields.
+# es-fluent = { version = "*", features = ["icu-datetime"] }
+# es-fluent = { version = "*", features = ["jiff"] }
+# es-fluent = { version = "*", features = ["chrono"] }
+
 # For Dioxus apps, enable only the runtime surface you use.
 # es-fluent-manager-dioxus = { version = "*", features = ["client"] }
 # es-fluent-manager-dioxus = { version = "*", features = ["ssr"] }
@@ -36,6 +41,9 @@ es-fluent-manager-embedded = "*"
 [build-dependencies]
 es-fluent-build = "*"
 ```
+
+The `chrono` and `jiff` features include `icu-datetime`; applications also add
+the corresponding date/time crate when they use its types.
 
 ## Common Setup
 

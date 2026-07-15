@@ -405,6 +405,44 @@ Common derive attributes:
 - Generated FTL keys must be unique within each output file. `generate`, `clean`, and `check` fail when two derived items produce the same key.
 - `#[fluent_variants(skip)]` omits a struct field or enum variant from generated variant enums; `keys = [...]` values must be lowercase snake_case.
 
+Localized temporal arguments:
+
+Enable the feature for the date/time library used by your message fields:
+
+```toml
+[dependencies]
+es-fluent = { version = "*", features = ["chrono"] }
+chrono = "0.4"
+```
+
+Temporal fields work like other derived arguments, including borrowed fields,
+`Option<T>`, and values returned by `#[fluent(value = ...)]`:
+
+```rs
+use chrono::{DateTime, Utc};
+use es_fluent::EsFluent;
+
+#[derive(EsFluent)]
+pub struct EventStartsAt {
+    pub starts_at: DateTime<Utc>,
+}
+```
+
+```ftl
+event_starts_at = Starts { $starts_at }
+```
+
+| Feature | Supported field types |
+| --- | --- |
+| `icu-datetime` | ICU4X `Date<Gregorian>`, `Time`, `DateTime<Gregorian>`, and `ZonedDateTime<Gregorian, TimeZoneInfo<AtTime>>` |
+| `chrono` | `NaiveDate`, `NaiveTime`, `NaiveDateTime`, and `DateTime<Tz>` for any `Tz: TimeZone` |
+| `jiff` | `civil::Date`, `civil::Time`, `civil::DateTime`, `Timestamp`, `Zoned`, `Span`, and `SignedDuration` |
+
+Calendar, time, instant, and zoned values use ICU4X's medium localized formats
+for the active Fluent locale. Zoned values include a localized short UTC
+offset. Jiff `Span` and `SignedDuration` arguments use Jiff's friendly duration
+format.
+
 Rendering through a callback:
 
 ```rs

@@ -107,6 +107,12 @@ cargo es-fluent tree --output json
 
 ## Common Rules
 
+Runner-backed commands keep their generated workspace and metadata under
+`.es-fluent` and their Cargo artifacts under the `es-fluent` subdirectory of
+the workspace target directory (`target/es-fluent` by default). The generated
+runner manifest includes project `[patch]` and `[replace]` sections after
+resolving relative dependency paths from the project manifest.
+
 Generated FTL keys must be unique within each output file. `generate`, `clean`, and `check` fail when two derived items produce the same key in the same output file.
 
 For namespaced types, `check` validates the expected namespace file. A key in `{crate}.ftl` still counts as missing if the Rust type belongs in `{crate}/{namespace}.ftl`.

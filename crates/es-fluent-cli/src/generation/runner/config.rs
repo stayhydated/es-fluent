@@ -327,22 +327,38 @@ mod tests {
     }
 
     #[test]
-    fn extract_manifest_overrides_handles_patch_and_invalid_inputs() {
+    fn extract_manifest_overrides_rewrites_relative_paths_and_preserves_absolute_paths() {
         let temp = tempfile::tempdir().expect("tempdir");
         let patch_manifest = temp.path().join("patch.toml");
-        let patch_value: Value = toml::from_str(
+        let mut patch_value: Value = toml::from_str(
             r#"
 [patch.crates-io]
 serde = { version = "1" }
 local-dependency = { path = "../local-dependency" }
+
+[replace]
+"replaced-dependency:0.1.0" = { path = "vendor/replaced-dependency" }
 "#,
         )
         .expect("parse patch manifest fixture");
+        let absolute_dependency = temp.path().join("absolute-dependency");
+        patch_value["patch"]["crates-io"]
+            .as_table_mut()
+            .expect("patch.crates-io fixture table")
+            .insert(
+                "absolute-dependency".to_string(),
+                Value::Table(crate::test_fixtures::toml_helpers::table([(
+                    "path",
+                    crate::test_fixtures::toml_helpers::string_value(
+                        absolute_dependency.to_str().expect("UTF-8 fixture path"),
+                    ),
+                )])),
+            );
         crate::test_fixtures::toml_helpers::write_toml(&patch_manifest, &patch_value);
         let overrides = TempCrateConfig::extract_manifest_overrides(&patch_manifest)
             .expect("extract manifest overrides");
         assert!(overrides.contains_key("patch"));
-        assert!(!overrides.contains_key("replace"));
+        assert!(overrides.contains_key("replace"));
         assert_eq!(
             overrides["patch"]["crates-io"]["local-dependency"]["path"].as_str(),
             Some(
@@ -352,6 +368,19 @@ local-dependency = { path = "../local-dependency" }
                     .expect("UTF-8 fixture path")
             )
         );
+        assert_eq!(
+            overrides["patch"]["crates-io"]["absolute-dependency"]["path"].as_str(),
+            absolute_dependency.to_str()
+        );
+        assert_eq!(
+            overrides["replace"]["replaced-dependency:0.1.0"]["path"].as_str(),
+            temp.path().join("vendor/replaced-dependency").to_str()
+        );
+    }
+
+    #[test]
+    fn extract_manifest_overrides_handles_invalid_inputs() {
+        let temp = tempfile::tempdir().expect("tempdir");
 
         let invalid_manifest = temp.path().join("invalid.toml");
         crate::test_fixtures::write_file(&invalid_manifest, "not = [valid");
@@ -370,6 +399,35 @@ local-dependency = { path = "../local-dependency" }
             TempCrateConfig::extract_manifest_overrides(&non_table_manifest)
                 .expect("ignore non-table manifest")
                 .is_empty()
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn extract_manifest_overrides_reports_non_utf8_rewritten_paths() {
+        use std::ffi::OsString;
+        use std::os::unix::ffi::OsStringExt as _;
+
+        let temp = tempfile::tempdir().expect("tempdir");
+        let manifest_dir = temp
+            .path()
+            .join(OsString::from_vec(b"non-utf8-\xff".to_vec()));
+        std::fs::create_dir_all(&manifest_dir).expect("create non-UTF-8 manifest directory");
+        let manifest_path = manifest_dir.join("Cargo.toml");
+        crate::test_fixtures::write_file(
+            &manifest_path,
+            r#"
+[patch.crates-io]
+local-dependency = { path = "../local-dependency" }
+"#,
+        );
+
+        let error = TempCrateConfig::extract_manifest_overrides(&manifest_path)
+            .expect_err("non-UTF-8 rewritten path should fail");
+        assert!(
+            error
+                .to_string()
+                .contains("manifest dependency override path must be valid UTF-8")
         );
     }
 

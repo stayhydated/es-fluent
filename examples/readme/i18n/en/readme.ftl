@@ -14,6 +14,10 @@ active_form_field =
        *[password] Editing password
     }
 
+## EventStartsAt
+
+event_starts_at = Starts { $starts_at }
+
 ## GenderChoice
 
 gender_choice-Female = Female

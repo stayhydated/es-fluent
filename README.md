@@ -262,7 +262,8 @@ write-time I/O failures after preflight succeeds are still not rolled back.
 For pre-commit or CI checks, `cargo es-fluent status --all` reports pending
 generation, formatting, sync, orphan cleanup, and validation work without
 editing project source or locale files. It may prepare `.es-fluent` runner
-metadata and Cargo build output while checking valid crates. If `.es-fluent`
+metadata and Cargo build output under `target/es-fluent` by default while
+checking valid crates. If `.es-fluent`
 already exists, it and existing entries below it must be real paths, not
 symlinks. Empty selections and setup errors are reported before that runner
 preparation.
@@ -439,6 +440,44 @@ Common derive attributes:
 - Generated FTL keys must be unique within each output file. `generate`, `clean`, and `check` fail when two derived items produce the same key.
 - For namespaced types, `check` validates the expected namespace file; a key in `{crate}.ftl` still counts as missing if the Rust type belongs in `{crate}/{namespace}.ftl`.
 - `#[fluent_variants(skip)]` omits a struct field or enum variant from generated variant enums; `keys = [...]` values must be lowercase snake_case.
+
+Localized temporal arguments:
+
+Enable the feature for the date/time library used by your message fields:
+
+```toml
+[dependencies]
+es-fluent = { version = "*", features = ["chrono"] }
+chrono = "0.4"
+```
+
+Temporal fields work like other derived arguments, including borrowed fields,
+`Option<T>`, and values returned by `#[fluent(value = ...)]`:
+
+```rs
+use chrono::{DateTime, Utc};
+use es_fluent::EsFluent;
+
+#[derive(EsFluent)]
+pub struct EventStartsAt {
+    pub starts_at: DateTime<Utc>,
+}
+```
+
+```ftl
+event_starts_at = Starts { $starts_at }
+```
+
+| Feature | Supported field types |
+| --- | --- |
+| `icu-datetime` | ICU4X `Date<Gregorian>`, `Time`, `DateTime<Gregorian>`, and `ZonedDateTime<Gregorian, TimeZoneInfo<AtTime>>` |
+| `chrono` | `NaiveDate`, `NaiveTime`, `NaiveDateTime`, and `DateTime<Tz>` for any `Tz: TimeZone` |
+| `jiff` | `civil::Date`, `civil::Time`, `civil::DateTime`, `Timestamp`, `Zoned`, `Span`, and `SignedDuration` |
+
+Calendar, time, instant, and zoned values use ICU4X's medium localized formats
+for the active Fluent locale. Zoned values include a localized short UTC
+offset. Jiff `Span` and `SignedDuration` arguments use Jiff's friendly duration
+format.
 
 Rendering through a callback:
 

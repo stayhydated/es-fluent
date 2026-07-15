@@ -71,6 +71,46 @@ Common derive attributes:
 - For namespaced types, `check` validates the expected namespace file; a key in `{crate}.ftl` still counts as missing if the Rust type belongs in `{crate}/{namespace}.ftl`.
 - `#[fluent_variants(skip)]` omits a struct field or enum variant from generated variant enums; `keys = [...]` values must be lowercase snake_case.
 
+## Localized Temporal Arguments
+
+Enable the feature for the date/time library used by your message fields:
+
+```toml
+[dependencies]
+es-fluent = { version = "*", features = ["chrono"] }
+chrono = "0.4"
+```
+
+Temporal fields work like other derived arguments, including borrowed fields,
+`Option<T>`, and values returned by `#[fluent(value = ...)]`:
+
+```rust
+use chrono::{DateTime, Utc};
+use es_fluent::EsFluent;
+
+#[derive(EsFluent)]
+pub struct EventStartsAt {
+    pub starts_at: DateTime<Utc>,
+}
+```
+
+The generated argument can be interpolated directly in FTL:
+
+```ftl
+event_starts_at = Starts { $starts_at }
+```
+
+| Feature | Supported field types |
+| --- | --- |
+| `icu-datetime` | ICU4X `Date<Gregorian>`, `Time`, `DateTime<Gregorian>`, and `ZonedDateTime<Gregorian, TimeZoneInfo<AtTime>>` |
+| `chrono` | `NaiveDate`, `NaiveTime`, `NaiveDateTime`, and `DateTime<Tz>` for any `Tz: TimeZone` |
+| `jiff` | `civil::Date`, `civil::Time`, `civil::DateTime`, `Timestamp`, `Zoned`, `Span`, and `SignedDuration` |
+
+Calendar, time, instant, and zoned values use ICU4X's medium localized formats
+for the manager's active Fluent locale. Zoned values include a localized short
+UTC offset; Jiff `Timestamp` values are rendered in UTC. Jiff `Span` and
+`SignedDuration` arguments use Jiff's friendly duration format.
+
 Skipped single-field enum variants:
 
 `#[fluent(skip)]` on a single-field enum variant suppresses that variant's own

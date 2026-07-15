@@ -64,6 +64,42 @@ Common `#[fluent(...)]` attributes:
 
 Generated FTL keys must be unique within each output file. `cargo es-fluent generate`, `clean`, and `check` fail when two derived items produce the same key.
 
+## Localized Temporal Arguments
+
+Enable `es-fluent`'s `icu-datetime`, `chrono`, or `jiff` feature to use that
+library's temporal types directly in derived message fields. Owned, borrowed,
+optional, and explicitly transformed temporal fields use the same argument
+inference as other supported field types.
+
+```toml
+[dependencies]
+es-fluent = { version = "*", features = ["chrono"] }
+chrono = "0.4"
+```
+
+```rust
+use chrono::{DateTime, Utc};
+use es_fluent::EsFluent;
+
+#[derive(EsFluent)]
+struct EventStartsAt {
+    starts_at: DateTime<Utc>,
+}
+```
+
+```ftl
+event_starts_at = Starts { $starts_at }
+```
+
+- `icu-datetime`: ICU4X `Date<Gregorian>`, `Time`, `DateTime<Gregorian>`, and
+  `ZonedDateTime<Gregorian, TimeZoneInfo<AtTime>>`.
+- `chrono`: `NaiveDate`, `NaiveTime`, `NaiveDateTime`, and `DateTime<Tz>`.
+- `jiff`: `civil::Date`, `civil::Time`, `civil::DateTime`, `Timestamp`, `Zoned`,
+  `Span`, and `SignedDuration`.
+
+Calendar, time, instant, and zoned values use ICU4X's medium formats for the
+active Fluent locale. Jiff durations use Jiff's friendly duration format.
+
 Transparent wrapper variants:
 
 ```rust

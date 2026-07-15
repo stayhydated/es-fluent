@@ -14,6 +14,10 @@ active_form_field =
        *[password] Modification du mot de passe
     }
 
+## EventStartsAt
+
+event_starts_at = Commence { $starts_at }
+
 ## GenderChoice
 
 gender_choice-Female = Femme

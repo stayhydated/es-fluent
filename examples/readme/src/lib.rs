@@ -31,6 +31,12 @@ pub struct WelcomeMessage<'a> {
     pub count: i32,    // exposed as $count in the ftl file
 }
 
+// Temporal arguments use the active Fluent locale when their es-fluent feature is enabled.
+#[derive(EsFluent)]
+pub struct EventStartsAt {
+    pub starts_at: chrono::DateTime<chrono::FixedOffset>,
+}
+
 // Unit-only #[derive(EsFluent)] enums infer EsFluentChoice for selector fields.
 #[derive(EsFluent)]
 pub enum GenderChoice {

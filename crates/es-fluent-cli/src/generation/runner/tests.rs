@@ -748,6 +748,20 @@ fn prepare_monolithic_runner_crate_includes_manifest_overrides() {
             ])),
         )])),
     );
+    crate::test_fixtures::toml_helpers::insert_section(
+        &mut manifest,
+        "patch",
+        Value::Table(crate::test_fixtures::toml_helpers::table([(
+            "crates-io",
+            Value::Table(crate::test_fixtures::toml_helpers::table([(
+                "local-dependency",
+                Value::Table(crate::test_fixtures::toml_helpers::table([(
+                    "path",
+                    crate::test_fixtures::toml_helpers::string_value("vendor/local-dependency"),
+                )])),
+            )])),
+        )])),
+    );
     crate::test_fixtures::toml_helpers::write_toml(
         &workspace.root_dir.join("Cargo.toml"),
         &manifest,
@@ -764,6 +778,12 @@ fn prepare_monolithic_runner_crate_includes_manifest_overrides() {
     assert!(
         runner_manifest.contains("gpui@0.2.2"),
         "runner manifest should include the replacement key"
+    );
+    let parsed_manifest: Value =
+        toml::from_str(&runner_manifest).expect("parse generated runner manifest");
+    assert_eq!(
+        parsed_manifest["patch"]["crates-io"]["local-dependency"]["path"].as_str(),
+        workspace.root_dir.join("vendor/local-dependency").to_str()
     );
 }
 
@@ -829,8 +849,7 @@ fn run_monolithic_force_run_uses_slow_path_and_writes_runner_cache() {
 "#,
     );
 
-    let binary_path =
-        crate::test_fixtures::fake_runner_binary_path(&workspace.target_dir.join("es-fluent"));
+    let binary_path = crate::test_fixtures::fake_runner_binary_path(&workspace.target_dir);
     crate::test_fixtures::install_fake_runner(
         &binary_path,
         &FakeRunnerBehavior::stdout("cache-metadata\n"),

@@ -14,6 +14,10 @@ active_form_field =
        *[password] 正在编辑密码
     }
 
+## EventStartsAt
+
+event_starts_at = 开始于 { $starts_at }
+
 ## GenderChoice
 
 gender_choice-Female = 女
