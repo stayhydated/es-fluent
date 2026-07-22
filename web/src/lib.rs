@@ -1,4 +1,3 @@
-mod components;
 mod pages;
 mod site;
 
