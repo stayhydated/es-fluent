@@ -114,9 +114,9 @@ serde = "1.0"
 serde_json = "1.0"
 serial_test = "3.5"
 similar = "3.1"
-stayhydated-dioxus = { git = "https://github.com/stayhydated/shared", rev = "efa89e741d33c39d1764daa87d878338ad6551d7" }
-stayhydated-site = { git = "https://github.com/stayhydated/shared", rev = "efa89e741d33c39d1764daa87d878338ad6551d7" }
-stayhydated-xtask = { git = "https://github.com/stayhydated/shared", rev = "efa89e741d33c39d1764daa87d878338ad6551d7" }
+stayhydated-dioxus = { git = "https://github.com/stayhydated/shared", rev = "a7de17a2c58dd312bc4a236b0a364e19d11f1185" }
+stayhydated-site = { git = "https://github.com/stayhydated/shared", rev = "a7de17a2c58dd312bc4a236b0a364e19d11f1185" }
+stayhydated-xtask = { git = "https://github.com/stayhydated/shared", rev = "a7de17a2c58dd312bc4a236b0a364e19d11f1185" }
 strum = "0.28"
 syn = "2.0"
 temp-env = "0.3"
