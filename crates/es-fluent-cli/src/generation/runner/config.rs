@@ -404,25 +404,18 @@ local-dependency = { path = "../local-dependency" }
 
     #[cfg(unix)]
     #[test]
-    fn extract_manifest_overrides_reports_non_utf8_rewritten_paths() {
+    fn absolutize_override_paths_reports_non_utf8_rewritten_paths() {
         use std::ffi::OsString;
         use std::os::unix::ffi::OsStringExt as _;
+        use std::path::PathBuf;
 
-        let temp = tempfile::tempdir().expect("tempdir");
-        let manifest_dir = temp
-            .path()
-            .join(OsString::from_vec(b"non-utf8-\xff".to_vec()));
-        std::fs::create_dir_all(&manifest_dir).expect("create non-UTF-8 manifest directory");
-        let manifest_path = manifest_dir.join("Cargo.toml");
-        crate::test_fixtures::write_file(
-            &manifest_path,
-            r#"
-[patch.crates-io]
-local-dependency = { path = "../local-dependency" }
-"#,
-        );
+        let manifest_dir = PathBuf::from(OsString::from_vec(b"non-utf8-\xff".to_vec()));
+        let mut dependency = Value::Table(crate::test_fixtures::toml_helpers::table([(
+            "path",
+            crate::test_fixtures::toml_helpers::string_value("../local-dependency"),
+        )]));
 
-        let error = TempCrateConfig::extract_manifest_overrides(&manifest_path)
+        let error = TempCrateConfig::absolutize_override_paths(&mut dependency, &manifest_dir)
             .expect_err("non-UTF-8 rewritten path should fail");
         assert!(
             error

@@ -496,15 +496,15 @@ mod tests {
     fn system_time_epoch_milliseconds_round_toward_the_past() {
         assert_eq!(system_time_epoch_milliseconds(UNIX_EPOCH), 0);
         assert_eq!(
-            system_time_epoch_milliseconds(UNIX_EPOCH + Duration::from_nanos(1_500_001)),
+            system_time_epoch_milliseconds(UNIX_EPOCH + Duration::from_micros(1_500)),
             1
         );
         assert_eq!(
-            system_time_epoch_milliseconds(UNIX_EPOCH - Duration::from_nanos(1)),
+            system_time_epoch_milliseconds(UNIX_EPOCH - Duration::from_micros(1)),
             -1
         );
         assert_eq!(
-            system_time_epoch_milliseconds(UNIX_EPOCH - Duration::from_nanos(1_000_001)),
+            system_time_epoch_milliseconds(UNIX_EPOCH - Duration::from_micros(1_001)),
             -2
         );
     }

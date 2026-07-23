@@ -13,6 +13,10 @@ readme = "README.md"
 categories = [ "localization", "internationalization" ]
 keywords = [ "fluent", "i18n", "locale" ]
 
+[package.metadata.cargo-machete]
+# Enables `icu_provider/sync` for thread-safe ICU4X formatter caches.
+ignored = [ "icu_provider" ]
+
 [features]
 chrono = [
   "dep:chrono",
