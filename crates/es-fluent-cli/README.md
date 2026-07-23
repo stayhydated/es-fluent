@@ -83,6 +83,14 @@ validated by Cargo when the runner crate compiles. If the selected library
 cannot compile, runner-backed generation fails after preparing `.es-fluent`
 metadata and Cargo build output.
 
+The generated runner workspace and metadata live under `.es-fluent`. Its Cargo
+artifacts use the `es-fluent` subdirectory of the workspace target directory,
+which is `target/es-fluent` by default or `$CARGO_TARGET_DIR/es-fluent` when
+that environment variable is set. The generated runner manifest carries the
+project manifest's `[patch]` and `[replace]` sections; relative dependency
+paths are resolved from the project manifest before they are written into the
+isolated runner manifest.
+
 Use `--dry-run` to preview locale-file changes without editing FTL files. Like
 `status`, runner-backed dry runs may still prepare `.es-fluent` metadata and
 Cargo build output while collecting Rust inventory. If `.es-fluent` already
@@ -567,7 +575,7 @@ jobs:
     steps:
       - uses: actions/checkout@v6
       - name: Check FTL files
-        uses: stayhydated/es-fluent/crates/es-fluent-cli@v0.16.0
+        uses: stayhydated/es-fluent/crates/es-fluent-cli@master
         with:
           path: .
           all: true

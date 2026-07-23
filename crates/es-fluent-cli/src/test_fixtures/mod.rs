@@ -263,7 +263,10 @@ pub fn fake_runner_binary_name() -> String {
 
 #[cfg(test)]
 pub fn fake_runner_binary_path(target_dir: &Path) -> PathBuf {
-    target_dir.join("debug").join(fake_runner_binary_name())
+    target_dir
+        .join("es-fluent")
+        .join("debug")
+        .join(fake_runner_binary_name())
 }
 
 #[cfg(test)]
@@ -338,7 +341,8 @@ fn main() {
 
 #[cfg(test)]
 pub fn install_fake_runner(binary_path: &Path, behavior: &FakeRunnerBehavior) {
-    fs::create_dir_all(binary_path.parent().expect("binary parent")).expect("create target/debug");
+    fs::create_dir_all(binary_path.parent().expect("binary parent"))
+        .expect("create runner target directory");
     let _ = fs::remove_file(binary_path);
     if fs::hard_link(compiled_fake_runner_binary(), binary_path).is_err() {
         let staged_binary_path = binary_path.with_extension("installing");

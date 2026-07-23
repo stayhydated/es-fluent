@@ -9,6 +9,11 @@ Add `es-fluent` and a runtime manager. Derive macros are enabled by default:
 es-fluent = "*"
 unic-langid = "0.9"
 
+# Enable localized temporal arguments for the date/time library you use.
+# es-fluent = { version = "*", features = ["icu-datetime"] }
+# es-fluent = { version = "*", features = ["jiff"] }
+# es-fluent = { version = "*", features = ["chrono"] }
+
 # For simple apps and CLIs:
 es-fluent-manager-embedded = "*"
 
@@ -17,6 +22,9 @@ es-fluent-manager-embedded = "*"
 # es-fluent-manager-dioxus = { version = "*", features = ["ssr"] }
 # es-fluent-manager-dioxus = { version = "*", features = ["client", "ssr"] }
 ```
+
+See [Deriving Messages](deriving_messages.md#localized-temporal-arguments) for
+the temporal field types supported by each feature.
 
 ## Project Configuration
 

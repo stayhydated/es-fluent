@@ -1,6 +1,7 @@
 use es_fluent::FluentLabel as _;
 use example_shared_lib::Languages;
 use readme::*;
+use std::time::{Duration, UNIX_EPOCH};
 use strum::IntoEnumIterator as _;
 
 fn main() {
@@ -36,6 +37,14 @@ fn run(i18n: &i18n::I18n, locale: Languages) {
         count: 5,
     };
     println!("WelcomeMessage: {}", i18n.localize_message(&welcome));
+    let event = EventStartsAt {
+        starts_at: UNIX_EPOCH + Duration::from_secs(1_784_035_815),
+    };
+    println!("EventStartsAt: {}", i18n.localize_message(&event));
+    let operation = OperationElapsed {
+        elapsed: Duration::from_secs(3_723),
+    };
+    println!("OperationElapsed: {}", i18n.localize_message(&operation));
     println!(
         "TransactionError Network: {}",
         i18n.localize_message(&TransactionError::Network(NetworkError::ApiUnavailable))

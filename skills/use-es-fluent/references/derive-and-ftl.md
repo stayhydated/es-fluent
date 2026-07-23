@@ -64,6 +64,51 @@ Common `#[fluent(...)]` attributes:
 
 Generated FTL keys must be unique within each output file. `cargo es-fluent generate`, `clean`, and `check` fail when two derived items produce the same key.
 
+## Localized Temporal Arguments
+
+Enable `es-fluent`'s `icu-datetime`, `chrono`, or `jiff` feature to use that
+library's temporal types directly in derived message fields. Owned, borrowed,
+optional, and explicitly transformed temporal fields use the same argument
+inference as other supported field types.
+
+```toml
+[dependencies]
+es-fluent = { version = "*", features = ["icu-datetime"] }
+```
+
+```rust
+use es_fluent::EsFluent;
+use std::time::{Duration, SystemTime};
+
+#[derive(EsFluent)]
+struct EventStartsAt {
+    starts_at: SystemTime,
+}
+
+#[derive(EsFluent)]
+struct OperationElapsed {
+    elapsed: Duration,
+}
+```
+
+```ftl
+event_starts_at = Starts { $starts_at }
+operation_elapsed = Completed in { $elapsed }
+```
+
+- `icu-datetime`: `std::time::SystemTime`, `std::time::Duration`, plus ICU4X
+  `Date<Gregorian>`, `Time`, `DateTime<Gregorian>`, and
+  `ZonedDateTime<Gregorian, TimeZoneInfo<AtTime>>`.
+- `chrono`: `NaiveDate`, `NaiveTime`, `NaiveDateTime`, and `DateTime<Tz>`.
+- `jiff`: `civil::Date`, `civil::Time`, `civil::DateTime`, `Timestamp`, `Zoned`,
+  `Span`, and `SignedDuration`.
+
+Calendar, time, instant, and zoned values use ICU4X's medium formats for the
+active Fluent locale. `SystemTime` is rendered as a UTC instant with
+millisecond precision. `Duration` uses ICU4X's locale-aware short duration
+format after balancing through hours, minutes, seconds, and subsecond units.
+Jiff durations use Jiff's friendly duration format.
+
 Transparent wrapper variants:
 
 ```rust

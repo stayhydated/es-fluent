@@ -71,6 +71,54 @@ Common derive attributes:
 - For namespaced types, `check` validates the expected namespace file; a key in `{crate}.ftl` still counts as missing if the Rust type belongs in `{crate}/{namespace}.ftl`.
 - `#[fluent_variants(skip)]` omits a struct field or enum variant from generated variant enums; `keys = [...]` values must be lowercase snake_case.
 
+## Localized Temporal Arguments
+
+Enable the feature for the date/time library used by your message fields:
+
+```toml
+[dependencies]
+es-fluent = { version = "*", features = ["icu-datetime"] }
+```
+
+Temporal fields work like other derived arguments, including borrowed fields,
+`Option<T>`, and values returned by `#[fluent(value = ...)]`:
+
+```rust
+use es_fluent::EsFluent;
+use std::time::{Duration, SystemTime};
+
+#[derive(EsFluent)]
+pub struct EventStartsAt {
+    pub starts_at: SystemTime,
+}
+
+#[derive(EsFluent)]
+pub struct OperationElapsed {
+    pub elapsed: Duration,
+}
+```
+
+The generated argument can be interpolated directly in FTL:
+
+```ftl
+event_starts_at = Starts { $starts_at }
+operation_elapsed = Completed in { $elapsed }
+```
+
+| Feature | Supported field types |
+| --- | --- |
+| `icu-datetime` | `std::time::SystemTime`, `std::time::Duration`, plus ICU4X `Date<Gregorian>`, `Time`, `DateTime<Gregorian>`, and `ZonedDateTime<Gregorian, TimeZoneInfo<AtTime>>` |
+| `chrono` | `NaiveDate`, `NaiveTime`, `NaiveDateTime`, and `DateTime<Tz>` for any `Tz: TimeZone` |
+| `jiff` | `civil::Date`, `civil::Time`, `civil::DateTime`, `Timestamp`, `Zoned`, `Span`, and `SignedDuration` |
+
+Calendar, time, instant, and zoned values use ICU4X's medium localized formats
+for the manager's active Fluent locale. Zoned values include a localized short
+UTC offset. `SystemTime` is treated as a UTC instant on either side of the Unix
+epoch and converted with millisecond precision. `Duration` is balanced through
+hours, minutes, seconds, and subsecond units, then rendered with ICU4X's
+locale-aware short duration format. Jiff `Timestamp` values are rendered in UTC.
+Jiff `Span` and `SignedDuration` arguments use Jiff's friendly duration format.
+
 Skipped single-field enum variants:
 
 `#[fluent(skip)]` on a single-field enum variant suppresses that variant's own

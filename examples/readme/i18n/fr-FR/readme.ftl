@@ -14,6 +14,10 @@ active_form_field =
        *[password] Modification du mot de passe
     }
 
+## EventStartsAt
+
+event_starts_at = Commence { $starts_at }
+
 ## GenderChoice
 
 gender_choice-Female = Femme
@@ -63,6 +67,10 @@ login_form_variants_label_variants-username = Nom d'utilisateur
 ## NetworkError
 
 network_error-ApiUnavailable = API indisponible
+
+## OperationElapsed
+
+operation_elapsed = Terminé en { $elapsed }
 
 ## SettingsTabVariants
 

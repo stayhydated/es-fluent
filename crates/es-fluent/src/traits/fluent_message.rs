@@ -353,6 +353,11 @@ impl<T> FluentArgumentValue<T> {
     pub fn new(value: T) -> Self {
         Self { value }
     }
+
+    #[cfg(feature = "icu-datetime")]
+    pub(crate) fn into_inner(self) -> T {
+        self.value
+    }
 }
 
 /// Borrowed wrapper used by generated `FluentMessage` implementations for
@@ -367,6 +372,11 @@ impl<'a, T: ?Sized> FluentBorrowedArgumentValue<'a, T> {
     pub fn new(value: &'a T) -> Self {
         Self { value }
     }
+
+    #[cfg(feature = "icu-datetime")]
+    pub(crate) fn into_inner(self) -> &'a T {
+        self.value
+    }
 }
 
 /// Optional wrapper used by generated `FluentMessage` implementations so
@@ -380,6 +390,11 @@ pub struct FluentOptionalArgumentValue<T> {
 impl<T> FluentOptionalArgumentValue<T> {
     pub fn new(value: Option<T>) -> Self {
         Self { value }
+    }
+
+    #[cfg(feature = "icu-datetime")]
+    pub(crate) fn into_inner(self) -> Option<T> {
+        self.value
     }
 }
 

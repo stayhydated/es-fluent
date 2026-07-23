@@ -28,6 +28,15 @@ pub use traits::{
     FluentLocalizerLookup, FluentMessage, FluentMessageLookup,
 };
 
+#[cfg(feature = "jiff")]
+mod jiff;
+
+#[cfg(feature = "chrono")]
+mod chrono;
+
+#[cfg(feature = "icu-datetime")]
+mod icu_datetime;
+
 #[doc(hidden)]
 pub mod __private {
     pub use crate::traits::{

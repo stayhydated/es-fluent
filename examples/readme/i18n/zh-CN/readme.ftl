@@ -14,6 +14,10 @@ active_form_field =
        *[password] 正在编辑密码
     }
 
+## EventStartsAt
+
+event_starts_at = 开始于 { $starts_at }
+
 ## GenderChoice
 
 gender_choice-Female = 女
@@ -63,6 +67,10 @@ login_form_variants_label_variants-username = 用户名
 ## NetworkError
 
 network_error-ApiUnavailable = API 不可用
+
+## OperationElapsed
+
+operation_elapsed = 用时 { $elapsed }
 
 ## SettingsTabVariants
 

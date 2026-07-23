@@ -244,7 +244,8 @@ fn temp_crate_config_extracts_manifest_overrides() {
     );
     crate::test_fixtures::toml_helpers::write_toml(&manifest_path, &cargo_toml);
 
-    let overrides = TempCrateConfig::extract_manifest_overrides(&manifest_path);
+    let overrides = TempCrateConfig::extract_manifest_overrides(&manifest_path)
+        .expect("extract manifest overrides");
     let rendered = toml::to_string(&toml::Value::Table(overrides)).expect("serialize overrides");
     assert!(
         rendered.contains("[replace.\"https://github.com/zed-industries/zed#gpui@0.2.2\"]"),
@@ -293,7 +294,10 @@ fn temp_crate_config_uses_valid_cached_metadata() {
         },
         dep => panic!("expected detailed dependency, got {dep:?}"),
     }
-    assert_eq!(config.target_dir.as_path(), Path::new("/tmp/target"));
+    assert_eq!(
+        config.target_dir.as_path(),
+        Path::new("/tmp/target").join("es-fluent")
+    );
 }
 
 #[test]
@@ -433,8 +437,12 @@ fn prepare_monolithic_runner_crate_serializes_windows_style_paths() {
 
     let cargo_config =
         fs::read_to_string(runner_dir.join(".cargo/config.toml")).expect("read runner config.toml");
+    let runner_target_dir = Path::new(r"C:\work\target").join("es-fluent");
     assert!(
-        cargo_config.contains(r#"target-dir = 'C:\work\target'"#),
+        cargo_config.contains(&format!(
+            "target-dir = '{}'",
+            runner_target_dir.to_string_lossy()
+        )),
         "runner config did not preserve a TOML-safe target dir: {cargo_config}"
     );
     let parsed_config: toml::Value = toml::from_str(&cargo_config).expect("parse config.toml");
@@ -443,7 +451,7 @@ fn prepare_monolithic_runner_crate_serializes_windows_style_paths() {
             .get("build")
             .and_then(|build| build.get("target-dir"))
             .and_then(toml::Value::as_str),
-        Some(r"C:\work\target")
+        Some(runner_target_dir.to_string_lossy().as_ref())
     );
 }
 
@@ -740,6 +748,20 @@ fn prepare_monolithic_runner_crate_includes_manifest_overrides() {
             ])),
         )])),
     );
+    crate::test_fixtures::toml_helpers::insert_section(
+        &mut manifest,
+        "patch",
+        Value::Table(crate::test_fixtures::toml_helpers::table([(
+            "crates-io",
+            Value::Table(crate::test_fixtures::toml_helpers::table([(
+                "local-dependency",
+                Value::Table(crate::test_fixtures::toml_helpers::table([(
+                    "path",
+                    crate::test_fixtures::toml_helpers::string_value("vendor/local-dependency"),
+                )])),
+            )])),
+        )])),
+    );
     crate::test_fixtures::toml_helpers::write_toml(
         &workspace.root_dir.join("Cargo.toml"),
         &manifest,
@@ -756,6 +778,12 @@ fn prepare_monolithic_runner_crate_includes_manifest_overrides() {
     assert!(
         runner_manifest.contains("gpui@0.2.2"),
         "runner manifest should include the replacement key"
+    );
+    let parsed_manifest: Value =
+        toml::from_str(&runner_manifest).expect("parse generated runner manifest");
+    assert_eq!(
+        parsed_manifest["patch"]["crates-io"]["local-dependency"]["path"].as_str(),
+        workspace.root_dir.join("vendor/local-dependency").to_str()
     );
 }
 

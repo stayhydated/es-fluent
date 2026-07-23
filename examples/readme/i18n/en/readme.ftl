@@ -14,6 +14,10 @@ active_form_field =
        *[password] Editing password
     }
 
+## EventStartsAt
+
+event_starts_at = Starts { $starts_at }
+
 ## GenderChoice
 
 gender_choice-Female = Female
@@ -63,6 +67,10 @@ login_form_variants_label_variants-username = Username
 ## NetworkError
 
 network_error-ApiUnavailable = API is unavailable
+
+## OperationElapsed
+
+operation_elapsed = Completed in { $elapsed }
 
 ## SettingsTabVariants
 
