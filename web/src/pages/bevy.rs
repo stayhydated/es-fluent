@@ -1,6 +1,9 @@
-use crate::site::routing::{PageKind, SiteRoute};
+use crate::site::{
+    constants::{PROJECT, VERSION},
+    routing::{PageKind, SiteRoute},
+};
 use dioxus::prelude::*;
-use stayhydated_dioxus::{FullscreenDemoPage, LinkTarget};
+use stayhydated_dioxus::{FullscreenDemoFrame, NavigationTarget, StayhydatedProjectPortalShell};
 
 #[component]
 pub(crate) fn BevyPage() -> Element {
@@ -11,11 +14,14 @@ pub(crate) fn BevyPage() -> Element {
     );
 
     rsx! {
-        FullscreenDemoPage::<crate::site::routing::AppRoute> {
-            back_target: LinkTarget::route(crate::site::routing::app_route(PageKind::Demos)),
-            back_label: "Back to demos",
-            src: demo_src,
-            title: "Bevy example",
+        StayhydatedProjectPortalShell {
+            project: PROJECT,
+            version: VERSION,
+            home: NavigationTarget::Internal(crate::site::routing::app_route(PageKind::Home)),
+            FullscreenDemoFrame {
+                src: demo_src,
+                title: "Bevy example",
+            }
         }
     }
 }

@@ -79,14 +79,14 @@ fluent-syntax = "0.12"
 fs-err = "3.3"
 futures = "0.3"
 getset = "0.1"
-gpui = { git = "https://github.com/zed-industries/zed", rev = "c545fb67d0ce13e335bff76f7c08986000333f2c" }
+gpui = { git = "https://github.com/zed-industries/zed", rev = "1a246efd7e1b83ab568ec5e3e6c1a43a42e1abba" }
 gpui-component = { git = "https://github.com/longbridge/gpui-component" }
 gpui_platform = { features = [
   "font-kit",
   "x11",
   "wayland",
   "runtime_shaders",
-], git = "https://github.com/zed-industries/zed", rev = "c545fb67d0ce13e335bff76f7c08986000333f2c" }
+], git = "https://github.com/zed-industries/zed", rev = "1a246efd7e1b83ab568ec5e3e6c1a43a42e1abba" }
 heck = "0.5"
 icu_experimental = "0.5"
 icu_locale = "2.2"
@@ -108,15 +108,15 @@ proc-macro2 = "1.0"
 quote = "1.0"
 ratatui = "0.30"
 rstest = "0.26"
-rust-embed = "8.11"
+rust-embed = "8.12"
 rustc-hash = "2.1"
 serde = "1.0"
 serde_json = "1.0"
 serial_test = "3.5"
 similar = "3.1"
-stayhydated-dioxus = { git = "https://github.com/stayhydated/shared", rev = "efa89e741d33c39d1764daa87d878338ad6551d7" }
-stayhydated-site = { git = "https://github.com/stayhydated/shared", rev = "efa89e741d33c39d1764daa87d878338ad6551d7" }
-stayhydated-xtask = { git = "https://github.com/stayhydated/shared", rev = "efa89e741d33c39d1764daa87d878338ad6551d7" }
+stayhydated-dioxus = { git = "https://github.com/stayhydated/shared", rev = "4e50ee5e757dbfc2fc38f2e459d76bcce3827b4e" }
+stayhydated-site = { git = "https://github.com/stayhydated/shared", rev = "4e50ee5e757dbfc2fc38f2e459d76bcce3827b4e" }
+stayhydated-xtask = { git = "https://github.com/stayhydated/shared", rev = "4e50ee5e757dbfc2fc38f2e459d76bcce3827b4e" }
 strum = "0.28"
 syn = "2.0"
 temp-env = "0.3"
@@ -136,7 +136,7 @@ web = { path = "web" }
 web-sys = "0.3"
 
 [replace]
-"https://github.com/zed-industries/zed#gpui@0.2.2" = { git = "https://github.com/zed-industries/zed", rev = "c545fb67d0ce13e335bff76f7c08986000333f2c" }
+"https://github.com/zed-industries/zed#gpui@0.2.2" = { git = "https://github.com/zed-industries/zed", rev = "1a246efd7e1b83ab568ec5e3e6c1a43a42e1abba" }
 
 [profile.dev]
 codegen-units = 16
