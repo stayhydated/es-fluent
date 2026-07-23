@@ -28,7 +28,7 @@ This framework gives you:
 
 | Surface                                           | Version line | Runtime        |
 | :------------------------------------------------ | :----------- | :------------- |
-| `es-fluent`, CLI, embedded manager, language enum | `0.16.x`     | General Rust   |
+| `es-fluent`, CLI, embedded manager, language enum | `0.18.x`     | General Rust   |
 | `es-fluent-manager-dioxus`                        | `0.7.x`      | Dioxus `0.7.x` |
 | `es-fluent-manager-bevy`                          | `0.19.x`     | Bevy `0.19.x`  |
 
