@@ -5041,7 +5041,7 @@ dependencies = [
  "proc-macro2",
  "quote",
  "serial_test",
- "syn 2.0.119",
+ "syn 3.0.3",
  "temp-env",
  "tempfile",
  "toml 1.1.3+spec-1.1.0",
@@ -5064,7 +5064,7 @@ dependencies = [
  "quote",
  "serial_test",
  "strum 0.28.0",
- "syn 2.0.119",
+ "syn 3.0.3",
  "temp-env",
  "tempfile",
  "thiserror 2.0.19",
@@ -5083,7 +5083,7 @@ dependencies = [
  "insta",
  "proc-macro2",
  "similar 3.1.1",
- "syn 2.0.119",
+ "syn 3.0.3",
  "tempfile",
  "tracing",
 ]
@@ -5116,7 +5116,7 @@ dependencies = [
  "proc-macro2",
  "quote",
  "serial_test",
- "syn 2.0.119",
+ "syn 3.0.3",
  "temp-env",
  "tempfile",
  "unic-langid",
@@ -5212,7 +5212,7 @@ dependencies = [
  "proc-macro2",
  "quote",
  "serial_test",
- "syn 2.0.119",
+ "syn 3.0.3",
  "temp-env",
  "tempfile",
  "trybuild",
@@ -5247,7 +5247,7 @@ dependencies = [
  "quote",
  "serde",
  "strum 0.28.0",
- "syn 2.0.119",
+ "syn 3.0.3",
  "tempfile",
  "thiserror 2.0.19",
  "toml 1.1.3+spec-1.1.0",
@@ -6260,13 +6260,13 @@ dependencies = [
 [[package]]
 name = "gpui"
 version = "0.2.2"
-source = "git+https://github.com/zed-industries/zed#ac44e9f5df57a9e1a9d6deacddead974edabc8e7"
+source = "git+https://github.com/zed-industries/zed#5e1fd392f67e27fa1da91bad43eef7db1a5dec23"
 replace = "gpui 0.2.2 (git+https://github.com/zed-industries/zed?rev=1a246efd7e1b83ab568ec5e3e6c1a43a42e1abba)"
 
 [[package]]
 name = "gpui-component"
 version = "0.5.2"
-source = "git+https://github.com/longbridge/gpui-component#87103d0e73b240bdbee9ee4fe8604f92c1e9590a"
+source = "git+https://github.com/longbridge/gpui-component#88f102d13654fe25aa2fede076274b6b751a3704"
 dependencies = [
  "aho-corasick",
  "anyhow",
@@ -6314,7 +6314,7 @@ dependencies = [
 [[package]]
 name = "gpui-component-assets"
 version = "0.5.1"
-source = "git+https://github.com/longbridge/gpui-component#87103d0e73b240bdbee9ee4fe8604f92c1e9590a"
+source = "git+https://github.com/longbridge/gpui-component#88f102d13654fe25aa2fede076274b6b751a3704"
 dependencies = [
  "anyhow",
  "gpui 0.2.2 (git+https://github.com/zed-industries/zed)",
@@ -6328,7 +6328,7 @@ dependencies = [
 [[package]]
 name = "gpui-component-macros"
 version = "0.5.1"
-source = "git+https://github.com/longbridge/gpui-component#87103d0e73b240bdbee9ee4fe8604f92c1e9590a"
+source = "git+https://github.com/longbridge/gpui-component#88f102d13654fe25aa2fede076274b6b751a3704"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -6462,7 +6462,7 @@ dependencies = [
 [[package]]
 name = "gpui_macros"
 version = "0.1.0"
-source = "git+https://github.com/zed-industries/zed#ac44e9f5df57a9e1a9d6deacddead974edabc8e7"
+source = "git+https://github.com/zed-industries/zed#5e1fd392f67e27fa1da91bad43eef7db1a5dec23"
 dependencies = [
  "heck 0.5.0",
  "proc-macro2",
@@ -11809,9 +11809,9 @@ dependencies = [
 
 [[package]]
 name = "serial_test"
-version = "3.5.0"
+version = "4.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "699f4197115b8a7e7ff19c9a315a4bd6fffec26cc4626ef45ecaea389e081c6d"
+checksum = "a6df5ed973ad8d834e09f824f9e9f449af6b9a3745f78dec7cc752770bd3bf11"
 dependencies = [
  "futures-executor",
  "futures-util",
@@ -11823,13 +11823,13 @@ dependencies = [
 
 [[package]]
 name = "serial_test_derive"
-version = "3.5.0"
+version = "4.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "94e153fc76e1c6a068703d6d29c508a0b15c061c4b7e43da59cc097bc342673c"
+checksum = "a22144e767da4ddd8416dbf383700542ffd8a5dc493dfecedfe1fe3ad03c98ae"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.119",
+ "syn 3.0.3",
 ]
 
 [[package]]
