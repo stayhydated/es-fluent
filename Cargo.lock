@@ -12231,7 +12231,7 @@ checksum = "a2eb9349b6444b326872e140eb1cf5e7c522154d69e7a0ffb0fb81c06b37543f"
 [[package]]
 name = "stayhydated-dioxus"
 version = "0.1.0"
-source = "git+https://github.com/stayhydated/shared?rev=0bd510bacbed798ac361469085cd8921eaa40361#0bd510bacbed798ac361469085cd8921eaa40361"
+source = "git+https://github.com/stayhydated/shared?rev=1e2409abd29cd675c68a5c1b705a9f0b6f5d0af7#1e2409abd29cd675c68a5c1b705a9f0b6f5d0af7"
 dependencies = [
  "dioxus",
  "dioxus-free-icons",
@@ -12243,13 +12243,14 @@ dependencies = [
 [[package]]
 name = "stayhydated-dioxus-core"
 version = "0.1.0"
-source = "git+https://github.com/stayhydated/shared?rev=0bd510bacbed798ac361469085cd8921eaa40361#0bd510bacbed798ac361469085cd8921eaa40361"
+source = "git+https://github.com/stayhydated/shared?rev=1e2409abd29cd675c68a5c1b705a9f0b6f5d0af7#1e2409abd29cd675c68a5c1b705a9f0b6f5d0af7"
 dependencies = [
  "bytemuck",
  "derive_more",
  "dioxus",
  "dioxus-free-icons",
  "dioxus-primitives",
+ "stayhydated-site",
  "strum 0.28.0",
  "wasm-bindgen",
  "web-sys",
@@ -12259,16 +12260,17 @@ dependencies = [
 [[package]]
 name = "stayhydated-site"
 version = "0.1.0"
-source = "git+https://github.com/stayhydated/shared?rev=0bd510bacbed798ac361469085cd8921eaa40361#0bd510bacbed798ac361469085cd8921eaa40361"
+source = "git+https://github.com/stayhydated/shared?rev=1e2409abd29cd675c68a5c1b705a9f0b6f5d0af7#1e2409abd29cd675c68a5c1b705a9f0b6f5d0af7"
 dependencies = [
  "bon",
+ "derive_more",
  "dioxus",
 ]
 
 [[package]]
 name = "stayhydated-xtask"
 version = "0.1.0"
-source = "git+https://github.com/stayhydated/shared?rev=0bd510bacbed798ac361469085cd8921eaa40361#0bd510bacbed798ac361469085cd8921eaa40361"
+source = "git+https://github.com/stayhydated/shared?rev=1e2409abd29cd675c68a5c1b705a9f0b6f5d0af7#1e2409abd29cd675c68a5c1b705a9f0b6f5d0af7"
 dependencies = [
  "anyhow",
  "bon",
