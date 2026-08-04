@@ -1,213 +1,42 @@
+# es-fluent-manager-bevy
+
 [![Docs](https://docs.rs/es-fluent-manager-bevy/badge.svg)](https://docs.rs/es-fluent-manager-bevy/)
 [![Crates.io](https://img.shields.io/crates/v/es-fluent-manager-bevy.svg)](https://crates.io/crates/es-fluent-manager-bevy)
 
-# es-fluent-manager-bevy
+Typed localization for Bevy `0.19.x`. The plugin loads configured FTL
+resources, updates `FluentText<T>` components when the locale changes,
+and exposes `BevyI18n` for direct localization in systems.
 
-[online demo](https://stayhydated.github.io/es-fluent/bevy-example/)
+~~~toml
+[dependencies]
+bevy = "0.19"
+es-fluent = "*"
+es-fluent-manager-bevy = "*"
+~~~
 
-Seamless [Bevy](https://bevyengine.org/) integration for `es-fluent`.
+Register package resources from a library module:
 
-This plugin connects `es-fluent`'s type-safe localization with Bevy's ECS and
-Asset system. Use `#[derive(EsFluent)]` for typed messages, wrap them in
-`FluentText<T>` for UI text, and derive `BevyFluentText` on message types used
-with `FluentText<T>` to register automatic updates when the app/game's language
-changes.
-
-| `es-fluent-manager-bevy` | `bevy`   |
-| :----------------------- | :------- |
-| **crates.io**            |          |
-| `0.19.x`                 | `0.19.x` |
-
-## Features
-
-- **Owner Resources**: Registers generated module resources from the crate that owns the localization domain as Bevy embedded assets.
-- **Asset Loading**: Custom metadata-only registrations can still load `.ftl` files via Bevy's `AssetServer`.
-- **Hot Reloading**: Supports hot-reloading for resources loaded through Bevy's asset pipeline during development.
-- **Reactive UI**: The `FluentText` component automatically refreshes text when the locale changes.
-- **Bevy-native Context**: Systems can request `BevyI18n` as a `SystemParam` for direct localization.
-- **Explicit Context**: Localization uses Bevy resources and `BevyI18n` system params.
-- **Composable Scheduling**: Runtime and text-refresh systems are labeled with `I18nSet` for normal Bevy ordering.
-
-## Quick Start
-
-### 1. Define the Module
-
-Prefer a library-reachable module, usually `src/i18n.rs` declared from
-`src/lib.rs`, so `cargo es-fluent generate` can discover localizable types from
-the library target:
-
-```rs
-// a i18n.toml file must exist in the root of the crate
+~~~rust
 es_fluent_manager_bevy::define_i18n_module!();
-```
+~~~
 
-Putting the module macro only in `src/main.rs` is runtime-only. It is safe only
-when derived message types are still reachable from a library target, or when
-you accept that binary-only derived types are not discovered by the CLI.
+Install the plugin:
 
-### 2. Initialize & Use
-
-Add the plugin to your `App`:
-
-```rs
+~~~rust
 use bevy::prelude::*;
 use es_fluent_manager_bevy::I18nPlugin;
 use unic_langid::langid;
 
-fn main() {
-    App::new()
-        .add_plugins(DefaultPlugins)
-        .add_plugins(I18nPlugin::with_language(langid!("en")))
-        .run();
-}
-```
+App::new()
+    .add_plugins(DefaultPlugins)
+    .add_plugins(I18nPlugin::with_language(langid!("en")))
+    .run();
+~~~
 
-Generated Bevy module registrations register the owning crate's `.ftl` files
-from that crate's configured `assets_dir` as Bevy embedded assets; consuming
-apps should not copy dependency-owned domain files into their own asset tree.
-`asset_path` is only used for custom metadata-only registrations that do not
-provide owner embedded assets.
-If your Bevy asset root is `assets` but those custom resources live in
-`assets/i18n`, configure the path explicitly:
+Derive `BevyFluentText` for values used directly as
+`FluentText<T>`. Use `#[locale]` on named fields that must
+refresh from the requested locale, and use `I18nSet` when application
+systems need explicit ordering around localization phases.
 
-```rs
-use es_fluent_manager_bevy::{I18nPlugin, I18nPluginConfig};
-
-app.add_plugins(I18nPlugin::with_config(
-    I18nPluginConfig::new(langid!("en")).with_asset_path("i18n"),
-));
-```
-
-### Advanced behavior
-
-Plugin startup uses strict module discovery, so invalid or duplicate
-registrations are reported through `I18nPluginStartupError`. When setup fails,
-the plugin skips localization runtime setup and leaves the error resource in the
-app world for diagnostics. Failed hot reloads or locale switches keep the last
-accepted locale active. A failed hot reload records diagnostics but keeps the
-previous ready cache selectable until a later rebuild succeeds.
-
-Generated message lookup is domain-scoped. If separate domains define the same
-message ID, Bevy keeps typed domain-scoped lookup available and leaves raw
-unscoped lookup unavailable for the ambiguous merged locale.
-
-Locales with only optional resources, or with missing optional resources, are
-treated as ready and publish an empty Bevy cache.
-
-Use `RequestedLanguageId` to read the latest user intent and `ActiveLanguageId`
-to read the currently published locale. `LocaleChangedEvent` refers to
-`ActiveLanguageId`, not merely the latest request. When a requested locale
-falls back to a resolved locale, Bevy publishes the requested locale for change
-events and ECS resources while using the resolved locale for ready bundle
-lookup. Runtime fallback managers are best-effort: Bevy asks them to select the
-requested locale first, then the resolved locale, but rejection does not block
-Bevy resource-backed locale publication. Metadata-only Bevy registrations
-create Bevy resource availability either from owner-provided embedded asset
-handles or, for custom registrations, Bevy asset handles. Runtime localizer
-registrations are reserved for the fallback manager and do not make a locale
-wait on Bevy resource bundles.
-When attached, runtime fallback selection tells `FluentManager` that Bevy assets
-have already proved application locale support, so follower-only utility modules
-such as `es-fluent-lang` can be committed without making runtime-only locales
-selectable. Generated embedded localizers are fallback-aware, while custom
-runtime localizers should implement parent-locale fallback in
-`select_language(...)` when they need it. Runtime fallback managers are attached
-whenever runtime modules are discovered, even if they reject the startup locale.
-A startup rejection leaves runtime localizers unselected until a later accepted
-locale switch. Runtime fallback managers are used only after Bevy resolves a
-locale through asset or ready-bundle availability during startup or a later
-`LocaleChangeEvent`; runtime-only locales do not by themselves make a Bevy
-locale switch selectable.
-
-For direct localization inside a system, request `BevyI18n` like any other
-Bevy system parameter:
-
-```rs
-use es_fluent::FluentLabel as _;
-use es_fluent_manager_bevy::BevyI18n;
-
-fn update_title(i18n: BevyI18n) {
-    let title = i18n.localize_message(&UiMessage::Settings);
-    // `SettingsPanel` is any type that derives `EsFluentLabel`.
-    let section_title = SettingsPanel::localize_label(&i18n);
-    // apply `title` to your Bevy UI, window, or gameplay state
-    // use `section_title` for an `EsFluentLabel` type label
-}
-```
-
-### Schedule Ordering
-
-`I18nPlugin` labels its systems with `I18nSet` so app systems can use Bevy's
-standard `.before(...)` and `.after(...)` ordering APIs. `AssetWatch`,
-`AssetLoading`, `BundleRebuild`, `LocaleChange`, and `LocaleSync` run in
-`Update`. `TextUpdate` runs in `PostUpdate` after locale-aware `FluentText`
-values have refreshed and Bevy `Text` components have been written.
-
-```rs
-use bevy::prelude::*;
-use es_fluent_manager_bevy::I18nSet;
-
-fn persist_locale_choice() {}
-fn sync_window_title() {}
-
-app.add_systems(Update, persist_locale_choice.after(I18nSet::LocaleSync));
-app.add_systems(PostUpdate, sync_window_title.after(I18nSet::TextUpdate));
-```
-
-### 3. Define Localizable Components (Recommended)
-
-Prefer the `BevyFluentText` derive macro. It auto-registers your type with
-`I18nPlugin` via inventory, so you don't have to call any registration functions
-manually.
-
-If a field depends on the active locale (like the `Languages` enum from
-[es_fluent_lang](../es-fluent-lang/README.md)), mark it with `#[locale]`. The
-macro will generate `RefreshForLocale` and register the locale-aware systems for
-you.
-`#[locale]` is supported on named struct fields and named enum variant fields,
-and multiple named fields in the same variant refresh together. Each
-`#[locale]` field type must implement `TryFrom<&LanguageIdentifier>`.
-
-`RefreshForLocale` receives the originally requested locale, not the fallback
-resource locale. For example, if `en-GB` falls back to `en` assets, locale-aware
-fields still refresh with `en-GB`.
-
-```rs
-use bevy::prelude::Component;
-use es_fluent::EsFluent;
-use es_fluent_manager_bevy::BevyFluentText;
-
-#[derive(BevyFluentText, Clone, Component, EsFluent)]
-pub enum UiMessage {
-    StartGame,
-    Settings,
-    LanguageHint {
-        #[locale]
-        current_language: Languages,
-    },
-}
-```
-
-### 4. Using in UI
-
-Use the `FluentText` component wrapper for any type that implements
-`FluentMessage` (which `#[derive(EsFluent)]` provides).
-
-```rs
-use es_fluent_manager_bevy::FluentText;
-
-fn spawn_menu(mut commands: Commands) {
-    commands.spawn((
-        FluentText::new(UiMessage::StartGame),
-        Text::new(""),
-    ));
-}
-```
-
-### Manual Registration
-
-If you cannot derive `BevyFluentText` (for example, for external types), register manually:
-
-```rs
-app.register_fluent_text::<UiMessage>();
-```
+See the [Bevy manager guide](https://stayhydated.github.io/es-fluent/book/manager_bevy.html)
+for UI components, system parameters, locale state, and scheduling.

@@ -1,91 +1,42 @@
+# es-fluent-lang
+
 [![Docs](https://docs.rs/es-fluent-lang/badge.svg)](https://docs.rs/es-fluent-lang/)
 [![Crates.io](https://img.shields.io/crates/v/es-fluent-lang.svg)](https://crates.io/crates/es-fluent-lang)
 
-# es-fluent-lang
+Typed locale enums and localized language labels for `es-fluent`
+applications.
 
-Runtime support for `es-fluent` language management.
+~~~toml
+[dependencies]
+es-fluent-lang = "*"
+strum = { version = "0.28", features = ["derive"] }
+~~~
 
-This crate provides the core language types (re-exporting `unic-langid`) and the optional "Language Enum" generator macro.
+Annotate an empty enum:
 
-## Features
-
-### `#[es_fluent_language]`
-
-Generates a strongly-typed enum of all available languages in your project. It automatically scans your `i18n.toml` assets directory to find supported locales.
-
-```rs
+~~~rust
 use es_fluent_lang::es_fluent_language;
 use strum::EnumIter;
 
-// Define an empty enum, and the macro fills it
 #[es_fluent_language]
 #[derive(EnumIter)]
 pub enum Languages {}
-```
+~~~
 
-The macro derives `Clone`, `Copy`, `Debug`, `Eq`, `Hash`, and `PartialEq`
-automatically. Add derives such as `EnumIter` only when your application needs
-them.
+The macro reads canonical locale directories from `i18n.toml`,
+includes the fallback locale, and implements conversions to and from
+`LanguageIdentifier`. It also implements `FluentMessage` so
+the active manager can render language-picker labels:
 
-If your `assets_dir` contains the same locales as the executable README example
-(`en`, `fr-FR`, and `zh-CN`), this generates:
-
-```rs
-pub enum Languages {
-    En,
-    FrFr,
-    ZhCn,
-}
-```
-
-It also implements:
-
-- `Default`: Uses the `fallback_language` from your config.
-- `FromStr`: Parses string codes (e.g., "en", "fr-FR", or "zh-CN") into the enum variant.
-- `TryFrom<&LanguageIdentifier>` / `TryFrom<LanguageIdentifier>`: Converts from a locale ID and returns an error for unsupported locales.
-- `Into<LanguageIdentifier>`: Converts back to a standard locale ID.
-- `FluentMessage`: Renders labels through a manager with `localize_message(...)`.
-
-For user-facing labels, call manager-backed `localize_message(...)` instead of
-relying on `Display`.
-
-If you want to provide your own language-name translations, use
-`#[es_fluent_language(custom)]`. Custom mode skips the built-in
-`es-fluent-lang` runtime hook and registers the enum with inventory so your own
-FTL resources can provide the labels.
-
-### Feature Flags
-
-- `macros` (default): Enables the `#[es_fluent_language]` macro.
-- `localized-langs`: Format language names in the currently selected UI language instead of as autonyms.
-
-## Standard Translations
-
-The crate also includes a built-in module for translating language names themselves (e.g., "English", "Français", "Deutsch"). This means you can easily build a "Language Picker" UI without manually translating the names of every language.
-
-By default, labels are formatted directly from ICU4X display-name data as autonyms, so `i18n.localize_message(&Languages::FrFr)` resolves to `français` and `i18n.localize_message(&Languages::ZhCn)` resolves to `中文`. With the `localized-langs` feature, the same ICU4X data is formatted in the currently selected UI language instead, so selecting English yields labels like `French` and `Chinese`.
-
-For a language picker, iterate your generated enum, render each label through
-the active manager, and pass the selected variant back to the manager:
-
-```rs
-use es_fluent::FluentMessage as _;
-use strum::IntoEnumIterator as _;
-
+~~~rust,ignore
 for language in Languages::iter() {
-    let label = i18n.localize_message(&language);
-    println!("{language:?}: {label}");
+    println!("{}", i18n.localize_message(&language));
 }
+~~~
 
-i18n.select_language(Languages::FrFr)?;
-```
+Labels are autonyms by default. Enable `localized-langs` to render
+them in the selected UI language. Use
+`#[es_fluent_language(custom)]` when the application ships its own FTL
+labels.
 
-The runtime resolves fallback locales through the shared ICU4X/CLDR fallback chain when a display locale is missing exact display-name data. If you need fully custom labels for project-specific or unsupported locale tags, use `#[es_fluent_language(custom)]` and ship your own translations.
-
-The built-in language-name module follows successful manager locale switches
-but does not count as application content support. A manager still reports an
-unsupported locale when no application translation module can serve it.
-
-For `wasm32` builds, default `#[es_fluent_language]` enums emit a small
-force-link keepalive hook so the built-in language-name module is retained
-across managers, including Dioxus and Bevy.
+See [Build a language picker](https://stayhydated.github.io/es-fluent/book/language_enum.html).

@@ -1,6 +1,6 @@
 #![cfg(all(feature = "derive", feature = "icu-datetime"))]
 
-use es_fluent::registry::{StaticFluentDomain, StaticFluentEntryId};
+use es_fluent::registry::StaticFluentMessageKey;
 use es_fluent::{EsFluent, FluentArgs, FluentMessage, FluentValue};
 use icu_calendar::{Date, Gregorian};
 use icu_time::zone::{TimeZoneInfo, models::AtTime};
@@ -26,9 +26,7 @@ fn render_args(message: &impl FluentMessage) -> HashMap<String, String> {
     let mut rendered = HashMap::new();
     let intls = intl_memoizer::IntlLangMemoizer::new("en-US".parse().unwrap());
     message.to_fluent_string_with(
-        &mut |_domain: StaticFluentDomain,
-              _id: StaticFluentEntryId,
-              args: Option<&FluentArgs<'_>>| {
+        &mut |_key: StaticFluentMessageKey, args: Option<&FluentArgs<'_>>| {
             for (name, value) in args.expect("ICU4X message arguments").as_raw() {
                 let value = match value {
                     FluentValue::Custom(value) => value.as_string(&intls).into_owned(),

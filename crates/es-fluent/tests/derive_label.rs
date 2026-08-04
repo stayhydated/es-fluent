@@ -1,67 +1,28 @@
 #![cfg(feature = "derive")]
 
-use es_fluent::__private::FluentLocalizerExt as _;
 use es_fluent::meta::TypeKind;
-use es_fluent::registry::{NamespaceRule, StaticFluentDomain, StaticFluentEntryId};
+use es_fluent::registry::{NamespaceRule, StaticFluentMessageKey};
 use es_fluent::{
     EsFluent, EsFluentLabel, EsFluentVariants, FluentArgs, FluentLabel as _, FluentLocalizer,
 };
 
 struct IdLocalizer;
-struct DomainEchoLocalizer;
 struct MissingLocalizer;
 
 impl FluentLocalizer for IdLocalizer {
     fn localize<'a>(
         &self,
-        id: StaticFluentEntryId,
+        key: StaticFluentMessageKey,
         _args: Option<&FluentArgs<'a>>,
     ) -> Option<String> {
-        Some(id.as_str().to_string())
-    }
-
-    fn localize_in_domain<'a>(
-        &self,
-        _domain: StaticFluentDomain,
-        id: StaticFluentEntryId,
-        _args: Option<&FluentArgs<'a>>,
-    ) -> Option<String> {
-        Some(id.as_str().to_string())
-    }
-}
-
-impl FluentLocalizer for DomainEchoLocalizer {
-    fn localize<'a>(
-        &self,
-        id: StaticFluentEntryId,
-        _args: Option<&FluentArgs<'a>>,
-    ) -> Option<String> {
-        Some(format!("default:{id}"))
-    }
-
-    fn localize_in_domain<'a>(
-        &self,
-        domain: StaticFluentDomain,
-        id: StaticFluentEntryId,
-        _args: Option<&FluentArgs<'a>>,
-    ) -> Option<String> {
-        Some(format!("{domain}:{id}"))
+        Some(key.id().as_str().to_string())
     }
 }
 
 impl FluentLocalizer for MissingLocalizer {
     fn localize<'a>(
         &self,
-        _id: StaticFluentEntryId,
-        _args: Option<&FluentArgs<'a>>,
-    ) -> Option<String> {
-        None
-    }
-
-    fn localize_in_domain<'a>(
-        &self,
-        _domain: StaticFluentDomain,
-        _id: StaticFluentEntryId,
+        _key: StaticFluentMessageKey,
         _args: Option<&FluentArgs<'a>>,
     ) -> Option<String> {
         None
@@ -113,18 +74,18 @@ struct TestSharedNamespace {
     field: String,
 }
 
-#[derive(EsFluent, EsFluentLabel, EsFluentVariants)]
-#[fluent(domain = "custom-domain", namespace = "custom_ns")]
-#[allow(dead_code)]
-enum TestCustomDomain {
-    Ready,
-}
-
 #[test]
 fn test_derive_label_struct() {
     // Basic FluentLabel on struct
-    assert_eq!(TestStruct::fluent_label_domain(), env!("CARGO_PKG_NAME"));
-    assert_eq!(TestStruct::fluent_label_id(), "test_struct_label");
+    assert_eq!(
+        TestStruct::fluent_label_key().owner(),
+        env!("CARGO_PKG_NAME")
+    );
+    assert_eq!(
+        TestStruct::fluent_label_key().domain(),
+        env!("CARGO_PKG_NAME")
+    );
+    assert_eq!(TestStruct::fluent_label_key().id(), "test_struct_label");
     assert_eq!(
         TestStruct::try_localize_label(&IdLocalizer),
         Some("test_struct_label".to_string())
@@ -248,31 +209,5 @@ fn test_derive_label_and_variants_share_fluent_namespace() {
         infos
             .iter()
             .all(|info| matches!(info.namespace(), Some(NamespaceRule::Literal(namespace)) if namespace == "shared_ns"))
-    );
-}
-
-#[test]
-fn test_derive_label_and_variants_share_fluent_domain() {
-    assert_eq!(TestCustomDomain::fluent_label_domain(), "custom-domain");
-    assert_eq!(
-        TestCustomDomainVariants::fluent_label_domain(),
-        "custom-domain"
-    );
-
-    assert_eq!(
-        TestCustomDomain::localize_label(&DomainEchoLocalizer),
-        "custom-domain:test_custom_domain_label"
-    );
-    assert_eq!(
-        TestCustomDomainVariants::localize_label(&DomainEchoLocalizer),
-        "custom-domain:test_custom_domain_variants_label"
-    );
-    assert_eq!(
-        DomainEchoLocalizer.localize_message(&TestCustomDomain::Ready),
-        "custom-domain:test_custom_domain-Ready"
-    );
-    assert_eq!(
-        DomainEchoLocalizer.localize_message(&TestCustomDomainVariants::Ready),
-        "custom-domain:test_custom_domain_variants-Ready"
     );
 }

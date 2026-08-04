@@ -201,8 +201,11 @@ mod tests {
             localize: &mut es_fluent::FluentMessageLookup<'_>,
         ) -> String {
             localize(
-                es_fluent::registry::__macro::static_domain("registration-test"),
-                es_fluent::registry::__macro::static_entry_id("refreshable"),
+                es_fluent::registry::__macro::static_message_key(
+                    "registration-test",
+                    es_fluent::registry::__macro::static_domain("registration-test"),
+                    es_fluent::registry::__macro::static_entry_id("refreshable"),
+                ),
                 None,
             )
         }
@@ -248,8 +251,7 @@ mod tests {
         let mut app = App::new();
         let mut message = RefreshableMessage;
         let mut localize =
-            |_domain: es_fluent::registry::StaticFluentDomain,
-             _id: es_fluent::registry::StaticFluentEntryId,
+            |_key: es_fluent::registry::StaticFluentMessageKey,
              _args: Option<&es_fluent::FluentArgs<'_>>| { "unused".to_string() };
 
         message.refresh_for_locale(&langid!("en-US"));
@@ -273,7 +275,7 @@ mod tests {
         app.insert_resource(crate::I18nResource::new(en.clone()));
         app.insert_resource(crate::RequestedLanguageId(en.clone()));
         app.insert_resource(crate::ActiveLanguageId(en));
-        app.insert_resource(crate::I18nBundle::default());
+        app.insert_resource(crate::I18nReadyLocales::default());
         app.insert_resource(crate::I18nDomainBundles::default());
         app.add_message::<LocaleChangedEvent>();
         app.register_fluent_text_from_locale::<PlainMessage>();
@@ -302,7 +304,7 @@ mod tests {
         app.insert_resource(crate::I18nResource::new(en.clone()));
         app.insert_resource(crate::RequestedLanguageId(en.clone()));
         app.insert_resource(crate::ActiveLanguageId(en));
-        app.insert_resource(crate::I18nBundle::default());
+        app.insert_resource(crate::I18nReadyLocales::default());
         app.insert_resource(crate::I18nDomainBundles::default());
         app.insert_resource(TextAfterI18nSet::default());
         app.add_message::<LocaleChangedEvent>();

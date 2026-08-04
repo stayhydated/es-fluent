@@ -123,8 +123,8 @@ pub struct DuplicateKeyError {
     #[source_code]
     pub src: NamedSource<String>,
 
-    /// The span where the duplicate message is defined.
-    #[label("duplicate message id '{key}'")]
+    /// The span where the duplicate Fluent entry is defined.
+    #[label("duplicate Fluent entry id '{key}'")]
     pub span: SourceSpan,
 
     /// The duplicate key.

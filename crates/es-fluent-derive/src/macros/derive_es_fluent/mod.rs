@@ -78,10 +78,14 @@ mod tests {
         .expect("write TOML fixture");
     }
 
-    fn i18n_config(namespaces: &[&str]) -> Value {
+    fn i18n_config(namespaces: &[&str], domains: &[&str]) -> Value {
         Value::Table(table([
             ("fallback_language", string_value("en-US")),
             ("assets_dir", string_value("i18n")),
+            (
+                "domains",
+                Value::Array(domains.iter().copied().map(string_value).collect()),
+            ),
             (
                 "namespaces",
                 Value::Array(namespaces.iter().copied().map(string_value).collect()),
@@ -93,7 +97,10 @@ mod tests {
         let temp_dir = TempDir::new().expect("create temp manifest dir");
         let manifest_dir = temp_dir.path();
 
-        write_toml(&manifest_dir.join("i18n.toml"), &i18n_config(namespaces));
+        write_toml(
+            &manifest_dir.join("i18n.toml"),
+            &i18n_config(namespaces, &[]),
+        );
 
         let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
             temp_env::with_var("CARGO_MANIFEST_DIR", Some(&manifest_dir), f)
@@ -275,19 +282,23 @@ mod tests {
 
     #[test]
     #[cfg_attr(not(target_os = "linux"), ignore = "insta snapshots are Linux-only")]
-    fn expand_es_fluent_uses_explicit_domain_override_for_enum_lookup() {
+    #[serial_test::serial(manifest)]
+    fn expand_es_fluent_uses_explicit_domain_for_generated_inventory() {
         let enum_input: syn::DeriveInput = parse_quote! {
-            #[fluent(id = "es-fluent-lang", domain = "es-fluent-lang")]
-            enum Languages {
-                #[fluent(key = "en")]
-                En,
+            #[fluent(domain = "ui")]
+            enum UiGreeting {
+                Greeting,
             }
         };
 
-        let tokens =
-            crate::snapshot_support::pretty_file_tokens(super::expand_es_fluent(enum_input));
+        let tokens = crate::snapshot_support::with_i18n_domains(&["ui"], || {
+            crate::snapshot_support::pretty_file_tokens(super::expand_es_fluent(enum_input))
+        });
+        assert!(tokens.contains("\"ui\""), "{tokens}");
+        assert!(tokens.contains("\"ui_greeting-Greeting\""), "{tokens}");
+        assert!(tokens.contains("RegisteredFtlType"));
         assert_snapshot!(
-            "expand_es_fluent_uses_explicit_domain_override_for_enum_lookup",
+            "expand_es_fluent_uses_explicit_domain_for_generated_inventory",
             tokens
         );
     }

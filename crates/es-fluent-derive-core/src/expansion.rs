@@ -229,6 +229,7 @@ fn inferred_choice_config(
 pub struct EsFluentStructExpansion {
     ident: syn::Ident,
     generics: syn::Generics,
+    domain: Option<crate::semantic::DomainName>,
     fields: Vec<EsFluentStructField>,
     message_entry: MessageEntryModel,
     message_model: MessageModel,
@@ -240,6 +241,7 @@ impl EsFluentStructExpansion {
         let container_context = ContainerContext::from_struct_options(opts);
         validation::validate_struct(opts)?;
         validate_container_namespace(&container_context, opts.ident().span())?;
+        validate_container_domain(&container_context, opts.ident().span())?;
 
         let model = lowered::MessageStructModel::from_options(opts)?;
         let fields = model
@@ -273,7 +275,7 @@ impl EsFluentStructExpansion {
         let message_model = MessageModel::new(
             RustTypeName::from_ident(container_context.source_ident()),
             TypeKind::Struct,
-            None,
+            container_context.fluent_domain().cloned(),
             container_context
                 .fluent_namespace()
                 .map(SpannedNamespaceRule::rule)
@@ -285,6 +287,7 @@ impl EsFluentStructExpansion {
         Ok(Self {
             ident: container_context.source_ident().clone(),
             generics: container_context.generics().clone(),
+            domain: container_context.fluent_domain().cloned(),
             fields,
             message_entry,
             message_model,
@@ -299,6 +302,11 @@ impl EsFluentStructExpansion {
     /// The source struct generics.
     pub fn generics(&self) -> &syn::Generics {
         &self.generics
+    }
+
+    /// Optional explicit package-local Fluent domain.
+    pub fn domain(&self) -> Option<&crate::semantic::DomainName> {
+        self.domain.as_ref()
     }
 
     /// Runtime field bindings and argument metadata.
@@ -372,6 +380,7 @@ impl EsFluentEnumExpansion {
         let container_context = ContainerContext::from_enum_options(opts);
         validation::validate_enum(opts)?;
         validate_container_namespace(&container_context, opts.ident().span())?;
+        validate_container_domain(&container_context, opts.ident().span())?;
 
         let model = lowered::MessageEnumModel::from_options(opts)?;
         let domain = container_context.fluent_domain().cloned();
@@ -698,6 +707,25 @@ fn validate_container_namespace(
     )
 }
 
+fn validate_container_domain(
+    container_context: &ContainerContext,
+    fallback_span: proc_macro2::Span,
+) -> Result<(), EsFluentCoreError> {
+    let Some(domain) = container_context.fluent_domain() else {
+        return Ok(());
+    };
+
+    validation::validate_domain(
+        domain,
+        Some(
+            container_context
+                .fluent_domain_with_span()
+                .map(crate::semantic::SpannedValue::span)
+                .unwrap_or(fallback_span),
+        ),
+    )
+}
+
 /// Validated data needed to emit an `EsFluentChoice` implementation.
 #[derive(Clone, Debug)]
 pub struct EsFluentChoiceExpansion {
@@ -760,6 +788,7 @@ impl EsFluentLabelExpansion {
         let validated = ValidatedDeriveInput::for_es_fluent_label(input)?;
         let opts = LabelOpts::from_derive_input(validated.input())?;
         let container_context = ContainerContext::from_envelope(validated.required_envelope()?);
+        validate_container_domain(&container_context, input.ident.span())?;
         let model = lowered::LabelModel::from_options(&opts)?;
 
         let original_ident = model.ident();
@@ -897,6 +926,7 @@ impl EsFluentVariantsExpansion {
         let input = validated.input();
         let label_opts = LabelOpts::from_derive_input(input)?;
         let container_context = ContainerContext::from_envelope(validated.required_envelope()?);
+        validate_container_domain(&container_context, input.ident.span())?;
 
         match &input.data {
             Data::Struct(_) => {
@@ -1283,6 +1313,7 @@ fn validate_namespace(
 }
 
 #[cfg(test)]
+#[serial_test::serial(manifest)]
 mod tests {
     use super::{
         EsFluentChoiceExpansion, EsFluentExpansion, EsFluentLabelExpansion, EsFluentMessageVariant,
@@ -1291,6 +1322,24 @@ mod tests {
     use crate::expansion::DeriveFamily;
     use es_fluent_shared::namespace::NamespaceRule;
     use syn::parse_quote;
+
+    fn with_i18n_domains<T>(domains: &[&str], f: impl FnOnce() -> T) -> T {
+        let temp_dir = tempfile::TempDir::new().expect("create temporary manifest directory");
+        let domains = domains
+            .iter()
+            .map(|domain| format!("\"{domain}\""))
+            .collect::<Vec<_>>()
+            .join(", ");
+        std::fs::write(
+            temp_dir.path().join("i18n.toml"),
+            format!(
+                "fallback_language = \"en-US\"\nassets_dir = \"i18n\"\ndomains = [{domains}]\nnamespaces = [\"errors\", \"languages\"]\n"
+            ),
+        )
+        .expect("write i18n.toml");
+
+        temp_env::with_var("CARGO_MANIFEST_DIR", Some(temp_dir.path()), f)
+    }
 
     #[test]
     fn validated_input_covers_es_fluent_boundary() {
@@ -1478,9 +1527,10 @@ mod tests {
             }
         };
 
-        let EsFluentExpansion::Enum(expansion) =
+        let expansion = with_i18n_domains(&["auth"], || {
             EsFluentExpansion::from_derive_input(&input).expect("enum expansion")
-        else {
+        });
+        let EsFluentExpansion::Enum(expansion) = expansion else {
             panic!("expected enum expansion");
         };
 
@@ -1546,6 +1596,32 @@ mod tests {
                 .message_id()
                 .as_str(),
             "login_form_label"
+        );
+    }
+
+    #[test]
+    fn explicit_domain_is_retained_for_generated_ftl() {
+        let input: syn::DeriveInput = parse_quote! {
+            #[fluent(domain = "ui")]
+            enum UiMessage {
+                Ready,
+            }
+        };
+        let expansion = with_i18n_domains(&["ui"], || {
+            EsFluentExpansion::from_derive_input(&input).expect("explicit domain should compile")
+        });
+        let EsFluentExpansion::Enum(expansion) = expansion else {
+            panic!("expected enum expansion");
+        };
+
+        assert_eq!(expansion.domain().expect("domain").as_str(), "ui");
+        assert_eq!(
+            expansion
+                .message_model()
+                .domain()
+                .expect("inventory domain")
+                .as_str(),
+            "ui"
         );
     }
 
@@ -1669,15 +1745,20 @@ mod tests {
     #[test]
     fn variants_expansion_builds_enum_label_key_and_domain() {
         let input: syn::DeriveInput = parse_quote! {
-            #[fluent(domain = "es-fluent-lang", namespace = "languages")]
+            #[fluent(
+                domain = "es-fluent-lang",
+                namespace = "languages"
+            )]
             enum Language {
                 English,
                 French,
             }
         };
 
-        let expansion = EsFluentVariantsExpansion::from_derive_input(&input)
-            .expect("variants expansion should build");
+        let expansion = with_i18n_domains(&["es-fluent-lang"], || {
+            EsFluentVariantsExpansion::from_derive_input(&input)
+                .expect("variants expansion should build")
+        });
         let target = expansion.targets().first().expect("target");
 
         assert_eq!(

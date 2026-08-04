@@ -20,7 +20,7 @@ use std::thread;
 use std::time::{Duration, Instant};
 use toml::{Value, map::Map as TomlMap};
 
-const RUNNER_LOCK_DIR: &str = ".runner-lock";
+const RUNNER_LOCK_FILE: &str = ".runner-lock";
 const RUNNER_LOCK_TIMEOUT: Duration = Duration::from_secs(120);
 const RUNNER_LOCK_POLL: Duration = Duration::from_millis(50);
 
@@ -68,6 +68,7 @@ impl<'a> MonolithicRunner<'a> {
 
         if let Some(cache) = RunnerCache::load(self.temp_store.base_dir()) {
             if cache.cli_version != CLI_VERSION
+                || cache.runner_protocol_version != es_fluent_runner::RUNNER_PROTOCOL_VERSION
                 || cache.workspace_inputs_hash != workspace_inputs_hash
             {
                 return true;
@@ -102,12 +103,12 @@ impl<'a> MonolithicRunner<'a> {
 /// directory is intentionally cached, so concurrent processes otherwise race by
 /// rewriting `.es-fluent/Cargo.toml` and `src/main.rs` for different crate sets.
 pub struct MonolithicRunnerLock {
-    lock_dir: PathBuf,
+    lock_file: std::fs::File,
 }
 
 impl Drop for MonolithicRunnerLock {
     fn drop(&mut self) {
-        let _ = fs::remove_dir(&self.lock_dir);
+        let _ = std::fs::File::unlock(&self.lock_file);
     }
 }
 
@@ -116,80 +117,58 @@ pub fn acquire_monolithic_runner_lock(workspace_root: &Path) -> Result<Monolithi
     validate_runner_temp_dir(temp_store.base_dir())?;
     fs::create_dir_all(temp_store.base_dir()).context("Failed to create .es-fluent directory")?;
 
-    let lock_dir = temp_store.base_dir().join(RUNNER_LOCK_DIR);
+    let lock_path = temp_store.base_dir().join(RUNNER_LOCK_FILE);
+    validate_runner_lock_path(&lock_path)?;
+    let lock_file = std::fs::OpenOptions::new()
+        .read(true)
+        .write(true)
+        .create(true)
+        .truncate(false)
+        .open(&lock_path)
+        .with_context(|| {
+            format!(
+                "Failed to open .es-fluent runner lock {}",
+                lock_path.display()
+            )
+        })?;
     let start = Instant::now();
 
     loop {
-        match fs::create_dir(&lock_dir) {
-            Ok(()) => return Ok(MonolithicRunnerLock { lock_dir }),
-            Err(error) => {
-                if !is_runner_lock_contention(&error, &lock_dir)? {
-                    return Err(error).with_context(|| {
-                        format!(
-                            "Failed to acquire .es-fluent runner lock {}",
-                            lock_dir.display()
-                        )
-                    });
-                }
-
+        match lock_file.try_lock() {
+            Ok(()) => return Ok(MonolithicRunnerLock { lock_file }),
+            Err(std::fs::TryLockError::WouldBlock) => {
                 if start.elapsed() >= RUNNER_LOCK_TIMEOUT {
                     bail!(
                         "Timed out waiting for .es-fluent runner lock: {}",
-                        lock_dir.display()
+                        lock_path.display()
                     );
                 }
                 thread::sleep(RUNNER_LOCK_POLL);
+            },
+            Err(std::fs::TryLockError::Error(error)) => {
+                return Err(error).with_context(|| {
+                    format!(
+                        "Failed to acquire .es-fluent runner lock {}",
+                        lock_path.display()
+                    )
+                });
             },
         }
     }
 }
 
-fn is_runner_lock_contention(error: &std::io::Error, lock_dir: &Path) -> Result<bool> {
-    if error.kind() == std::io::ErrorKind::AlreadyExists {
-        validate_existing_runner_lock(lock_dir)?;
-        return Ok(true);
-    }
-
-    if !cfg!(windows) || error.kind() != std::io::ErrorKind::PermissionDenied {
-        return Ok(false);
-    }
-
-    match fs::symlink_metadata(lock_dir) {
+fn validate_runner_lock_path(lock_path: &Path) -> Result<()> {
+    match fs::symlink_metadata(lock_path) {
         Ok(metadata) if metadata.file_type().is_symlink() => {
             bail!(
-                ".es-fluent runner lock must be a real directory, not a symlink: {}",
-                lock_dir.display()
+                ".es-fluent runner lock must be a regular file, not a symlink: {}",
+                lock_path.display()
             );
         },
-        Ok(metadata) if !metadata.is_dir() => {
+        Ok(metadata) if !metadata.is_file() => {
             bail!(
-                ".es-fluent runner lock exists but is not a directory: {}",
-                lock_dir.display()
-            );
-        },
-        Ok(_) => Ok(true),
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(false),
-        Err(error) => Err(error).with_context(|| {
-            format!(
-                "Failed to inspect .es-fluent runner lock {}",
-                lock_dir.display()
-            )
-        }),
-    }
-}
-
-fn validate_existing_runner_lock(lock_dir: &Path) -> Result<()> {
-    match fs::symlink_metadata(lock_dir) {
-        Ok(metadata) if metadata.file_type().is_symlink() => {
-            bail!(
-                ".es-fluent runner lock must be a real directory, not a symlink: {}",
-                lock_dir.display()
-            );
-        },
-        Ok(metadata) if !metadata.is_dir() => {
-            bail!(
-                ".es-fluent runner lock exists but is not a directory: {}",
-                lock_dir.display()
+                ".es-fluent runner lock path is not a regular file: {}. Remove it after confirming no es-fluent command is running",
+                lock_path.display()
             );
         },
         Ok(_) => Ok(()),
@@ -197,7 +176,7 @@ fn validate_existing_runner_lock(lock_dir: &Path) -> Result<()> {
         Err(error) => Err(error).with_context(|| {
             format!(
                 "Failed to inspect .es-fluent runner lock {}",
-                lock_dir.display()
+                lock_path.display()
             )
         }),
     }
@@ -234,7 +213,7 @@ pub fn prepare_monolithic_runner_crate(workspace: &WorkspaceInfo) -> Result<Path
                     &c.manifest_dir,
                     &format!("workspace manifest directory for crate '{}'", c.name),
                 )?,
-                ident: c.name.rust_module_prefix(),
+                ident: library_target_ident(c)?,
                 has_features: !c.fluent_features.is_empty(),
                 features: &c.fluent_features,
             })
@@ -262,6 +241,17 @@ pub fn prepare_monolithic_runner_crate(workspace: &WorkspaceInfo) -> Result<Path
     }
 
     Ok(temp_store.base_dir().to_path_buf())
+}
+
+fn library_target_ident(krate: &crate::core::CrateInfo) -> Result<String> {
+    let manifest_path = krate.manifest_dir.join("Cargo.toml");
+    let manifest = Manifest::from_path(&manifest_path)
+        .with_context(|| format!("Failed to read {}", manifest_path.display()))?;
+    Ok(manifest
+        .lib
+        .and_then(|lib| lib.name)
+        .unwrap_or_else(|| krate.name.rust_module_prefix().to_string())
+        .replace('-', "_"))
 }
 
 fn validate_runner_temp_dir(path: &Path) -> Result<()> {
@@ -462,6 +452,7 @@ fn write_runner_cache(runner: &MonolithicRunner<'_>) {
             crate_hashes,
             runner_mtime: runner_mtime_secs,
             cli_version: CLI_VERSION.to_string(),
+            runner_protocol_version: es_fluent_runner::RUNNER_PROTOCOL_VERSION,
             workspace_inputs_hash: crate::generation::cache::compute_workspace_inputs_hash(
                 &runner.workspace.root_dir,
             ),

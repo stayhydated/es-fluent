@@ -1,6 +1,5 @@
 ---
 source: crates/es-fluent-lang-macro/src/lib.rs
-assertion_line: 851
 expression: pretty_tokens(&output)
 ---
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
@@ -20,15 +19,21 @@ impl ::es_fluent::FluentMessage for Languages {
         match self {
             Self::EnUs => {
                 localize(
-                    ::es_fluent::registry::__macro::static_domain("es-fluent-lang"),
-                    ::es_fluent::registry::__macro::static_entry_id("en-US"),
+                    ::es_fluent::registry::__macro::static_message_key(
+                        "es-fluent-lang",
+                        ::es_fluent::registry::__macro::static_domain("es-fluent-lang"),
+                        ::es_fluent::registry::__macro::static_entry_id("en-US"),
+                    ),
                     None,
                 )
             }
             Self::Zz => {
                 localize(
-                    ::es_fluent::registry::__macro::static_domain("es-fluent-lang"),
-                    ::es_fluent::registry::__macro::static_entry_id("zz"),
+                    ::es_fluent::registry::__macro::static_message_key(
+                        "es-fluent-lang",
+                        ::es_fluent::registry::__macro::static_domain("es-fluent-lang"),
+                        ::es_fluent::registry::__macro::static_entry_id("zz"),
+                    ),
                     None,
                 )
             }

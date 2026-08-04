@@ -11,7 +11,7 @@ use self::args::Action;
 
 pub use self::args::GeneratorArgs;
 pub use self::error::GeneratorError;
-pub use es_fluent_generate::FluentParseMode;
+pub use es_fluent_generate::{FileTransaction, FluentParseMode};
 use es_fluent_toml::{I18nConfigError, ResolvedI18nLayout};
 use std::path::{Path, PathBuf};
 
@@ -60,7 +60,10 @@ impl EsFluentGenerator {
                 generator.dry_run = dry_run;
                 generator.generate()
             },
-            Action::Clean { all, dry_run } => self.clean(all, dry_run),
+            Action::Clean {
+                all_locales,
+                dry_run,
+            } => self.clean(all_locales, dry_run),
         }
     }
 
@@ -128,10 +131,19 @@ impl EsFluentGenerator {
 
     /// Generates FTL files from all registered types.
     pub fn generate(&self) -> Result<bool, GeneratorError> {
+        let transaction = self.plan_generate()?;
+        Ok(es_fluent_generate::apply_transaction(
+            &transaction,
+            self.dry_run,
+        )?)
+    }
+
+    /// Plans all generated FTL changes without writing them.
+    pub fn plan_generate(&self) -> Result<FileTransaction, GeneratorError> {
         let crate_name = self.resolve_crate_name()?;
         let output_path = self.resolve_output_path()?;
         let manifest_dir = self.resolve_manifest_dir()?;
-        let type_infos = self::inventory::collect_type_infos(&crate_name);
+        let type_infos = self::inventory::collect_type_infos(&crate_name)?;
 
         self::inventory::validate_namespaces(&type_infos, &manifest_dir)?;
 
@@ -141,48 +153,47 @@ impl EsFluentGenerator {
             crate_name
         );
 
-        let changed = es_fluent_generate::generate(
+        let transaction = es_fluent_generate::plan_generate(
             &crate_name,
             output_path,
             &manifest_dir,
             &type_infos,
             self.mode,
-            self.dry_run,
         )?;
 
-        Ok(changed)
+        Ok(transaction)
     }
 
-    /// Cleans FTL files by removing orphan keys while preserving existing translations.
+    /// Cleans FTL files according to the current Rust inventory.
     pub fn clean(&self, all_locales: bool, dry_run: bool) -> Result<bool, GeneratorError> {
+        let transaction = self.plan_clean(all_locales)?;
+        Ok(es_fluent_generate::apply_transaction(
+            &transaction,
+            dry_run,
+        )?)
+    }
+
+    /// Plans all inventory-authoritative FTL cleanup without writing it.
+    pub fn plan_clean(&self, all_locales: bool) -> Result<FileTransaction, GeneratorError> {
         let crate_name = self.resolve_crate_name()?;
         let paths = self.resolve_clean_paths(all_locales)?;
         let manifest_dir = self.resolve_manifest_dir()?;
-        let type_infos = self::inventory::collect_type_infos(&crate_name);
+        let type_infos = self::inventory::collect_type_infos(&crate_name)?;
 
-        let mut any_changed = false;
+        let mut transaction = FileTransaction::default();
         for output_path in paths {
-            if !dry_run {
-                tracing::info!(
-                    "Cleaning FTL files for {} types in crate '{}' at {}",
-                    type_infos.len(),
-                    crate_name,
-                    output_path.display()
-                );
-            }
-
-            if es_fluent_generate::clean::clean(
+            let planned = es_fluent_generate::clean::plan_clean(
                 &crate_name,
                 output_path,
                 &manifest_dir,
                 &type_infos,
-                dry_run,
-            )? {
-                any_changed = true;
-            }
+            )?;
+            transaction
+                .extend(planned)
+                .map_err(|error| GeneratorError::Generate(std::io::Error::other(error).into()))?;
         }
 
-        Ok(any_changed)
+        Ok(transaction)
     }
 
     fn resolve_clean_locale_dirs(&self, assets_dir: &Path) -> Result<Vec<PathBuf>, GeneratorError> {

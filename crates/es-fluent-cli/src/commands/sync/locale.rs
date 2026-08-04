@@ -1,6 +1,6 @@
 use super::super::dry_run::DryRunDiff;
 use crate::core::CrateInfo;
-use crate::ftl::{CrateFtlLayout, LocaleContext};
+use crate::ftl::LocaleContext;
 use anyhow::{Result, bail};
 use fluent_syntax::{ast, serializer};
 use std::collections::HashSet;
@@ -13,6 +13,8 @@ use std::path::{Path, PathBuf};
 pub(crate) struct SyncLocaleResult {
     /// The locale that was synced.
     pub(crate) locale: String,
+    /// The target FTL file, or `None` when only an empty locale directory was created.
+    pub(crate) path: Option<PathBuf>,
     /// Whether the locale directory was created.
     pub(crate) locale_created: bool,
     /// Number of keys added.
@@ -29,16 +31,16 @@ struct SyncLocalePlan {
     locale_created: bool,
 }
 
-struct SyncCratePlan {
+struct SyncLayoutPlan {
     fallback_files: Vec<crate::ftl::LoadedFtlFile>,
     locale_plans: Vec<SyncLocalePlan>,
 }
 
-fn build_sync_crate_plan(
+fn build_sync_layout_plan(
     krate: &CrateInfo,
     target_locales: Option<&HashSet<String>>,
     create_missing: bool,
-) -> Result<SyncCratePlan> {
+) -> Result<SyncLayoutPlan> {
     let ctx = LocaleContext::from_crate(krate, target_locales.is_none())?;
     if !ctx.assets_dir.is_dir() {
         bail!(
@@ -60,9 +62,7 @@ fn build_sync_crate_plan(
     }
 
     // Discover all FTL files in the fallback locale (including namespaced ones)
-    let fallback_files =
-        CrateFtlLayout::from_assets_dir(&ctx.assets_dir, &ctx.fallback, &ctx.crate_name)
-            .discover_and_load_files()?;
+    let fallback_files = ctx.discover_and_load_files(&ctx.fallback)?;
 
     let mut plans = Vec::new();
     let mut locales: Vec<String> = match target_locales {
@@ -101,42 +101,34 @@ fn build_sync_crate_plan(
 
     preflight_sync_targets_parse(&fallback_files, &plans)?;
 
-    Ok(SyncCratePlan {
+    Ok(SyncLayoutPlan {
         fallback_files,
         locale_plans: plans,
     })
 }
 
-pub(crate) fn preflight_sync_crate(
+pub(crate) fn plan_sync_crate(
     krate: &CrateInfo,
     target_locales: Option<&HashSet<String>>,
+    include_diff: bool,
     create_missing: bool,
-) -> Result<()> {
-    build_sync_crate_plan(krate, target_locales, create_missing).map(|_| ())
-}
-
-/// Sync all FTL files for a crate.
-pub(crate) fn sync_crate(
-    krate: &CrateInfo,
-    target_locales: Option<&HashSet<String>>,
-    dry_run: bool,
-    create_missing: bool,
+    transaction: &mut es_fluent_runner::FileTransaction,
 ) -> Result<Vec<SyncLocaleResult>> {
-    let SyncCratePlan {
+    let SyncLayoutPlan {
         fallback_files,
         locale_plans,
-    } = build_sync_crate_plan(krate, target_locales, create_missing)?;
+    } = build_sync_layout_plan(krate, target_locales, create_missing)?;
 
     let mut results = Vec::new();
     for plan in locale_plans {
-        if plan.locale_created && !dry_run {
-            fs::create_dir_all(&plan.locale_dir)?;
-        }
+        let locale_created =
+            plan.locale_created && transaction.plan_create_directory(&plan.locale_dir)?;
 
         if fallback_files.is_empty() {
-            if plan.locale_created {
+            if locale_created {
                 results.push(SyncLocaleResult {
                     locale: plan.locale,
+                    path: None,
                     locale_created: true,
                     keys_added: 0,
                     added_keys: Vec::new(),
@@ -148,20 +140,42 @@ pub(crate) fn sync_crate(
 
         // Sync each FTL file (main + namespaced)
         for (index, ftl_info) in fallback_files.iter().enumerate() {
-            let mut result = sync_locale_file(
+            let mut result = plan_sync_locale_file(
                 &plan.locale_dir,
                 &ftl_info.relative_path,
                 &plan.locale,
                 &ftl_info.resource,
                 &ftl_info.keys,
-                dry_run,
+                include_diff,
+                transaction,
             )?;
-            result.locale_created = plan.locale_created && index == 0;
+            result.locale_created = locale_created && index == 0;
 
             results.push(result);
         }
     }
 
+    Ok(results)
+}
+
+/// Sync all FTL files for a crate.
+pub(crate) fn sync_crate(
+    krate: &CrateInfo,
+    target_locales: Option<&HashSet<String>>,
+    dry_run: bool,
+    create_missing: bool,
+) -> Result<Vec<SyncLocaleResult>> {
+    let mut transaction = es_fluent_runner::FileTransaction::default();
+    let results = plan_sync_crate(
+        krate,
+        target_locales,
+        dry_run,
+        create_missing,
+        &mut transaction,
+    )?;
+    if !dry_run {
+        transaction.commit()?;
+    }
     Ok(results)
 }
 
@@ -244,30 +258,35 @@ fn validate_sync_target_path(locale_dir: &Path, ftl_file: &Path) -> Result<()> {
     Ok(())
 }
 
-/// Sync a single FTL file (main or namespaced) with missing keys from the fallback.
-fn sync_locale_file(
+fn extract_sync_keys(resource: &ast::Resource<String>) -> HashSet<String> {
+    resource
+        .body
+        .iter()
+        .filter_map(es_fluent_generate::ftl::entry_key)
+        .map(|key| key.into_owned())
+        .collect()
+}
+
+/// Plan syncing a single FTL file (main or namespaced) from the fallback.
+fn plan_sync_locale_file(
     locale_dir: &Path,
     relative_ftl_path: &Path,
     locale: &str,
     fallback_resource: &ast::Resource<String>,
     fallback_keys: &HashSet<String>,
-    dry_run: bool,
+    include_diff: bool,
+    transaction: &mut es_fluent_runner::FileTransaction,
 ) -> Result<SyncLocaleResult> {
     let ftl_file = locale_dir.join(relative_ftl_path);
     validate_sync_target_path(locale_dir, &ftl_file)?;
 
-    // Ensure the parent directory exists (handles namespaced subdirectories)
-    let parent_dir = ftl_file.parent().unwrap_or(locale_dir);
-    if !parent_dir.exists() && !dry_run {
-        fs::create_dir_all(parent_dir)?;
-    }
-
     // Parse existing locale file
     // Read content first to allow diffing later
-    let existing_content = if ftl_file.exists() {
-        fs::read_to_string(&ftl_file)?
+    let (original, existing_content) = if ftl_file.exists() {
+        let existing_content = fs::read_to_string(&ftl_file)?;
+        (Some(existing_content.as_bytes().to_vec()), existing_content)
     } else {
-        String::new()
+        (None, String::new())
     };
 
     let (existing_resource, errors) =
@@ -280,7 +299,7 @@ fn sync_locale_file(
         );
     }
 
-    let existing_keys = crate::ftl::extract_message_keys(&existing_resource);
+    let existing_keys = extract_sync_keys(&existing_resource);
 
     // Find missing keys
     let missing_keys: Vec<&String> = fallback_keys
@@ -291,6 +310,7 @@ fn sync_locale_file(
     if missing_keys.is_empty() {
         return Ok(SyncLocaleResult {
             locale: locale.to_string(),
+            path: Some(ftl_file),
             locale_created: false,
             keys_added: 0,
             added_keys: Vec::new(),
@@ -311,12 +331,10 @@ fn sync_locale_file(
     let content = serializer::serialize(&merged);
     let final_content = format!("{}\n", content.trim_end());
 
-    if !dry_run {
-        fs::write(&ftl_file, &final_content)?;
-    }
+    transaction.plan_write_from(&ftl_file, original, final_content.as_bytes().to_vec())?;
 
-    // If dry run and we have changes (missing_keys was not empty), compute diff
-    let diff_info = if dry_run && !missing_keys.is_empty() {
+    // Dry-run callers include the before/after content for display.
+    let diff_info = if include_diff {
         Some(DryRunDiff::new(existing_content, final_content))
     } else {
         None
@@ -324,6 +342,7 @@ fn sync_locale_file(
 
     Ok(SyncLocaleResult {
         locale: locale.to_string(),
+        path: Some(ftl_file),
         locale_created: false,
         keys_added: added_keys.len(),
         added_keys,
@@ -370,6 +389,30 @@ mod tests {
         fluent_syntax::parser::parse(content.to_string()).unwrap()
     }
 
+    fn sync_locale_file(
+        locale_dir: &Path,
+        relative_ftl_path: &Path,
+        locale: &str,
+        fallback_resource: &ast::Resource<String>,
+        fallback_keys: &HashSet<String>,
+        dry_run: bool,
+    ) -> Result<SyncLocaleResult> {
+        let mut transaction = es_fluent_runner::FileTransaction::default();
+        let result = plan_sync_locale_file(
+            locale_dir,
+            relative_ftl_path,
+            locale,
+            fallback_resource,
+            fallback_keys,
+            dry_run,
+            &mut transaction,
+        )?;
+        if !dry_run {
+            transaction.commit()?;
+        }
+        Ok(result)
+    }
+
     #[test]
     fn sync_locale_file_returns_unchanged_when_no_missing_keys() {
         let temp = tempfile::tempdir().expect("tempdir");
@@ -390,6 +433,10 @@ mod tests {
         .expect("sync");
 
         assert_eq!(result.locale, "es");
+        assert_eq!(
+            result.path.as_deref(),
+            Some(locale_dir.join(&relative_path).as_path())
+        );
         assert_eq!(result.keys_added, 0);
         assert!(result.added_keys.is_empty());
         assert!(result.diff_info.is_none());
@@ -417,6 +464,7 @@ mod tests {
         .expect("sync");
 
         assert_eq!(result.keys_added, 1);
+        assert_eq!(result.path.as_deref(), Some(ftl_path.as_path()));
         assert_eq!(result.added_keys, vec!["world".to_string()]);
         assert!(result.diff_info.is_some());
 
@@ -444,6 +492,7 @@ mod tests {
         .expect("sync");
 
         assert_eq!(result.keys_added, 1);
+        assert_eq!(result.path.as_deref(), Some(ftl_path.as_path()));
         assert!(result.diff_info.is_none());
         assert!(
             ftl_path.exists(),
@@ -451,6 +500,45 @@ mod tests {
         );
         let content = std::fs::read_to_string(&ftl_path).expect("read synced file");
         assert!(content.contains("hello = Hello"));
+    }
+
+    #[test]
+    fn sync_locale_file_adds_missing_terms_without_duplicating_existing_terms() {
+        let temp = tempfile::tempdir().expect("tempdir");
+        let locale_dir = temp.path().join("fr");
+        let relative_path = PathBuf::from("test-crate.ftl");
+        let ftl_path = locale_dir.join(&relative_path);
+        write_file(&ftl_path, "-existing = Existant\nhello = Bonjour\n");
+
+        let fallback_resource =
+            parse_resource("-existing = Existing\n-missing = Missing\nhello = Hello\n");
+        let fallback_keys = extract_sync_keys(&fallback_resource);
+        let result = sync_locale_file(
+            &locale_dir,
+            &relative_path,
+            "fr",
+            &fallback_resource,
+            &fallback_keys,
+            false,
+        )
+        .expect("sync terms");
+
+        assert_eq!(result.keys_added, 1);
+        assert_eq!(result.added_keys, vec!["-missing".to_string()]);
+        let content = std::fs::read_to_string(&ftl_path).expect("read synced terms");
+        assert_eq!(content.matches("-existing =").count(), 1);
+        assert_eq!(content.matches("-missing =").count(), 1);
+
+        let rerun = sync_locale_file(
+            &locale_dir,
+            &relative_path,
+            "fr",
+            &fallback_resource,
+            &fallback_keys,
+            false,
+        )
+        .expect("rerun term sync");
+        assert_eq!(rerun.keys_added, 0);
     }
 
     #[test]
@@ -651,6 +739,7 @@ mod tests {
         );
         assert_eq!(results.len(), 1);
         assert_eq!(results[0].locale, "fr-FR");
+        assert!(results[0].path.is_none());
         assert!(results[0].locale_created);
         assert_eq!(results[0].keys_added, 0);
     }
@@ -704,6 +793,55 @@ mod tests {
             !fr_main.contains("world = World"),
             "fr should be untouched by target filter"
         );
+    }
+
+    #[test]
+    fn sync_crate_plan_rejects_a_target_changed_before_commit() {
+        let temp = tempfile::tempdir().expect("tempdir");
+        let krate = test_crate_with_i18n(&temp);
+        write_file(
+            &temp.path().join("i18n/en/test-crate.ftl"),
+            "hello = Hello\nworld = World\n",
+        );
+        let target = temp.path().join("i18n/fr/test-crate.ftl");
+        write_file(&target, "hello = Bonjour\n");
+        let targets = HashSet::from(["fr".to_string()]);
+        let mut transaction = es_fluent_runner::FileTransaction::default();
+        plan_sync_crate(&krate, Some(&targets), false, false, &mut transaction).expect("plan sync");
+        fs::write(&target, "external = Edit\n").expect("write external edit");
+
+        let error = transaction
+            .commit()
+            .expect_err("changed before-state should abort");
+
+        assert!(
+            error
+                .to_string()
+                .contains("filesystem path changed after the transaction was planned")
+        );
+        assert_eq!(
+            fs::read_to_string(&target).expect("read external edit"),
+            "external = Edit\n"
+        );
+    }
+
+    #[test]
+    fn sync_crate_plan_reports_a_shared_locale_directory_once() {
+        let temp = tempfile::tempdir().expect("tempdir");
+        let krate = test_crate_with_i18n(&temp);
+        fs::create_dir_all(temp.path().join("i18n/en")).expect("create empty fallback");
+        let targets = HashSet::from(["fr".to_string()]);
+        let mut transaction = es_fluent_runner::FileTransaction::default();
+
+        let first = plan_sync_crate(&krate, Some(&targets), false, true, &mut transaction)
+            .expect("plan first crate");
+        let second = plan_sync_crate(&krate, Some(&targets), false, true, &mut transaction)
+            .expect("plan shared locale");
+
+        assert!(first[0].locale_created);
+        assert!(second.is_empty());
+        assert!(transaction.commit().expect("commit shared locale"));
+        assert!(temp.path().join("i18n/fr").is_dir());
     }
 
     #[test]

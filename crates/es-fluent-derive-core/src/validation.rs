@@ -12,6 +12,7 @@ use crate::options::FluentField as _;
 use crate::options::r#enum::EnumOpts;
 use crate::options::r#struct::StructOpts;
 use es_fluent_shared::{
+    fluent::FluentDomain,
     namer,
     namespace::{NamespaceRule, ResolvedNamespace},
 };
@@ -584,6 +585,69 @@ pub fn validate_namespace(
     };
 
     validate_namespace_against_allowed(literal_value, allowed, span)
+}
+
+/// Validates that an explicit domain is owned by the current package's
+/// `i18n.toml`.
+///
+pub fn validate_domain(
+    domain: &FluentDomain,
+    span: Option<proc_macro2::Span>,
+) -> EsFluentCoreResult<()> {
+    let config = match I18nConfig::read_from_manifest_dir() {
+        Ok(config) => config,
+        Err(I18nConfigError::NotFound) => {
+            return Err(EsFluentCoreError::AttributeError {
+                message: format!(
+                    "domain '{}' requires an i18n.toml owned by the current package",
+                    domain.as_str()
+                ),
+                span,
+            }
+            .with_help(
+                "create i18n.toml in this package and list the domain in its domains array"
+                    .to_string(),
+            ));
+        },
+        Err(error) => {
+            return Err(EsFluentCoreError::AttributeError {
+                message: format!(
+                    "failed to read i18n.toml while validating domain '{}': {error}",
+                    domain.as_str()
+                ),
+                span,
+            }
+            .with_help("fix the i18n.toml configuration".to_string()));
+        },
+    };
+    if let Ok(package_name) = std::env::var("CARGO_PKG_NAME")
+        && let Err(error) = config.validate_for_package(&package_name)
+    {
+        return Err(EsFluentCoreError::AttributeError {
+            message: error.to_string(),
+            span,
+        }
+        .with_help(format!(
+            "remove '{}' from domains; the package name is always its default domain",
+            package_name
+        )));
+    }
+
+    if config.domains.iter().any(|configured| configured == domain) {
+        return Ok(());
+    }
+
+    Err(EsFluentCoreError::AttributeError {
+        message: format!(
+            "domain '{}' is not owned by this package in i18n.toml",
+            domain.as_str()
+        ),
+        span,
+    }
+    .with_help(format!(
+        "add domains = [\"{}\"] to this package's i18n.toml",
+        domain.as_str()
+    )))
 }
 
 /// Core validation logic for checking a namespace against an allowed list.

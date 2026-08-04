@@ -19,6 +19,7 @@ path = "src/main.rs"
 
 [dependencies]
 anyhow = { workspace = true }
+anstream = { workspace = true }
 askama = { workspace = true }
 blake3 = { workspace = true }
 bon = { workspace = true }

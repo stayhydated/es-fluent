@@ -1,4 +1,4 @@
-# Incremental Builds
+# Incremental builds
 
 If your crate uses the embedded, Dioxus, or Bevy manager macros, they discover locales at compile time by scanning your `assets_dir`. By default, Cargo doesn't know about these files, so changes like renaming a locale folder (e.g., `fr` → `fr-FR`) won't trigger a rebuild.
 
@@ -10,7 +10,7 @@ Add `es-fluent-build` to your **build dependencies**:
 
 ```toml
 [build-dependencies]
-es-fluent-build = "*"
+es-fluent-build = "0.18"
 ```
 
 Call the tracking helper from `build.rs`:

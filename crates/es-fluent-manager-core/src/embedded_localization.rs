@@ -1,88 +1,80 @@
 //! This module provides types for managing embedded translations.
 
 use crate::asset_localization::{
-    I18nModuleDescriptor, ModuleData, ModuleResourceSpec, ResourceLoadStatus, ResourcePlan,
+    I18nModuleDescriptor, ModuleData, ModuleDomain, ModuleResourceSpec, ResourceLoadStatus,
+    ResourcePlan,
 };
 use crate::localization::{
     FluentArgumentMap, I18nModule, LocalizationError, Localizer, SyncFluentBundle,
 };
-use es_fluent_shared::registry::StaticFluentEntryId;
+use es_fluent_shared::fluent::FluentDomain;
+use es_fluent_shared::registry::StaticFluentMessageKey;
 use fluent_bundle::{FluentError, FluentResource};
 use parking_lot::{Mutex, RwLock};
 use rust_embed::RustEmbed;
-use std::collections::{BTreeSet, HashSet};
+use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 use std::io;
 use std::sync::Arc;
 use unic_langid::LanguageIdentifier;
 
 pub trait EmbeddedAssets: RustEmbed + Send + Sync + 'static {
-    fn domain() -> crate::StaticFluentDomain;
-
-    /// Returns the canonical namespace list for this embedded module.
-    ///
-    /// Macro-generated modules override this so embedded language discovery can
-    /// ignore stray files and only treat configured namespace paths as
-    /// canonical locale resources.
-    fn namespaces() -> &'static [&'static str] {
-        &[]
-    }
+    /// Returns every package-local domain and its canonical namespace list.
+    fn domains() -> &'static [ModuleDomain];
 
     /// Returns the exact resource plan for a locale when the embedded asset tree
     /// can prove that only part of the module's global namespace set exists for
     /// that locale.
     fn resource_plan_for_language(lang: &LanguageIdentifier) -> Option<Vec<ModuleResourceSpec>> {
-        let namespaces = Self::namespaces();
-        if namespaces.is_empty() {
-            return None;
-        }
+        let mut specs = Vec::new();
+        for configured_domain in Self::domains() {
+            let mut has_base_file = false;
+            let mut found_namespaces = BTreeSet::new();
 
-        let domain = Self::domain();
-        let mut has_base_file = false;
-        let mut found_namespaces = BTreeSet::new();
+            for file_path in Self::iter() {
+                let file_path_str = file_path.as_ref();
+                let Some((file_lang, namespace)) = embedded_resource_from_asset_path(
+                    file_path_str,
+                    configured_domain.domain.as_str(),
+                    configured_domain.namespaces,
+                ) else {
+                    continue;
+                };
+                if &file_lang != lang {
+                    continue;
+                }
 
-        for file_path in Self::iter() {
-            let file_path_str = file_path.as_ref();
-            let Some((file_lang, namespace)) =
-                embedded_resource_from_asset_path(file_path_str, domain.as_str(), namespaces)
-            else {
-                continue;
-            };
-
-            if &file_lang != lang {
-                continue;
+                match namespace {
+                    Some(namespace) => {
+                        found_namespaces.insert(namespace);
+                    },
+                    None => {
+                        has_base_file = true;
+                    },
+                }
             }
 
-            match namespace {
-                Some(namespace) => {
-                    found_namespaces.insert(namespace);
-                },
-                None => {
-                    has_base_file = true;
-                },
+            if !has_base_file && found_namespaces.is_empty() {
+                continue;
             }
+            let resolved_namespaces = found_namespaces
+                .into_iter()
+                .map(|namespace| {
+                    es_fluent_shared::namespace::ResolvedNamespace::new(namespace)
+                        .expect("embedded namespace was prevalidated from module metadata")
+                })
+                .collect::<Vec<_>>();
+            specs.extend(
+                ResourcePlan::sparse_for_static_domain(
+                    configured_domain.domain,
+                    has_base_file,
+                    &resolved_namespaces,
+                    false,
+                )
+                .into_specs(),
+            );
         }
 
-        if !has_base_file && found_namespaces.is_empty() {
-            return None;
-        }
-
-        let resolved_namespaces = found_namespaces
-            .into_iter()
-            .map(|namespace| {
-                es_fluent_shared::namespace::ResolvedNamespace::new(namespace)
-                    .expect("embedded namespace was prevalidated from module metadata")
-            })
-            .collect::<Vec<_>>();
-
-        Some(
-            ResourcePlan::sparse_for_static_domain(
-                domain,
-                has_base_file,
-                &resolved_namespaces,
-                false,
-            )
-            .into_specs(),
-        )
+        (!specs.is_empty()).then_some(specs)
     }
 }
 
@@ -95,9 +87,10 @@ pub struct EmbeddedLocalizer<T: EmbeddedAssets> {
 
 #[derive(Clone, Default)]
 struct EmbeddedLocalizerState {
-    current_bundle: Option<Arc<SyncFluentBundle>>,
+    current_bundles: HashMap<FluentDomain, Arc<SyncFluentBundle>>,
     current_lang: Option<LanguageIdentifier>,
-    current_locale_resources: Vec<(LanguageIdentifier, Vec<Arc<FluentResource>>)>,
+    current_locale_resources:
+        HashMap<FluentDomain, Vec<(LanguageIdentifier, Vec<Arc<FluentResource>>)>>,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -173,11 +166,15 @@ impl<T: EmbeddedAssets> EmbeddedLocalizer<T> {
     fn load_resource_for_language(
         &self,
         lang: &LanguageIdentifier,
-    ) -> Result<Vec<Arc<FluentResource>>, LocalizationError> {
+    ) -> Result<BTreeMap<FluentDomain, Vec<Arc<FluentResource>>>, LocalizationError> {
         let resource_plan =
             T::resource_plan_for_language(lang).unwrap_or_else(|| self.data.resource_plan());
+        let mut resources_by_domain = resource_plan
+            .iter()
+            .map(|spec| (spec.key.domain_name(), Vec::new()))
+            .collect::<BTreeMap<_, _>>();
         let (resources, report) =
-            crate::asset_localization::load_locale_resources(&resource_plan, |spec| {
+            crate::asset_localization::load_locale_resource_entries(&resource_plan, |spec| {
                 let file_path = spec.locale_path(lang);
 
                 match T::get(&file_path) {
@@ -218,7 +215,14 @@ impl<T: EmbeddedAssets> EmbeddedLocalizer<T> {
             return Err(LocalizationError::LanguageNotSupported(lang.clone()));
         }
 
-        Ok(resources)
+        for (key, resource) in resources {
+            resources_by_domain
+                .entry(key.domain_name())
+                .or_default()
+                .push(resource);
+        }
+
+        Ok(resources_by_domain)
     }
 }
 
@@ -231,46 +235,55 @@ impl<T: EmbeddedAssets> Localizer for EmbeddedLocalizer<T> {
         }
 
         let mut remaining_languages = self.data.supported_languages.to_vec();
-        let mut current_bundle = None;
-        let mut locale_resources = Vec::new();
+        let mut current_bundles = HashMap::new();
+        let mut locale_resources: HashMap<
+            FluentDomain,
+            Vec<(LanguageIdentifier, Vec<Arc<FluentResource>>)>,
+        > = HashMap::new();
 
         while let Some(candidate) =
             crate::fallback::resolve_fallback_language(lang, &remaining_languages)
         {
             remaining_languages.retain(|supported| supported != &candidate);
 
-            if let Ok(resources) = self.load_resource_for_language(&candidate) {
-                let (mut candidate_bundle, add_errors) =
-                    crate::localization::build_sync_bundle(&candidate, resources.clone());
-                if !add_errors.is_empty() {
-                    if locale_resources.is_empty() {
-                        let error =
-                            BundleBuildError::from_add_errors(self.data.name, lang, add_errors);
-                        tracing::error!("{error}");
-                        return Err(io::Error::other(error).into());
+            if let Ok(resources_by_domain) = self.load_resource_for_language(&candidate) {
+                for (domain, resources) in resources_by_domain {
+                    let (mut candidate_bundle, add_errors) =
+                        crate::localization::build_sync_bundle(&candidate, resources.clone());
+                    if !add_errors.is_empty() {
+                        if locale_resources.is_empty() {
+                            let error =
+                                BundleBuildError::from_add_errors(self.data.name, lang, add_errors);
+                            tracing::error!("{error}");
+                            return Err(io::Error::other(error).into());
+                        }
+
+                        tracing::warn!(
+                            "Skipping fallback locale '{}' for requested locale '{}' in module '{}' domain '{}' because Fluent bundle assembly failed",
+                            candidate,
+                            lang,
+                            self.data.name,
+                            domain,
+                        );
+                        continue;
                     }
 
-                    tracing::warn!(
-                        "Skipping fallback locale '{}' for requested locale '{}' in module '{}' because Fluent bundle assembly failed",
-                        candidate,
-                        lang,
-                        self.data.name
-                    );
-                    continue;
-                }
+                    current_bundles.entry(domain.clone()).or_insert_with(|| {
+                        candidate_bundle.locales = crate::fallback::locale_candidates(lang);
+                        Arc::new(candidate_bundle)
+                    });
 
-                if current_bundle.is_none() {
-                    candidate_bundle.locales = crate::fallback::locale_candidates(lang);
-                    current_bundle = Some(Arc::new(candidate_bundle));
+                    locale_resources
+                        .entry(domain)
+                        .or_default()
+                        .push((candidate.clone(), resources));
                 }
-
-                locale_resources.push((candidate, resources));
             }
         }
 
-        if let Some(bundle) = current_bundle {
+        if !current_bundles.is_empty() {
             *self.state.write() = EmbeddedLocalizerState {
-                current_bundle: Some(bundle),
+                current_bundles,
                 current_lang: Some(lang.clone()),
                 current_locale_resources: locale_resources,
             };
@@ -284,25 +297,33 @@ impl<T: EmbeddedAssets> Localizer for EmbeddedLocalizer<T> {
 
     fn localize<'a>(
         &self,
-        id: StaticFluentEntryId,
+        key: StaticFluentMessageKey,
         args: Option<&FluentArgumentMap<'a>>,
     ) -> Option<String> {
+        if key.owner() != self.data.owner || !self.data.owns_domain(key.domain()) {
+            return None;
+        }
+
         let (bundle, locale_resources) = {
             let state = self.state.read();
             (
-                state.current_bundle.clone(),
-                state.current_locale_resources.clone(),
+                state.current_bundles.get(key.domain().as_str()).cloned(),
+                state
+                    .current_locale_resources
+                    .get(key.domain().as_str())
+                    .cloned()
+                    .unwrap_or_default(),
             )
         };
 
         if let Some(bundle) = bundle.as_ref()
             && let Some((value, errors)) =
-                crate::localization::localize_with_bundle(bundle.as_ref(), id, args)
+                crate::localization::localize_with_bundle(bundle.as_ref(), key.id(), args)
         {
             if !errors.is_empty() {
                 tracing::error!(
                     "Fluent formatting errors for id '{}': {:?}",
-                    id.as_str(),
+                    key.id().as_str(),
                     errors
                 );
                 return None;
@@ -313,14 +334,14 @@ impl<T: EmbeddedAssets> Localizer for EmbeddedLocalizer<T> {
 
         let (value, errors) = crate::localization::localize_with_fallback_resources(
             locale_resources.as_slice(),
-            id,
+            key.id(),
             args,
         );
 
         if crate::localization::fallback_errors_are_fatal(&errors) {
             tracing::error!(
                 "Fluent fallback formatting errors for id '{}': {:?}",
-                id.as_str(),
+                key.id().as_str(),
                 errors
             );
             return None;
@@ -381,18 +402,20 @@ impl<T: EmbeddedAssets> EmbeddedI18nModule<T> {
     }
 
     pub fn discover_languages() -> Vec<LanguageIdentifier> {
-        let domain = T::domain();
-        let namespaces = T::namespaces();
         let mut languages = Vec::new();
         let mut seen = HashSet::new();
 
         for file_path in T::iter() {
             let file_path_str = file_path.as_ref();
-            if let Some((lang_id, _)) =
-                embedded_resource_from_asset_path(file_path_str, domain.as_str(), namespaces)
-                && seen.insert(lang_id.clone())
-            {
-                languages.push(lang_id);
+            for domain in T::domains() {
+                if let Some((lang_id, _)) = embedded_resource_from_asset_path(
+                    file_path_str,
+                    domain.domain.as_str(),
+                    domain.namespaces,
+                ) && seen.insert(lang_id.clone())
+                {
+                    languages.push(lang_id);
+                }
             }
         }
 
@@ -411,6 +434,15 @@ impl<T: EmbeddedAssets> I18nModule for EmbeddedI18nModule<T> {
     fn create_localizer(&self) -> Box<dyn Localizer> {
         Box::new(EmbeddedLocalizer::<T>::new(self.data))
     }
+
+    fn resource_plan_for_language(
+        &self,
+        lang: &LanguageIdentifier,
+    ) -> Option<Vec<ModuleResourceSpec>> {
+        self.data.supported_languages.contains(lang).then(|| {
+            T::resource_plan_for_language(lang).unwrap_or_else(|| self.data.resource_plan())
+        })
+    }
 }
 
 #[cfg(test)]
@@ -422,107 +454,73 @@ mod tests {
     use std::borrow::Cow;
     use unic_langid::langid;
 
-    fn static_entry(value: &'static str) -> StaticFluentEntryId {
-        crate::__macro::static_entry_id(value)
+    fn static_entry(value: &'static str) -> StaticFluentMessageKey {
+        crate::__macro::static_message_key(
+            "test-domain",
+            crate::__macro::static_domain("test-domain"),
+            crate::__macro::static_entry_id(value),
+        )
     }
 
     fn static_arg(value: &'static str) -> crate::StaticFluentArgumentName {
         crate::__macro::static_argument_name(value)
     }
 
+    macro_rules! impl_test_embedded_assets {
+        ($assets:ty, $namespaces:expr) => {
+            impl EmbeddedAssets for $assets {
+                fn domains() -> &'static [ModuleDomain] {
+                    const DOMAINS: &[ModuleDomain] = &[ModuleDomain {
+                        domain: crate::__macro::static_domain("test-domain"),
+                        namespaces: $namespaces,
+                    }];
+                    DOMAINS
+                }
+            }
+        };
+    }
+
     #[derive(RustEmbed)]
     #[folder = "tests/fixtures/embedded_i18n"]
     struct TestAssets;
 
-    impl EmbeddedAssets for TestAssets {
-        fn domain() -> crate::StaticFluentDomain {
-            crate::__macro::static_domain("test-domain")
-        }
-
-        fn namespaces() -> &'static [&'static str] {
-            &["ui"]
-        }
-    }
+    impl_test_embedded_assets!(TestAssets, &["ui"]);
 
     #[derive(RustEmbed)]
     #[folder = "tests/fixtures/embedded_i18n"]
     struct BaseFileAssets;
 
-    impl EmbeddedAssets for BaseFileAssets {
-        fn domain() -> crate::StaticFluentDomain {
-            crate::__macro::static_domain("test-domain")
-        }
-    }
+    impl_test_embedded_assets!(BaseFileAssets, &[]);
 
     #[derive(RustEmbed)]
     #[folder = "tests/fixtures/embedded_i18n_ns_errors"]
     struct NamespaceErrorAssets;
 
-    impl EmbeddedAssets for NamespaceErrorAssets {
-        fn domain() -> crate::StaticFluentDomain {
-            crate::__macro::static_domain("test-domain")
-        }
-
-        fn namespaces() -> &'static [&'static str] {
-            &["ui"]
-        }
-    }
+    impl_test_embedded_assets!(NamespaceErrorAssets, &["ui"]);
 
     #[derive(RustEmbed)]
     #[folder = "tests/fixtures/embedded_i18n_stray_base_file"]
     struct StrayBaseFileAssets;
 
-    impl EmbeddedAssets for StrayBaseFileAssets {
-        fn domain() -> crate::StaticFluentDomain {
-            crate::__macro::static_domain("test-domain")
-        }
-
-        fn namespaces() -> &'static [&'static str] {
-            &["ui"]
-        }
-    }
+    impl_test_embedded_assets!(StrayBaseFileAssets, &["ui"]);
 
     #[derive(RustEmbed)]
     #[folder = "tests/fixtures/embedded_i18n_nested"]
     struct NestedNamespaceAssets;
 
-    impl EmbeddedAssets for NestedNamespaceAssets {
-        fn domain() -> crate::StaticFluentDomain {
-            crate::__macro::static_domain("test-domain")
-        }
-
-        fn namespaces() -> &'static [&'static str] {
-            &["ui/button"]
-        }
-    }
+    impl_test_embedded_assets!(NestedNamespaceAssets, &["ui/button"]);
 
     #[derive(RustEmbed)]
     #[folder = "tests/fixtures/embedded_i18n_bundle_add_error"]
     struct BundleAddErrorAssets;
 
-    impl EmbeddedAssets for BundleAddErrorAssets {
-        fn domain() -> crate::StaticFluentDomain {
-            crate::__macro::static_domain("test-domain")
-        }
-
-        fn namespaces() -> &'static [&'static str] {
-            &["ui", "errors"]
-        }
-    }
+    impl_test_embedded_assets!(BundleAddErrorAssets, &["ui", "errors"]);
 
     #[derive(RustEmbed)]
     #[folder = "tests/fixtures/embedded_i18n_partial_fallback"]
     struct PartialFallbackAssets;
 
-    impl EmbeddedAssets for PartialFallbackAssets {
-        fn domain() -> crate::StaticFluentDomain {
-            crate::__macro::static_domain("test-domain")
-        }
-
-        fn namespaces() -> &'static [&'static str] {
-            &["ui"]
-        }
-    }
+    impl_test_embedded_assets!(PartialFallbackAssets, &["ui"]);
 
     struct OptionalOnlyAssets;
 
@@ -537,8 +535,12 @@ mod tests {
     }
 
     impl EmbeddedAssets for OptionalOnlyAssets {
-        fn domain() -> crate::StaticFluentDomain {
-            crate::__macro::static_domain("test-domain")
+        fn domains() -> &'static [ModuleDomain] {
+            const DOMAINS: &[ModuleDomain] = &[ModuleDomain {
+                domain: crate::__macro::static_domain("test-domain"),
+                namespaces: &[],
+            }];
+            DOMAINS
         }
 
         fn resource_plan_for_language(
@@ -554,20 +556,41 @@ mod tests {
 
     #[test]
     fn embedded_asset_test_types_expose_expected_domains_and_namespaces() {
-        assert_eq!(TestAssets::domain(), "test-domain");
-        assert_eq!(TestAssets::namespaces(), &["ui"]);
-        assert_eq!(BaseFileAssets::domain(), "test-domain");
-        assert!(BaseFileAssets::namespaces().is_empty());
-        assert_eq!(NamespaceErrorAssets::domain(), "test-domain");
-        assert_eq!(NamespaceErrorAssets::namespaces(), &["ui"]);
-        assert_eq!(StrayBaseFileAssets::domain(), "test-domain");
-        assert_eq!(StrayBaseFileAssets::namespaces(), &["ui"]);
-        assert_eq!(NestedNamespaceAssets::domain(), "test-domain");
-        assert_eq!(NestedNamespaceAssets::namespaces(), &["ui/button"]);
-        assert_eq!(BundleAddErrorAssets::domain(), "test-domain");
-        assert_eq!(BundleAddErrorAssets::namespaces(), &["ui", "errors"]);
-        assert_eq!(PartialFallbackAssets::domain(), "test-domain");
-        assert_eq!(PartialFallbackAssets::namespaces(), &["ui"]);
+        assert_eq!(TestAssets::domains()[0].domain.as_str(), "test-domain");
+        assert_eq!(TestAssets::domains()[0].namespaces, &["ui"]);
+        assert_eq!(BaseFileAssets::domains()[0].domain.as_str(), "test-domain");
+        assert!(BaseFileAssets::domains()[0].namespaces.is_empty());
+        assert_eq!(
+            NamespaceErrorAssets::domains()[0].domain.as_str(),
+            "test-domain"
+        );
+        assert_eq!(NamespaceErrorAssets::domains()[0].namespaces, &["ui"]);
+        assert_eq!(
+            StrayBaseFileAssets::domains()[0].domain.as_str(),
+            "test-domain"
+        );
+        assert_eq!(StrayBaseFileAssets::domains()[0].namespaces, &["ui"]);
+        assert_eq!(
+            NestedNamespaceAssets::domains()[0].domain.as_str(),
+            "test-domain"
+        );
+        assert_eq!(
+            NestedNamespaceAssets::domains()[0].namespaces,
+            &["ui/button"]
+        );
+        assert_eq!(
+            BundleAddErrorAssets::domains()[0].domain.as_str(),
+            "test-domain"
+        );
+        assert_eq!(
+            BundleAddErrorAssets::domains()[0].namespaces,
+            &["ui", "errors"]
+        );
+        assert_eq!(
+            PartialFallbackAssets::domains()[0].domain.as_str(),
+            "test-domain"
+        );
+        assert_eq!(PartialFallbackAssets::domains()[0].namespaces, &["ui"]);
     }
 
     static SUPPORTED_LANGUAGES: &[LanguageIdentifier] = &[
@@ -579,60 +602,84 @@ mod tests {
     static NAMESPACES: &[&str] = &["ui"];
     static MODULE_DATA: ModuleData = ModuleData {
         name: "test-module",
-        domain: crate::__macro::static_domain("test-domain"),
+        owner: crate::__macro::static_domain("test-domain"),
         supported_languages: SUPPORTED_LANGUAGES,
-        namespaces: NAMESPACES,
+        domains: &[crate::ModuleDomain {
+            domain: crate::__macro::static_domain("test-domain"),
+            namespaces: NAMESPACES,
+        }],
     };
     static BASE_FILE_SUPPORTED_LANGUAGES: &[LanguageIdentifier] = &[langid!("en")];
     static BASE_FILE_MODULE_DATA: ModuleData = ModuleData {
         name: "base-file-module",
-        domain: crate::__macro::static_domain("test-domain"),
+        owner: crate::__macro::static_domain("test-domain"),
         supported_languages: BASE_FILE_SUPPORTED_LANGUAGES,
-        namespaces: &[],
+        domains: &[crate::ModuleDomain {
+            domain: crate::__macro::static_domain("test-domain"),
+            namespaces: &[],
+        }],
     };
     static NS_ERROR_SUPPORTED_LANGUAGES: &[LanguageIdentifier] = &[langid!("ab"), langid!("ef")];
     static NS_ERROR_MODULE_DATA: ModuleData = ModuleData {
         name: "ns-error-module",
-        domain: crate::__macro::static_domain("test-domain"),
+        owner: crate::__macro::static_domain("test-domain"),
         supported_languages: NS_ERROR_SUPPORTED_LANGUAGES,
-        namespaces: NAMESPACES,
+        domains: &[crate::ModuleDomain {
+            domain: crate::__macro::static_domain("test-domain"),
+            namespaces: NAMESPACES,
+        }],
     };
     static STRAY_BASE_FILE_SUPPORTED_LANGUAGES: &[LanguageIdentifier] = &[langid!("en")];
     static STRAY_BASE_FILE_MODULE_DATA: ModuleData = ModuleData {
         name: "stray-base-file-module",
-        domain: crate::__macro::static_domain("test-domain"),
+        owner: crate::__macro::static_domain("test-domain"),
         supported_languages: STRAY_BASE_FILE_SUPPORTED_LANGUAGES,
-        namespaces: NAMESPACES,
+        domains: &[crate::ModuleDomain {
+            domain: crate::__macro::static_domain("test-domain"),
+            namespaces: NAMESPACES,
+        }],
     };
     static NESTED_NAMESPACE_SUPPORTED_LANGUAGES: &[LanguageIdentifier] = &[langid!("en")];
     static NESTED_NAMESPACE_MODULE_DATA: ModuleData = ModuleData {
         name: "nested-namespace-module",
-        domain: crate::__macro::static_domain("test-domain"),
+        owner: crate::__macro::static_domain("test-domain"),
         supported_languages: NESTED_NAMESPACE_SUPPORTED_LANGUAGES,
-        namespaces: &["ui/button"],
+        domains: &[crate::ModuleDomain {
+            domain: crate::__macro::static_domain("test-domain"),
+            namespaces: &["ui/button"],
+        }],
     };
     static BUNDLE_ADD_ERROR_SUPPORTED_LANGUAGES: &[LanguageIdentifier] =
         &[langid!("en"), langid!("fr")];
     static BUNDLE_ADD_ERROR_MODULE_DATA: ModuleData = ModuleData {
         name: "bundle-add-error-module",
-        domain: crate::__macro::static_domain("test-domain"),
+        owner: crate::__macro::static_domain("test-domain"),
         supported_languages: BUNDLE_ADD_ERROR_SUPPORTED_LANGUAGES,
-        namespaces: &["ui", "errors"],
+        domains: &[crate::ModuleDomain {
+            domain: crate::__macro::static_domain("test-domain"),
+            namespaces: &["ui", "errors"],
+        }],
     };
     static PARTIAL_FALLBACK_SUPPORTED_LANGUAGES: &[LanguageIdentifier] =
         &[langid!("en-US"), langid!("en")];
     static PARTIAL_FALLBACK_MODULE_DATA: ModuleData = ModuleData {
         name: "partial-fallback-module",
-        domain: crate::__macro::static_domain("test-domain"),
+        owner: crate::__macro::static_domain("test-domain"),
         supported_languages: PARTIAL_FALLBACK_SUPPORTED_LANGUAGES,
-        namespaces: NAMESPACES,
+        domains: &[crate::ModuleDomain {
+            domain: crate::__macro::static_domain("test-domain"),
+            namespaces: NAMESPACES,
+        }],
     };
     static OPTIONAL_ONLY_SUPPORTED_LANGUAGES: &[LanguageIdentifier] = &[langid!("en")];
     static OPTIONAL_ONLY_MODULE_DATA: ModuleData = ModuleData {
         name: "optional-only-module",
-        domain: crate::__macro::static_domain("test-domain"),
+        owner: crate::__macro::static_domain("test-domain"),
         supported_languages: OPTIONAL_ONLY_SUPPORTED_LANGUAGES,
-        namespaces: &[],
+        domains: &[crate::ModuleDomain {
+            domain: crate::__macro::static_domain("test-domain"),
+            namespaces: &[],
+        }],
     };
 
     #[test]
@@ -646,7 +693,7 @@ mod tests {
 
     #[test]
     fn discover_languages_supports_base_files_when_no_namespaces_are_configured() {
-        assert!(BaseFileAssets::namespaces().is_empty());
+        assert!(BaseFileAssets::domains()[0].namespaces.is_empty());
 
         let languages = EmbeddedI18nModule::<BaseFileAssets>::discover_languages();
         assert_eq!(
@@ -792,8 +839,9 @@ mod tests {
         let bundle = localizer
             .state
             .read()
-            .current_bundle
-            .clone()
+            .current_bundles
+            .get("test-domain")
+            .cloned()
             .expect("bundle should be built");
         assert_eq!(bundle.locales, vec![langid!("en-US"), langid!("en")]);
     }
@@ -903,6 +951,20 @@ mod tests {
         assert_eq!(module.data().name, "test-module");
         let localizer = module.create_localizer();
         assert_eq!(localizer.localize(static_entry("hello"), None), None);
+
+        let registration = &module as &dyn crate::I18nModuleRegistration;
+        let plan = registration
+            .resource_plan_for_language(&langid!("en"))
+            .expect("embedded registration should expose its locale resource plan");
+        assert_eq!(plan.len(), 2);
+        assert!(
+            plan.iter()
+                .all(|resource| resource.key.domain() == "test-domain")
+        );
+        assert_eq!(
+            registration.resource_plan_for_language(&langid!("de")),
+            None
+        );
     }
 
     #[test]

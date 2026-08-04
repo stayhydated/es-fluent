@@ -1,0 +1,11 @@
+[package]
+name = "multi-crate-host"
+edition.workspace = true
+publish.workspace = true
+version.workspace = true
+
+[dependencies]
+es-fluent-manager-embedded.workspace = true
+owner_a_api = { features = [ "embedded" ], package = "owner-a", path = "../owner-a" }
+renamed_owner = { features = [ "embedded" ], package = "owner-b", path = "../owner-b" }
+unic-langid.workspace = true

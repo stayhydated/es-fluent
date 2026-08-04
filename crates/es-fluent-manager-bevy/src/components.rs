@@ -109,8 +109,7 @@ mod tests {
     fn fluent_text_value_can_render_through_fluent_message_trait() {
         let component = FluentText::new(FakeMessage("hello"));
         let mut localize =
-            |_domain: es_fluent::registry::StaticFluentDomain,
-             _id: es_fluent::registry::StaticFluentEntryId,
+            |_key: es_fluent::registry::StaticFluentMessageKey,
              _args: Option<&es_fluent::FluentArgs<'_>>| { "unused".to_string() };
 
         assert_eq!(

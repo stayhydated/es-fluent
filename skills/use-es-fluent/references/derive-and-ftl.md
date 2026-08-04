@@ -52,17 +52,40 @@ Common `#[fluent(...)]` attributes:
 - `arg = "..."`: rename an exposed Fluent argument.
 - `skip`: exclude a field from arguments, or on a single-field enum variant delegate rendering to the wrapped message.
 - `value = |x: &String| x.len()`: transform a field before inserting it as a Fluent argument.
-- Plain `Option<T>` fields are inferred as optional Fluent arguments and are omitted when `None`.
+- Plain `Option<T>` fields are inferred as optional Fluent arguments. `Some`
+  inserts the converted value; `None` still inserts the argument as
+  `FluentValue::None`.
 - `selector` on `Option<T>` fields creates an optional selector argument.
 - `selector` and `value = ...` cannot be combined on the same field. Explicit value attributes override `Option<T>` inference.
 - `key = "..."`: override an enum variant key suffix. On unit-only `EsFluent` enums, this also overrides the inferred selector value.
 - `skip` and `key = "..."` cannot be combined on the same enum variant.
-- `id = "..."`: override an enum base key.
-- `domain = "..."`: route enum lookup to a specific manager domain.
+- `id = "..."`: override an enum base key only for a fixed external FTL contract; normally keep the clearer generated name.
+- `domain = "..."`: route generated FTL to an additional package-local
+  resource declared by `domains` in `i18n.toml`.
 
-`id` and `domain` are enum-only. Struct message containers accept `namespace = ...`.
+`id` is enum-only. `domain` applies to enums and structs. An explicit domain
+keeps the generated ID and contributes inventory to
+that domain's FTL file:
 
-Generated FTL keys must be unique within each output file. `cargo es-fluent generate`, `clean`, and `check` fail when two derived items produce the same key.
+```toml
+domains = ["ui"]
+```
+
+Do not list the Cargo package name in `domains`; the default domain is implicit.
+
+```rust
+#[derive(EsFluent)]
+#[fluent(domain = "ui")]
+enum UiGreeting {
+    Greeting,
+}
+```
+
+This generates `ui_greeting-Greeting` in `ui.ftl`. A domain is scoped to the
+crate that declares it and does not reference another crate.
+
+Generated FTL IDs must be unique within one package-local domain, including
+across namespace files. The same ID may be reused in another domain or package.
 
 ## Localized Temporal Arguments
 
@@ -73,7 +96,7 @@ inference as other supported field types.
 
 ```toml
 [dependencies]
-es-fluent = { version = "*", features = ["icu-datetime"] }
+es-fluent = { version = "0.18", features = ["icu-datetime"] }
 ```
 
 ```rust
@@ -270,3 +293,7 @@ segments, `.`/`..`, backslashes, absolute paths, surrounding whitespace, or
 ## Inventory Discovery
 
 Keep derived message types reachable from a library target. The CLI collects derive inventory from library targets. It does not discover binary-only types that live only in `src/main.rs`.
+Inventory records the declaring Cargo package explicitly. CLI attribution does
+not infer ownership from `module_path!()`, so custom library target names and
+host dependency aliases do not change the default package-name domain or the
+owner of an explicit package-local domain.

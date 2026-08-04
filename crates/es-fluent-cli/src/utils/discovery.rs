@@ -88,6 +88,15 @@ pub(crate) fn discover_workspace_scoped(
                 workspace_relative_path(&i18n_config_path, &workspace_root)
             )
         })?;
+        layout
+            .config
+            .validate_for_package(&package.name)
+            .map_err(|error| {
+                anyhow::anyhow!(
+                    "Failed to read {}: {error}",
+                    workspace_relative_path(&i18n_config_path, &workspace_root)
+                )
+            })?;
         let ftl_output_dir = layout.output_dir.clone();
         let fluent_features = layout.fluent_features();
 

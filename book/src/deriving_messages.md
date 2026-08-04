@@ -1,4 +1,4 @@
-# Deriving Messages
+# Deriving messages
 
 The `EsFluent` derive macro turns a struct or enum into a localizable message. Each type maps to one or more keys in your `.ftl` files, and fields become Fluent arguments.
 
@@ -55,29 +55,38 @@ let welcome = WelcomeMessage { name: "John", count: 5 };
 let _ = i18n.localize_message(&welcome);
 ```
 
-Common derive attributes:
+**Field arguments:**
 
 - `arg = "..."` on a field renames that exposed Fluent argument (works on struct fields, enum named fields, and enum tuple fields).
 - `#[fluent(skip)]` on a field excludes that field from generated arguments.
 - `#[fluent(value = |x: &String| x.len())]` transforms a field before inserting it as a Fluent argument.
-- Plain `Option<T>` fields are inferred as optional Fluent arguments and are omitted when `None`.
+- Plain `Option<T>` fields are inferred as optional Fluent arguments. `Some`
+  inserts the converted value; `None` still inserts the argument as
+  `FluentValue::None`.
 - `#[fluent(selector)]` on `Option<T>` fields creates an optional selector argument.
 - `#[fluent(selector)]` and `#[fluent(value = ...)]` are mutually exclusive on the same field. Explicit value attributes override `Option<T>` inference.
+
+**Message IDs and resources:**
+
 - `#[fluent(key = "...")]` on an enum variant overrides that variant's key suffix. On unit-only `EsFluent` enums, it also overrides the inferred selector value.
 - `#[fluent(skip)]` and `#[fluent(key = "...")]` cannot be combined on the same enum variant.
-- `#[fluent(id = "...")]` on an enum overrides the base key, and `domain = "..."` routes lookup to a specific manager domain.
-- `id = "..."` and `domain = "..."` are enum-only. Struct message containers accept `namespace = ...`; struct messages resolve in the current crate's domain.
-- Generated FTL keys must be unique within each output file. `generate`, `clean`, and `check` fail when two derived items produce the same key.
+- `#[fluent(id = "...")]` on an enum overrides the generated base key. Reserve it for a fixed external FTL contract; the generated name is normally clearer.
+- `#[fluent(domain = "...")]` on an enum or struct routes generated FTL to an additional package-local domain declared in `i18n.toml`.
+- Generated FTL IDs must be unique within one package-local domain, including across its namespace files. The same ID may be reused in another domain or package.
 - For namespaced types, `check` validates the expected namespace file; a key in `{crate}.ftl` still counts as missing if the Rust type belongs in `{crate}/{namespace}.ftl`.
-- `#[fluent_variants(skip)]` omits a struct field or enum variant from generated variant enums; `keys = [...]` values must be lowercase snake_case.
 
-## Localized Temporal Arguments
+**Generated variants:**
+
+`#[fluent_variants(skip)]` omits a struct field or enum variant from generated
+variant enums; `keys = [...]` values must be lowercase snake_case.
+
+## Localized temporal arguments
 
 Enable the feature for the date/time library used by your message fields:
 
 ```toml
 [dependencies]
-es-fluent = { version = "*", features = ["icu-datetime"] }
+es-fluent = { version = "0.18", features = ["icu-datetime"] }
 ```
 
 Temporal fields work like other derived arguments, including borrowed fields,
@@ -119,14 +128,14 @@ hours, minutes, seconds, and subsecond units, then rendered with ICU4X's
 locale-aware short duration format. Jiff `Timestamp` values are rendered in UTC.
 Jiff `Span` and `SignedDuration` arguments use Jiff's friendly duration format.
 
-Skipped single-field enum variants:
+## Delegate skipped wrapper variants
 
 `#[fluent(skip)]` on a single-field enum variant suppresses that variant's own
 key and delegates context-bound rendering to the wrapped value. This is useful for
 transparent wrapper enums.
 
 ```rust
-use es_fluent::{EsFluent, FluentMessage};
+use es_fluent::EsFluent;
 
 #[derive(EsFluent)]
 pub enum NetworkError {
@@ -148,7 +157,7 @@ let _ = i18n.localize_message(&TransactionError::Network(NetworkError::ApiUnavai
 network_error-ApiUnavailable = API is unavailable
 ```
 
-## Using Choices
+## Use choices
 
 Choices allow an enum to be used _inside_ another message as a Fluent selector (e.g., for gender or category). Unit-only enums that derive `EsFluent` infer `EsFluentChoice` automatically.
 Variants serialize as kebab-case by default, so `GenderChoice::Male` becomes
@@ -185,12 +194,11 @@ greeting = { $gender ->
 ```
 
 ```rust
-use es_fluent::FluentMessage;
 let greeting = Greeting { name: "John", gender: Some(&GenderChoice::Male) };
 let _ = i18n.localize_message(&greeting);
 ```
 
-## Generating Variants
+## Generate variants
 
 `EsFluentVariants` generates key-value pair enums for struct fields or enum
 variants. This is useful for generating UI labels, placeholders, or
@@ -229,7 +237,6 @@ login_form_variants_description_variants-username = Username
 ```
 
 ```rust
-use es_fluent::FluentMessage;
 let _ = i18n.localize_message(&LoginFormVariantsLabelVariants::Username);
 let _ = i18n.localize_message(&ActiveFormField {
     field: LoginFormVariantsLabelVariants::Username,
@@ -270,7 +277,6 @@ settings_tab_variants-Privacy = Privacy
 ```
 
 ```rust
-use es_fluent::FluentMessage;
 let _ = i18n.localize_message(&SettingsTabVariants::Notifications);
 ```
 
@@ -282,11 +288,11 @@ used directly in `#[fluent(selector)]` fields. Use `derive(...)` inside
 `#[fluent_variants(...)]` for additional traits; `EsFluentChoice` is already
 inferred.
 
-## Type-level Labels
+## Type-level labels
 
 `EsFluentLabel` generates a `FluentLabel` implementation that registers the type's _name_ as a key. Where `EsFluentVariants` registers individual fields, `EsFluentLabel` registers the parent type itself.
 
-### Type Label
+### Type label
 
 `#[derive(EsFluentLabel)]` creates a single key for the type. The derive is
 enough to register the type label; no additional `#[fluent_label(...)]` flag is
@@ -311,10 +317,10 @@ gender_label_only_label = Gender Label Only
 use es_fluent::FluentLabel;
 let _ = GenderLabelOnly::localize_label(&i18n);
 let _ = GenderLabelOnly::try_localize_label(&i18n);
-let _ = GenderLabelOnly::fluent_label_id();
+let _ = GenderLabelOnly::fluent_label_key();
 ```
 
-### Combined with Generated Variant Labels
+### Combine labels with generated variants
 
 `#[derive(EsFluentVariants)]` also gives each generated variant enum a
 type-level label key inferred from the generated enum name:

@@ -1,6 +1,5 @@
 ---
 source: crates/es-fluent-lang-macro/src/lib.rs
-assertion_line: 836
 expression: pretty_tokens(&custom_mode)
 ---
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
@@ -17,28 +16,37 @@ impl ::es_fluent::FluentMessage for CustomLanguages {
         match self {
             Self::En => {
                 localize(
-                    ::es_fluent::registry::StaticFluentDomain::from_package_name(
+                    ::es_fluent::registry::__macro::static_message_key(
                         env!("CARGO_PKG_NAME"),
+                        ::es_fluent::registry::StaticFluentDomain::from_package_name(
+                            env!("CARGO_PKG_NAME"),
+                        ),
+                        ::es_fluent::registry::__macro::static_entry_id("en"),
                     ),
-                    ::es_fluent::registry::__macro::static_entry_id("en"),
                     None,
                 )
             }
             Self::FrFr => {
                 localize(
-                    ::es_fluent::registry::StaticFluentDomain::from_package_name(
+                    ::es_fluent::registry::__macro::static_message_key(
                         env!("CARGO_PKG_NAME"),
+                        ::es_fluent::registry::StaticFluentDomain::from_package_name(
+                            env!("CARGO_PKG_NAME"),
+                        ),
+                        ::es_fluent::registry::__macro::static_entry_id("fr-FR"),
                     ),
-                    ::es_fluent::registry::__macro::static_entry_id("fr-FR"),
                     None,
                 )
             }
             Self::ZhCn => {
                 localize(
-                    ::es_fluent::registry::StaticFluentDomain::from_package_name(
+                    ::es_fluent::registry::__macro::static_message_key(
                         env!("CARGO_PKG_NAME"),
+                        ::es_fluent::registry::StaticFluentDomain::from_package_name(
+                            env!("CARGO_PKG_NAME"),
+                        ),
+                        ::es_fluent::registry::__macro::static_entry_id("zh-CN"),
                     ),
-                    ::es_fluent::registry::__macro::static_entry_id("zh-CN"),
                     None,
                 )
             }
@@ -76,6 +84,7 @@ mod __es_fluent_language_inventory_custom_languages {
         ::es_fluent::meta::TypeKind::Enum,
         "CustomLanguages",
         VARIANTS,
+        ::es_fluent::registry::__macro::ftl_scope(env!("CARGO_PKG_NAME"), None),
         file!(),
         module_path!(),
         None,

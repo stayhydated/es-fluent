@@ -1,50 +1,54 @@
 ---
 name: use-es-fluent
-description: 'Use when adding, changing, documenting, or reviewing es-fluent localization in Rust applications. Covers choosing `es-fluent`, using the `cargo es-fluent` CLI, embedded/Dioxus/Bevy managers, typed language enums, deriving Fluent messages, generated FTL, and explicit manager contexts.'
+description: Use when adding, migrating, debugging, documenting, or reviewing es-fluent localization in Rust applications. Covers choosing embedded, Dioxus, or Bevy managers; configuring i18n.toml; deriving typed messages, labels, variants, and language enums; generating and validating FTL with cargo es-fluent; and composing localization across Cargo workspaces.
 ---
 
 # Use es-fluent
 
-## Scope
+## Workflow
 
-Use this skill for application setup, public crate usage, public CLI behavior, generated FTL expectations, and examples intended for Rust application developers.
+1. Inspect the relevant `Cargo.toml`, `i18n.toml`, library
+   target, locale tree, and existing manager module. Preserve the repository's
+   compatible release lines.
+2. Choose one concrete runtime manager: embedded for general Rust, Dioxus for
+   client/SSR, or Bevy for ECS and reactive UI.
+3. Keep localizable types and `define_i18n_module!()` reachable from a
+   library target. CLI derive discovery does not inspect binary-only types.
+4. Give each package that owns messages its own configuration, fallback FTL,
+   manager registration, and build-script asset tracking.
+5. Use `EsFluent` for messages, `EsFluentVariants` for
+   field or variant metadata, `EsFluentLabel` for type labels, and a
+   unit-only `EsFluent` enum for selectors when it should also be a
+   message.
+6. Generate fallback FTL, translate it, then run the narrow relevant CLI check.
+7. Localize through the explicit manager or framework context. Use fallible
+   lookup only where the caller intentionally handles missing output.
 
-Keep guidance focused on reusable es-fluent application workflows. Prefer current public docs and executable examples when details matter.
+## Decision rules
 
-## Core Workflow
+- Prefer the `es-fluent` facade and a concrete manager over direct
+  dependencies on proc-macro or manager-core crates.
+- Use canonical BCP-47 locale directory names.
+- Treat the Cargo package name as the implicit package-local FTL domain.
+  Additional `domains` do not reference another crate.
+- Use namespaces to split one domain into files, not to establish ownership.
+- Add `es-fluent-build` under `[build-dependencies]` when
+  manager macros scan locale assets at compile time.
+- Preserve edited fallback translations in conservative generation mode. Preview
+  cleanup and aggressive generation before allowing deletions.
+- In workspaces, validate from the root when the task spans multiple owner
+  packages; use `--package` for intentionally narrow work.
 
-Start from the user-facing facade. Most application code uses `es-fluent` plus exactly one runtime manager:
+## References
 
-1. Choose the manager: embedded for CLIs/TUIs/desktop/general Rust, Dioxus for Dioxus client or SSR, and Bevy for ECS/assets.
-2. Put localizable types in a library target (`src/lib.rs` or a library module). `cargo es-fluent generate` discovers library inventory; binary-only derives in `src/main.rs` are not discovered.
-3. Put `define_i18n_module!()` in a library-reachable `src/i18n.rs`, and declare `pub mod i18n;` from `src/lib.rs`.
-4. Derive `EsFluent` for messages. Unit-only `EsFluent` enums and `EsFluentVariants` generated enums infer selector support; use standalone `EsFluentChoice` only for selector enums that should not also be messages or generated variants. Use `EsFluentVariants` for field/variant labels, and `EsFluentLabel` for type-level labels.
-5. Generate and inspect FTL through the es-fluent CLI: `cargo es-fluent generate`, then `cargo es-fluent status --all` or the narrower relevant command.
-6. Localize through an explicit context: `i18n.localize_message(&message)` or `MyType::localize_label(&i18n)`. These APIs fail hard when a typed Fluent resource is missing. Use `try_localize_message(...)` or `MyType::try_localize_label(&i18n)` only when the caller explicitly handles the missing state.
+Load only the reference needed for the request:
 
-## Reference Selection
-
-Load only the reference needed for the task:
-
-- `references/public-facades.md`: dependency and runtime choice, setup snippets, and which crate to use for embedded, Dioxus, Bevy, or language enums.
-- `references/derive-and-ftl.md`: derive macro patterns, generated IDs/arguments, namespaces, choices, labels, variants, and FTL generation expectations.
-- `references/cli-workflow.md`: `cargo es-fluent` commands, `i18n.toml`, and generated asset layout.
-
-## Implementation Rules
-
-Use `es-fluent-lang` for typed language pickers. Do not hand-write locale enums when `#[es_fluent_language]` can derive them from `i18n.toml` and the locale folders.
-
-For manager macros that scan locale assets at compile time, add rebuild tracking when locale files or folders may change:
-
-```rust
-fn main() {
-    es_fluent_build::track_i18n_assets();
-}
-```
-
-with:
-
-```toml
-[build-dependencies]
-es-fluent-build = "*"
-```
+- [Public facades and setup](references/public-facades.md): dependencies,
+  configuration, release lines, and multi-crate ownership.
+- [Runtime managers](references/managers.md): embedded, Dioxus, and Bevy setup
+  and context rules.
+- [Derive and FTL patterns](references/derive-and-ftl.md): attributes,
+  generated IDs and arguments, choices, labels, variants, temporal values,
+  namespaces, and domains.
+- [CLI workflow](references/cli-workflow.md): generation, checks, locale
+  management, cleanup, structured output, and workspace selection.

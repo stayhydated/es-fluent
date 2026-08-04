@@ -3,8 +3,8 @@
 #[doc(hidden)]
 pub use es_fluent_shared::registry::__macro;
 pub use es_fluent_shared::registry::{
-    FtlTypeInfo, FtlVariant, NamespaceRule, StaticFluentArgumentName, StaticFluentDomain,
-    StaticFluentEntryId, StaticFluentVariantKey,
+    FtlScope, FtlTypeInfo, FtlVariant, NamespaceRule, StaticFluentArgumentName, StaticFluentDomain,
+    StaticFluentEntryId, StaticFluentMessageKey, StaticFluentVariantKey,
 };
 pub use es_fluent_shared::source::{SourceFile, SourceLine, SourceLocation};
 

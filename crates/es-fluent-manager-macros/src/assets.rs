@@ -1,12 +1,16 @@
 pub(crate) use es_fluent_shared::resource::ModuleResourceSpec as ResourceSpec;
-use es_fluent_shared::{LanguageIdentifier, namespace::ResolvedNamespace};
+use es_fluent_shared::{LanguageIdentifier, fluent::FluentDomain, namespace::ResolvedNamespace};
 use quote::quote;
-use std::{fmt, path::PathBuf};
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    fmt,
+    path::PathBuf,
+};
 
 pub(crate) struct I18nAssets {
     pub(crate) root_path: PathBuf,
     pub(crate) languages: Vec<LanguageIdentifier>,
-    pub(crate) namespaces: Vec<ResolvedNamespace>,
+    pub(crate) domains: Vec<(FluentDomain, Vec<ResolvedNamespace>)>,
     pub(crate) resource_specs_by_language: Vec<(LanguageIdentifier, Vec<ResourceSpec>)>,
 }
 
@@ -17,10 +21,18 @@ impl fmt::Debug for I18nAssets {
             .iter()
             .map(ToString::to_string)
             .collect::<Vec<_>>();
-        let namespaces = self
-            .namespaces
+        let domains = self
+            .domains
             .iter()
-            .map(ResolvedNamespace::as_str)
+            .map(|(domain, namespaces)| {
+                (
+                    domain.as_str(),
+                    namespaces
+                        .iter()
+                        .map(ResolvedNamespace::as_str)
+                        .collect::<Vec<_>>(),
+                )
+            })
             .collect::<Vec<_>>();
         let resource_specs_by_language = self
             .resource_specs_by_language
@@ -31,7 +43,7 @@ impl fmt::Debug for I18nAssets {
         f.debug_struct("I18nAssets")
             .field("root_path", &self.root_path)
             .field("languages", &languages)
-            .field("namespaces", &namespaces)
+            .field("domains", &domains)
             .field("resource_specs_by_language", &resource_specs_by_language)
             .finish()
     }
@@ -57,17 +69,17 @@ pub(crate) fn module_data_static_tokens(
     static_name: &syn::Ident,
     crate_name: &str,
     language_identifiers: &[proc_macro2::TokenStream],
-    namespace_strings: &[proc_macro2::TokenStream],
+    domains: &[proc_macro2::TokenStream],
 ) -> proc_macro2::TokenStream {
     quote! {
         static #static_name: #manager_core_path::ModuleData = #manager_core_path::ModuleData {
             name: #crate_name,
-            domain: #manager_core_path::__macro::static_domain(#crate_name),
+            owner: #manager_core_path::__macro::static_domain(#crate_name),
             supported_languages: &[
                 #(#language_identifiers),*
             ],
-            namespaces: &[
-                #(#namespace_strings),*
+            domains: &[
+                #(#domains),*
             ],
         };
     }
@@ -89,6 +101,9 @@ impl I18nAssets {
                 )));
             },
         };
+        config
+            .validate_for_package(crate_name)
+            .map_err(|error| macro_error(error.to_string()))?;
 
         let i18n_root_path = match config.assets_dir_from_manifest() {
             Ok(path) => path,
@@ -114,12 +129,44 @@ impl I18nAssets {
             )
             .map_err(|error| macro_error(error.to_string()))?
             .into_parts();
+        let mut languages = languages.into_iter().collect::<BTreeSet<_>>();
+        let mut resource_specs_by_language = resource_specs_by_language
+            .into_iter()
+            .collect::<BTreeMap<_, _>>();
+        let mut domains = vec![(
+            FluentDomain::try_new(crate_name.to_string())
+                .map_err(|error| macro_error(error.to_string()))?,
+            namespaces,
+        )];
+
+        for domain in &config.domains {
+            let (domain_languages, domain_namespaces, domain_specs) =
+                es_fluent_shared::resource::ResourcePlan::sparse_from_assets(
+                    domain.as_str(),
+                    &i18n_root_path,
+                )
+                .map_err(|error| macro_error(error.to_string()))?
+                .into_parts();
+
+            languages.extend(domain_languages);
+            for (language, specs) in domain_specs {
+                resource_specs_by_language
+                    .entry(language)
+                    .or_default()
+                    .extend(specs);
+            }
+            domains.push((domain.clone(), domain_namespaces));
+        }
+
+        for specs in resource_specs_by_language.values_mut() {
+            specs.sort_by(|left, right| left.locale_relative_path.cmp(&right.locale_relative_path));
+        }
 
         Ok(Self {
             root_path: i18n_root_path,
-            languages,
-            namespaces,
-            resource_specs_by_language,
+            languages: languages.into_iter().collect(),
+            domains,
+            resource_specs_by_language: resource_specs_by_language.into_iter().collect(),
         })
     }
 
@@ -136,12 +183,21 @@ impl I18nAssets {
             .collect()
     }
 
-    pub(crate) fn namespace_tokens(&self) -> Vec<proc_macro2::TokenStream> {
-        self.namespaces
+    pub(crate) fn domain_tokens(
+        &self,
+        manager_core_path: &proc_macro2::TokenStream,
+    ) -> Vec<proc_macro2::TokenStream> {
+        self.domains
             .iter()
-            .map(|ns| {
-                let ns = ns.as_str();
-                quote! { #ns }
+            .map(|(domain, namespaces)| {
+                let domain = domain.as_str();
+                let namespaces = namespaces.iter().map(|namespace| namespace.as_str());
+                quote! {
+                    #manager_core_path::ModuleDomain {
+                        domain: #manager_core_path::__macro::static_domain(#domain),
+                        namespaces: &[#(#namespaces),*],
+                    }
+                }
             })
             .collect()
     }
@@ -276,7 +332,12 @@ mod tests {
                     .len(),
                 2
             );
-            assert_eq!(assets.namespace_tokens().len(), 1);
+            assert_eq!(
+                assets
+                    .domain_tokens(&quote!(::es_fluent_manager_core))
+                    .len(),
+                1
+            );
         });
     }
 
@@ -339,7 +400,10 @@ mod tests {
             let assets = I18nAssets::load("my-crate").expect("load assets");
             assert_eq!(
                 assets
-                    .namespaces
+                    .domains
+                    .first()
+                    .expect("default domain")
+                    .1
                     .iter()
                     .map(ResolvedNamespace::as_str)
                     .collect::<Vec<_>>(),
@@ -364,6 +428,37 @@ mod tests {
             assert_eq!(
                 plans.get("fr"),
                 Some(&vec![("my-crate", false), ("my-crate/errors", true)])
+            );
+        });
+    }
+
+    #[test]
+    fn i18n_assets_load_includes_additional_package_domains() {
+        let temp = tempfile::tempdir().expect("tempdir");
+        std::fs::write(
+            temp.path().join("i18n.toml"),
+            "fallback_language = \"en\"\nassets_dir = \"i18n\"\ndomains = [\"ui\"]\n",
+        )
+        .expect("write i18n.toml");
+        std::fs::create_dir_all(temp.path().join("i18n/en")).expect("mkdir en");
+        std::fs::write(temp.path().join("i18n/en/my-crate.ftl"), "message = Main")
+            .expect("write main domain");
+        std::fs::write(temp.path().join("i18n/en/ui.ftl"), "ui_message = UI")
+            .expect("write UI domain");
+
+        with_env_var("CARGO_MANIFEST_DIR", temp.path().to_str(), || {
+            let assets = I18nAssets::load("my-crate").expect("load assets");
+            let specs = &assets.resource_specs_by_language[0].1;
+            assert_eq!(
+                specs
+                    .iter()
+                    .map(|spec| (
+                        spec.key.as_str(),
+                        spec.locale_relative_path.as_str(),
+                        spec.required,
+                    ))
+                    .collect::<Vec<_>>(),
+                [("my-crate", "my-crate.ftl", true), ("ui", "ui.ftl", true),]
             );
         });
     }

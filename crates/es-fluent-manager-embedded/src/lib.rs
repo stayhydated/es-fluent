@@ -2,7 +2,7 @@
 
 use es_fluent::{
     FluentArgs, FluentLocalizer, FluentLocalizerExt, FluentLocalizerLookup, FluentMessage,
-    registry::{StaticFluentDomain, StaticFluentEntryId},
+    registry::StaticFluentMessageKey,
 };
 use es_fluent_manager_core::{FluentManager, ModuleDiscoveryError};
 use std::sync::{Arc, RwLock};
@@ -213,34 +213,17 @@ impl EmbeddedI18n {
 impl FluentLocalizer for EmbeddedI18n {
     fn localize<'a>(
         &self,
-        id: StaticFluentEntryId,
+        key: StaticFluentMessageKey,
         args: Option<&FluentArgs<'a>>,
     ) -> Option<String> {
-        FluentManager::localize(self.manager.as_ref(), id, args.map(FluentArgs::as_raw))
-    }
-
-    fn localize_in_domain<'a>(
-        &self,
-        domain: StaticFluentDomain,
-        id: StaticFluentEntryId,
-        args: Option<&FluentArgs<'a>>,
-    ) -> Option<String> {
-        FluentManager::localize_in_domain(
-            self.manager.as_ref(),
-            domain,
-            id,
-            args.map(FluentArgs::as_raw),
-        )
+        FluentManager::localize(self.manager.as_ref(), key, args.map(FluentArgs::as_raw))
     }
 
     fn with_lookup(&self, f: &mut dyn FnMut(&mut FluentLocalizerLookup<'_>)) {
         FluentManager::with_lookup(self.manager.as_ref(), &mut |lookup| {
-            let mut typed_lookup =
-                |domain: StaticFluentDomain,
-                 id: StaticFluentEntryId,
-                 args: Option<&FluentArgs<'_>>| {
-                    lookup(domain, id, args.map(FluentArgs::as_raw))
-                };
+            let mut typed_lookup = |key: StaticFluentMessageKey, args: Option<&FluentArgs<'_>>| {
+                lookup(key, args.map(FluentArgs::as_raw))
+            };
             f(&mut typed_lookup);
         });
     }
@@ -258,9 +241,12 @@ mod tests {
     static TEST_SUPPORTED_LANGUAGES: &[LanguageIdentifier] = &[langid!("en-US"), langid!("fr")];
     static TEST_MODULE_DATA: ModuleData = ModuleData {
         name: "embedded-test-module",
-        domain: es_fluent_manager_core::__macro::static_domain("embedded-test-module"),
+        owner: es_fluent_manager_core::__macro::static_domain("embedded-test-module"),
         supported_languages: TEST_SUPPORTED_LANGUAGES,
-        namespaces: &[],
+        domains: &[es_fluent_manager_core::ModuleDomain {
+            domain: es_fluent_manager_core::__macro::static_domain("embedded-test-module"),
+            namespaces: &[],
+        }],
     };
 
     struct TestModule;
@@ -302,15 +288,18 @@ mod tests {
 
         fn localize<'a>(
             &self,
-            id: StaticFluentEntryId,
+            key: StaticFluentMessageKey,
             _args: Option<&es_fluent_manager_core::FluentArgumentMap<'a>>,
         ) -> Option<String> {
+            if key.owner() != "embedded-test-module" || key.domain() != "embedded-test-module" {
+                return None;
+            }
             let selected = self
                 .selected
                 .lock()
                 .expect("test localizer language lock should not be poisoned")
                 .to_string();
-            let value = match (selected.as_str(), id.as_str()) {
+            let value = match (selected.as_str(), key.id().as_str()) {
                 ("en-US", "hello") => "Hello",
                 ("fr", "hello") => "Bonjour",
                 _ => return None,
@@ -328,8 +317,11 @@ mod tests {
             localize: &mut es_fluent::FluentMessageLookup<'_>,
         ) -> String {
             localize(
-                es_fluent::registry::__macro::static_domain("embedded-test-module"),
-                es_fluent::registry::__macro::static_entry_id("hello"),
+                es_fluent::registry::__macro::static_message_key(
+                    "embedded-test-module",
+                    es_fluent::registry::__macro::static_domain("embedded-test-module"),
+                    es_fluent::registry::__macro::static_entry_id("hello"),
+                ),
                 None,
             )
         }
@@ -346,12 +338,12 @@ mod tests {
         });
     }
 
-    fn static_domain(value: &'static str) -> StaticFluentDomain {
-        StaticFluentDomain::try_new(value).expect("valid test domain")
-    }
-
-    fn static_entry(value: &'static str) -> StaticFluentEntryId {
-        StaticFluentEntryId::try_new(value).expect("valid test message id")
+    fn static_key(id: &'static str) -> StaticFluentMessageKey {
+        es_fluent::registry::__macro::static_message_key(
+            "embedded-test-module",
+            es_fluent::registry::__macro::static_domain("embedded-test-module"),
+            es_fluent::registry::__macro::static_entry_id(id),
+        )
     }
 
     #[test]
@@ -363,21 +355,11 @@ mod tests {
             .expect("fr embedded i18n should initialize");
 
         assert_eq!(
-            es_fluent::FluentLocalizer::localize_in_domain(
-                &en,
-                static_domain("embedded-test-module"),
-                static_entry("hello"),
-                None
-            ),
+            es_fluent::FluentLocalizer::localize(&en, static_key("hello"), None),
             Some("Hello".to_string())
         );
         assert_eq!(
-            es_fluent::FluentLocalizer::localize_in_domain(
-                &fr,
-                static_domain("embedded-test-module"),
-                static_entry("hello"),
-                None
-            ),
+            es_fluent::FluentLocalizer::localize(&fr, static_key("hello"), None),
             Some("Bonjour".to_string())
         );
 
@@ -385,21 +367,11 @@ mod tests {
             .expect("en manager should switch to fr");
 
         assert_eq!(
-            es_fluent::FluentLocalizer::localize_in_domain(
-                &en,
-                static_domain("embedded-test-module"),
-                static_entry("hello"),
-                None
-            ),
+            es_fluent::FluentLocalizer::localize(&en, static_key("hello"), None),
             Some("Bonjour".to_string())
         );
         assert_eq!(
-            es_fluent::FluentLocalizer::localize_in_domain(
-                &fr,
-                static_domain("embedded-test-module"),
-                static_entry("hello"),
-                None
-            ),
+            es_fluent::FluentLocalizer::localize(&fr, static_key("hello"), None),
             Some("Bonjour".to_string())
         );
 
@@ -407,21 +379,11 @@ mod tests {
             .expect("fr manager should switch to en-US");
 
         assert_eq!(
-            es_fluent::FluentLocalizer::localize_in_domain(
-                &en,
-                static_domain("embedded-test-module"),
-                static_entry("hello"),
-                None
-            ),
+            es_fluent::FluentLocalizer::localize(&en, static_key("hello"), None),
             Some("Bonjour".to_string())
         );
         assert_eq!(
-            es_fluent::FluentLocalizer::localize_in_domain(
-                &fr,
-                static_domain("embedded-test-module"),
-                static_entry("hello"),
-                None
-            ),
+            es_fluent::FluentLocalizer::localize(&fr, static_key("hello"), None),
             Some("Hello".to_string())
         );
     }
@@ -433,12 +395,7 @@ mod tests {
             .expect("embedded i18n should initialize");
 
         assert_eq!(
-            es_fluent::FluentLocalizer::localize_in_domain(
-                &i18n,
-                static_domain("embedded-test-module"),
-                static_entry("hello"),
-                None
-            ),
+            es_fluent::FluentLocalizer::localize(&i18n, static_key("hello"), None),
             Some("Hello".to_string())
         );
         assert_eq!(i18n.localize_message(&TestMessage), "Hello");
@@ -457,21 +414,11 @@ mod tests {
         i18n.select_language_strict(langid!("en-US"))
             .expect("strictly selecting the active language should be a no-op");
         assert_eq!(
-            es_fluent::FluentLocalizer::localize_in_domain(
-                &i18n,
-                static_domain("embedded-test-module"),
-                static_entry("hello"),
-                None
-            ),
+            es_fluent::FluentLocalizer::localize(&i18n, static_key("hello"), None),
             Some("Hello".to_string())
         );
         assert_eq!(
-            es_fluent::FluentLocalizer::localize_in_domain(
-                &i18n,
-                static_domain("embedded-test-module"),
-                static_entry("unknown"),
-                None
-            ),
+            es_fluent::FluentLocalizer::localize(&i18n, static_key("unknown"), None),
             None
         );
 
@@ -488,7 +435,7 @@ mod tests {
         let cloned = i18n.clone();
 
         assert_eq!(
-            es_fluent::FluentLocalizer::localize(&i18n, static_entry("hello"), None),
+            es_fluent::FluentLocalizer::localize(&i18n, static_key("hello"), None),
             None
         );
         assert_eq!(i18n.try_localize_message(&TestMessage), None);
@@ -497,12 +444,7 @@ mod tests {
             .expect("language selection should work after initialization");
         assert_eq!(i18n.localize_message(&TestMessage), "Bonjour");
         assert_eq!(
-            es_fluent::FluentLocalizer::localize_in_domain(
-                &i18n,
-                static_domain("embedded-test-module"),
-                static_entry("hello"),
-                None
-            ),
+            es_fluent::FluentLocalizer::localize(&i18n, static_key("hello"), None),
             Some("Bonjour".to_string())
         );
     }
@@ -515,7 +457,7 @@ mod tests {
         let discovery = EmbeddedInitError::ModuleDiscovery(vec![
             ModuleDiscoveryError::DuplicateModuleRegistration {
                 name: "app".to_string(),
-                domain: "app".to_string(),
+                owner: "app".to_string(),
                 kind: ModuleRegistrationKind::MetadataOnly,
                 count: 2,
             },

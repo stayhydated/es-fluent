@@ -1,8 +1,10 @@
 #![doc = include_str!("../README.md")]
 #![cfg_attr(not(test), deny(clippy::panic, clippy::unwrap_used))]
 
+#[cfg(test)]
+use es_fluent_shared::fluent::{FluentDomain, FluentEntryId};
 use es_fluent_shared::{
-    fluent::{FluentArgumentName, FluentEntryId},
+    fluent::{FluentArgumentName, FluentMessageKey},
     resource::ModuleResourceSpec,
     source::{SourceFile, SourceLine},
 };
@@ -10,18 +12,30 @@ use fs_err as fs;
 use std::path::{Path, PathBuf};
 
 mod error;
+mod transaction;
 
 pub use error::RunnerIoError;
 pub use es_fluent_shared::FluentParseMode;
+pub use transaction::{FileMutation, FileTransaction};
 
-#[derive(Clone, Debug, serde::Deserialize, Eq, PartialEq, serde::Serialize)]
+/// Cache compatibility version for runner requests and metadata files.
+///
+/// Increment this whenever a serialized runner contract changes so cached
+/// monolithic runner binaries are rebuilt before they exchange incompatible
+/// data with the CLI.
+#[doc(hidden)]
+pub const RUNNER_PROTOCOL_VERSION: u32 = 2;
+
+#[derive(Clone, Debug, Default, serde::Deserialize, Eq, PartialEq, serde::Serialize)]
 pub struct RunnerResult {
     pub changed: bool,
+    #[serde(default)]
+    pub transaction: FileTransaction,
 }
 
 #[derive(Clone, Debug, serde::Deserialize, Eq, PartialEq, serde::Serialize)]
 pub struct ExpectedKey {
-    pub key: FluentEntryId,
+    pub key: FluentMessageKey,
     pub variables: Vec<FluentArgumentName>,
     #[serde(default)]
     pub resource: Option<ModuleResourceSpec>,
@@ -365,7 +379,10 @@ mod tests {
     #[test]
     fn write_and_read_result_round_trip() {
         let temp = tempfile::tempdir().expect("tempdir");
-        let result = RunnerResult { changed: true };
+        let result = RunnerResult {
+            changed: true,
+            transaction: FileTransaction::default(),
+        };
         let store = RunnerMetadataStore::new(temp.path());
         let package = package("crate-x");
 
@@ -383,7 +400,11 @@ mod tests {
         let package = package("crate-x");
         let inventory = InventoryData {
             expected_keys: vec![ExpectedKey {
-                key: FluentEntryId::try_new("hello").expect("key"),
+                key: FluentMessageKey::new(
+                    FluentDomain::try_new("crate-x").expect("owner"),
+                    FluentDomain::try_new("crate-x").expect("domain"),
+                    FluentEntryId::try_new("hello").expect("key"),
+                ),
                 variables: vec![FluentArgumentName::try_new("name").expect("variable")],
                 resource: Some(ModuleResourceSpec::base("crate-x", true)),
                 source_file: SourceFile::new("src/lib.rs"),
@@ -407,7 +428,7 @@ mod tests {
         store.ensure_metadata_dir(&package).expect("metadata dir");
         std::fs::write(
             store.inventory_path(&package),
-            r#"{"expected_keys":[{"key":"_invalid","variables":["name"],"source_file":"src/lib.rs","source_line":7}]}"#,
+            r#"{"expected_keys":[{"key":{"owner":"crate-x","domain":"crate-x","id":"_invalid"},"variables":["name"],"source_file":"src/lib.rs","source_line":7}]}"#,
         )
         .expect("write inventory");
 

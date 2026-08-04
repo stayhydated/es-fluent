@@ -3,7 +3,7 @@ use dioxus_core::{Element, VirtualDom};
 use dioxus_ssr::Renderer;
 use es_fluent::{
     FluentArgs, FluentLocalizer, FluentLocalizerLookup, FluentMessage,
-    registry::{StaticFluentDomain, StaticFluentEntryId},
+    registry::StaticFluentMessageKey,
 };
 use es_fluent_manager_core::{LanguageSelectionPolicy, LocalizationError};
 use unic_langid::LanguageIdentifier;
@@ -136,19 +136,10 @@ impl SsrI18n {
 impl FluentLocalizer for SsrI18n {
     fn localize<'a>(
         &self,
-        id: StaticFluentEntryId,
+        key: StaticFluentMessageKey,
         args: Option<&FluentArgs<'a>>,
     ) -> Option<String> {
-        FluentLocalizer::localize(&self.i18n, id, args)
-    }
-
-    fn localize_in_domain<'a>(
-        &self,
-        domain: StaticFluentDomain,
-        id: StaticFluentEntryId,
-        args: Option<&FluentArgs<'a>>,
-    ) -> Option<String> {
-        FluentLocalizer::localize_in_domain(&self.i18n, domain, id, args)
+        FluentLocalizer::localize(&self.i18n, key, args)
     }
 
     fn with_lookup(&self, f: &mut dyn FnMut(&mut FluentLocalizerLookup<'_>)) {
@@ -163,23 +154,26 @@ mod tests {
     use dioxus::prelude::manganis;
     use dioxus_core::VirtualDom;
     use dioxus_core_macro::rsx;
-    use es_fluent_manager_core::ModuleData;
+    use es_fluent_manager_core::{ModuleData, ModuleDomain};
     use unic_langid::{LanguageIdentifier, langid};
 
-    fn static_domain(value: &'static str) -> StaticFluentDomain {
-        StaticFluentDomain::try_new(value).expect("valid test domain")
-    }
-
-    fn static_entry(value: &'static str) -> StaticFluentEntryId {
-        StaticFluentEntryId::try_new(value).expect("valid test message id")
+    fn static_key(id: &'static str) -> StaticFluentMessageKey {
+        es_fluent::registry::__macro::static_message_key(
+            "asset-test",
+            es_fluent::registry::__macro::static_domain("asset-test"),
+            es_fluent::registry::__macro::static_entry_id(id),
+        )
     }
 
     static SUPPORTED_LANGUAGES: &[LanguageIdentifier] = &[langid!("en"), langid!("fr")];
     static MODULE_DATA: ModuleData = ModuleData {
         name: "asset-test",
-        domain: es_fluent_manager_core::__macro::static_domain("asset-test"),
+        owner: es_fluent_manager_core::__macro::static_domain("asset-test"),
         supported_languages: SUPPORTED_LANGUAGES,
-        namespaces: &[],
+        domains: &[ModuleDomain {
+            domain: es_fluent_manager_core::__macro::static_domain("asset-test"),
+            namespaces: &[],
+        }],
     };
     static RESOURCES: &[DioxusI18nAssetResource] = &[
         DioxusI18nAssetResource::new(
@@ -207,11 +201,7 @@ mod tests {
             &self,
             localize: &mut es_fluent::FluentMessageLookup<'_>,
         ) -> String {
-            localize(
-                es_fluent::registry::__macro::static_domain("asset-test"),
-                es_fluent::registry::__macro::static_entry_id("asset-hello"),
-                None,
-            )
+            localize(static_key("asset-hello"), None)
         }
     }
 
@@ -236,7 +226,7 @@ mod tests {
             .expect("SSR request should load assets");
         assert_eq!(i18n.requested_language(), langid!("en"));
         assert_eq!(
-            i18n.localize(static_entry("asset-hello"), None),
+            i18n.localize(static_key("asset-hello"), None),
             Some("Hello from asset".to_string())
         );
         assert_eq!(i18n.localize_message(&TestMessage), "Hello from asset");
@@ -245,11 +235,7 @@ mod tests {
             .expect("SSR request should switch language");
         assert_eq!(i18n.requested_language(), langid!("fr"));
         assert_eq!(
-            i18n.localize_in_domain(
-                static_domain("asset-test"),
-                static_entry("asset-hello"),
-                None
-            ),
+            i18n.localize(static_key("asset-hello"), None),
             Some("Bonjour from asset".to_string())
         );
 
@@ -257,11 +243,7 @@ mod tests {
             .expect("strict SSR language switch should work");
         let mut looked_up = None;
         i18n.with_lookup(&mut |lookup| {
-            looked_up = lookup(
-                static_domain("asset-test"),
-                static_entry("asset-hello"),
-                None,
-            );
+            looked_up = lookup(static_key("asset-hello"), None);
         });
         assert_eq!(looked_up, Some("Hello from asset".to_string()));
     }

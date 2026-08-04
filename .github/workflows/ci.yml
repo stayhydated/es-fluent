@@ -26,10 +26,7 @@ jobs:
         uses: ./.github/actions/install-linux-deps
 
       - name: Run local es-fluent-cli check
-        run: cargo es-fluent-local check --path . --all
-
-      - name: Run FTL ownership check
-        run: cargo xtask check ftl-ownership
+        run: cargo es-fluent-local check --path . --all-locales
 
   test:
     name: test (${{ matrix.os }})
@@ -103,10 +100,10 @@ jobs:
         include:
           - name: core
             command: cargo test -p es-fluent-manager-core
-          - name: web-server
-            command: cargo test -p web --lib --no-default-features
-          - name: web-client
-            command: cargo check -p web --features web
+          - name: web-test
+            command: cargo test -p web --lib
+          - name: web-check
+            command: cargo check -p web
 
     steps:
       - uses: actions/checkout@v6

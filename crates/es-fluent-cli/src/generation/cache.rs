@@ -179,6 +179,9 @@ pub struct RunnerCache {
     /// Missing/mismatched version triggers rebuild to pick up helper changes
     #[serde(default)]
     pub cli_version: String,
+    /// Serialized request and metadata contract used by the cached runner.
+    #[serde(default)]
+    pub runner_protocol_version: u32,
     /// Hash of workspace-level runner inputs like the root manifest and lockfile.
     #[serde(default)]
     pub workspace_inputs_hash: String,
@@ -509,6 +512,7 @@ mod tests {
             crate_hashes: hashes.clone(),
             runner_mtime: 42,
             cli_version: "0.1.0".to_string(),
+            runner_protocol_version: es_fluent_runner::RUNNER_PROTOCOL_VERSION,
             workspace_inputs_hash: "workspace-hash".to_string(),
         };
         cache.save(temp_dir.path()).unwrap();
@@ -516,6 +520,10 @@ mod tests {
         let loaded = RunnerCache::load(temp_dir.path()).unwrap();
         assert_eq!(loaded.runner_mtime, 42);
         assert_eq!(loaded.cli_version, "0.1.0");
+        assert_eq!(
+            loaded.runner_protocol_version,
+            es_fluent_runner::RUNNER_PROTOCOL_VERSION
+        );
         assert_eq!(loaded.crate_hashes, hashes);
         assert_eq!(loaded.workspace_inputs_hash, "workspace-hash");
     }

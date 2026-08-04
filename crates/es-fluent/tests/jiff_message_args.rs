@@ -1,6 +1,6 @@
 #![cfg(all(feature = "derive", feature = "jiff"))]
 
-use es_fluent::registry::{StaticFluentDomain, StaticFluentEntryId};
+use es_fluent::registry::StaticFluentMessageKey;
 use es_fluent::{EsFluent, FluentArgs, FluentMessage, FluentValue};
 use jiff::{SignedDuration, Span, Timestamp, ToSpan as _, Zoned, civil};
 use std::collections::HashMap;
@@ -34,9 +34,7 @@ fn render_args(message: &impl FluentMessage) -> HashMap<String, String> {
     let mut rendered = HashMap::new();
     let intls = intl_memoizer::IntlLangMemoizer::new("en-US".parse().unwrap());
     message.to_fluent_string_with(
-        &mut |_domain: StaticFluentDomain,
-              _id: StaticFluentEntryId,
-              args: Option<&FluentArgs<'_>>| {
+        &mut |_key: StaticFluentMessageKey, args: Option<&FluentArgs<'_>>| {
             for (name, value) in args.expect("Jiff message arguments").as_raw() {
                 let value = match value {
                     FluentValue::String(value) => value.as_ref().to_string(),

@@ -72,7 +72,7 @@ fn expand_define_i18n_module_tokens(
     let assets = I18nAssets::load(&crate_name)?;
 
     let language_identifiers = assets.language_identifier_tokens(&manager_paths.langid_path);
-    let namespace_strings = assets.namespace_tokens();
+    let domains = assets.domain_tokens(&manager_paths.manager_core_path);
 
     let module_data_name = syn::Ident::new(
         &format!(
@@ -88,7 +88,7 @@ fn expand_define_i18n_module_tokens(
         &module_data_name,
         &crate_name,
         &language_identifiers,
-        &namespace_strings,
+        &domains,
     );
 
     generate_tokens(
@@ -164,22 +164,31 @@ fn generate_embedded_tokens(
         &format!("{}::__rust_embed", manager_paths.manager_path.rust_path()),
         proc_macro2::Span::call_site(),
     );
+    let embedded_asset_filter_attributes = embedded_asset_filter_attributes(&assets);
     let manager_core_path = &manager_paths.manager_core_path;
+    let langid_path = &manager_paths.langid_path;
     let inventory_path = quote! { #manager_path::__inventory };
+    let manifest_match_arms = assets.resource_plan_match_arms(manager_core_path, langid_path);
 
     let expanded = quote! {
         #[derive(#rust_embed_path::RustEmbed)]
         #[crate_path = #rust_embed_attr_path]
         #[folder = #i18n_root_str]
+        #embedded_asset_filter_attributes
         struct #assets_struct_name;
 
         impl #manager_core_path::EmbeddedAssets for #assets_struct_name {
-            fn domain() -> #manager_core_path::StaticFluentDomain {
-                #manager_core_path::__macro::static_domain(#crate_name)
+            fn domains() -> &'static [#manager_core_path::ModuleDomain] {
+                #module_data_name.domains
             }
 
-            fn namespaces() -> &'static [&'static str] {
-                #module_data_name.namespaces
+            fn resource_plan_for_language(
+                lang: &#langid_path::LanguageIdentifier,
+            ) -> Option<Vec<#manager_core_path::ModuleResourceSpec>> {
+                match lang {
+                    #(#manifest_match_arms,)*
+                    _ => None,
+                }
             }
         }
 
@@ -196,6 +205,26 @@ fn generate_embedded_tokens(
     };
 
     Ok(expanded)
+}
+
+fn embedded_asset_filter_attributes(assets: &I18nAssets) -> proc_macro2::TokenStream {
+    let include_paths = assets
+        .resource_specs_by_language
+        .iter()
+        .flat_map(|(language, specs)| {
+            specs.iter().map(move |spec| {
+                let path = format!("{language}/{}", spec.locale_relative_path);
+                let escaped_path = globset::escape(&path);
+                syn::LitStr::new(&escaped_path, proc_macro2::Span::call_site())
+            })
+        })
+        .collect::<Vec<_>>();
+
+    if include_paths.is_empty() {
+        quote! { #[exclude = "*"] }
+    } else {
+        quote! { #(#[include = #include_paths])* }
+    }
 }
 
 fn generate_bevy_tokens(
@@ -611,7 +640,10 @@ mod tests {
                 es_fluent_shared::parse_canonical_language_identifier("en-US").unwrap(),
                 es_fluent_shared::parse_canonical_language_identifier("fr").unwrap(),
             ],
-            namespaces: vec![es_fluent_shared::namespace::ResolvedNamespace::new("ui").unwrap()],
+            domains: vec![(
+                es_fluent_shared::fluent::FluentDomain::try_new("my-crate").unwrap(),
+                vec![es_fluent_shared::namespace::ResolvedNamespace::new("ui").unwrap()],
+            )],
             resource_specs_by_language: vec![
                 (
                     es_fluent_shared::parse_canonical_language_identifier("en-US").unwrap(),
@@ -694,6 +726,9 @@ mod tests {
         );
         assert!(embedded.contains("struct MyCrateI18nAssets"));
         assert!(embedded.contains("RustEmbed"));
+        assert!(embedded.contains("#[include = \"en-US/my-crate.ftl\"]"));
+        assert!(embedded.contains("#[include = \"en-US/my-crate/ui.ftl\"]"));
+        assert!(embedded.contains("#[include = \"fr/my-crate/ui.ftl\"]"));
         assert!(embedded.contains("MY_CRATE_I18N_MODULE"));
         assert!(embedded.contains("inventory"));
 
@@ -740,6 +775,28 @@ mod tests {
             assert!(dioxus.contains("/assets/locales/en-US/my-crate.ftl"));
             assert!(dioxus.contains("/assets/locales/fr/my-crate/ui.ftl"));
         });
+    }
+
+    #[test]
+    fn embedded_manager_with_no_planned_resources_embeds_no_assets() {
+        let module_data_name = syn::Ident::new("EMPTY_MODULE_DATA", proc_macro2::Span::call_site());
+        let embedded = format_tokens(
+            generate_embedded_tokens(
+                "empty-crate".to_string(),
+                I18nAssets {
+                    root_path: PathBuf::from("assets/locales"),
+                    languages: Vec::new(),
+                    domains: Vec::new(),
+                    resource_specs_by_language: Vec::new(),
+                },
+                module_data_name.clone(),
+                module_data_static(&module_data_name),
+                &ManagerPaths::embedded(),
+            )
+            .expect("embedded tokens"),
+        );
+
+        assert!(embedded.contains("#[exclude = \"*\"]"));
     }
 
     #[test]

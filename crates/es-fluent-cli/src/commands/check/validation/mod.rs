@@ -38,19 +38,17 @@ fn validate_ftl_files(
     let locale_ctx = LocaleContext::from_crate(krate, check_all)?;
     let ctx = ValidationContext {
         expected_keys,
+        owner: krate.name.as_str(),
         workspace_root,
         manifest_dir: &krate.manifest_dir,
     };
     let check_fallback_copies =
         check_all && check_fallback_copies && locale_ctx.check_fallback_copies;
     let fallback_keys = if check_fallback_copies {
-        crate::ftl::discover_and_load_ftl_files(
-            &locale_ctx.assets_dir,
-            &locale_ctx.fallback,
-            &locale_ctx.crate_name,
-        )
-        .ok()
-        .map(|files| loaded::collect_fallback_keys(&files))
+        locale_ctx
+            .discover_and_load_files(&locale_ctx.fallback)
+            .ok()
+            .map(|files| loaded::collect_fallback_keys(&ctx, &files))
     } else {
         None
     };
@@ -58,11 +56,7 @@ fn validate_ftl_files(
     let mut issues = Vec::new();
 
     for locale in &locale_ctx.locales {
-        match crate::ftl::discover_and_load_ftl_files(
-            &locale_ctx.assets_dir,
-            locale,
-            &locale_ctx.crate_name,
-        ) {
+        match locale_ctx.discover_and_load_files(locale) {
             Ok(loaded_files) if loaded_files.is_empty() => {
                 let ftl_abs_path = crate::ftl::main_ftl_path(
                     &locale_ctx.assets_dir,

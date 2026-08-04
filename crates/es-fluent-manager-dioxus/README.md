@@ -1,180 +1,39 @@
+# es-fluent-manager-dioxus
+
 [![Docs](https://docs.rs/es-fluent-manager-dioxus/badge.svg)](https://docs.rs/es-fluent-manager-dioxus/)
 [![Crates.io](https://img.shields.io/crates/v/es-fluent-manager-dioxus.svg)](https://crates.io/crates/es-fluent-manager-dioxus)
 
-# es-fluent-manager-dioxus
+Typed localization for Dioxus `0.7.x`, with signal-backed client
+context and request-scoped SSR.
 
-[Dioxus](https://dioxuslabs.com/) integration for `es-fluent`.
+Choose the runtime surfaces the application uses:
 
-Use this crate when a Dioxus app needs typed `es-fluent` localization loaded
-through Dioxus assets. Most non-Dioxus applications should use
-[`es-fluent-manager-embedded`](../es-fluent-manager-embedded/README.md) or
-[`es-fluent-manager-bevy`](../es-fluent-manager-bevy/README.md) instead.
-
-## Features
-
-Enable the runtime surface your crate uses:
-
-Client apps:
-
-```toml
+~~~toml
+[dependencies]
+dioxus = "0.7"
+es-fluent = "*"
 es-fluent-manager-dioxus = { version = "*", features = ["client"] }
-```
 
-Server-side rendering:
+# SSR:
+# es-fluent-manager-dioxus = { version = "*", features = ["ssr"] }
 
-```toml
-es-fluent-manager-dioxus = { version = "*", features = ["ssr"] }
-```
+# Client and SSR:
+# es-fluent-manager-dioxus = { version = "*", features = ["client", "ssr"] }
+~~~
 
-Fullstack or static rendering that uses both paths:
+Register Dioxus assets from a library-reachable module:
 
-```toml
-es-fluent-manager-dioxus = { version = "*", features = ["client", "ssr"] }
-```
-
-The crate has no default runtime feature. `define_i18n_module!` is always
-re-exported and registers Dioxus `asset!` modules with inventory.
-
-- `client`: Dioxus provider, hook/context runtime, async asset loading, and signal-backed locale state for interactive rendering.
-- `ssr`: request-scoped SSR helpers backed by the same Dioxus asset module set.
-
-## Define the Module
-
-Prefer a library-reachable module, usually `src/i18n.rs` declared from
-`src/lib.rs`, so `cargo es-fluent generate` can discover localizable types from
-the library target:
-
-```rs
-// a i18n.toml file must exist in the root of the crate
+~~~rust,ignore
 es_fluent_manager_dioxus::define_i18n_module!();
-```
+~~~
 
-The macro scans the configured `assets_dir`, registers the generated Dioxus
-asset module with inventory, and also generates explicit helpers:
-`dioxus_i18n_asset_module()`, `dioxus_i18n_asset_modules()`,
-`load_dioxus_i18n_assets(...)`, and `load_dioxus_i18n_assets_with_policy(...)`.
-Dioxus `asset!` requires the
-configured `assets_dir` to be inside the package root. Keep FTL files in
-`assets/locales` or another package-local source asset directory, not under
-Dioxus `public`, unless you intentionally want to publish raw translation files
-as static web output.
+Client applications provide `DioxusAssetI18nProvider` and localize
+through the handle returned by `use_i18n()`. SSR applications create
+one `SsrI18nRuntime` and one `SsrI18n` per request.
 
-## Client
+The configured `assets_dir` must be inside the package root. Enable
+both `client` and `ssr` when SSR components use Dioxus
+hooks.
 
-```rs
-use dioxus::prelude::*;
-use es_fluent::{EsFluent, EsFluentLabel, FluentLabel as _};
-use es_fluent_manager_dioxus::{DioxusAssetI18nProvider, use_i18n};
-use unic_langid::langid;
-
-fn app() -> Element {
-    rsx! {
-        DioxusAssetI18nProvider {
-            initial_language: langid!("en"),
-            LocaleButton {}
-        }
-    }
-}
-
-#[derive(Clone, Copy, EsFluent, EsFluentLabel)]
-#[fluent(namespace = "ui")]
-enum UiMessage {
-    Hello,
-}
-
-#[component]
-fn LocaleButton() -> Element {
-    let i18n = match use_i18n() {
-        Ok(i18n) => i18n,
-        Err(error) => return rsx! { "Missing i18n context: {error}" },
-    };
-    let label = i18n.localize_message(&UiMessage::Hello);
-    let title = UiMessage::localize_label(&i18n);
-
-    rsx! {
-        button {
-            onclick: move |_| {
-                if let Err(error) = i18n.select_language(langid!("fr-FR")) {
-                    eprintln!("locale switch failed: {error}");
-                }
-            },
-            "{title}: {label}"
-        }
-    }
-}
-```
-
-`DioxusAssetI18nProvider` loads inventory-discovered asset modules with a
-Dioxus resource. It renders `loading` while assets are being read, renders
-`fallback` on load failure, and otherwise provides a `DioxusAssetI18nHandle` through
-`use_i18n()`, `try_use_i18n()`, `consume_asset_i18n()`, or
-`try_consume_asset_i18n()`.
-Dioxus app translations are loaded only through generated asset modules.
-Runtime follower modules that do not count as locale support, such as
-`es-fluent-lang` language labels, are discovered automatically and follow the
-selected asset-backed locale.
-When a Dioxus app needs an explicit subset of asset translations, create a
-package-local static slice of `dioxus_i18n_asset_module()` references and pass
-`DioxusI18nAssetModules::new(...)` to the provider.
-In debug WASM builds served by `dx serve`, changed FTL assets are reloaded from
-Dioxus asset hot-reload messages and the provider updates subscribed
-components while preserving the requested locale when possible.
-
-- `localize_message(...)` renders `#[derive(EsFluent)]` messages through the Dioxus context and is the preferred typed lookup path.
-- `DioxusAssetI18nHandle` implements `FluentLocalizer`, so `#[derive(EsFluentLabel)]` values can call `MyType::localize_label(&i18n)` in client components.
-- `requested_language()` returns the requested language, not necessarily the locale used by every message after fallback.
-- `select_language(...)` records the requested language and updates the Dioxus signal used by render code.
-- `select_language_strict(...)` requires every generated module to support the requested locale.
-- `use_init_asset_i18n(...)` returns `DioxusAssetI18nLoadState` for applications that want to own the loading UI and pass an explicit `LanguageSelectionPolicy`.
-- `use_init_asset_i18n_modules(...)` does the same for an explicit module subset.
-
-Dioxus localizes through explicit component or request context. Keeping lookup
-context-bound avoids cross-root, hot-reload, test, and SSR request leakage.
-
-## SSR
-
-```rs
-use dioxus::prelude::*;
-use es_fluent::EsFluent;
-use es_fluent_manager_dioxus::ssr::{SsrI18n, SsrI18nRuntime};
-use unic_langid::langid;
-
-#[derive(Clone, Copy, EsFluent)]
-#[fluent(namespace = "site")]
-enum SiteMessage {
-    Title,
-}
-
-#[component]
-fn App(i18n: SsrI18n) -> Element {
-    let title = i18n.localize_message(&SiteMessage::Title);
-    rsx! { div { "{title}" } }
-}
-
-async fn render() -> Result<String, Box<dyn std::error::Error>> {
-    let runtime = SsrI18nRuntime::discovered();
-    let i18n = runtime.request(langid!("en")).await?;
-    let mut dom = VirtualDom::new_with_props(
-        App,
-        AppProps {
-            i18n: i18n.clone(),
-        },
-    );
-
-    Ok(i18n.rebuild_and_render(&mut dom))
-}
-```
-
-Create one `SsrI18nRuntime`, then create one `SsrI18n` per request.
-`SsrI18nRuntime::discovered()` uses inventory-discovered Dioxus asset modules;
-`SsrI18nRuntime::new(...)` accepts an explicit module subset.
-`request(...)` and `request_strict(...)` are async
-because Dioxus asset reads are async; `request_blocking(...)` and
-`request_strict_blocking(...)` are available for static generation or other
-synchronous SSR entry points.
-
-The render helpers do not install context automatically; pass `SsrI18n` as a
-prop or call `provide_context()` from a component when using hook-based lookup.
-
-Executable Dioxus documentation lives in `web`, which uses the same
-inventory-discovered asset modules for browser and server checks.
+See the [Dioxus manager guide](https://stayhydated.github.io/es-fluent/book/manager_dioxus.html)
+for provider, locale switching, SSR, and asset-loading patterns.

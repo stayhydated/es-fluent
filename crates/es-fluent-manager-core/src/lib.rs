@@ -7,10 +7,11 @@ pub mod fallback;
 pub mod localization;
 
 pub use asset_localization::{
-    I18nModuleDescriptor, LocaleLoadReport, LocaleRelativeFtlPath, ModuleData, ModuleRegistryError,
-    ModuleResourceSpec, ResourceKey, ResourceLoadError, ResourceLoadStatus, ResourcePlan,
-    ResourcePlanError, StaticModuleDescriptor, build_locale_load_report, clear_locale_resource,
-    collect_available_languages, collect_locale_resources, load_locale_resources, locale_is_ready,
+    I18nModuleDescriptor, LocaleLoadReport, LocaleRelativeFtlPath, ModuleData, ModuleDomain,
+    ModuleRegistryError, ModuleResourceSpec, ResourceKey, ResourceLoadError, ResourceLoadStatus,
+    ResourcePlan, ResourcePlanError, StaticModuleDescriptor, build_locale_load_report,
+    clear_locale_resource, collect_available_languages, collect_locale_resources,
+    load_locale_resource_entries, load_locale_resources, locale_is_ready,
     optional_resource_keys_from_plan, parse_and_store_locale_resource_content,
     parse_fluent_resource_bytes, parse_fluent_resource_content, record_failed_locale_resource,
     record_locale_resource_error, record_missing_locale_resource, required_resource_keys_from_plan,
@@ -22,7 +23,8 @@ pub use es_fluent_shared::fluent::FluentDomain;
 #[doc(hidden)]
 pub use es_fluent_shared::registry::__macro;
 pub use es_fluent_shared::registry::{
-    StaticFluentArgumentName, StaticFluentDomain, StaticFluentEntryId, StaticFluentVariantKey,
+    StaticFluentArgumentName, StaticFluentDomain, StaticFluentEntryId, StaticFluentMessageKey,
+    StaticFluentVariantKey,
 };
 pub use fallback::{
     FallbackChainAvailability, fallback_locales, locale_candidates,

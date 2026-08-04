@@ -4,7 +4,7 @@ use super::*;
 use crate::core::ValidationIssue;
 use crate::ftl::LoadedFtlFile;
 use es_fluent_shared::{
-    fluent::{FluentArgumentName, FluentEntryId},
+    fluent::{FluentArgumentName, FluentDomain, FluentEntryId, FluentMessageKey},
     resource::ModuleResourceSpec,
     source::{SourceFile, SourceLine},
 };
@@ -70,6 +70,7 @@ fn validate_loaded_ftl_files_reports_key_in_wrong_resource_as_missing_from_expec
     );
 
     let ctx = ValidationContext {
+        owner: "test-app",
         expected_keys: &expected_keys,
         workspace_root: temp.path(),
         manifest_dir: temp.path(),
@@ -87,8 +88,12 @@ fn validate_loaded_ftl_files_reports_key_in_wrong_resource_as_missing_from_expec
     }));
 }
 
-fn expected_key(value: &str) -> FluentEntryId {
-    FluentEntryId::try_new(value).unwrap()
+fn expected_key(value: &str) -> FluentMessageKey {
+    FluentMessageKey::new(
+        FluentDomain::try_new("test-app").unwrap(),
+        FluentDomain::try_new("test-app").unwrap(),
+        FluentEntryId::try_new(value).unwrap(),
+    )
 }
 
 fn validate_loaded(
@@ -111,6 +116,7 @@ fn missing_file_issues_returns_issue_for_each_expected_key() {
 
     let temp = tempfile::tempdir().unwrap();
     let ctx = ValidationContext {
+        owner: "test-app",
         expected_keys: &expected_keys,
         workspace_root: temp.path(),
         manifest_dir: temp.path(),
@@ -153,6 +159,7 @@ fn validate_loaded_ftl_files_reports_missing_key_and_variable() {
     expected_keys.insert(expected_key("goodbye"), key_info(&[], None, None));
 
     let ctx = ValidationContext {
+        owner: "test-app",
         expected_keys: &expected_keys,
         workspace_root: temp.path(),
         manifest_dir: temp.path(),
@@ -193,6 +200,7 @@ fn validate_loaded_ftl_files_reports_unexpected_variable_as_error() {
     expected_keys.insert(expected_key("hello"), key_info(&["name"], None, None));
 
     let ctx = ValidationContext {
+        owner: "test-app",
         expected_keys: &expected_keys,
         workspace_root: temp.path(),
         manifest_dir: temp.path(),
@@ -239,11 +247,12 @@ fn validate_loaded_ftl_files_reports_non_fallback_copy_as_untranslated() {
     expected_keys.insert(expected_key("hello"), key_info(&["name"], None, None));
 
     let ctx = ValidationContext {
+        owner: "test-app",
         expected_keys: &expected_keys,
         workspace_root: temp.path(),
         manifest_dir: temp.path(),
     };
-    let fallback_keys = super::loaded::collect_fallback_keys(&fallback_files);
+    let fallback_keys = super::loaded::collect_fallback_keys(&ctx, &fallback_files);
 
     let issues = super::loaded::validate_loaded_ftl_files(
         &ctx,
@@ -300,11 +309,12 @@ fn validate_loaded_ftl_files_allows_marked_same_as_fallback_message() {
     expected_keys.insert(expected_key("brand"), key_info(&[], None, None));
 
     let ctx = ValidationContext {
+        owner: "test-app",
         expected_keys: &expected_keys,
         workspace_root: temp.path(),
         manifest_dir: temp.path(),
     };
-    let fallback_keys = super::loaded::collect_fallback_keys(&fallback_files);
+    let fallback_keys = super::loaded::collect_fallback_keys(&ctx, &fallback_files);
 
     let issues = super::loaded::validate_loaded_ftl_files(
         &ctx,
@@ -357,11 +367,12 @@ fn validate_loaded_ftl_files_allows_same_as_fallback_marker_before_next_message_
     expected_keys.insert(expected_key("brand"), key_info(&[], None, None));
 
     let ctx = ValidationContext {
+        owner: "test-app",
         expected_keys: &expected_keys,
         workspace_root: temp.path(),
         manifest_dir: temp.path(),
     };
-    let fallback_keys = super::loaded::collect_fallback_keys(&fallback_files);
+    let fallback_keys = super::loaded::collect_fallback_keys(&ctx, &fallback_files);
 
     let issues = super::loaded::validate_loaded_ftl_files(
         &ctx,
@@ -378,47 +389,70 @@ fn validate_loaded_ftl_files_allows_same_as_fallback_marker_before_next_message_
 }
 
 #[test]
-fn validate_loaded_ftl_files_reports_duplicate_keys_and_ignores_non_messages() {
+fn validate_loaded_ftl_files_reports_message_and_term_id_collisions() {
     let temp = tempfile::tempdir().unwrap();
     let first_path = temp.path().join("i18n/en/first.ftl");
     let duplicate_path = temp.path().join("i18n/en/duplicate.ftl");
     fs::create_dir_all(first_path.parent().unwrap()).unwrap();
-    fs::write(&first_path, "hello = Hello\n-term = Term\n").unwrap();
-    fs::write(&duplicate_path, "hello = Duplicate\n").unwrap();
+    fs::write(&first_path, "hello = Hello\n-brand = Brand\n").unwrap();
+    fs::write(
+        &duplicate_path,
+        "hello = Duplicate\n-brand = Duplicate\nbrand = Message collision\n",
+    )
+    .unwrap();
 
     let first_resource =
-        fluent_syntax::parser::parse("hello = Hello\n-term = Term\n".to_string()).unwrap();
-    let duplicate_resource =
-        fluent_syntax::parser::parse("hello = Duplicate\n".to_string()).unwrap();
+        fluent_syntax::parser::parse("hello = Hello\n-brand = Brand\n".to_string()).unwrap();
+    let duplicate_resource = fluent_syntax::parser::parse(
+        "hello = Duplicate\n-brand = Duplicate\nbrand = Message collision\n".to_string(),
+    )
+    .unwrap();
     let loaded_files = vec![
         LoadedFtlFile {
             abs_path: first_path,
-            relative_path: PathBuf::from("first.ftl"),
+            relative_path: PathBuf::from("test-app/first.ftl"),
             resource: first_resource,
-            keys: std::iter::once("hello".to_string()).collect(),
+            keys: ["hello".to_string(), "-brand".to_string()]
+                .into_iter()
+                .collect(),
         },
         LoadedFtlFile {
             abs_path: duplicate_path,
-            relative_path: PathBuf::from("duplicate.ftl"),
+            relative_path: PathBuf::from("test-app/duplicate.ftl"),
             resource: duplicate_resource,
-            keys: std::iter::once("hello".to_string()).collect(),
+            keys: [
+                "hello".to_string(),
+                "-brand".to_string(),
+                "brand".to_string(),
+            ]
+            .into_iter()
+            .collect(),
         },
     ];
 
     let mut expected_keys = IndexMap::new();
     expected_keys.insert(expected_key("hello"), key_info(&[], None, None));
     let ctx = ValidationContext {
+        owner: "test-app",
         expected_keys: &expected_keys,
         workspace_root: temp.path(),
         manifest_dir: temp.path(),
     };
 
     let issues = validate_loaded(&ctx, loaded_files, "en");
-    assert!(issues.iter().any(|issue| {
-        matches!(
+    let duplicate_keys = issues
+        .iter()
+        .filter_map(|issue| match issue {
+            ValidationIssue::DuplicateKey(error) => Some(error.key.as_str()),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(duplicate_keys, ["hello", "brand", "brand"]);
+    assert!(issues.iter().all(|issue| {
+        !matches!(
             issue,
-            ValidationIssue::DuplicateKey(err)
-                if err.key == "hello" && err.first_file.ends_with("first.ftl")
+            ValidationIssue::DuplicateKey(error)
+                if !error.first_file.ends_with("first.ftl")
         )
     }));
 }
@@ -440,7 +474,7 @@ fn validate_crate_reports_missing_main_file_as_missing_key() {
         r#"{
   "expected_keys": [
     {
-      "key": "hello",
+      "key": {"owner": "test-crate", "domain": "test-crate", "id": "hello"},
       "variables": [],
       "source_file": null,
       "source_line": null
@@ -503,7 +537,7 @@ fn validate_crate_respects_config_disabled_fallback_copy_check() {
         r#"{
   "expected_keys": [
     {
-      "key": "hello",
+      "key": {"owner": "test-crate", "domain": "test-crate", "id": "hello"},
       "variables": [],
       "source_file": null,
       "source_line": null
@@ -570,6 +604,7 @@ fn validate_loaded_ftl_files_handles_source_file_variants_and_terminal_links() {
         expected_keys.insert(expected_key("raw"), key_info(&["value"], None, None));
 
         let ctx = ValidationContext {
+            owner: "test-app",
             expected_keys: &expected_keys,
             workspace_root: temp.path(),
             manifest_dir: temp.path(),
@@ -608,6 +643,7 @@ fn validate_loaded_ftl_files_falls_back_to_unknown_when_no_actual_files() {
     expected_keys.insert(expected_key("missing"), key_info(&[], None, None));
 
     let ctx = ValidationContext {
+        owner: "test-app",
         expected_keys: &expected_keys,
         workspace_root: temp.path(),
         manifest_dir: temp.path(),
@@ -668,6 +704,7 @@ fn to_relative_path_uses_non_canonical_strip_fallback() {
 
     let expected_keys = IndexMap::new();
     let ctx = ValidationContext {
+        owner: "test-app",
         expected_keys: &expected_keys,
         workspace_root: &alternate_root,
         manifest_dir: &alternate_root,

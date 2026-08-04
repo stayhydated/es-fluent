@@ -638,9 +638,9 @@ pub(crate) fn attribute_rule(
         .find(|rule| rule.family == family && rule.location == location && rule.key == key)
 }
 
-const FLUENT_STRUCT_HELP: &str = "accepted key here is namespace";
+const FLUENT_STRUCT_HELP: &str = "accepted keys here are domain and namespace";
 const FLUENT_ENUM_HELP: &str = "accepted keys here are id, domain, and namespace";
-const FLUENT_STRUCT_PARENT_HELP: &str = "accepted parent key here is namespace";
+const FLUENT_STRUCT_PARENT_HELP: &str = "accepted parent keys here are domain and namespace";
 const FLUENT_ENUM_PARENT_HELP: &str = "accepted parent keys here are domain and namespace";
 const FLUENT_FIELD_HELP: &str = "accepted keys here are skip, selector, arg, and value";
 const FLUENT_VARIANT_HELP: &str = "move field-only attributes to a field inside the variant; accepted variant keys are skip and key, but they cannot be combined";
@@ -654,6 +654,13 @@ const LOCALE_TUPLE_FIELD_HELP: &str =
     "move #[locale] to a named struct field or named enum variant field";
 
 pub(crate) const ATTRIBUTE_RULES: &[AttributeRule] = &[
+    AttributeRule {
+        family: AttributeFamily::Fluent,
+        location: AttributeLocation::MessageStructContainer,
+        key: AttributeKey::Domain,
+        shape: AttributeValueShape::StringLiteral,
+        location_help: FLUENT_STRUCT_HELP,
+    },
     AttributeRule {
         family: AttributeFamily::Fluent,
         location: AttributeLocation::MessageStructContainer,
@@ -685,8 +692,22 @@ pub(crate) const ATTRIBUTE_RULES: &[AttributeRule] = &[
     AttributeRule {
         family: AttributeFamily::Fluent,
         location: AttributeLocation::LabelStructParentContainer,
+        key: AttributeKey::Domain,
+        shape: AttributeValueShape::StringLiteral,
+        location_help: FLUENT_STRUCT_PARENT_HELP,
+    },
+    AttributeRule {
+        family: AttributeFamily::Fluent,
+        location: AttributeLocation::LabelStructParentContainer,
         key: AttributeKey::Namespace,
         shape: AttributeValueShape::NamespaceRule,
+        location_help: FLUENT_STRUCT_PARENT_HELP,
+    },
+    AttributeRule {
+        family: AttributeFamily::Fluent,
+        location: AttributeLocation::VariantsStructParentContainer,
+        key: AttributeKey::Domain,
+        shape: AttributeValueShape::StringLiteral,
         location_help: FLUENT_STRUCT_PARENT_HELP,
     },
     AttributeRule {

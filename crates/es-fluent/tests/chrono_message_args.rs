@@ -1,7 +1,7 @@
 #![cfg(all(feature = "chrono", feature = "derive"))]
 
 use chrono::{DateTime, NaiveDate, NaiveDateTime, NaiveTime, Utc};
-use es_fluent::registry::{StaticFluentDomain, StaticFluentEntryId};
+use es_fluent::registry::StaticFluentMessageKey;
 use es_fluent::{EsFluent, FluentArgs, FluentMessage, FluentValue};
 use std::collections::HashMap;
 
@@ -31,9 +31,7 @@ fn render_args(message: &impl FluentMessage) -> HashMap<String, String> {
     let mut rendered = HashMap::new();
     let intls = intl_memoizer::IntlLangMemoizer::new("en-US".parse().unwrap());
     message.to_fluent_string_with(
-        &mut |_domain: StaticFluentDomain,
-              _id: StaticFluentEntryId,
-              args: Option<&FluentArgs<'_>>| {
+        &mut |_key: StaticFluentMessageKey, args: Option<&FluentArgs<'_>>| {
             for (name, value) in args.expect("Chrono message arguments").as_raw() {
                 let value = match value {
                     FluentValue::String(value) => value.as_ref().to_string(),

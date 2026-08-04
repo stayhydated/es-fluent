@@ -41,6 +41,7 @@ fn expand_es_fluent_label_with_context(
         crate::macros::utils::label_inventory_output(
             expansion.ident(),
             *label_model.type_kind(),
+            label_model.domain().cloned(),
             label_model.namespace().cloned(),
             label.clone(),
         )
@@ -196,5 +197,25 @@ mod tests {
             "expand_es_fluent_label_uses_enum_type_kind_for_enums",
             tokens
         );
+    }
+
+    #[test]
+    #[serial_test::serial(manifest)]
+    fn expand_es_fluent_label_explicit_domain_registers_generated_ftl() {
+        let input: syn::DeriveInput = parse_quote! {
+            #[fluent(domain = "ui")]
+            enum UiLabel {
+                Ready,
+            }
+        };
+
+        let tokens = crate::snapshot_support::with_i18n_domains(&["ui"], || {
+            crate::snapshot_support::pretty_file_tokens(super::expand_es_fluent_label(input))
+        });
+
+        assert!(tokens.contains("FluentLabel for UiLabel"), "{tokens}");
+        assert!(tokens.contains("\"ui\""));
+        assert!(tokens.contains("RegisteredFtlType"));
+        assert!(tokens.contains("static_domain"));
     }
 }

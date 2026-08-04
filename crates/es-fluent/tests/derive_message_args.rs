@@ -1,6 +1,6 @@
 #![cfg(feature = "derive")]
 
-use es_fluent::registry::{StaticFluentDomain, StaticFluentEntryId};
+use es_fluent::registry::StaticFluentMessageKey;
 use es_fluent::{
     EsFluent, EsFluentChoice as _, EsFluentVariants, FluentArgs, FluentMessage, FluentValue,
 };
@@ -75,9 +75,7 @@ fn describe_arg(value: &FluentValue<'_>) -> String {
 fn render_args(message: &impl FluentMessage) -> HashMap<String, String> {
     let mut rendered = HashMap::new();
     {
-        let mut localize = |_domain: StaticFluentDomain,
-                            _id: StaticFluentEntryId,
-                            args: Option<&FluentArgs<'_>>| {
+        let mut localize = |_key: StaticFluentMessageKey, args: Option<&FluentArgs<'_>>| {
             if let Some(args) = args {
                 for (name, value) in args.as_raw() {
                     rendered.insert((*name).to_string(), describe_arg(value));

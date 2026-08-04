@@ -20,10 +20,13 @@ impl ::es_fluent::FluentMessage for User {
                 );
             }
             localize(
-                ::es_fluent::registry::StaticFluentDomain::from_package_name(
+                ::es_fluent::registry::__macro::static_message_key(
                     env!("CARGO_PKG_NAME"),
+                    ::es_fluent::registry::StaticFluentDomain::from_package_name(
+                        env!("CARGO_PKG_NAME"),
+                    ),
+                    ::es_fluent::registry::__macro::static_entry_id("user"),
                 ),
-                ::es_fluent::registry::__macro::static_entry_id("user"),
                 Some(&args),
             )
         }
@@ -46,6 +49,7 @@ mod __es_fluent_inventory_User {
         ::es_fluent::meta::TypeKind::Struct,
         "User",
         VARIANTS,
+        ::es_fluent::registry::__macro::ftl_scope(env!("CARGO_PKG_NAME"), None),
         file!(),
         module_path!(),
         None,

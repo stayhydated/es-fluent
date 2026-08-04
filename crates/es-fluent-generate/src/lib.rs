@@ -1,5 +1,6 @@
 #![doc = include_str!("../README.md")]
 
+pub use es_fluent_runner::FileTransaction;
 use es_fluent_shared::EsFluentResult;
 pub use es_fluent_shared::FluentParseMode;
 use es_fluent_shared::registry::FtlTypeInfo;
@@ -42,19 +43,34 @@ pub fn generate<P: AsRef<Path>, M: AsRef<Path>, I: AsRef<FtlTypeInfo>>(
     mode: FluentParseMode,
     dry_run: bool,
 ) -> EsFluentResult<bool> {
+    let transaction = plan_generate(crate_name, i18n_path, manifest_dir, items, mode)?;
+    io::apply_transaction(&transaction, dry_run)
+}
+
+/// Plans all fallback FTL mutations without writing them.
+pub fn plan_generate<P: AsRef<Path>, M: AsRef<Path>, I: AsRef<FtlTypeInfo>>(
+    crate_name: &str,
+    i18n_path: P,
+    manifest_dir: M,
+    items: &[I],
+    mode: FluentParseMode,
+) -> EsFluentResult<FileTransaction> {
     let i18n_path = i18n_path.as_ref();
     let manifest_dir = manifest_dir.as_ref();
-    let mut any_changed = false;
+    let mut transaction = FileTransaction::default();
 
     let operation = OutputOperation::Generate(mode);
     for output in pipeline::plan_outputs(crate_name, i18n_path, manifest_dir, items)? {
-        if pipeline::apply_output_operation(output, &operation, dry_run)? {
-            any_changed = true;
-        }
+        pipeline::plan_output_operation(output, &operation, &mut transaction)?;
     }
 
-    Ok(any_changed)
+    Ok(transaction)
 }
 
 #[cfg(test)]
 mod tests;
+
+/// Applies or previews a previously planned FTL transaction.
+pub fn apply_transaction(transaction: &FileTransaction, dry_run: bool) -> EsFluentResult<bool> {
+    io::apply_transaction(transaction, dry_run)
+}

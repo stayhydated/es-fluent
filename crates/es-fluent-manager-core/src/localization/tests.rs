@@ -14,69 +14,102 @@ static SELECT_OK_CALLS: AtomicUsize = AtomicUsize::new(0);
 static SELECT_ERR_CALLS: AtomicUsize = AtomicUsize::new(0);
 static MODULE_OK_DATA: ModuleData = ModuleData {
     name: "module-ok",
-    domain: crate::__macro::static_domain("module-ok"),
+    owner: crate::__macro::static_domain("module-ok"),
     supported_languages: &[],
-    namespaces: &[],
+    domains: &[crate::ModuleDomain {
+        domain: crate::__macro::static_domain("module-ok"),
+        namespaces: &[],
+    }],
 };
 static MODULE_ERR_DATA: ModuleData = ModuleData {
     name: "module-err",
-    domain: crate::__macro::static_domain("module-err"),
+    owner: crate::__macro::static_domain("module-err"),
     supported_languages: &[],
-    namespaces: &[],
+    domains: &[crate::ModuleDomain {
+        domain: crate::__macro::static_domain("module-err"),
+        namespaces: &[],
+    }],
 };
 static STATEFUL_SUCCESS_DATA: ModuleData = ModuleData {
     name: "stateful-success",
-    domain: crate::__macro::static_domain("stateful-success"),
+    owner: crate::__macro::static_domain("stateful-success"),
     supported_languages: &[],
-    namespaces: &[],
+    domains: &[crate::ModuleDomain {
+        domain: crate::__macro::static_domain("stateful-success"),
+        namespaces: &[],
+    }],
 };
 static STATEFUL_FAIL_DATA: ModuleData = ModuleData {
     name: "stateful-fail",
-    domain: crate::__macro::static_domain("stateful-fail"),
+    owner: crate::__macro::static_domain("stateful-fail"),
     supported_languages: &[],
-    namespaces: &[],
+    domains: &[crate::ModuleDomain {
+        domain: crate::__macro::static_domain("stateful-fail"),
+        namespaces: &[],
+    }],
 };
 static HARD_FAIL_DATA: ModuleData = ModuleData {
     name: "hard-fail",
-    domain: crate::__macro::static_domain("hard-fail"),
+    owner: crate::__macro::static_domain("hard-fail"),
     supported_languages: &[],
-    namespaces: &[],
+    domains: &[crate::ModuleDomain {
+        domain: crate::__macro::static_domain("hard-fail"),
+        namespaces: &[],
+    }],
 };
 static MISSING_LOCALIZER_DATA: ModuleData = ModuleData {
     name: "missing-localizer",
-    domain: crate::__macro::static_domain("missing-localizer"),
+    owner: crate::__macro::static_domain("missing-localizer"),
     supported_languages: &[],
-    namespaces: &[],
+    domains: &[crate::ModuleDomain {
+        domain: crate::__macro::static_domain("missing-localizer"),
+        namespaces: &[],
+    }],
 };
 static EXPLICIT_RUNTIME_DATA: ModuleData = ModuleData {
     name: "explicit-runtime",
-    domain: crate::__macro::static_domain("explicit-runtime"),
+    owner: crate::__macro::static_domain("explicit-runtime"),
     supported_languages: &[],
-    namespaces: &[],
+    domains: &[crate::ModuleDomain {
+        domain: crate::__macro::static_domain("explicit-runtime"),
+        namespaces: &[],
+    }],
 };
 static FILTER_MODULE_DATA: ModuleData = ModuleData {
     name: "filter-module",
-    domain: crate::__macro::static_domain("filter-domain"),
+    owner: crate::__macro::static_domain("filter-domain"),
     supported_languages: &[],
-    namespaces: &[],
+    domains: &[crate::ModuleDomain {
+        domain: crate::__macro::static_domain("filter-domain"),
+        namespaces: &[],
+    }],
 };
 static FILTER_EXACT_DUP_DATA: ModuleData = ModuleData {
     name: "filter-exact-module",
-    domain: crate::__macro::static_domain("filter-exact-domain"),
+    owner: crate::__macro::static_domain("filter-exact-domain"),
     supported_languages: &[],
-    namespaces: &[],
+    domains: &[crate::ModuleDomain {
+        domain: crate::__macro::static_domain("filter-exact-domain"),
+        namespaces: &[],
+    }],
 };
 static FILTER_EXACT_DUP_RUNTIME_MISMATCH_DATA: ModuleData = ModuleData {
     name: "filter-exact-module",
-    domain: crate::__macro::static_domain("filter-exact-domain"),
+    owner: crate::__macro::static_domain("filter-exact-domain"),
     supported_languages: &[langid!("en")],
-    namespaces: &["ui"],
+    domains: &[crate::ModuleDomain {
+        domain: crate::__macro::static_domain("filter-exact-domain"),
+        namespaces: &["ui"],
+    }],
 };
 static FILTER_INVALID_NAMESPACE_DATA: ModuleData = ModuleData {
     name: "filter-invalid-namespace",
-    domain: crate::__macro::static_domain("filter-invalid-namespace"),
+    owner: crate::__macro::static_domain("filter-invalid-namespace"),
     supported_languages: &[],
-    namespaces: &[" ../escape "],
+    domains: &[crate::ModuleDomain {
+        domain: crate::__macro::static_domain("filter-invalid-namespace"),
+        namespaces: &[" ../escape "],
+    }],
 };
 static DIAGNOSTIC_SUPPORTED_LANGUAGES: &[LanguageIdentifier] = &[
     langid!("en"),
@@ -89,9 +122,12 @@ static DIAGNOSTIC_SUPPORTED_LANGUAGES: &[LanguageIdentifier] = &[
 ];
 static DIAGNOSTIC_MODULE_DATA: ModuleData = ModuleData {
     name: "diagnostic-module",
-    domain: crate::__macro::static_domain("diagnostic-domain"),
+    owner: crate::__macro::static_domain("diagnostic-domain"),
     supported_languages: DIAGNOSTIC_SUPPORTED_LANGUAGES,
-    namespaces: &[],
+    domains: &[crate::ModuleDomain {
+        domain: crate::__macro::static_domain("diagnostic-domain"),
+        namespaces: &[],
+    }],
 };
 static FILTER_EXACT_DUP_DESCRIPTOR: StaticModuleDescriptor =
     StaticModuleDescriptor::new(&FILTER_EXACT_DUP_DATA);
@@ -120,12 +156,16 @@ struct StatefulSuccessLocalizer {
 struct StatefulFailLocalizer;
 struct HardFailLocalizer;
 
-fn static_domain(value: &'static str) -> crate::StaticFluentDomain {
-    crate::__macro::static_domain(value)
+fn static_id(value: &'static str) -> crate::StaticFluentEntryId {
+    crate::__macro::static_entry_id(value)
 }
 
-fn static_entry(value: &'static str) -> crate::StaticFluentEntryId {
-    crate::__macro::static_entry_id(value)
+fn static_key(owner: &'static str, id: &'static str) -> crate::StaticFluentMessageKey {
+    crate::__macro::static_message_key(
+        owner,
+        crate::__macro::static_domain(owner),
+        crate::__macro::static_entry_id(id),
+    )
 }
 
 impl Localizer for LocalizerOk {
@@ -136,10 +176,10 @@ impl Localizer for LocalizerOk {
 
     fn localize<'a>(
         &self,
-        id: crate::StaticFluentEntryId,
+        key: crate::StaticFluentMessageKey,
         _args: Option<&crate::FluentArgumentMap<'a>>,
     ) -> Option<String> {
-        match id.as_str() {
+        match key.id().as_str() {
             "from-ok" => Some("ok-value".to_string()),
             "shared-id" => Some("ok-shared".to_string()),
             _ => None,
@@ -155,10 +195,10 @@ impl Localizer for LocalizerErr {
 
     fn localize<'a>(
         &self,
-        id: crate::StaticFluentEntryId,
+        key: crate::StaticFluentMessageKey,
         _args: Option<&crate::FluentArgumentMap<'a>>,
     ) -> Option<String> {
-        match id.as_str() {
+        match key.id().as_str() {
             "from-err" => Some("err-value".to_string()),
             "shared-id" => Some("err-shared".to_string()),
             _ => None,
@@ -173,7 +213,7 @@ impl Localizer for FilterRuntimeLocalizer {
 
     fn localize<'a>(
         &self,
-        _id: crate::StaticFluentEntryId,
+        _key: crate::StaticFluentMessageKey,
         _args: Option<&crate::FluentArgumentMap<'a>>,
     ) -> Option<String> {
         None
@@ -196,10 +236,10 @@ impl Localizer for StatefulSuccessLocalizer {
 
     fn localize<'a>(
         &self,
-        id: crate::StaticFluentEntryId,
+        key: crate::StaticFluentMessageKey,
         _args: Option<&crate::FluentArgumentMap<'a>>,
     ) -> Option<String> {
-        (id == "selected-language")
+        (key.id() == "selected-language")
             .then(|| self.selected.read().clone())
             .flatten()
     }
@@ -212,7 +252,7 @@ impl Localizer for StatefulFailLocalizer {
 
     fn localize<'a>(
         &self,
-        _id: crate::StaticFluentEntryId,
+        _key: crate::StaticFluentMessageKey,
         _args: Option<&crate::FluentArgumentMap<'a>>,
     ) -> Option<String> {
         None
@@ -226,7 +266,7 @@ impl Localizer for HardFailLocalizer {
 
     fn localize<'a>(
         &self,
-        _id: crate::StaticFluentEntryId,
+        _key: crate::StaticFluentMessageKey,
         _args: Option<&crate::FluentArgumentMap<'a>>,
     ) -> Option<String> {
         None
@@ -394,10 +434,13 @@ fn manager_select_language_best_effort_skips_unsupported_modules_when_any_module
     assert!(SELECT_OK_CALLS.load(Ordering::Relaxed) > ok_before);
     assert!(SELECT_ERR_CALLS.load(Ordering::Relaxed) > err_before);
     assert_eq!(
-        manager.localize(static_entry("from-ok"), None),
+        manager.localize(static_key("module-ok", "from-ok"), None),
         Some("ok-value".to_string())
     );
-    assert_eq!(manager.localize(static_entry("from-err"), None), None);
+    assert_eq!(
+        manager.localize(static_key("module-err", "from-err"), None),
+        None
+    );
 }
 
 #[test]
@@ -413,7 +456,10 @@ fn manager_select_language_strict_returns_error_when_any_module_fails() {
     assert!(SELECT_OK_CALLS.load(Ordering::Relaxed) > ok_before);
     assert!(SELECT_ERR_CALLS.load(Ordering::Relaxed) > err_before);
     assert!(matches!(err, LocalizationError::LanguageNotSupported(_)));
-    assert_eq!(manager.localize(static_entry("from-ok"), None), None);
+    assert_eq!(
+        manager.localize(static_key("module-ok", "from-ok"), None),
+        None
+    );
 }
 
 #[test]
@@ -476,7 +522,7 @@ fn registration_runtime_support_defaults_match_registration_kind() {
 }
 
 #[test]
-fn manager_localize_returns_first_matching_message() {
+fn manager_localize_routes_by_package_owner() {
     let manager = FluentManager {
         modules: Vec::new(),
         localizers: RwLock::new(vec![
@@ -485,34 +531,33 @@ fn manager_localize_returns_first_matching_message() {
         ]),
     };
     assert_eq!(
-        manager.localize(static_entry("from-ok"), None),
+        manager.localize(static_key("module-ok", "from-ok"), None),
         Some("ok-value".to_string())
     );
     assert_eq!(
-        manager.localize(static_entry("from-err"), None),
+        manager.localize(static_key("module-err", "from-err"), None),
         Some("err-value".to_string())
     );
     assert_eq!(
-        manager.localize(static_entry("shared-id"), None),
+        manager.localize(static_key("module-ok", "shared-id"), None),
         Some("ok-shared".to_string())
     );
     assert_eq!(
-        manager.localize_in_domain(static_domain("module-err"), static_entry("shared-id"), None),
+        manager.localize(static_key("module-err", "shared-id"), None),
         Some("err-shared".to_string())
     );
     assert_eq!(
-        manager.localize_in_domain(static_domain("module-ok"), static_entry("missing"), None),
+        manager.localize(static_key("module-ok", "missing"), None),
         None
     );
     assert_eq!(
-        manager.localize_in_domain(
-            static_domain("missing-domain"),
-            static_entry("shared-id"),
-            None
-        ),
+        manager.localize(static_key("missing-domain", "shared-id"), None),
         None
     );
-    assert_eq!(manager.localize(static_entry("missing"), None), None);
+    assert_eq!(
+        manager.localize(static_key("module-ok", "missing"), None),
+        None
+    );
 }
 
 #[test]
@@ -565,7 +610,7 @@ fn manager_select_language_returns_error_on_non_unsupported_failure() {
 
     assert!(matches!(err, LocalizationError::IoError(_)));
     assert_eq!(
-        manager.localize(static_entry("selected-language"), None),
+        manager.localize(static_key("stateful-success", "selected-language"), None),
         None
     );
 }
@@ -589,7 +634,7 @@ fn manager_keeps_previous_localizers_when_strict_selection_fails() {
 
     assert!(matches!(err, LocalizationError::LanguageNotSupported(_)));
     assert_eq!(
-        manager.localize(static_entry("selected-language"), None),
+        manager.localize(static_key("stateful-success", "selected-language"), None),
         Some("en-US".to_string())
     );
 }
@@ -603,10 +648,10 @@ fn format_supported_languages_truncates_long_lists_for_diagnostics() {
 }
 
 #[test]
-fn format_module_support_includes_domain_when_it_differs() {
+fn format_module_support_includes_owner_when_it_differs() {
     assert_eq!(
         crate::localization::manager::format_module_support(&DIAGNOSTIC_MODULE_DATA),
-        "diagnostic-module (domain: diagnostic-domain, supports: en, fr, de, es, it, ja, +1 more)"
+        "diagnostic-module (owner: diagnostic-domain, supports: en, fr, de, es, it, ja, +1 more)"
     );
 }
 
@@ -641,7 +686,7 @@ fn format_module_support_list_reports_empty_and_joined_support_details() {
             &MODULE_ERR_DATA,
             &DIAGNOSTIC_MODULE_DATA
         ]),
-        "module-err (supports: none declared), diagnostic-module (domain: diagnostic-domain, supports: en, fr, de, es, it, ja, +1 more)"
+        "module-err (supports: none declared), diagnostic-module (owner: diagnostic-domain, supports: en, fr, de, es, it, ja, +1 more)"
     );
 }
 
@@ -657,7 +702,7 @@ fn build_sync_bundle_reports_resource_add_errors() {
     assert_eq!(bundle.locales, vec![langid!("en-US"), langid!("en")]);
 
     let (localized, _format_errors) =
-        localize_with_bundle(&bundle, static_entry("hello"), None).expect("message should exist");
+        localize_with_bundle(&bundle, static_id("hello"), None).expect("message should exist");
     assert_eq!(localized, "first");
 }
 
@@ -693,10 +738,10 @@ fn try_filter_module_registry_rejects_duplicate_metadata_only_registrations() {
             error,
             ModuleDiscoveryError::DuplicateModuleRegistration {
                 name,
-                domain,
+                owner,
                 kind: ModuleRegistrationKind::MetadataOnly,
                 count: 2,
-            } if name == "filter-exact-module" && domain == "filter-exact-domain"
+            } if name == "filter-exact-module" && owner == "filter-exact-domain"
         )
     }));
 }
@@ -716,10 +761,10 @@ fn try_filter_module_registry_rejects_duplicate_runtime_registrations() {
             error,
             ModuleDiscoveryError::DuplicateModuleRegistration {
                 name,
-                domain,
+                owner,
                 kind: ModuleRegistrationKind::RuntimeLocalizer,
                 count: 2,
-            } if name == "filter-exact-module" && domain == "filter-exact-domain"
+            } if name == "filter-exact-module" && owner == "filter-exact-domain"
         )
     }));
 }
@@ -737,8 +782,8 @@ fn try_filter_module_registry_rejects_mismatched_metadata_runtime_pairing() {
     assert!(errors.iter().any(|error| {
         matches!(
             error,
-            ModuleDiscoveryError::InconsistentModuleMetadata { name, domain }
-                if name == "filter-exact-module" && domain == "filter-exact-domain"
+            ModuleDiscoveryError::InconsistentModuleMetadata { name, owner }
+                if name == "filter-exact-module" && owner == "filter-exact-domain"
         )
     }));
 }
@@ -769,23 +814,23 @@ fn module_registration_kind_and_discovery_errors_report_diagnostics() {
 
     let inconsistent = ModuleDiscoveryError::InconsistentModuleMetadata {
         name: "module".to_string(),
-        domain: "domain".to_string(),
+        owner: "owner".to_string(),
     };
     assert!(inconsistent.source().is_none());
     assert_eq!(
         inconsistent.to_string(),
-        "module 'module' (domain 'domain') has mismatched metadata between registrations"
+        "module 'module' (owner 'owner') has mismatched metadata between registrations"
     );
 
     let duplicate = ModuleDiscoveryError::DuplicateModuleRegistration {
         name: "module".to_string(),
-        domain: "domain".to_string(),
+        owner: "owner".to_string(),
         kind: ModuleRegistrationKind::RuntimeLocalizer,
         count: 2,
     };
     assert!(duplicate.source().is_none());
     assert_eq!(
         duplicate.to_string(),
-        "module 'module' (domain 'domain') has 2 duplicate runtime-localizer registrations"
+        "module 'module' (owner 'owner') has 2 duplicate runtime-localizer registrations"
     );
 }

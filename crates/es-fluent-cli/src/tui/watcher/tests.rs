@@ -298,11 +298,17 @@ fn spawn_generation_sends_failure_for_missing_lib_rs() {
     };
 
     let (tx, rx) = crossbeam_channel::unbounded();
-    super::generation::spawn_generation(krate, Arc::new(workspace), FluentParseMode::default(), tx);
+    let handle = super::generation::spawn_generation(
+        krate,
+        Arc::new(workspace),
+        FluentParseMode::default(),
+        tx,
+    );
 
     let result = rx
         .recv_timeout(Duration::from_secs(2))
         .expect("generation thread should send result");
+    handle.join().expect("generation thread should finish");
     assert_eq!(result.name, "missing-lib");
     assert!(result.error.is_some());
 }
@@ -334,6 +340,11 @@ fn create_valid_workspace_with_fake_runner_behavior(
     let src_dir = temp.path().join("src");
     fs::create_dir_all(&src_dir).expect("create src");
     fs::write(src_dir.join("lib.rs"), "pub struct Demo;\n").expect("write lib.rs");
+    fs::write(
+        temp.path().join("Cargo.toml"),
+        "[package]\nname = \"watch-crate\"\nversion = \"0.1.0\"\nedition = \"2024\"\n\n[lib]\npath = \"src/lib.rs\"\n",
+    )
+    .expect("write Cargo.toml");
 
     let i18n_toml = temp.path().join("i18n.toml");
     crate::test_fixtures::toml_helpers::write_toml(
@@ -379,12 +390,6 @@ fn create_valid_workspace_with_fake_runner_behavior(
     (temp, workspace, krate)
 }
 
-fn quit_after_three_polls(_timeout: Duration) -> std::io::Result<bool> {
-    static POLL_COUNT: AtomicUsize = AtomicUsize::new(0);
-    let count = POLL_COUNT.fetch_add(1, Ordering::SeqCst);
-    Ok(count >= 2)
-}
-
 fn never_quit(_timeout: Duration) -> std::io::Result<bool> {
     Ok(false)
 }
@@ -415,7 +420,11 @@ fn run_watch_loop_with_poll_handles_non_library_crates() {
 
 #[test]
 fn run_watch_loop_with_poll_processes_initial_generation_for_valid_crate() {
-    let (_temp, workspace, krate) = create_valid_workspace_with_fake_runner();
+    let temp = tempfile::tempdir().expect("tempdir");
+    let record_args_path = temp.path().join("watch-runner-args");
+    let (_workspace_temp, workspace, krate) = create_valid_workspace_with_fake_runner_behavior(
+        FakeRunnerBehavior::record_args(&record_args_path),
+    );
     let backend = TestBackend::new(80, 20);
     let mut terminal = Terminal::new(backend).expect("create terminal");
 
@@ -424,11 +433,15 @@ fn run_watch_loop_with_poll_processes_initial_generation_for_valid_crate() {
         &[krate],
         &workspace,
         &FluentParseMode::default(),
-        quit_after_three_polls,
+        always_quit,
         Some(10),
     );
 
     assert!(result.is_ok());
+    assert!(
+        record_args_path.is_file(),
+        "quitting should wait for the initial generation process"
+    );
 }
 
 #[test]
@@ -632,10 +645,16 @@ fn spawn_generation_sends_success_and_reads_changed_from_result_json() {
     .expect("write result json");
 
     let (tx, rx) = crossbeam_channel::unbounded();
-    super::generation::spawn_generation(krate, Arc::new(workspace), FluentParseMode::default(), tx);
+    let handle = super::generation::spawn_generation(
+        krate,
+        Arc::new(workspace),
+        FluentParseMode::default(),
+        tx,
+    );
     let result = rx
         .recv_timeout(Duration::from_secs(2))
         .expect("generation result");
+    handle.join().expect("generation thread should finish");
 
     assert!(
         result.error.is_none(),
@@ -661,10 +680,16 @@ fn spawn_generation_handles_invalid_json_and_empty_output() {
     fs::write(&result_json, "{not-json").expect("write invalid json");
 
     let (tx, rx) = crossbeam_channel::unbounded();
-    super::generation::spawn_generation(krate, Arc::new(workspace), FluentParseMode::default(), tx);
+    let handle = super::generation::spawn_generation(
+        krate,
+        Arc::new(workspace),
+        FluentParseMode::default(),
+        tx,
+    );
     let result = rx
         .recv_timeout(Duration::from_secs(2))
         .expect("generation result");
+    handle.join().expect("generation thread should finish");
 
     assert!(
         result.error.is_none(),

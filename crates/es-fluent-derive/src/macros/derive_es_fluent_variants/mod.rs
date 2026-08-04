@@ -196,30 +196,35 @@ mod tests {
     }
 
     #[test]
+    #[serial_test::serial(manifest)]
     fn process_enum_uses_parent_domain_for_generated_variants_and_label() {
         let input: syn::DeriveInput = parse_quote! {
-            #[fluent(domain = "es-fluent-lang", namespace = "languages")]
+            #[fluent(
+                domain = "es-fluent-lang",
+                namespace = "languages"
+            )]
             enum Language {
                 English,
                 French,
             }
         };
 
-        let tokens =
-            crate::snapshot_support::pretty_file_tokens(super::expand_es_fluent_variants(input));
+        let tokens = crate::snapshot_support::with_i18n_domains(&["es-fluent-lang"], || {
+            crate::snapshot_support::pretty_file_tokens(super::expand_es_fluent_variants(input))
+        });
 
         assert!(tokens.contains("static_domain"));
         assert!(tokens.contains("\"es-fluent-lang\""));
         assert!(tokens.contains("static_entry_id"));
         assert!(tokens.contains("\"language_variants-English\""));
         assert!(tokens.contains("\"language_variants-French\""));
-        assert!(tokens.contains("fn fluent_label_domain"));
-        assert!(tokens.contains("fn fluent_label_id"));
+        assert!(tokens.contains("fn fluent_label_key"));
         assert!(tokens.contains("static_domain"));
         assert!(tokens.contains("\"es-fluent-lang\""));
         assert!(!tokens.contains(".as_str()"));
         assert!(tokens.contains("\"language_variants_label\""));
-        assert!(!tokens.contains("CARGO_PKG_NAME"));
+        assert!(tokens.contains("CARGO_PKG_NAME"));
+        assert!(tokens.contains("RegisteredFtlType"));
     }
 
     #[test]

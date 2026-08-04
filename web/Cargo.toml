@@ -6,24 +6,17 @@ edition.workspace = true
 license = "Unlicense"
 publish = false
 
-[features]
-default = [ "web" ]
-web = [ "dioxus/web", "stayhydated-site/web" ]
-
 [dependencies]
-dioxus = { features = [ "router", "launch", "lib" ], workspace = true }
+dioxus = { features = [ "router", "launch", "lib", "web" ], workspace = true }
 es-fluent = { features = [ "derive" ], workspace = true }
 es-fluent-lang = { workspace = true }
-es-fluent-manager-dioxus = { features = [ "client", "ssr" ], workspace = true }
+es-fluent-manager-dioxus = { features = [ "client" ], workspace = true }
 stayhydated-dioxus = { workspace = true }
 stayhydated-site = { workspace = true }
 strum = { features = [ "derive" ], workspace = true }
 
 [build-dependencies]
 es-fluent-build = { workspace = true }
-
-[dev-dependencies]
-dioxus = { features = [ "ssr" ], workspace = true }
 
 [lints]
 workspace = true

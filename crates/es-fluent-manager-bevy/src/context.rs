@@ -1,9 +1,9 @@
-use crate::{I18nBundle, I18nDomainBundles, I18nResource};
+use crate::{I18nDomainBundles, I18nReadyLocales, I18nResource};
 use bevy::ecs::system::SystemParam;
 use bevy::prelude::*;
 use es_fluent::{
     FluentArgs, FluentLocalizer, FluentLocalizerExt, FluentMessage,
-    registry::{StaticFluentDomain, StaticFluentEntryId},
+    registry::StaticFluentMessageKey,
 };
 use unic_langid::LanguageIdentifier;
 
@@ -15,7 +15,7 @@ use unic_langid::LanguageIdentifier;
 #[derive(SystemParam)]
 pub struct BevyI18n<'w> {
     i18n_resource: Res<'w, I18nResource>,
-    i18n_bundle: Res<'w, I18nBundle>,
+    i18n_bundle: Res<'w, I18nReadyLocales>,
     i18n_domain_bundles: Res<'w, I18nDomainBundles>,
 }
 
@@ -30,7 +30,7 @@ impl<'w> BevyI18n<'w> {
         self.i18n_resource.resolved_language()
     }
 
-    /// Returns whether the unscoped or domain bundle cache changed this tick.
+    /// Returns whether locale readiness or a scoped bundle cache changed this tick.
     pub fn is_bundle_changed(&self) -> bool {
         self.i18n_bundle.is_changed() || self.i18n_domain_bundles.is_changed()
     }
@@ -47,24 +47,10 @@ impl<'w> BevyI18n<'w> {
 impl<'w> FluentLocalizer for BevyI18n<'w> {
     fn localize<'a>(
         &self,
-        id: StaticFluentEntryId,
+        key: StaticFluentMessageKey,
         args: Option<&FluentArgs<'a>>,
     ) -> Option<String> {
         self.i18n_resource
-            .localize(id, args.map(FluentArgs::as_raw), &self.i18n_bundle)
-    }
-
-    fn localize_in_domain<'a>(
-        &self,
-        domain: StaticFluentDomain,
-        id: StaticFluentEntryId,
-        args: Option<&FluentArgs<'a>>,
-    ) -> Option<String> {
-        self.i18n_resource.localize_in_domain(
-            &self.i18n_domain_bundles,
-            domain,
-            id,
-            args.map(FluentArgs::as_raw),
-        )
+            .localize(key, args.map(FluentArgs::as_raw), &self.i18n_domain_bundles)
     }
 }

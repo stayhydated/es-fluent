@@ -1,20 +1,24 @@
 # Introduction
 
-`es-fluent` is a localization (i18n) ecosystem for Rust built on top of [Project Fluent](https://projectfluent.org/). It provides type-safe, ergonomic derive macros to link your Rust types directly to Fluent `.ftl` translation files.
+`es-fluent` connects Rust types to
+[Project Fluent](https://projectfluent.org/) messages. Derive macros define
+typed message IDs and arguments, `cargo es-fluent` maintains Fluent
+translation files, and runtime managers resolve those messages in embedded,
+Dioxus, or Bevy applications.
 
-The core philosophy:
+This book is for Rust application developers who want to:
 
-- **Type Safety**: Your code and translation files stay in sync — mismatches are caught at compile time.
-- **Ergonomics**: A single `#[derive(EsFluent)]` on a struct or enum is all you need.
-- **Developer Experience**: A CLI generates FTL file skeletons, validates keys, and keeps everything consistent.
+- generate `.ftl` resources from structs and enums;
+- keep fallback and translated resources aligned;
+- switch locales through an explicit runtime context;
+- build typed language pickers; and
+- validate localization in local development and CI.
 
-## What This Book Covers
+Start with [Choose crates](workspace_map.md), then follow
+[Getting started](getting_started.md) for a working embedded example. The
+remaining chapters cover configuration, derive behavior, resource layout,
+runtime integrations, and the CLI in more depth.
 
-1. [**Workspace Crates**](workspace_map.md) — Which crates you depend on directly and which support crates you usually won't need directly.
-2. [**Getting Started**](getting_started.md) — Installation, configuration, and a working end-to-end example.
-3. [**Deriving Messages**](deriving_messages.md) — Mapping structs and enums to FTL message keys using `EsFluent`, `EsFluentChoice`, `EsFluentVariants`, and `EsFluentLabel`.
-4. [**Namespaces & File Splitting**](namespaces.md) — Organizing translations into multiple FTL files.
-5. [**Language Enum**](language_enum.md) — Auto-generating a type-safe `Languages` enum from your locale folders.
-6. [**Runtime Managers**](managers.md) — Loading and resolving translations at runtime with the embedded, Dioxus, or Bevy manager.
-7. [**CLI Tooling**](cli.md) — Generating, validating, syncing, cleaning, formatting, and inspecting FTL files from the command line.
-8. [**Incremental Builds**](incremental_builds.md) — Ensuring Cargo rebuilds when locale files change.
+The examples assume familiarity with Cargo and basic Rust application
+structure. Familiarity with Fluent syntax is useful when replacing generated
+fallback text with production copy.

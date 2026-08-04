@@ -79,7 +79,7 @@ pub struct StructOpts {
     generics: syn::Generics,
     data: darling::ast::Data<darling::util::Ignored, StructFieldOpts>,
     #[darling(flatten)]
-    attr_args: super::NamespacedAttributeArgs,
+    attr_args: super::ScopedAttributeArgs,
 }
 
 impl StructDataOptions for StructOpts {

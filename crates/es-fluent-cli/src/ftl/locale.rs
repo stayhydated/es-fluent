@@ -1,7 +1,7 @@
 //! Locale context for iterating over locale directories.
 //!
 //! Provides a unified abstraction for the common pattern of iterating
-//! over locale directories with `--all` flag support.
+//! over locale directories with `--all-locales` flag support.
 
 use crate::core::CrateInfo;
 use anyhow::Result;
@@ -67,6 +67,8 @@ pub struct LocaleContext {
     pub locales: Vec<String>,
     /// The crate name (for constructing FTL file paths).
     pub crate_name: String,
+    /// The default and additional FTL domains owned by the package.
+    pub domains: Vec<String>,
     /// Whether fallback-copy warnings are enabled by this crate's i18n.toml.
     pub check_fallback_copies: bool,
 }
@@ -76,7 +78,7 @@ impl LocaleContext {
     ///
     /// If `all` is true, includes all locale directories.
     /// Otherwise, includes only the fallback language.
-    pub fn from_crate(krate: &CrateInfo, all: bool) -> Result<Self> {
+    pub fn from_crate(krate: &CrateInfo, all_locales: bool) -> Result<Self> {
         let layout =
             ResolvedI18nLayout::from_config_path(&krate.i18n_config_path).map_err(|error| {
                 anyhow::anyhow!(
@@ -84,19 +86,32 @@ impl LocaleContext {
                     krate.i18n_config_path.display()
                 )
             })?;
+        layout.config.validate_for_package(krate.name.as_str())?;
         let fallback = layout.fallback_language().to_string();
 
-        let locales = if all {
+        let locales = if all_locales {
             layout.available_locale_names()?
         } else {
             vec![fallback.clone()]
         };
 
+        let crate_name = krate.name.to_string();
+        let mut domains = vec![crate_name.clone()];
+        domains.extend(
+            layout
+                .domains()
+                .iter()
+                .map(|domain| domain.as_str().to_string()),
+        );
+        domains.sort();
+        domains.dedup();
+
         Ok(Self {
             assets_dir: layout.assets_dir,
             fallback,
             locales,
-            crate_name: krate.name.to_string(),
+            crate_name,
+            domains,
             check_fallback_copies: layout.config.check_fallback_copies,
         })
     }
@@ -111,6 +126,16 @@ impl LocaleContext {
     /// Get the locale directory path.
     pub fn locale_dir(&self, locale: &str) -> PathBuf {
         self.assets_dir.join(locale)
+    }
+
+    /// Discover the package-owned FTL resources for a locale.
+    pub fn discover_files(&self, locale: &str) -> Result<Vec<crate::ftl::FtlFileInfo>> {
+        crate::ftl::discover_domain_ftl_files_in_locale_dir(&self.locale_dir(locale), &self.domains)
+    }
+
+    /// Discover and load the package-owned FTL resources for a locale.
+    pub fn discover_and_load_files(&self, locale: &str) -> Result<Vec<crate::ftl::LoadedFtlFile>> {
+        crate::ftl::discover_and_load_domain_ftl_files(&self.assets_dir, locale, &self.domains)
     }
 
     /// Iterate over locales, yielding (locale, ftl_path) pairs.

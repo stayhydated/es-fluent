@@ -107,6 +107,25 @@ pub(crate) fn validate_no_duplicate_ftl_keys(items: &[&FtlTypeInfo]) -> EsFluent
     Ok(())
 }
 
+pub(crate) fn validate_no_duplicate_ftl_keys_per_domain(
+    crate_name: &str,
+    items: &[&FtlTypeInfo],
+) -> EsFluentResult<()> {
+    use std::collections::BTreeMap;
+
+    let mut domains: BTreeMap<&str, Vec<&FtlTypeInfo>> = BTreeMap::new();
+    for item in items {
+        domains
+            .entry(item.domain().map_or(crate_name, |domain| domain.as_str()))
+            .or_default()
+            .push(*item);
+    }
+    for domain_items in domains.values() {
+        validate_no_duplicate_ftl_keys(domain_items)?;
+    }
+    Ok(())
+}
+
 /// Merge duplicate `FtlTypeInfo` entries into a stable owned representation.
 pub(crate) fn merge_ftl_type_infos(items: &[&FtlTypeInfo]) -> EsFluentResult<Vec<OwnedTypeInfo>> {
     use std::collections::BTreeMap;

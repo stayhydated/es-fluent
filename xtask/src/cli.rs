@@ -19,10 +19,10 @@ pub enum Command {
         #[command(subcommand)]
         target: BuildCommand,
     },
-    /// Run focused workspace checks
-    Check {
+    /// Preview generated workspace artifacts
+    Preview {
         #[command(subcommand)]
-        target: CheckCommand,
+        target: PreviewCommand,
     },
     /// Release workspace crates in registry dependency order
     Release {
@@ -46,9 +46,9 @@ pub enum BuildCommand {
 }
 
 #[derive(Debug, Subcommand)]
-pub enum CheckCommand {
-    /// Verify one-owner FTL domain ownership across workspace i18n trees
-    FtlOwnership,
+pub enum PreviewCommand {
+    /// Preview the generated static site with its GitHub Pages base path
+    Web,
 }
 
 #[derive(Debug, Subcommand)]

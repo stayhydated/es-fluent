@@ -1,13 +1,12 @@
-use crate::{FtlAsset, I18nAssets};
+use crate::{FtlAsset, I18nAssets, I18nResourceKey};
 use bevy::asset::{AssetEvent, AssetId, AssetLoadFailedEvent, Assets};
 use bevy::prelude::*;
-use es_fluent_manager_core::ResourceKey;
 use unic_langid::LanguageIdentifier;
 
 fn find_asset_key(
     i18n_assets: &I18nAssets,
     id: AssetId<FtlAsset>,
-) -> Option<(LanguageIdentifier, ResourceKey)> {
+) -> Option<(LanguageIdentifier, I18nResourceKey)> {
     i18n_assets
         .assets
         .iter()
@@ -32,28 +31,24 @@ fn handle_loaded_asset(
     };
 
     if let Some(ftl_asset) = ftl_assets.get(id) {
-        let (loaded_resources, load_errors) = i18n_assets.load_state_mut();
-        match es_fluent_manager_core::parse_and_store_locale_resource_content(
-            loaded_resources,
-            load_errors,
-            &lang_key,
+        let state_key = (lang_key.clone(), resource_key.clone());
+        match es_fluent_manager_core::parse_fluent_resource_content(
             &spec,
             ftl_asset.content.clone(),
         ) {
-            Ok(()) => {
+            Ok(resource) => {
+                i18n_assets
+                    .loaded_resources
+                    .insert(state_key.clone(), resource);
+                i18n_assets.load_errors.remove(&state_key);
                 debug!(
                     "Loaded FTL resource for language: {}, key: {}",
                     lang_key, resource_key
                 );
             },
             Err(err) => {
-                let (loaded_resources, load_errors) = i18n_assets.load_state_mut();
-                es_fluent_manager_core::record_locale_resource_error(
-                    loaded_resources,
-                    load_errors,
-                    &lang_key,
-                    err.clone(),
-                );
+                i18n_assets.loaded_resources.remove(&state_key);
+                i18n_assets.load_errors.insert(state_key, err.clone());
                 if err.is_required() {
                     error!("{}", err);
                 } else {
@@ -62,13 +57,10 @@ fn handle_loaded_asset(
             },
         }
     } else {
-        let (loaded_resources, load_errors) = i18n_assets.load_state_mut();
-        let err = es_fluent_manager_core::record_missing_locale_resource(
-            loaded_resources,
-            load_errors,
-            &lang_key,
-            &spec,
-        );
+        let err = es_fluent_manager_core::ResourceLoadError::missing(&spec);
+        let state_key = (lang_key, resource_key);
+        i18n_assets.loaded_resources.remove(&state_key);
+        i18n_assets.load_errors.insert(state_key, err.clone());
         if err.is_required() {
             warn!("{}", err);
         } else {
@@ -82,13 +74,9 @@ fn handle_unloaded_asset(i18n_assets: &mut I18nAssets, id: AssetId<FtlAsset>) {
         return;
     };
 
-    let (loaded_resources, load_errors) = i18n_assets.load_state_mut();
-    es_fluent_manager_core::clear_locale_resource(
-        loaded_resources,
-        load_errors,
-        &lang_key,
-        &resource_key,
-    );
+    let state_key = (lang_key.clone(), resource_key.clone());
+    i18n_assets.loaded_resources.remove(&state_key);
+    i18n_assets.load_errors.remove(&state_key);
     debug!(
         "Unloaded FTL resource for language: {}, key: {}",
         lang_key, resource_key
@@ -101,20 +89,19 @@ fn handle_failed_asset(i18n_assets: &mut I18nAssets, event: &AssetLoadFailedEven
     };
     let Some(spec) = i18n_assets
         .resource_specs
-        .get(&(lang_key.clone(), resource_key))
+        .get(&(lang_key.clone(), resource_key.clone()))
         .cloned()
     else {
         return;
     };
 
-    let (loaded_resources, load_errors) = i18n_assets.load_state_mut();
-    let err = es_fluent_manager_core::record_failed_locale_resource(
-        loaded_resources,
-        load_errors,
-        &lang_key,
+    let err = es_fluent_manager_core::ResourceLoadError::load(
         &spec,
         format!("{} (asset path: {})", event.error, event.path),
     );
+    let state_key = (lang_key, resource_key);
+    i18n_assets.loaded_resources.remove(&state_key);
+    i18n_assets.load_errors.insert(state_key, err.clone());
 
     if err.is_required() {
         error!("{}", err);
@@ -151,7 +138,10 @@ pub(crate) fn handle_asset_loading(
 mod tests {
     use super::*;
     use bevy::asset::{AssetLoadError, AssetPath, Assets};
-    use es_fluent_manager_core::{LocaleRelativeFtlPath, ModuleResourceSpec, ResourceLoadError};
+    use es_fluent_manager_core::{
+        LocaleRelativeFtlPath, ModuleResourceSpec, ResourceKey, ResourceLoadError,
+        StaticFluentDomain,
+    };
     use unic_langid::langid;
 
     fn spec(key: &str, required: bool) -> ModuleResourceSpec {
@@ -160,6 +150,17 @@ mod tests {
         let locale_relative_path = LocaleRelativeFtlPath::try_new(format!("{key}.ftl"))
             .unwrap_or_else(|error| panic!("test FTL path '{key}.ftl' should be valid: {error}"));
         ModuleResourceSpec::new(resource_key, locale_relative_path, required)
+    }
+
+    fn owner() -> StaticFluentDomain {
+        es_fluent_manager_core::__macro::static_domain("app")
+    }
+
+    fn state_key(
+        lang: unic_langid::LanguageIdentifier,
+        spec: &ModuleResourceSpec,
+    ) -> (unic_langid::LanguageIdentifier, I18nResourceKey) {
+        (lang, I18nResourceKey::new(owner(), spec.key.clone()))
     }
 
     #[test]
@@ -171,19 +172,19 @@ mod tests {
             content: "hello = Hello".to_string(),
         });
         let mut i18n_assets = I18nAssets::new();
-        i18n_assets.add_asset_spec(lang.clone(), resource_spec.clone(), handle.clone());
+        i18n_assets.add_asset_spec(owner(), lang.clone(), resource_spec.clone(), handle.clone());
 
         handle_loaded_asset(&mut i18n_assets, &ftl_assets, handle.id());
 
         assert!(
             i18n_assets
                 .loaded_resources
-                .contains_key(&(lang.clone(), resource_spec.key.clone()))
+                .contains_key(&state_key(lang.clone(), &resource_spec))
         );
         assert!(
             !i18n_assets
                 .load_errors
-                .contains_key(&(lang, resource_spec.key))
+                .contains_key(&state_key(lang, &resource_spec))
         );
     }
 
@@ -196,19 +197,19 @@ mod tests {
             content: "hello = {".to_string(),
         });
         let mut i18n_assets = I18nAssets::new();
-        i18n_assets.add_asset_spec(lang.clone(), resource_spec.clone(), handle.clone());
+        i18n_assets.add_asset_spec(owner(), lang.clone(), resource_spec.clone(), handle.clone());
 
         handle_loaded_asset(&mut i18n_assets, &ftl_assets, handle.id());
 
         assert!(
             !i18n_assets
                 .loaded_resources
-                .contains_key(&(lang.clone(), resource_spec.key.clone()))
+                .contains_key(&state_key(lang.clone(), &resource_spec))
         );
         assert!(matches!(
             i18n_assets
                 .load_errors
-                .get(&(lang, resource_spec.key))
+                .get(&state_key(lang, &resource_spec))
                 .expect("parse error should be recorded"),
             ResourceLoadError::Parse { .. }
         ));
@@ -221,14 +222,14 @@ mod tests {
         let ftl_assets = Assets::<FtlAsset>::default();
         let handle = Handle::<FtlAsset>::default();
         let mut i18n_assets = I18nAssets::new();
-        i18n_assets.add_asset_spec(lang.clone(), resource_spec.clone(), handle.clone());
+        i18n_assets.add_asset_spec(owner(), lang.clone(), resource_spec.clone(), handle.clone());
 
         handle_loaded_asset(&mut i18n_assets, &ftl_assets, handle.id());
 
         assert!(matches!(
             i18n_assets
                 .load_errors
-                .get(&(lang, resource_spec.key))
+                .get(&state_key(lang, &resource_spec))
                 .expect("missing error should be recorded"),
             ResourceLoadError::Missing { required: true, .. }
         ));
@@ -237,7 +238,7 @@ mod tests {
     #[test]
     fn loaded_asset_without_registered_spec_is_ignored() {
         let lang = langid!("en");
-        let resource_key = ResourceKey::from_static_path("app");
+        let resource_key = I18nResourceKey::new(owner(), ResourceKey::from_static_path("app"));
         let mut ftl_assets = Assets::<FtlAsset>::default();
         let handle = ftl_assets.add(FtlAsset {
             content: "hello = Hello".to_string(),
@@ -262,7 +263,7 @@ mod tests {
             content: "hello = Hello".to_string(),
         });
         let mut i18n_assets = I18nAssets::new();
-        i18n_assets.add_asset_spec(lang.clone(), resource_spec.clone(), handle.clone());
+        i18n_assets.add_asset_spec(owner(), lang.clone(), resource_spec.clone(), handle.clone());
 
         handle_loaded_asset(&mut i18n_assets, &ftl_assets, handle.id());
         handle_unloaded_asset(&mut i18n_assets, handle.id());
@@ -270,12 +271,12 @@ mod tests {
         assert!(
             !i18n_assets
                 .loaded_resources
-                .contains_key(&(lang.clone(), resource_spec.key.clone()))
+                .contains_key(&state_key(lang.clone(), &resource_spec))
         );
         assert!(
             !i18n_assets
                 .load_errors
-                .contains_key(&(lang, resource_spec.key))
+                .contains_key(&state_key(lang, &resource_spec))
         );
     }
 
@@ -300,7 +301,7 @@ mod tests {
         let resource_spec = spec("app", true);
         let handle = Handle::<FtlAsset>::default();
         let mut i18n_assets = I18nAssets::new();
-        i18n_assets.add_asset_spec(lang.clone(), resource_spec.clone(), handle.clone());
+        i18n_assets.add_asset_spec(owner(), lang.clone(), resource_spec.clone(), handle.clone());
 
         handle_failed_asset(
             &mut i18n_assets,
@@ -317,7 +318,7 @@ mod tests {
         assert!(matches!(
             i18n_assets
                 .load_errors
-                .get(&(lang, resource_spec.key))
+                .get(&state_key(lang, &resource_spec))
                 .expect("load error should be recorded"),
             ResourceLoadError::Load { required: true, .. }
         ));
@@ -332,7 +333,7 @@ mod tests {
             content: "hello = Hello".to_string(),
         });
         let mut i18n_assets = I18nAssets::new();
-        i18n_assets.add_asset_spec(lang.clone(), resource_spec.clone(), handle.clone());
+        i18n_assets.add_asset_spec(owner(), lang.clone(), resource_spec.clone(), handle.clone());
 
         let mut app = App::new();
         app.add_message::<AssetEvent<FtlAsset>>()
@@ -349,7 +350,7 @@ mod tests {
             app.world()
                 .resource::<I18nAssets>()
                 .loaded_resources
-                .contains_key(&(lang.clone(), resource_spec.key.clone()))
+                .contains_key(&state_key(lang.clone(), &resource_spec))
         );
 
         {
@@ -365,7 +366,7 @@ mod tests {
             app.world()
                 .resource::<I18nAssets>()
                 .load_errors
-                .get(&(lang.clone(), resource_spec.key.clone()))
+                .get(&state_key(lang.clone(), &resource_spec))
                 .expect("parse error should be recorded"),
             ResourceLoadError::Parse { .. }
         ));
@@ -380,7 +381,7 @@ mod tests {
             !app.world()
                 .resource::<I18nAssets>()
                 .load_errors
-                .contains_key(&(lang.clone(), resource_spec.key.clone()))
+                .contains_key(&state_key(lang.clone(), &resource_spec))
         );
 
         app.world_mut().write_message(AssetLoadFailedEvent {
@@ -397,7 +398,7 @@ mod tests {
             app.world()
                 .resource::<I18nAssets>()
                 .load_errors
-                .get(&(lang, resource_spec.key))
+                .get(&state_key(lang, &resource_spec))
                 .expect("load error should be recorded"),
             ResourceLoadError::Load { .. }
         ));

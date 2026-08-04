@@ -10,7 +10,7 @@ mod tests;
 use crate::asset_localization::{
     I18nModuleDescriptor, ModuleResourceSpec, ResourceKey, StaticModuleDescriptor,
 };
-use es_fluent_shared::registry::{StaticFluentArgumentName, StaticFluentEntryId};
+use es_fluent_shared::registry::{StaticFluentArgumentName, StaticFluentMessageKey};
 use fluent_bundle::FluentValue;
 use std::collections::HashMap;
 use unic_langid::LanguageIdentifier;
@@ -40,10 +40,10 @@ pub trait Localizer: Send + Sync {
     /// need the same behavior should perform that resolution here before
     /// returning [`LocalizationError::LanguageNotSupported`].
     fn select_language(&self, lang: &LanguageIdentifier) -> es_fluent_shared::EsFluentResult<()>;
-    /// Localizes a message by its validated static ID.
+    /// Localizes a fully scoped static message key.
     fn localize<'a>(
         &self,
-        id: StaticFluentEntryId,
+        key: StaticFluentMessageKey,
         args: Option<&FluentArgumentMap<'a>>,
     ) -> Option<String>;
 }
@@ -100,9 +100,8 @@ pub trait I18nModuleRegistration: I18nModuleDescriptor {
     /// registration owns loadable resource bytes.
     ///
     /// Asset-driven integrations may return `None` and let the host asset
-    /// pipeline load the resource. Generated registrations that can embed their
-    /// owner crate's FTL files should return `Some` so consumers do not need
-    /// app-local copies of dependency-owned domain files.
+    /// pipeline load the planned resource. Generated registrations that embed
+    /// their FTL files can return `Some` to provide the bytes directly.
     fn resource_content_for_language(
         &self,
         _lang: &LanguageIdentifier,
@@ -115,6 +114,23 @@ pub trait I18nModuleRegistration: I18nModuleDescriptor {
 pub trait I18nModule: I18nModuleDescriptor {
     /// Creates a localizer for the module.
     fn create_localizer(&self) -> Box<dyn Localizer>;
+
+    /// Returns an optional manifest-derived resource plan for a language.
+    fn resource_plan_for_language(
+        &self,
+        _lang: &LanguageIdentifier,
+    ) -> Option<Vec<ModuleResourceSpec>> {
+        None
+    }
+
+    /// Returns owner-provided Fluent source for a locale resource.
+    fn resource_content_for_language(
+        &self,
+        _lang: &LanguageIdentifier,
+        _resource_key: &ResourceKey,
+    ) -> Option<&'static str> {
+        None
+    }
 
     /// Returns whether this module should count as locale content support.
     fn contributes_to_language_selection(&self) -> bool {
@@ -133,6 +149,21 @@ impl<T: I18nModule> I18nModuleRegistration for T {
 
     fn supports_runtime_localization(&self) -> bool {
         true
+    }
+
+    fn resource_plan_for_language(
+        &self,
+        lang: &LanguageIdentifier,
+    ) -> Option<Vec<ModuleResourceSpec>> {
+        I18nModule::resource_plan_for_language(self, lang)
+    }
+
+    fn resource_content_for_language(
+        &self,
+        lang: &LanguageIdentifier,
+        resource_key: &ResourceKey,
+    ) -> Option<&'static str> {
+        I18nModule::resource_content_for_language(self, lang, resource_key)
     }
 
     fn contributes_to_language_selection(&self) -> bool {

@@ -42,17 +42,16 @@ enum CargoCommand {
 
 #[derive(Subcommand)]
 enum Commands {
-    /// Generate FTL files once for all crates with i18n.toml
+    /// Generate FTL files once for selected crates with i18n.toml
     Generate(GenerateArgs),
 
     /// Watch for changes and regenerate FTL files (TUI mode)
     Watch(WatchArgs),
 
-    /// Clean stale generated keys from locale files
+    /// Remove FTL entries and package-owned files absent from Rust inventory
     Clean(CleanArgs),
 
     /// Format FTL files (sort keys A-Z)
-    #[command(name = "fmt", visible_alias = "format")]
     Fmt(FormatArgs),
 
     /// Validate FTL files, Rust-derived keys, and locale setup
@@ -242,6 +241,24 @@ mod tests {
     }
 
     #[test]
+    fn cli_uses_cargo_package_short_option_convention() {
+        let cli =
+            Cli::try_parse_from(["cargo", "es-fluent", "generate", "-p", "readme", "-P", "."])
+                .expect("workspace options should parse");
+        let CargoCommand::EsFluent { command, e2e } = cli.command;
+        assert!(!e2e);
+        let Commands::Generate(args) = command else {
+            panic!("expected generate command");
+        };
+
+        assert_eq!(args.workspace.package.as_deref(), Some("readme"));
+        assert_eq!(
+            args.workspace.path.as_deref(),
+            Some(std::path::Path::new("."))
+        );
+    }
+
+    #[test]
     fn clap_help_describes_all_locale_discovery() {
         let mut cli = Cli::command();
         let es_fluent = cli
@@ -249,7 +266,10 @@ mod tests {
             .expect("es-fluent subcommand should exist");
 
         let cases = [
-            ("clean", "Clean all discovered locale directories"),
+            (
+                "clean",
+                "Clean generated entries in all discovered locale directories",
+            ),
             ("fmt", "Format all discovered locale directories"),
             (
                 "check",
@@ -276,11 +296,15 @@ mod tests {
                 help.contains(expected),
                 "unexpected {subcommand} help:\n{help}"
             );
+            assert!(
+                help.contains("--all-locales"),
+                "{subcommand} should expose --all-locales:\n{help}"
+            );
         }
     }
 
     #[test]
-    fn clap_help_describes_clean_without_implying_orphan_cleanup_by_default() {
+    fn clap_help_describes_inventory_authoritative_clean_scope() {
         let mut cli = Cli::command();
         let es_fluent = cli
             .find_subcommand_mut("es-fluent")
@@ -288,12 +312,10 @@ mod tests {
         let help = es_fluent.render_long_help().to_string();
 
         assert!(
-            help.contains("clean       Clean stale generated keys from locale files"),
+            help.contains(
+                "clean       Remove FTL entries and package-owned files absent from Rust inventory"
+            ),
             "unexpected top-level help:\n{help}"
-        );
-        assert!(
-            !help.contains("clean       Clean stale generated keys and orphaned FTL files"),
-            "clean summary should not imply orphan cleanup runs by default:\n{help}"
         );
     }
 
@@ -306,7 +328,7 @@ mod tests {
             (&["fmt"], "fmt"),
             (&["check"], "check"),
             (&["status"], "status"),
-            (&["sync", "--all"], "sync"),
+            (&["sync", "--all-locales"], "sync"),
             (&["add-locale", "fr-FR"], "add-locale"),
             (&["tree"], "tree"),
         ];
@@ -319,6 +341,21 @@ mod tests {
         assert_eq!(parsed, EXPECTED_SUBCOMMANDS);
         for (args, expected) in cases {
             assert_eq!(parsed_subcommand_name(args), *expected);
+        }
+    }
+
+    #[test]
+    fn cli_rejects_retired_all_option() {
+        for subcommand in ["clean", "fmt", "check", "status", "sync", "tree"] {
+            let error = match Cli::try_parse_from(["cargo", "es-fluent", subcommand, "--all"]) {
+                Ok(_) => panic!("--all should not parse for {subcommand}"),
+                Err(error) => error,
+            };
+            assert_eq!(
+                error.kind(),
+                clap::error::ErrorKind::UnknownArgument,
+                "unexpected parser result for {subcommand}"
+            );
         }
     }
 
@@ -340,11 +377,12 @@ mod tests {
     }
 
     #[test]
-    fn cli_parses_format_alias() {
-        let cli = Cli::try_parse_from(["cargo", "es-fluent", "format"]).expect("parse");
-        let CargoCommand::EsFluent { command, e2e } = cli.command;
-        assert!(!e2e);
-        assert!(matches!(command, Commands::Fmt(_)));
+    fn cli_rejects_format_subcommand() {
+        let error = match Cli::try_parse_from(["cargo", "es-fluent", "format"]) {
+            Ok(_) => panic!("format should not parse"),
+            Err(error) => error,
+        };
+        assert_eq!(error.kind(), clap::error::ErrorKind::InvalidSubcommand);
     }
 
     #[test]
@@ -424,7 +462,7 @@ mod tests {
         assert!(
             dispatch(Commands::Clean(CleanArgs {
                 workspace: selected_workspace.clone(),
-                all: false,
+                all_locales: false,
                 dry_run: true,
                 force_run: false,
                 orphaned: false,
@@ -434,7 +472,7 @@ mod tests {
 
         let clean_result = dispatch(Commands::Clean(CleanArgs {
             workspace: missing_workspace.clone(),
-            all: false,
+            all_locales: false,
             dry_run: false,
             force_run: false,
             orphaned: false,
@@ -444,7 +482,7 @@ mod tests {
         assert!(
             dispatch(Commands::Fmt(FormatArgs {
                 workspace: selected_workspace.clone(),
-                all: false,
+                all_locales: false,
                 dry_run: false,
                 output: OutputFormat::Text,
             }))
@@ -453,7 +491,7 @@ mod tests {
 
         let fmt_result = dispatch(Commands::Fmt(FormatArgs {
             workspace: missing_workspace.clone(),
-            all: false,
+            all_locales: false,
             dry_run: false,
             output: OutputFormat::Text,
         }));
@@ -467,21 +505,19 @@ mod tests {
         }));
         assert!(generate_result.is_err());
 
-        assert!(
-            dispatch(Commands::Check(
-                CheckArgs::builder()
-                    .workspace(missing_workspace.clone())
-                    .all(false)
-                    .ignore(Vec::new())
-                    .force_run(false)
-                    .output(OutputFormat::Text)
-                    .build(),
-            ))
-            .is_ok()
-        );
+        let check_result = dispatch(Commands::Check(
+            CheckArgs::builder()
+                .workspace(missing_workspace.clone())
+                .all_locales(false)
+                .ignore(Vec::new())
+                .force_run(false)
+                .output(OutputFormat::Text)
+                .build(),
+        ));
+        assert!(check_result.is_err());
         let status_result = dispatch(Commands::Status(StatusArgs {
             workspace: missing_workspace.clone(),
-            all: false,
+            all_locales: false,
             force_run: false,
             output: OutputFormat::Text,
         }));
@@ -490,7 +526,7 @@ mod tests {
         let sync_result = dispatch(Commands::Sync(SyncArgs {
             workspace: missing_workspace.clone(),
             locale: vec!["en".to_string()],
-            all: false,
+            all_locales: false,
             create: false,
             dry_run: false,
             output: OutputFormat::Text,
@@ -508,10 +544,10 @@ mod tests {
 
         let tree_result = dispatch(Commands::Tree(TreeArgs {
             workspace: missing_workspace,
-            all: false,
+            all_locales: false,
             attributes: true,
             variables: true,
-            link_mode: "rust".to_string(),
+            link_mode: None,
             output: OutputFormat::Text,
         }));
         assert!(matches!(tree_result, Err(CliError::Exit(1))));

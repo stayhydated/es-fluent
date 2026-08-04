@@ -1,8 +1,7 @@
 use crate::pages;
-use dioxus::cli_config;
 use dioxus::prelude::*;
 use stayhydated_dioxus::StayhydatedProjectPageMetadata;
-use stayhydated_site::routing::{BaseHref, BasePath, Href, OutputDir, RoutePath};
+use stayhydated_site::routing::{OutputDir, RoutePath};
 
 use crate::site::constants::PROJECT;
 
@@ -16,26 +15,6 @@ pub(crate) enum PageKind {
 }
 
 impl PageKind {
-    pub(crate) fn all() -> [Self; 5] {
-        [
-            Self::Home,
-            Self::Demos,
-            Self::Dioxus,
-            Self::Bevy,
-            Self::Gpui,
-        ]
-    }
-
-    pub(crate) fn route(self) -> &'static str {
-        match self {
-            Self::Home => "",
-            Self::Demos => "demos",
-            Self::Dioxus => "dioxus-example",
-            Self::Bevy => "bevy-example",
-            Self::Gpui => "gpui-example",
-        }
-    }
-
     fn title(self) -> &'static str {
         match self {
             Self::Home => "Home",
@@ -57,39 +36,6 @@ impl PageKind {
             Self::Gpui => "A GPUI wasm demo inside the book site.",
         }
     }
-}
-
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub(crate) struct SiteRoute {
-    pub(crate) page: PageKind,
-}
-
-impl SiteRoute {
-    pub(crate) const fn new(page: PageKind) -> Self {
-        Self { page }
-    }
-
-    pub(crate) fn output_dir(self) -> OutputDir {
-        relative_path(self.page).to_output_dir()
-    }
-
-    pub(crate) fn path(self) -> Href {
-        stayhydated_site::routing::href(&BaseHref::root(), &relative_path(self.page))
-    }
-}
-
-pub(crate) fn all_routes() -> Vec<SiteRoute> {
-    PageKind::all().into_iter().map(SiteRoute::new).collect()
-}
-
-pub(crate) fn app_base_href() -> BaseHref {
-    let base_path = cli_config::base_path();
-    let base_path = base_path.as_deref().map(BasePath::new);
-    stayhydated_site::routing::base_href(base_path.as_ref())
-}
-
-pub(crate) fn book_href() -> Href {
-    stayhydated_site::routing::href(&app_base_href(), &RoutePath::new("book"))
 }
 
 pub(crate) fn site_root_prefix(output_dir: &OutputDir) -> String {
@@ -121,42 +67,42 @@ pub(crate) fn app_route(page: PageKind) -> AppRoute {
     }
 }
 
-fn relative_path(page: PageKind) -> RoutePath {
-    RoutePath::new(page.route())
+pub(crate) fn output_dir(page: PageKind) -> OutputDir {
+    RoutePath::new(app_route(page).to_string()).to_output_dir()
 }
 
-fn route_element(route: SiteRoute) -> Element {
+fn route_element(page: PageKind) -> Element {
     rsx! {
         StayhydatedProjectPageMetadata {
             project: PROJECT,
-            page_title: route.page.title(),
-            description: route.page.description(),
+            page_title: page.title(),
+            description: page.description(),
         }
-        {pages::route_content(route)}
+        {pages::route_content(page)}
     }
 }
 
 #[component]
 fn HomeRoute() -> Element {
-    route_element(SiteRoute::new(PageKind::Home))
+    route_element(PageKind::Home)
 }
 
 #[component]
 fn DemosRoute() -> Element {
-    route_element(SiteRoute::new(PageKind::Demos))
+    route_element(PageKind::Demos)
 }
 
 #[component]
 fn DioxusRoute() -> Element {
-    route_element(SiteRoute::new(PageKind::Dioxus))
+    route_element(PageKind::Dioxus)
 }
 
 #[component]
 fn BevyRoute() -> Element {
-    route_element(SiteRoute::new(PageKind::Bevy))
+    route_element(PageKind::Bevy)
 }
 
 #[component]
 fn GpuiRoute() -> Element {
-    route_element(SiteRoute::new(PageKind::Gpui))
+    route_element(PageKind::Gpui)
 }

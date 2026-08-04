@@ -50,8 +50,8 @@ pub use registration::BevyI18nAssetRegistration;
 pub use registration::BevyI18nEmbeddedAsset;
 
 pub(crate) use assets::{
-    BundleBuildFailures, FtlAsset, FtlAssetLoader, I18nAssets, I18nBundle, I18nDomainBundles,
-    I18nResource,
+    BundleBuildFailures, FluentResourceScope, FtlAsset, FtlAssetLoader, I18nAssets,
+    I18nDomainBundles, I18nReadyLocales, I18nResource, I18nResourceKey,
 };
 pub(crate) use es_fluent::FluentMessage;
 #[cfg(test)]

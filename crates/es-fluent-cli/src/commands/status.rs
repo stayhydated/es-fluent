@@ -1,6 +1,7 @@
 //! Status command implementation.
 use super::common::{OutputFormat, WorkspaceArgs, WorkspaceCrates};
 use crate::core::{CliError, FluentParseMode, GenerateResult, GenerationAction, ValidationIssue};
+use anstream::println;
 use clap::Parser;
 use serde::Serialize;
 use std::path::Path;
@@ -13,7 +14,7 @@ pub struct StatusArgs {
 
     /// Include non-fallback formatting, sync, orphan-file, and validation checks.
     #[arg(long)]
-    pub all: bool,
+    pub all_locales: bool,
 
     /// Run the generated runner through Cargo, ignoring the staleness cache.
     #[arg(long)]
@@ -32,6 +33,8 @@ struct StatusReport {
     setup_errors: Vec<String>,
     generation_stale_crates: usize,
     generation_errors: Vec<String>,
+    cleanup_stale_crates: usize,
+    cleanup_errors: Vec<String>,
     files_need_formatting: usize,
     format_errors: Vec<String>,
     missing_synced_keys: usize,
@@ -55,6 +58,8 @@ pub fn run_status(args: StatusArgs) -> Result<(), CliError> {
                 setup_errors: vec![error.to_string()],
                 generation_stale_crates: 0,
                 generation_errors: Vec::new(),
+                cleanup_stale_crates: 0,
+                cleanup_errors: Vec::new(),
                 files_need_formatting: 0,
                 format_errors: Vec::new(),
                 missing_synced_keys: 0,
@@ -96,18 +101,35 @@ pub fn run_status(args: StatusArgs) -> Result<(), CliError> {
     let generation_stale_crates = count_generation_stale_crates(&generation_results);
     let generation_errors =
         collect_status_generation_errors(&generation_results, &workspace.workspace_info.root_dir);
+    let cleanup_results = if skip_dependent_checks {
+        Vec::new()
+    } else {
+        super::common::run_generation_for_crates(
+            &workspace.workspace_info,
+            &workspace.valid,
+            &GenerationAction::Clean {
+                all_locales: args.all_locales,
+                dry_run: true,
+            },
+            args.force_run,
+            show_text,
+        )
+    };
+    let cleanup_stale_crates = count_generation_stale_crates(&cleanup_results);
+    let cleanup_errors =
+        collect_status_generation_errors(&cleanup_results, &workspace.workspace_info.root_dir);
 
     let mut files_need_formatting = 0;
     let mut format_errors = Vec::new();
     if !skip_dependent_checks {
-        let format_results = collect_format_status_results(&workspace, args.all);
+        let format_results = collect_format_status_results(&workspace, args.all_locales);
         files_need_formatting = format_results.0;
         format_errors = format_results.1;
     }
 
     let mut missing_synced_keys = 0;
     let mut locales_need_sync = std::collections::HashSet::new();
-    if args.all && !skip_dependent_checks {
+    if args.all_locales && !skip_dependent_checks {
         for krate in &workspace.crates {
             match super::sync::sync_crate(krate, None, true, false) {
                 Ok(results) => {
@@ -129,7 +151,7 @@ pub fn run_status(args: StatusArgs) -> Result<(), CliError> {
     let orphaned_files = if skip_dependent_checks {
         Vec::new()
     } else {
-        match collect_orphaned_status_paths(&workspace, args.all) {
+        match collect_orphaned_status_paths(&workspace, args.all_locales) {
             Ok(files) => files,
             Err(error) => {
                 setup_errors.push(error.to_string());
@@ -141,8 +163,14 @@ pub fn run_status(args: StatusArgs) -> Result<(), CliError> {
     let (crates_checked, validation_errors, validation_warnings) = if skip_dependent_checks {
         (0, 0, 0)
     } else {
-        let check_run =
-            super::check::collect_check_run(&workspace, args.all, &[], args.force_run, true, false);
+        let check_run = super::check::collect_check_run(
+            &workspace,
+            args.all_locales,
+            &[],
+            args.force_run,
+            true,
+            false,
+        );
         match check_run {
             Ok(check_run) => {
                 let (validation_errors, validation_warnings) =
@@ -166,8 +194,10 @@ pub fn run_status(args: StatusArgs) -> Result<(), CliError> {
 
     let clean = !workspace.crates.is_empty()
         && generation_stale_crates == 0
+        && cleanup_stale_crates == 0
         && setup_errors.is_empty()
         && generation_errors.is_empty()
+        && cleanup_errors.is_empty()
         && files_need_formatting == 0
         && format_errors.is_empty()
         && missing_synced_keys == 0
@@ -182,6 +212,8 @@ pub fn run_status(args: StatusArgs) -> Result<(), CliError> {
         setup_errors,
         generation_stale_crates,
         generation_errors,
+        cleanup_stale_crates,
+        cleanup_errors,
         files_need_formatting,
         format_errors,
         missing_synced_keys,
@@ -215,6 +247,7 @@ fn print_status_report(report: &StatusReport) {
         "Generation-stale crates: {}",
         report.generation_stale_crates
     );
+    println!("Cleanup-stale crates: {}", report.cleanup_stale_crates);
     println!("Files needing formatting: {}", report.files_need_formatting);
     println!("Missing synced keys: {}", report.missing_synced_keys);
     println!("Locale targets needing sync: {}", report.locales_need_sync);
@@ -227,6 +260,9 @@ fn print_status_report(report: &StatusReport) {
     }
     for error in &report.generation_errors {
         println!("generation error: {error}");
+    }
+    for error in &report.cleanup_errors {
+        println!("cleanup error: {error}");
     }
     for error in &report.format_errors {
         println!("format error: {error}");
@@ -432,7 +468,9 @@ mod tests {
         let keys = expected_keys
             .iter()
             .map(|key| {
-                format!(r#"{{"key":"{key}","variables":[],"source_file":null,"source_line":null}}"#)
+                format!(
+                    r#"{{"key":{{"owner":"test-app","domain":"test-app","id":"{key}"}},"variables":[],"source_file":null,"source_line":null}}"#
+                )
             })
             .collect::<Vec<_>>()
             .join(",");
@@ -454,7 +492,7 @@ mod tests {
                 path: Some(temp.path().to_path_buf()),
                 package: None,
             },
-            all: false,
+            all_locales: false,
             force_run: false,
             output: OutputFormat::Text,
         });
@@ -479,7 +517,7 @@ mod tests {
                 path: Some(temp.path().to_path_buf()),
                 package: None,
             },
-            all: false,
+            all_locales: false,
             force_run: false,
             output: OutputFormat::Json,
         });
@@ -514,7 +552,7 @@ mod tests {
                 path: Some(temp.path().to_path_buf()),
                 package: None,
             },
-            all: true,
+            all_locales: true,
             force_run: false,
             output: OutputFormat::Json,
         });
@@ -541,7 +579,7 @@ mod tests {
                 path: Some(temp.path().to_path_buf()),
                 package: None,
             },
-            all: false,
+            all_locales: false,
             force_run: false,
             output: OutputFormat::Json,
         });
@@ -566,7 +604,7 @@ mod tests {
                 path: Some(temp.path().to_path_buf()),
                 package: None,
             },
-            all: false,
+            all_locales: false,
             force_run: false,
             output: OutputFormat::Json,
         });
@@ -601,7 +639,7 @@ mod tests {
                 path: Some(temp.path().to_path_buf()),
                 package: None,
             },
-            all: false,
+            all_locales: false,
             force_run: false,
             output: OutputFormat::Text,
         });
@@ -626,7 +664,7 @@ mod tests {
                 path: Some(temp.path().to_path_buf()),
                 package: None,
             },
-            all: true,
+            all_locales: true,
             force_run: false,
             output: OutputFormat::Json,
         });
@@ -649,7 +687,7 @@ mod tests {
                 path: Some(temp.path().to_path_buf()),
                 package: None,
             },
-            all: true,
+            all_locales: true,
             force_run: false,
             output: OutputFormat::Json,
         });
@@ -815,7 +853,7 @@ mod tests {
                 path: Some(temp.path().to_path_buf()),
                 package: None,
             },
-            all: false,
+            all_locales: false,
             force_run: false,
             output: OutputFormat::Json,
         });
@@ -842,7 +880,7 @@ mod tests {
                 path: Some(temp.path().to_path_buf()),
                 package: None,
             },
-            all: true,
+            all_locales: true,
             force_run: false,
             output: OutputFormat::Json,
         });
@@ -943,7 +981,7 @@ mod tests {
                 path: Some(temp.path().to_path_buf()),
                 package: None,
             },
-            all: false,
+            all_locales: false,
             force_run: false,
             output: OutputFormat::Json,
         });
@@ -960,6 +998,8 @@ mod tests {
             setup_errors: vec!["demo: setup failed".to_string()],
             generation_stale_crates: 1,
             generation_errors: vec!["demo: generation failed".to_string()],
+            cleanup_stale_crates: 1,
+            cleanup_errors: vec!["demo: cleanup failed".to_string()],
             files_need_formatting: 0,
             format_errors: vec!["demo.ftl: parse failed".to_string()],
             missing_synced_keys: 3,
@@ -991,7 +1031,7 @@ mod tests {
     }
 
     #[test]
-    fn status_validation_counts_exclude_dedicated_orphan_file_issues() {
+    fn status_validation_counts_exclude_dedicated_orphan_files() {
         use crate::core::{MissingKeyError, OrphanedFtlFileError};
         use miette::NamedSource;
 

@@ -361,7 +361,7 @@ mod tests {
             (
                 AttributeFamily::Fluent,
                 AttributeLocation::MessageStructContainer,
-                &[FluentAttributeKey::Namespace][..],
+                &[FluentAttributeKey::Domain, FluentAttributeKey::Namespace][..],
             ),
             (
                 AttributeFamily::Fluent,
@@ -391,7 +391,7 @@ mod tests {
             (
                 AttributeFamily::Fluent,
                 AttributeLocation::LabelStructParentContainer,
-                &[FluentAttributeKey::Namespace][..],
+                &[FluentAttributeKey::Domain, FluentAttributeKey::Namespace][..],
             ),
             (
                 AttributeFamily::Fluent,
@@ -401,7 +401,7 @@ mod tests {
             (
                 AttributeFamily::Fluent,
                 AttributeLocation::VariantsStructParentContainer,
-                &[FluentAttributeKey::Namespace][..],
+                &[FluentAttributeKey::Domain, FluentAttributeKey::Namespace][..],
             ),
             (
                 AttributeFamily::Fluent,

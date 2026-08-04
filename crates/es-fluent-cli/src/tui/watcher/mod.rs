@@ -184,6 +184,11 @@ fn run_watch_loop_with_runtime<B: Backend>(
             .map_err(|e| anyhow::anyhow!(e.to_string()))?;
     }
 
+    runtime.finish_pending_generations(app)?;
+    terminal
+        .draw(|f| tui::draw(f, app))
+        .map_err(|e| anyhow::anyhow!(e.to_string()))?;
+
     Ok(())
 }
 

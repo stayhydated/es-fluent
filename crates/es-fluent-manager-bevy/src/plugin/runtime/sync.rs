@@ -1,5 +1,5 @@
 use crate::{
-    ActiveLanguageId, I18nBundle, I18nDomainBundles, I18nResource, LocaleChangedEvent,
+    ActiveLanguageId, I18nDomainBundles, I18nReadyLocales, I18nResource, LocaleChangedEvent,
     PendingLanguageChange,
 };
 use bevy::ecs::system::SystemParam;
@@ -7,13 +7,13 @@ use bevy::prelude::*;
 use bevy::window::RequestRedraw;
 use unic_langid::LanguageIdentifier;
 
-fn current_bundle_id(i18n_bundle: &I18nBundle, lang: &LanguageIdentifier) -> Option<usize> {
+fn current_bundle_id(i18n_bundle: &I18nReadyLocales, lang: &LanguageIdentifier) -> Option<usize> {
     i18n_bundle.ready_cache_id(lang)
 }
 
 #[derive(SystemParam)]
 pub(crate) struct SyncLocaleStateParams<'w, 's> {
-    i18n_bundle: Res<'w, I18nBundle>,
+    i18n_bundle: Res<'w, I18nReadyLocales>,
     i18n_domain_bundles: Res<'w, I18nDomainBundles>,
     i18n_resource: ResMut<'w, I18nResource>,
     active_language_id: ResMut<'w, ActiveLanguageId>,
@@ -90,18 +90,12 @@ pub(crate) fn sync_locale_state(mut params: SyncLocaleStateParams) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use es_fluent_manager_core::SyncFluentBundle;
-    use std::sync::Arc;
     use unic_langid::langid;
 
     #[derive(Default, Resource)]
     struct ObservedSyncEvents {
         locale_changed: Vec<LanguageIdentifier>,
         redraw_count: usize,
-    }
-
-    fn bundle_for(lang: &LanguageIdentifier) -> Arc<SyncFluentBundle> {
-        Arc::new(SyncFluentBundle::new_concurrent(vec![lang.clone()]))
     }
 
     fn observe_sync_events(
@@ -116,7 +110,7 @@ mod tests {
     }
 
     fn app_with_sync_systems(
-        i18n_bundle: I18nBundle,
+        i18n_bundle: I18nReadyLocales,
         i18n_domain_bundles: I18nDomainBundles,
         i18n_resource: I18nResource,
         active_language_id: ActiveLanguageId,
@@ -138,16 +132,13 @@ mod tests {
     #[test]
     fn current_bundle_id_tracks_ready_cache_identity() {
         let lang = langid!("en");
-        let mut i18n_bundle = I18nBundle::default();
+        let mut i18n_bundle = I18nReadyLocales::default();
         assert_eq!(current_bundle_id(&i18n_bundle, &lang), None);
 
-        i18n_bundle.set_bundle(
-            lang.clone(),
-            Arc::new(SyncFluentBundle::new_concurrent(vec![lang.clone()])),
-        );
+        i18n_bundle.mark_ready(lang.clone());
         let first_id = current_bundle_id(&i18n_bundle, &lang).expect("ready cache id");
 
-        i18n_bundle.mark_ready_without_unscoped_bundle(lang.clone());
+        i18n_bundle.mark_ready(lang.clone());
         assert_ne!(
             current_bundle_id(&i18n_bundle, &lang),
             Some(first_id),
@@ -158,8 +149,8 @@ mod tests {
     #[test]
     fn sync_locale_state_emits_locale_changed_and_redraw_when_current_bundle_becomes_ready() {
         let lang = langid!("en");
-        let mut i18n_bundle = I18nBundle::default();
-        i18n_bundle.set_bundle(lang.clone(), bundle_for(&lang));
+        let mut i18n_bundle = I18nReadyLocales::default();
+        i18n_bundle.mark_ready(lang.clone());
 
         let mut app = app_with_sync_systems(
             i18n_bundle,
@@ -180,8 +171,8 @@ mod tests {
     fn sync_locale_state_publishes_pending_language_once_bundle_is_ready() {
         let en = langid!("en");
         let fr = langid!("fr");
-        let mut i18n_bundle = I18nBundle::default();
-        i18n_bundle.set_bundle(fr.clone(), bundle_for(&fr));
+        let mut i18n_bundle = I18nReadyLocales::default();
+        i18n_bundle.mark_ready(fr.clone());
 
         let mut app = app_with_sync_systems(
             i18n_bundle,

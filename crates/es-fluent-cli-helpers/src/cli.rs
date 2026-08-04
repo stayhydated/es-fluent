@@ -1,7 +1,7 @@
 //! Inventory collection functionality for CLI commands.
 
 use es_fluent_runner::{ExpectedKey, InventoryData, PackageName, RunnerMetadataStore};
-use es_fluent_shared::fluent::{FluentArgumentName, FluentEntryId};
+use es_fluent_shared::fluent::{FluentArgumentName, FluentDomain, FluentMessageKey};
 use es_fluent_shared::resource::{ModuleResourceSpec, ResourceRoute};
 use es_fluent_shared::source::{SourceFile, SourceLine};
 use std::collections::{BTreeMap, BTreeSet, btree_map::Entry};
@@ -35,21 +35,30 @@ pub fn write_inventory_for_crate_at(
     manifest_dir: &Path,
 ) -> Result<(), es_fluent_runner::RunnerIoError> {
     let package_name = PackageName::try_new(crate_name)?;
-    let crate_ident = package_name.rust_module_prefix();
 
-    // Collect all registered type infos for this crate
-    let type_infos: Vec<_> = es_fluent::registry::get_all_ftl_type_infos()
-        .filter(|info| {
-            info.module_path() == crate_ident.as_str()
-                || info
-                    .module_path()
-                    .starts_with(&format!("{}::", crate_ident.as_str()))
-        })
-        .collect();
+    let mut type_infos = Vec::new();
+    for info in es_fluent::registry::get_all_ftl_type_infos() {
+        let source_package = PackageName::try_new(info.source_package()).map_err(|error| {
+            es_fluent_runner::RunnerIoError::InvalidInventorySourcePackage {
+                source_package: info.source_package().to_string(),
+                source_type: format!("type '{}' in '{}'", info.type_name(), info.file_path()),
+                reason: error.to_string(),
+            }
+        })?;
+        if source_package == package_name {
+            type_infos.push(info);
+        }
+    }
 
     // Build a map of expected keys with their metadata
-    let mut keys_map: BTreeMap<FluentEntryId, KeyMeta> = BTreeMap::new();
+    let owner = FluentDomain::try_new(crate_name.to_string())
+        .map_err(|error| es_fluent_runner::RunnerIoError::Message(error.to_string()))?;
+    let mut keys_map: BTreeMap<FluentMessageKey, KeyMeta> = BTreeMap::new();
     for info in &type_infos {
+        let resource_domain: &str = match info.domain() {
+            Some(domain) => domain.as_str(),
+            None => crate_name,
+        };
         let resource = ResourceRoute::from_namespace(
             info.try_resolved_namespace(manifest_dir)
                 .map_err(|details| {
@@ -59,9 +68,13 @@ pub fn write_inventory_for_crate_at(
                     ))
                 })?,
         )
-        .resource_spec(crate_name, true);
+        .resource_spec(resource_domain, true);
         for variant in info.variants() {
-            let key = variant.entry_id();
+            let key = FluentMessageKey::new(
+                owner.clone(),
+                resource.key.domain_name(),
+                variant.entry_id(),
+            );
             let vars: BTreeSet<FluentArgumentName> = variant.argument_names().into_iter().collect();
             let source_description = info.source_description_for(variant);
             let entry = match keys_map.entry(key.clone()) {
@@ -75,7 +88,7 @@ pub fn write_inventory_for_crate_at(
                 Entry::Occupied(entry) => {
                     return Err(es_fluent_runner::RunnerIoError::Message(format!(
                         "duplicate generated FTL key '{}' from {} and {}",
-                        key.as_str(),
+                        key.id().as_str(),
                         entry.get().source_description,
                         source_description
                     )));
@@ -107,7 +120,7 @@ pub fn write_inventory_for_crate_at(
 mod tests {
     use super::*;
     use es_fluent::registry::{
-        __macro, FtlTypeInfo, FtlVariant, RegisteredFtlType, StaticFluentArgumentName,
+        __macro, FtlScope, FtlTypeInfo, FtlVariant, RegisteredFtlType, StaticFluentArgumentName,
         StaticFluentEntryId,
     };
     use es_fluent_shared::meta::TypeKind;
@@ -136,8 +149,9 @@ mod tests {
         TypeKind::Struct,
         "InventoryType",
         VARIANTS,
+        FtlScope::new("test-crate", None),
         "src/lib.rs",
-        "test_crate",
+        "renamed_library::copy",
         Some(__macro::namespace_literal("ui")),
     );
 
@@ -166,6 +180,7 @@ mod tests {
         TypeKind::Struct,
         "DuplicateInventoryType",
         DUPLICATE_VARIANTS,
+        FtlScope::new("test-crate-duplicate-inventory", None),
         "src/lib.rs",
         "test_crate_duplicate_inventory",
         Some(__macro::namespace_literal("ui")),
@@ -187,6 +202,7 @@ mod tests {
         TypeKind::Struct,
         "InventoryTypeNoFile",
         VARIANTS_NO_FILE,
+        FtlScope::new("test-crate-empty-file", None),
         "",
         "test_crate_empty_file",
         None,
@@ -224,7 +240,9 @@ mod tests {
             assert_eq!(keys.len(), 2);
 
             let key = &keys[0];
-            assert_eq!(key["key"], "my_key");
+            assert_eq!(key["key"]["owner"], "test-crate");
+            assert_eq!(key["key"]["domain"], "test-crate");
+            assert_eq!(key["key"]["id"], "my_key");
             assert_eq!(key["resource"]["key"], "test-crate/ui");
             assert_eq!(key["resource"]["locale_relative_path"], "test-crate/ui.ftl");
             assert_eq!(key["source_file"], "src/lib.rs");
@@ -239,7 +257,9 @@ mod tests {
             assert_eq!(vars, vec!["count", "name"]);
 
             let key = &keys[1];
-            assert_eq!(key["key"], "secondary_key");
+            assert_eq!(key["key"]["owner"], "test-crate");
+            assert_eq!(key["key"]["domain"], "test-crate");
+            assert_eq!(key["key"]["id"], "secondary_key");
             assert_eq!(key["resource"]["key"], "test-crate/ui");
             assert_eq!(key["resource"]["locale_relative_path"], "test-crate/ui.ftl");
             assert_eq!(key["source_file"], "src/lib.rs");
@@ -303,7 +323,9 @@ mod tests {
             assert_eq!(keys.len(), 1);
 
             let key = &keys[0];
-            assert_eq!(key["key"], "empty_file_key");
+            assert_eq!(key["key"]["owner"], "test-crate-empty-file");
+            assert_eq!(key["key"]["domain"], "test-crate-empty-file");
+            assert_eq!(key["key"]["id"], "empty_file_key");
             assert!(key["source_file"].is_null());
             assert_eq!(key["source_line"], 7);
         });

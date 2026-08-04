@@ -22,7 +22,7 @@ pub(super) enum Action {
     Clean {
         /// Clean all locales
         #[arg(long)]
-        all: bool,
+        all_locales: bool,
         /// Dry run (don't write changes)
         #[arg(long)]
         dry_run: bool,

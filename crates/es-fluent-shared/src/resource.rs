@@ -1147,6 +1147,11 @@ mod tests {
         std::fs::write(assets.join("en-US/demo/ui.ftl"), "title = UI").expect("write en ui");
         std::fs::write(assets.join("fr/demo/forms/button.ftl"), "button = Bouton")
             .expect("write fr namespace");
+        std::fs::write(assets.join("en-US/other-domain.ftl"), "other = Other")
+            .expect("write host-provided domain");
+        std::fs::create_dir_all(assets.join("fr/other-domain")).expect("create other domain");
+        std::fs::write(assets.join("fr/other-domain/ui.ftl"), "other-ui = Autre")
+            .expect("write host-provided namespace");
         std::fs::write(assets.join("fr/demo/ignore.txt"), "ignored").expect("write ignored");
 
         let plans = ResourcePlan::sparse_from_assets("demo", assets).expect("plans");

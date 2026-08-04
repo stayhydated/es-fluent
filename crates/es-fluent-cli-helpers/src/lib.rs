@@ -3,7 +3,9 @@
 mod cli;
 mod generate;
 
-use es_fluent_runner::{PackageName, RunnerMetadataStore, RunnerRequest, RunnerResult};
+use es_fluent_runner::{
+    FileTransaction, PackageName, RunnerMetadataStore, RunnerRequest, RunnerResult,
+};
 use es_fluent_toml::ResolvedI18nLayout;
 #[cfg(test)]
 use std::path::Path;
@@ -41,9 +43,8 @@ impl RunnerContext {
         })
     }
 
-    fn write_changed_result(&self, changed: bool) -> Result<(), es_fluent_runner::RunnerIoError> {
-        let result = RunnerResult { changed };
-        RunnerMetadataStore::new(".").write_result(&self.crate_name, &result)
+    fn write_result(&self, result: &RunnerResult) -> Result<(), es_fluent_runner::RunnerIoError> {
+        RunnerMetadataStore::new(".").write_result(&self.crate_name, result)
     }
 }
 
@@ -75,8 +76,37 @@ fn run_generator_command(
         GeneratorRun::Generate => generator.generate(),
         GeneratorRun::Clean { all_locales } => generator.clean(all_locales, dry_run),
     }?;
-    ctx.write_changed_result(changed)?;
+    ctx.write_result(&RunnerResult {
+        changed,
+        transaction: FileTransaction::default(),
+    })?;
     Ok(changed)
+}
+
+fn plan_generator_request(
+    i18n_toml_path: &str,
+    crate_name: &str,
+    mode: FluentParseMode,
+    dry_run: bool,
+    run: GeneratorRun,
+) -> Result<(), CliHelpersError> {
+    let ctx = RunnerContext::from_i18n_path(i18n_toml_path, crate_name)?;
+    let generator = build_generator(&ctx, mode, false);
+    let transaction = match run {
+        GeneratorRun::Generate => generator.plan_generate(),
+        GeneratorRun::Clean { all_locales } => generator.plan_clean(all_locales),
+        GeneratorRun::Cli => unreachable!("CLI argument parsing is never runner-requested"),
+    }?;
+    let changed = !transaction.is_empty();
+    if dry_run {
+        es_fluent_generate::apply_transaction(&transaction, true)
+            .map_err(GeneratorError::Generate)?;
+    }
+    ctx.write_result(&RunnerResult {
+        changed,
+        transaction,
+    })?;
+    Ok(())
 }
 
 fn run_request(request: RunnerRequest) -> Result<(), CliHelpersError> {
@@ -87,7 +117,7 @@ fn run_request(request: RunnerRequest) -> Result<(), CliHelpersError> {
             mode,
             dry_run,
         } => {
-            run_generator_command(
+            plan_generator_request(
                 i18n_toml_path.as_path().to_string_lossy().as_ref(),
                 crate_name.as_str(),
                 mode,
@@ -101,7 +131,7 @@ fn run_request(request: RunnerRequest) -> Result<(), CliHelpersError> {
             all_locales,
             dry_run,
         } => {
-            run_generator_command(
+            plan_generator_request(
                 i18n_toml_path.as_path().to_string_lossy().as_ref(),
                 crate_name.as_str(),
                 FluentParseMode::default(),

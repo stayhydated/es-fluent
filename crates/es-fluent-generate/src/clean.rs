@@ -1,11 +1,11 @@
+use es_fluent_runner::FileTransaction;
 use es_fluent_shared::EsFluentResult;
 use es_fluent_shared::registry::FtlTypeInfo;
-use es_fluent_shared::resource::ModuleResourceSpec;
 use std::collections::HashSet;
 use std::fs;
 use std::path::{Path, PathBuf};
 
-/// Cleans a Fluent translation file by removing unused orphan keys while preserving existing translations.
+/// Makes selected package/domain resources match the supplied Rust inventory.
 pub fn clean<P: AsRef<Path>, M: AsRef<Path>, I: AsRef<FtlTypeInfo>>(
     crate_name: &str,
     i18n_path: P,
@@ -13,16 +13,47 @@ pub fn clean<P: AsRef<Path>, M: AsRef<Path>, I: AsRef<FtlTypeInfo>>(
     items: &[I],
     dry_run: bool,
 ) -> EsFluentResult<bool> {
+    let transaction = plan_clean(crate_name, i18n_path, manifest_dir, items)?;
+    crate::io::apply_transaction(&transaction, dry_run)
+}
+
+/// Plans stale-entry and stale-file removal without writing to disk.
+pub fn plan_clean<P: AsRef<Path>, M: AsRef<Path>, I: AsRef<FtlTypeInfo>>(
+    crate_name: &str,
+    i18n_path: P,
+    manifest_dir: M,
+    items: &[I],
+) -> EsFluentResult<FileTransaction> {
     let i18n_path = i18n_path.as_ref();
     let manifest_dir = manifest_dir.as_ref();
-    let mut any_changed = false;
+    let mut transaction = FileTransaction::default();
 
     let operation = crate::pipeline::OutputOperation::Clean;
     let planned_outputs =
         crate::pipeline::plan_outputs(crate_name, i18n_path, manifest_dir, items)?;
-    let main_resource = ModuleResourceSpec::base(crate_name, true);
-    let main_file_path = i18n_path.join(main_resource.locale_relative_path.as_str());
-    let has_main_output = planned_outputs.iter().any(|output| output.route.is_base());
+    let mut owned_domains = vec![crate_name.to_string()];
+    owned_domains.extend(items.iter().filter_map(|item| {
+        item.as_ref()
+            .domain()
+            .map(|domain| domain.as_str().to_string())
+    }));
+    match es_fluent_toml::I18nConfig::from_manifest_dir(manifest_dir) {
+        Ok(config) => owned_domains.extend(
+            config
+                .domains
+                .iter()
+                .map(|domain| domain.as_str().to_string()),
+        ),
+        Err(es_fluent_toml::I18nConfigError::NotFound) => {},
+        Err(error) => return Err(std::io::Error::other(error).into()),
+    }
+    owned_domains.sort();
+    owned_domains.dedup();
+    let expected_main_files = planned_outputs
+        .iter()
+        .filter(|output| output.route.is_base())
+        .map(|output| output.file_path.clone())
+        .collect::<HashSet<_>>();
     let expected_namespace_files = planned_outputs
         .iter()
         .filter(|output| !output.route.is_base())
@@ -30,43 +61,42 @@ pub fn clean<P: AsRef<Path>, M: AsRef<Path>, I: AsRef<FtlTypeInfo>>(
         .collect::<HashSet<_>>();
 
     for output in planned_outputs {
-        if crate::pipeline::apply_output_operation(output, &operation, dry_run)? {
-            any_changed = true;
+        crate::pipeline::plan_output_operation(output, &operation, &mut transaction)?;
+    }
+    for domain in owned_domains {
+        let main_file_path = i18n_path.join(format!("{domain}.ftl"));
+        if !expected_main_files.contains(&main_file_path) {
+            plan_stale_main_file(&mut transaction, &main_file_path)?;
         }
-    }
-    if !has_main_output && remove_stale_main_file(&main_file_path, dry_run)? {
-        any_changed = true;
-    }
-    if remove_stale_namespace_files(crate_name, i18n_path, &expected_namespace_files, dry_run)? {
-        any_changed = true;
+        plan_stale_namespace_files(
+            &mut transaction,
+            &domain,
+            i18n_path,
+            &expected_namespace_files,
+        )?;
     }
 
-    Ok(any_changed)
+    Ok(transaction)
 }
 
-fn remove_stale_main_file(file_path: &Path, dry_run: bool) -> EsFluentResult<bool> {
+fn plan_stale_main_file(
+    transaction: &mut FileTransaction,
+    file_path: &Path,
+) -> EsFluentResult<bool> {
     if !file_path.is_file() {
         return Ok(false);
     }
 
-    if dry_run {
-        let display_path = fs::canonicalize(file_path).unwrap_or_else(|_| file_path.to_path_buf());
-        println!(
-            "Would remove stale main FTL file: {}",
-            display_path.display()
-        );
-        return Ok(true);
-    }
-
-    fs::remove_file(file_path)?;
-    Ok(true)
+    transaction
+        .plan_remove(file_path)
+        .map_err(|error| std::io::Error::other(error).into())
 }
 
-fn remove_stale_namespace_files(
+fn plan_stale_namespace_files(
+    transaction: &mut FileTransaction,
     crate_name: &str,
     i18n_path: &Path,
     expected_namespace_files: &HashSet<PathBuf>,
-    dry_run: bool,
 ) -> EsFluentResult<bool> {
     let namespace_root = i18n_path.join(crate_name);
     if !namespace_root.is_dir() {
@@ -92,21 +122,21 @@ fn remove_stale_namespace_files(
                 continue;
             }
 
-            if !dry_run {
-                fs::remove_file(&path)?;
-            }
+            transaction
+                .plan_remove(&path)
+                .map_err(std::io::Error::other)?;
             changed = true;
         }
     }
 
-    if changed && !dry_run {
-        remove_empty_namespace_dirs(&namespace_root)?;
+    if changed {
+        plan_empty_namespace_dirs(transaction, &namespace_root)?;
     }
 
     Ok(changed)
 }
 
-fn remove_empty_namespace_dirs(root: &Path) -> EsFluentResult<()> {
+fn plan_empty_namespace_dirs(transaction: &mut FileTransaction, root: &Path) -> EsFluentResult<()> {
     let mut dirs = vec![root.to_path_buf()];
     let mut all_dirs = Vec::new();
 
@@ -120,11 +150,8 @@ fn remove_empty_namespace_dirs(root: &Path) -> EsFluentResult<()> {
         all_dirs.push(dir);
     }
 
-    all_dirs.sort_by_key(|dir| std::cmp::Reverse(dir.components().count()));
     for dir in all_dirs {
-        if fs::read_dir(&dir)?.next().is_none() {
-            fs::remove_dir(&dir)?;
-        }
+        transaction.plan_remove_empty_directory(dir);
     }
 
     Ok(())

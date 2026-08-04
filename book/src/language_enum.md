@@ -1,6 +1,8 @@
-# Language Enum
+# Language enum
 
-Most apps need to know which languages are available — for a settings screen, a language picker, or to select the right locale at startup. The `#[es_fluent_language]` macro generates a strongly-typed enum from the folders in your `assets_dir`, so you never hardcode locale strings.
+The `#[es_fluent_language]` macro generates a typed enum from the locale
+directories in `assets_dir`. Use it to initialize a manager, switch locales, or
+build a language picker without maintaining a second list of locale strings.
 
 ## Setup
 
@@ -8,7 +10,10 @@ Add the `es-fluent-lang` crate:
 
 ```toml
 [dependencies]
-es-fluent-lang = "*"
+es-fluent-lang = "0.18"
+
+# Add this when the application iterates the generated enum.
+strum = { version = "0.28", features = ["derive"] }
 ```
 
 Feature flags:
@@ -62,7 +67,7 @@ The macro also generates these trait implementations:
 If the configured fallback language is not present as a locale directory, the
 macro still adds it to the enum so `Default` always has a valid variant.
 
-## Using with Managers
+## Use the enum with managers
 
 The `Languages` enum plugs directly into manager initialization:
 
@@ -74,16 +79,14 @@ let i18n = manager::EmbeddedI18n::try_new_with_language(Languages::En)?;
 
 Since it implements `Into<LanguageIdentifier>`, you can pass variants anywhere a `LanguageIdentifier` is expected.
 
-## Language Name Labels
+## Render language-name labels
 
 Each variant can be rendered through an explicit manager with
 `i18n.localize_message(&language)`. The macro implements `FluentMessage`
 directly, and the crate formats those labels from ICU4X display-name data, so a
-language picker works out of the box:
+language picker can display localized names:
 
 ```rust
-use es_fluent::FluentMessage;
-
 // Prints the language name in its native script
 println!("{}", i18n.localize_message(&Languages::FrFr)); // → "français"
 ```
@@ -97,7 +100,6 @@ For a language picker, iterate your generated enum, render each label through
 the active manager, and pass the selected variant back to the manager:
 
 ```rust
-use es_fluent::FluentMessage as _;
 use strum::IntoEnumIterator as _;
 
 for language in Languages::iter() {
@@ -116,9 +118,12 @@ The built-in language-name module follows successful manager locale switches
 but does not count as application content support. A manager still reports an
 unsupported locale when no application translation module can serve it.
 
-## Custom Mode
+## Custom mode
 
-By default, the macro links to the built-in `es-fluent-lang` runtime and skips inventory registration. If you want to provide your own translations for language names (for example, project-specific labels or exact wording control), use **custom mode**:
+By default, the macro links to the built-in `es-fluent-lang` runtime without
+registering another translation module. If you want to provide your own
+translations for language names (for example, project-specific labels or exact
+wording control), use **custom mode**:
 
 ```rust
 #[es_fluent_language(custom)]

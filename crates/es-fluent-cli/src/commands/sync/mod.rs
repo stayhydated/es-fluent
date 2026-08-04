@@ -60,6 +60,7 @@ impl SyncTextMode {
             Self::Sync => CliError::Other(message),
             Self::AddLocale => CliError::Other(
                 message
+                    .replace("sync transaction failed", "add-locale transaction failed")
                     .replace("Refusing to sync ", "Refusing to add locale data to ")
                     .replace("target FTL", "requested-locale FTL")
                     .replace(
@@ -85,9 +86,9 @@ pub struct SyncArgs {
 
     /// Sync to all discovered locale directories, excluding the fallback language; cannot be used with --locale.
     #[arg(long)]
-    pub all: bool,
+    pub all_locales: bool,
 
-    /// Create missing target locale directories for explicit --locale targets; cannot be used with --all.
+    /// Create missing target locale directories for explicit --locale targets; cannot be used with --all-locales.
     #[arg(long)]
     pub create: bool,
 
@@ -125,6 +126,7 @@ struct SyncJsonReport {
 struct SyncResultJson {
     crate_name: String,
     locale: String,
+    path: Option<String>,
     locale_created: bool,
     keys_added: usize,
     added_keys: Vec<String>,
@@ -407,7 +409,7 @@ pub(crate) fn run_sync_with_text_mode(
 
     validate_sync_target_selection(&args, output)?;
 
-    let target_locales: Option<HashSet<String>> = if args.all {
+    let target_locales: Option<HashSet<String>> = if args.all_locales {
         None // Will sync to all discovered locales.
     } else {
         match args
@@ -454,7 +456,7 @@ pub(crate) fn run_sync_with_text_mode(
 
     let crates = workspace.crates;
 
-    if args.all
+    if args.all_locales
         && let Err(error) = validate_all_locale_paths_are_directories(&crates)
     {
         if args.output.is_json() {
@@ -531,104 +533,114 @@ pub(crate) fn run_sync_with_text_mode(
         return Err(text_mode.text_error(error));
     }
 
-    let mut total_keys_added = 0;
-    let mut affected_locale_targets: HashSet<(String, String)> = HashSet::new();
-    let mut json_results = Vec::new();
-
-    for krate in &crates {
-        if let Err(error) =
-            locale::preflight_sync_crate(krate, target_locales.as_ref(), args.create)
-        {
-            if args.output.is_json() {
-                return sync_json_error_for_workspace(
-                    args.output,
-                    args.dry_run,
-                    error,
-                    &workspace_root,
-                );
-            }
-            return Err(text_mode.text_error(error));
-        }
-    }
-
     let pb = if show_text {
-        ui::Ui::create_progress_bar(crates.len() as u64, "Syncing crates...")
+        ui::Ui::create_progress_bar(crates.len() as u64, "Planning locale changes...")
     } else {
         indicatif::ProgressBar::hidden()
     };
 
+    let mut transaction = es_fluent_runner::FileTransaction::default();
+    let mut planned_results = Vec::new();
     for krate in &crates {
-        pb.set_message(format!("Syncing {}", krate.name));
+        pb.set_message(format!("Planning {}", krate.name));
+        let results = match locale::plan_sync_crate(
+            krate,
+            target_locales.as_ref(),
+            args.dry_run,
+            args.create,
+            &mut transaction,
+        ) {
+            Ok(results) => results,
+            Err(error) => {
+                pb.finish_and_clear();
+                if args.output.is_json() {
+                    return sync_json_error_for_workspace(
+                        args.output,
+                        args.dry_run,
+                        error,
+                        &workspace_root,
+                    );
+                }
+                return Err(text_mode.text_error(error));
+            },
+        };
+        planned_results.push((krate.name.to_string(), results));
+        pb.inc(1);
+    }
+    pb.finish_and_clear();
 
-        let results =
-            match locale::sync_crate(krate, target_locales.as_ref(), args.dry_run, args.create) {
-                Ok(results) => results,
-                Err(error) => {
-                    if args.output.is_json() {
-                        return sync_json_error_with_results_for_workspace(
-                            args.output,
-                            args.dry_run,
-                            total_keys_added,
-                            affected_locale_targets.len(),
-                            json_results,
-                            error,
-                            &workspace_root,
-                        );
-                    }
-                    return Err(text_mode.text_error(error));
-                },
-            };
-        affected_locale_targets.extend(collect_affected_locale_targets(
-            krate.name.as_str(),
-            results.iter(),
-        ));
+    if !args.dry_run
+        && let Err(error) = transaction.commit()
+    {
+        let error = format!("sync transaction failed: {error}");
+        if args.output.is_json() {
+            return sync_json_error_for_workspace(
+                args.output,
+                args.dry_run,
+                error,
+                &workspace_root,
+            );
+        }
+        return Err(text_mode.text_error(error));
+    }
+
+    let mut total_keys_added = 0;
+    let mut affected_locale_targets: HashSet<(String, String)> = HashSet::new();
+    let mut json_results = Vec::new();
+    for (crate_name, results) in planned_results {
+        affected_locale_targets
+            .extend(collect_affected_locale_targets(&crate_name, results.iter()));
 
         for result in results {
+            let path = result.path.as_ref().map(|path| {
+                crate::utils::paths::relative_slash_path(path.as_path(), &workspace_root)
+            });
             json_results.push(SyncResultJson {
-                crate_name: krate.name.to_string(),
+                crate_name: crate_name.clone(),
                 locale: result.locale.clone(),
+                path: path.clone(),
                 locale_created: result.locale_created,
                 keys_added: result.keys_added,
                 added_keys: result.added_keys.clone(),
             });
 
             if result.locale_created && show_text {
-                pb.suspend(|| {
-                    if args.dry_run {
-                        ui::Ui::print_would_create_locale(&result.locale, krate.name.as_str());
-                    } else {
-                        ui::Ui::print_created_locale(&result.locale, krate.name.as_str());
-                    }
-                });
+                if args.dry_run {
+                    ui::Ui::print_would_create_locale(&result.locale, &crate_name);
+                } else {
+                    ui::Ui::print_created_locale(&result.locale, &crate_name);
+                }
             }
 
             if result.keys_added > 0 {
                 total_keys_added += result.keys_added;
 
                 if show_text {
-                    pb.suspend(|| {
-                        if args.dry_run {
-                            ui::Ui::print_would_add_keys(
-                                result.keys_added,
-                                &result.locale,
-                                krate.name.as_str(),
-                            );
-                            if let Some(diff) = &result.diff_info {
-                                diff.print();
-                            }
-                        } else {
-                            ui::Ui::print_added_keys(result.keys_added, &result.locale);
-                            for key in &result.added_keys {
-                                ui::Ui::print_synced_key(key);
-                            }
+                    if args.dry_run {
+                        ui::Ui::print_would_add_keys(
+                            result.keys_added,
+                            &result.locale,
+                            &crate_name,
+                            path.as_deref(),
+                        );
+                        if let Some(diff) = &result.diff_info {
+                            diff.print();
                         }
-                    });
+                    } else {
+                        ui::Ui::print_added_keys(
+                            result.keys_added,
+                            &result.locale,
+                            &crate_name,
+                            path.as_deref(),
+                        );
+                        for key in &result.added_keys {
+                            ui::Ui::print_synced_key(key);
+                        }
+                    }
                 }
             }
         }
-        pb.inc(1);
     }
-    pb.finish_and_clear();
     let total_locales_affected = affected_locale_targets.len();
 
     if args.output.is_json() {
@@ -657,14 +669,17 @@ pub(crate) fn run_sync_with_text_mode(
 }
 
 fn validate_sync_target_selection(args: &SyncArgs, output: OutputFormat) -> Result<(), CliError> {
-    let error = if args.all && !args.locale.is_empty() {
-        Some("--all cannot be combined with --locale; pass one target selection mode".to_string())
-    } else if args.create && (args.all || args.locale.is_empty()) {
+    let error = if args.all_locales && !args.locale.is_empty() {
         Some(
-            "--create requires explicit --locale targets and cannot be used with --all".to_string(),
+            "--all-locales cannot be combined with --locale; pass one target selection mode"
+                .to_string(),
         )
-    } else if !args.all && args.locale.is_empty() {
-        Some("no target locales specified; pass --all or --locale <LOCALE>".to_string())
+    } else if args.create && args.all_locales {
+        Some("--create conflicts with --all-locales; pass explicit --locale targets".to_string())
+    } else if args.create && args.locale.is_empty() {
+        Some("--create requires explicit --locale targets".to_string())
+    } else if !args.all_locales && args.locale.is_empty() {
+        Some("no target locales specified; pass --all-locales or --locale <LOCALE>".to_string())
     } else {
         None
     };
@@ -749,7 +764,7 @@ world = World"#;
                 package: None,
             },
             locale: Vec::new(),
-            all: false,
+            all_locales: false,
             create: false,
             dry_run: false,
             output: OutputFormat::Text,
@@ -771,7 +786,7 @@ world = World"#;
                 package: Some("missing-package".to_string()),
             },
             locale: vec!["es".to_string()],
-            all: false,
+            all_locales: false,
             create: false,
             dry_run: false,
             output: OutputFormat::Text,
@@ -795,7 +810,7 @@ world = World"#;
                 package: Some("missing-package".to_string()),
             },
             locale: vec!["fr-FR".to_string()],
-            all: false,
+            all_locales: false,
             create: true,
             dry_run: false,
             output: OutputFormat::Text,
@@ -815,7 +830,7 @@ world = World"#;
                 package: None,
             },
             locale: Vec::new(),
-            all: false,
+            all_locales: false,
             create: false,
             dry_run: false,
             output: OutputFormat::Text,
@@ -833,7 +848,7 @@ world = World"#;
                 true,
                 true,
                 Vec::new(),
-                "--create requires explicit --locale targets",
+                "--create conflicts with --all-locales",
             ),
             (
                 false,
@@ -845,18 +860,18 @@ world = World"#;
                 true,
                 false,
                 vec!["fr-FR".to_string()],
-                "--all cannot be combined with --locale",
+                "--all-locales cannot be combined with --locale",
             ),
         ];
 
-        for (all, create, locale, expected) in cases {
+        for (all_locales, create, locale, expected) in cases {
             let result = run_sync(SyncArgs {
                 workspace: WorkspaceArgs {
                     path: Some(std::path::PathBuf::from("/definitely/missing/path")),
                     package: None,
                 },
                 locale,
-                all,
+                all_locales,
                 create,
                 dry_run: false,
                 output: OutputFormat::Text,
@@ -882,7 +897,7 @@ world = World"#;
                 package: None,
             },
             locale: vec!["zz-unknown".to_string()],
-            all: false,
+            all_locales: false,
             create: false,
             dry_run: false,
             output: OutputFormat::Text,
@@ -906,7 +921,7 @@ world = World"#;
                 package: None,
             },
             locale: vec![" fr ".to_string()],
-            all: false,
+            all_locales: false,
             create: false,
             dry_run: true,
             output: OutputFormat::Text,
@@ -931,7 +946,7 @@ world = World"#;
                 package: None,
             },
             locale: vec![" ".to_string()],
-            all: false,
+            all_locales: false,
             create: false,
             dry_run: true,
             output: OutputFormat::Text,
@@ -955,7 +970,7 @@ world = World"#;
                 package: None,
             },
             locale: vec!["iw".to_string()],
-            all: false,
+            all_locales: false,
             create: false,
             dry_run: true,
             output: OutputFormat::Text,
@@ -1022,7 +1037,7 @@ world = World"#;
                 package: None,
             },
             locale: vec!["fr".to_string()],
-            all: false,
+            all_locales: false,
             create: false,
             dry_run: true,
             output: OutputFormat::Text,
@@ -1064,7 +1079,7 @@ world = World"#;
                 package: None,
             },
             locale: vec!["fr".to_string()],
-            all: false,
+            all_locales: false,
             create: false,
             dry_run: true,
             output: OutputFormat::Text,
@@ -1087,7 +1102,7 @@ world = World"#;
                 package: None,
             },
             locale: Vec::new(),
-            all: true,
+            all_locales: true,
             create: false,
             dry_run: true,
             output: OutputFormat::Text,
@@ -1110,7 +1125,7 @@ world = World"#;
                 package: None,
             },
             locale: Vec::new(),
-            all: true,
+            all_locales: true,
             create: false,
             dry_run: true,
             output: OutputFormat::Text,
@@ -1133,7 +1148,7 @@ world = World"#;
                 package: None,
             },
             locale: Vec::new(),
-            all: true,
+            all_locales: true,
             create: false,
             dry_run: true,
             output: OutputFormat::Text,
@@ -1157,7 +1172,7 @@ world = World"#;
                 package: None,
             },
             locale: vec!["fr-FR".to_string()],
-            all: false,
+            all_locales: false,
             create: false,
             dry_run: true,
             output: OutputFormat::Text,
@@ -1181,7 +1196,7 @@ world = World"#;
                 package: None,
             },
             locale: vec!["fr-FR".to_string()],
-            all: false,
+            all_locales: false,
             create: true,
             dry_run: true,
             output: OutputFormat::Text,
@@ -1206,7 +1221,7 @@ world = World"#;
                 package: None,
             },
             locale: vec!["en".to_string()],
-            all: false,
+            all_locales: false,
             create: false,
             dry_run: false,
             output: OutputFormat::Text,
@@ -1228,7 +1243,7 @@ world = World"#;
                 package: None,
             },
             locale: vec!["en".to_string()],
-            all: false,
+            all_locales: false,
             create: true,
             dry_run: false,
             output: OutputFormat::Text,
@@ -1264,7 +1279,7 @@ world = World"#;
                 package: None,
             },
             locale: vec!["bin".to_string()],
-            all: false,
+            all_locales: false,
             create: true,
             dry_run: false,
             output: OutputFormat::Text,
@@ -1275,7 +1290,7 @@ world = World"#;
         );
         assert!(
             !temp.path().join("bin").exists(),
-            "sync --create must not create locales hidden from --all scans"
+            "sync --create must not create locales hidden from --all-locales scans"
         );
     }
 
@@ -1310,7 +1325,7 @@ world = World"#;
                 package: None,
             },
             locale: vec!["bin".to_string()],
-            all: false,
+            all_locales: false,
             create: true,
             dry_run: false,
             output: OutputFormat::Text,
@@ -1323,7 +1338,7 @@ world = World"#;
     }
 
     #[test]
-    fn run_sync_rejects_create_with_all() {
+    fn run_sync_rejects_create_with_all_locales() {
         let temp = crate::test_fixtures::create_workspace_with_locales(&[
             ("en", "hello = Hello\n"),
             ("es", "hello = Hola\n"),
@@ -1335,14 +1350,14 @@ world = World"#;
                 package: None,
             },
             locale: Vec::new(),
-            all: true,
+            all_locales: true,
             create: true,
             dry_run: false,
             output: OutputFormat::Text,
         });
 
         assert!(
-            matches!(result, Err(CliError::Other(message)) if message.contains("--create requires explicit --locale"))
+            matches!(result, Err(CliError::Other(message)) if message.contains("--create conflicts with --all-locales"))
         );
     }
 
@@ -1361,7 +1376,7 @@ world = World"#;
                 package: None,
             },
             locale: vec!["es".to_string()],
-            all: false,
+            all_locales: false,
             create: false,
             dry_run: true,
             output: OutputFormat::Text,
@@ -1386,7 +1401,7 @@ world = World"#;
                 package: None,
             },
             locale: vec!["es".to_string()],
-            all: false,
+            all_locales: false,
             create: false,
             dry_run: false,
             output: OutputFormat::Text,
@@ -1411,7 +1426,7 @@ world = World"#;
                 package: None,
             },
             locale: vec!["fr-FR".to_string()],
-            all: false,
+            all_locales: false,
             create: true,
             dry_run: false,
             output: OutputFormat::Text,
@@ -1442,7 +1457,7 @@ world = World"#;
                 package: None,
             },
             locale: vec!["fr-FR".to_string()],
-            all: false,
+            all_locales: false,
             create: true,
             dry_run: false,
             output: OutputFormat::Text,
@@ -1459,6 +1474,53 @@ world = World"#;
     }
 
     #[test]
+    #[cfg(unix)]
+    fn run_sync_rolls_back_selected_packages_when_commit_fails() {
+        use std::os::unix::fs::PermissionsExt as _;
+
+        let temp = tempfile::tempdir().expect("workspace tempdir");
+        fs::write(
+            temp.path().join("Cargo.toml"),
+            "[workspace]\nmembers = [\"a\", \"b\"]\nresolver = \"2\"\n",
+        )
+        .expect("write workspace manifest");
+        write_sync_workspace_crate(temp.path(), "a", "hello = Hello\nworld = World\n");
+        write_sync_workspace_crate(temp.path(), "b", "hello = Hello\n");
+        fs::create_dir_all(temp.path().join("a/i18n/fr")).expect("create first target locale");
+        fs::create_dir_all(temp.path().join("b/i18n/fr")).expect("create second target locale");
+        let first_target = temp.path().join("a/i18n/fr/a.ftl");
+        let second_target = temp.path().join("b/i18n/fr/b.ftl");
+        fs::write(&first_target, "hello = Bonjour\n").expect("write first target");
+        let first_before = fs::read_to_string(&first_target).expect("read first before");
+        let blocked_parent = second_target.parent().expect("second target parent");
+        fs::set_permissions(blocked_parent, std::fs::Permissions::from_mode(0o555))
+            .expect("make second target directory read-only");
+
+        let result = run_sync(SyncArgs {
+            workspace: WorkspaceArgs {
+                path: Some(temp.path().to_path_buf()),
+                package: None,
+            },
+            locale: vec!["fr".to_string()],
+            all_locales: false,
+            create: false,
+            dry_run: false,
+            output: OutputFormat::Text,
+        });
+
+        fs::set_permissions(blocked_parent, std::fs::Permissions::from_mode(0o755))
+            .expect("restore second target permissions");
+        assert!(
+            matches!(result, Err(CliError::Other(message)) if message.contains("sync transaction failed") && message.contains("rolled back"))
+        );
+        assert_eq!(
+            fs::read_to_string(&first_target).expect("read first after rollback"),
+            first_before
+        );
+        assert!(!second_target.exists());
+    }
+
+    #[test]
     fn run_sync_explicit_target_ignores_unrelated_noncanonical_locale_dir() {
         let temp = crate::test_fixtures::create_workspace_with_locales(&[(
             "en",
@@ -1472,7 +1534,7 @@ world = World"#;
                 package: None,
             },
             locale: vec!["fr-FR".to_string()],
-            all: false,
+            all_locales: false,
             create: true,
             dry_run: true,
             output: OutputFormat::Text,
@@ -1503,7 +1565,7 @@ world = World"#;
                 package: None,
             },
             locale: Vec::new(),
-            all: true,
+            all_locales: true,
             create: false,
             dry_run: false,
             output: OutputFormat::Text,
@@ -1546,6 +1608,11 @@ world = World"#;
             2,
             "both locale files should report changes"
         );
+        let paths = results
+            .iter()
+            .filter_map(|result| result.path.as_deref())
+            .collect::<HashSet<_>>();
+        assert_eq!(paths.len(), 2, "each result should identify its FTL file");
         assert_eq!(
             collect_affected_locale_targets(krate.name.as_str(), results.iter()).len(),
             1
@@ -1557,6 +1624,7 @@ world = World"#;
         let results = [
             locale::SyncLocaleResult {
                 locale: "fr".to_string(),
+                path: Some(std::path::PathBuf::from("i18n/fr/a.ftl")),
                 locale_created: false,
                 keys_added: 1,
                 added_keys: vec!["hello".to_string()],
@@ -1564,6 +1632,7 @@ world = World"#;
             },
             locale::SyncLocaleResult {
                 locale: "fr".to_string(),
+                path: None,
                 locale_created: true,
                 keys_added: 0,
                 added_keys: Vec::new(),

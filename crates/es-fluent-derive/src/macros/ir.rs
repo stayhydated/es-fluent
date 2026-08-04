@@ -7,7 +7,7 @@ use quote::{quote, quote_spanned};
 use syn::Ident;
 
 use crate::macros::utils::{
-    CodegenContext, static_argument_name_tokens, static_domain_tokens, static_entry_id_tokens,
+    CodegenContext, static_argument_name_tokens, static_entry_id_tokens, static_message_key_tokens,
 };
 
 #[derive(Clone)]
@@ -85,12 +85,12 @@ pub(crate) struct LocalizeCallSpec {
 impl LocalizeCallSpec {
     pub(crate) fn localize_with_expr(&self, context: &CodegenContext) -> TokenStream {
         let es_fluent = context.facade_path().tokens();
-        let domain_expr = static_domain_tokens(context, self.domain_override.as_ref());
-        let ftl_key_expr = static_entry_id_tokens(context, &self.ftl_key);
+        let key_expr =
+            static_message_key_tokens(context, self.domain_override.as_ref(), &self.ftl_key);
 
         if self.arguments.is_empty() {
             quote! {
-                localize(#domain_expr, #ftl_key_expr, None)
+                localize(#key_expr, None)
             }
         } else {
             let inserts: Vec<_> = self
@@ -103,7 +103,7 @@ impl LocalizeCallSpec {
                 {
                     let mut args = #es_fluent::FluentArgs::new();
                     #(#inserts)*
-                    localize(#domain_expr, #ftl_key_expr, Some(&args))
+                    localize(#key_expr, Some(&args))
                 }
             }
         }

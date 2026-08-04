@@ -1,13 +1,13 @@
 use crate::FluentParseMode;
 use crate::formatting;
 use crate::merge::MergeBehavior;
+use es_fluent_runner::FileTransaction;
 use es_fluent_shared::EsFluentResult;
 use es_fluent_shared::namespace::ResolvedNamespace;
 use es_fluent_shared::registry::FtlTypeInfo;
 use es_fluent_shared::resource::ResourceRoute;
 use fluent_syntax::{ast, serializer};
 use indexmap::IndexMap;
-use std::fs;
 use std::io::{Error, ErrorKind};
 use std::path::{Path, PathBuf};
 
@@ -56,8 +56,12 @@ pub(crate) fn plan_outputs<'a, I: AsRef<FtlTypeInfo>>(
     items: &'a [I],
 ) -> EsFluentResult<Vec<PlannedOutput<'a>>> {
     let items_ref: Vec<&'a FtlTypeInfo> = items.iter().map(|item| item.as_ref()).collect();
+    crate::model::validate_no_duplicate_ftl_keys_per_domain(crate_name, &items_ref)?;
 
-    let mut namespaced: IndexMap<Option<ResolvedNamespace>, Vec<&'a FtlTypeInfo>> = IndexMap::new();
+    let mut routed: IndexMap<
+        (Option<&'static str>, Option<ResolvedNamespace>),
+        Vec<&'a FtlTypeInfo>,
+    > = IndexMap::new();
     for item in &items_ref {
         let namespace = item
             .try_resolved_namespace(manifest_dir)
@@ -73,14 +77,17 @@ pub(crate) fn plan_outputs<'a, I: AsRef<FtlTypeInfo>>(
                     ),
                 )
             })?;
-        namespaced.entry(namespace).or_default().push(item);
+        routed
+            .entry((item.domain().map(|domain| domain.as_str()), namespace))
+            .or_default()
+            .push(item);
     }
 
-    Ok(namespaced
+    Ok(routed
         .into_iter()
-        .map(|(namespace, items)| {
+        .map(|((domain, namespace), items)| {
             let route = ResourceRoute::from_namespace(namespace);
-            let resource = route.resource_spec(crate_name, true);
+            let resource = route.resource_spec(domain.unwrap_or(crate_name), true);
             let file_path = i18n_path.join(resource.locale_relative_path.as_str());
 
             PlannedOutput {
@@ -92,24 +99,22 @@ pub(crate) fn plan_outputs<'a, I: AsRef<FtlTypeInfo>>(
         .collect())
 }
 
-pub(crate) fn apply_output_operation(
+pub(crate) fn plan_output_operation(
     output: PlannedOutput<'_>,
     operation: &OutputOperation,
-    dry_run: bool,
+    transaction: &mut FileTransaction,
 ) -> EsFluentResult<bool> {
     crate::model::validate_no_duplicate_ftl_keys(&output.items)?;
 
-    if !dry_run && let Some(parent) = output.file_path.parent() {
-        fs::create_dir_all(parent)?;
-    }
-
-    let existing_resource = crate::io::read_existing_resource(&output.file_path)?;
+    let (existing_resource, existing_content) =
+        crate::io::read_existing_resource_and_content(&output.file_path)?;
     let final_resource = operation.render_resource(existing_resource, &output.items)?;
 
-    crate::io::write_updated_resource(
+    crate::io::plan_updated_resource(
+        transaction,
         &output.file_path,
+        existing_content,
         &final_resource,
-        dry_run,
         operation.formatter(),
     )
 }

@@ -101,6 +101,38 @@ fluent_string_type!(FluentVariantKey, "Fluent variant key");
 fluent_string_type!(FluentDomain, "Fluent domain");
 fluent_string_type!(FluentMessageId, "Fluent message id");
 
+/// An owned, fully scoped Fluent message key used by CLI and runner metadata.
+#[derive(
+    Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, serde::Deserialize, serde::Serialize,
+)]
+pub struct FluentMessageKey {
+    owner: FluentDomain,
+    domain: FluentDomain,
+    id: FluentEntryId,
+}
+
+impl FluentMessageKey {
+    pub fn new(owner: FluentDomain, domain: FluentDomain, id: FluentEntryId) -> Self {
+        Self { owner, domain, id }
+    }
+
+    pub fn owner(&self) -> &FluentDomain {
+        &self.owner
+    }
+
+    pub fn domain(&self) -> &FluentDomain {
+        &self.domain
+    }
+
+    pub fn id(&self) -> &FluentEntryId {
+        &self.id
+    }
+
+    pub fn into_parts(self) -> (FluentDomain, FluentDomain, FluentEntryId) {
+        (self.owner, self.domain, self.id)
+    }
+}
+
 /// A Fluent entry identifier, covering both message IDs and term IDs.
 #[derive(
     Clone, Debug, derive_more::AsRef, derive_more::Display, Eq, Hash, Ord, PartialEq, PartialOrd,

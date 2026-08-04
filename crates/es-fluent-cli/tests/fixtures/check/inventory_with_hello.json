@@ -1,7 +1,11 @@
 {
   "expected_keys": [
     {
-      "key": "hello",
+      "key": {
+        "owner": "test-app",
+        "domain": "test-app",
+        "id": "hello"
+      },
       "variables": [],
       "source_file": null,
       "source_line": null

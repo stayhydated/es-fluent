@@ -6,8 +6,7 @@ default:
 fmt:
     cargo sort-derives
     cargo fmt
-    cargo es-fluent-local fmt --all
-    bun run fmt
+    cargo es-fluent-local fmt --all-locales
     taplo fmt
     rumdl fmt .
 
@@ -18,10 +17,7 @@ check:
     cargo check --workspace --all-features --all-targets --locked
 
 ftl-check:
-    cargo es-fluent-local check --all
-
-ftl-ownership:
-    cargo xtask check ftl-ownership
+    cargo es-fluent-local check --all-locales
 
 test: test-dioxus-manager-feature-matrix
     cargo test --workspace --all-features --all-targets --locked
@@ -42,7 +38,7 @@ test-publish:
 test-docs:
     cargo doc --workspace --all-features --no-deps --locked --open
 
-ci: fmt check ftl-ownership clippy test cov
+ci: fmt check clippy test cov
     cargo machete
 
 book:
@@ -61,4 +57,4 @@ web: web-build
     dx serve --package web
 
 web-preview: web-build
-    cd web && bun run preview
+    cargo xtask preview web

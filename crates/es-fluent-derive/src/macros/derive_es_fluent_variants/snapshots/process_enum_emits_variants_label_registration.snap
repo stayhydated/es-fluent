@@ -18,22 +18,28 @@ impl ::es_fluent::FluentMessage for StatusVariants {
         match self {
             Self::Ready => {
                 localize(
-                    ::es_fluent::registry::StaticFluentDomain::from_package_name(
+                    ::es_fluent::registry::__macro::static_message_key(
                         env!("CARGO_PKG_NAME"),
-                    ),
-                    ::es_fluent::registry::__macro::static_entry_id(
-                        "status_variants-Ready",
+                        ::es_fluent::registry::StaticFluentDomain::from_package_name(
+                            env!("CARGO_PKG_NAME"),
+                        ),
+                        ::es_fluent::registry::__macro::static_entry_id(
+                            "status_variants-Ready",
+                        ),
                     ),
                     None,
                 )
             }
             Self::Failed => {
                 localize(
-                    ::es_fluent::registry::StaticFluentDomain::from_package_name(
+                    ::es_fluent::registry::__macro::static_message_key(
                         env!("CARGO_PKG_NAME"),
-                    ),
-                    ::es_fluent::registry::__macro::static_entry_id(
-                        "status_variants-Failed",
+                        ::es_fluent::registry::StaticFluentDomain::from_package_name(
+                            env!("CARGO_PKG_NAME"),
+                        ),
+                        ::es_fluent::registry::__macro::static_entry_id(
+                            "status_variants-Failed",
+                        ),
                     ),
                     None,
                 )
@@ -73,6 +79,7 @@ mod __es_fluent_inventory_StatusVariants {
         ::es_fluent::meta::TypeKind::Enum,
         "StatusVariants",
         VARIANTS,
+        ::es_fluent::registry::__macro::ftl_scope(env!("CARGO_PKG_NAME"), None),
         file!(),
         module_path!(),
         Some(::es_fluent::registry::__macro::namespace_literal("ui")),
@@ -98,6 +105,7 @@ mod __es_fluent_label_inventory_StatusVariants {
         ::es_fluent::meta::TypeKind::Enum,
         "StatusVariants",
         VARIANTS,
+        ::es_fluent::registry::__macro::ftl_scope(env!("CARGO_PKG_NAME"), None),
         file!(),
         module_path!(),
         Some(::es_fluent::registry::__macro::namespace_literal("ui")),
@@ -107,12 +115,13 @@ mod __es_fluent_label_inventory_StatusVariants {
     );
 }
 impl ::es_fluent::FluentLabel for StatusVariants {
-    fn fluent_label_domain() -> ::es_fluent::registry::StaticFluentDomain {
-        ::es_fluent::registry::StaticFluentDomain::from_package_name(
+    fn fluent_label_key() -> ::es_fluent::registry::StaticFluentMessageKey {
+        ::es_fluent::registry::__macro::static_message_key(
             env!("CARGO_PKG_NAME"),
+            ::es_fluent::registry::StaticFluentDomain::from_package_name(
+                env!("CARGO_PKG_NAME"),
+            ),
+            ::es_fluent::registry::__macro::static_entry_id("status_variants_label"),
         )
-    }
-    fn fluent_label_id() -> ::es_fluent::registry::StaticFluentEntryId {
-        ::es_fluent::registry::__macro::static_entry_id("status_variants_label")
     }
 }

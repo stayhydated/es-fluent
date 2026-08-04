@@ -92,10 +92,10 @@ fn startup_error_helpers_format_and_store_diagnostics() {
     let message =
         format_discovery_startup_error(vec![ModuleDiscoveryError::InconsistentModuleMetadata {
             name: "demo".to_string(),
-            domain: "demo-domain".to_string(),
+            owner: "demo-owner".to_string(),
         }]);
     assert!(message.contains("failed to discover i18n modules"));
-    assert!(message.contains("demo-domain"));
+    assert!(message.contains("demo-owner"));
 
     let init_message = format_initialization_startup_error("fallback failed");
     assert_eq!(

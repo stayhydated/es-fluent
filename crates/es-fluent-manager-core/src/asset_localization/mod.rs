@@ -7,12 +7,12 @@ mod resource;
 pub use loading::{
     LocaleLoadReport, ResourceLoadError, ResourceLoadStatus, build_locale_load_report,
     clear_locale_resource, collect_available_languages, collect_locale_resources,
-    load_locale_resources, parse_and_store_locale_resource_content, parse_fluent_resource_bytes,
-    parse_fluent_resource_content, record_failed_locale_resource, record_locale_resource_error,
-    record_missing_locale_resource, store_locale_resource,
+    load_locale_resource_entries, load_locale_resources, parse_and_store_locale_resource_content,
+    parse_fluent_resource_bytes, parse_fluent_resource_content, record_failed_locale_resource,
+    record_locale_resource_error, record_missing_locale_resource, store_locale_resource,
 };
 pub use module::{
-    I18nModuleDescriptor, ModuleData, ModuleRegistryError, StaticModuleDescriptor,
+    I18nModuleDescriptor, ModuleData, ModuleDomain, ModuleRegistryError, StaticModuleDescriptor,
     validate_module_registry,
 };
 pub use resource::{
@@ -35,9 +35,12 @@ mod tests {
     static NAMESPACES: &[&str] = &["ui", "errors"];
     static DATA: ModuleData = ModuleData {
         name: "test-module",
-        domain: crate::__macro::static_domain("test-domain"),
+        owner: crate::__macro::static_domain("test-domain"),
         supported_languages: SUPPORTED,
-        namespaces: NAMESPACES,
+        domains: &[crate::ModuleDomain {
+            domain: crate::__macro::static_domain("test-domain"),
+            namespaces: NAMESPACES,
+        }],
     };
 
     #[test]
@@ -46,9 +49,15 @@ mod tests {
         let data = module.data();
 
         assert_eq!(data.name, "test-module");
-        assert_eq!(data.domain(), "test-domain");
+        assert_eq!(data.owner.as_str(), "test-domain");
         assert_eq!(data.supported_languages, SUPPORTED);
-        assert_eq!(data.namespaces, NAMESPACES);
+        assert_eq!(
+            data.domains,
+            &[ModuleDomain {
+                domain: crate::__macro::static_domain("test-domain"),
+                namespaces: NAMESPACES,
+            }]
+        );
     }
 
     #[test]
@@ -187,15 +196,27 @@ mod tests {
         ];
         static BAD_DATA: ModuleData = ModuleData {
             name: "test-module",
-            domain: crate::__macro::static_domain("test-domain"),
+            owner: crate::__macro::static_domain("bad-owner"),
             supported_languages: DUP_LANGUAGE,
-            namespaces: INVALID_NAMESPACES,
+            domains: &[
+                crate::ModuleDomain {
+                    domain: crate::__macro::static_domain("test-domain"),
+                    namespaces: INVALID_NAMESPACES,
+                },
+                crate::ModuleDomain {
+                    domain: crate::__macro::static_domain("test-domain"),
+                    namespaces: &[],
+                },
+            ],
         };
         static DUP_DOMAIN: ModuleData = ModuleData {
             name: "other-module",
-            domain: crate::__macro::static_domain("test-domain"),
+            owner: crate::__macro::static_domain("other-owner"),
             supported_languages: SUPPORTED,
-            namespaces: &[],
+            domains: &[crate::ModuleDomain {
+                domain: crate::__macro::static_domain("test-domain"),
+                namespaces: &[],
+            }],
         };
 
         let errs = validate_module_registry([&DATA, &BAD_DATA, &DUP_DOMAIN])
@@ -206,7 +227,8 @@ mod tests {
         )));
         assert!(errs.iter().any(|err| matches!(
             err,
-            ModuleRegistryError::DuplicateDomain { domain } if domain == "test-domain"
+            ModuleRegistryError::DuplicateDomain { module, domain }
+                if module == "test-module" && domain == "test-domain"
         )));
         assert!(errs.iter().any(|err| matches!(
             err,
@@ -214,33 +236,38 @@ mod tests {
         )));
         assert!(errs.iter().any(|err| matches!(
             err,
-            ModuleRegistryError::DuplicateNamespace { module, namespace } if module == "test-module" && namespace == "ui"
+            ModuleRegistryError::DuplicateNamespace { module, domain, namespace }
+                if module == "test-module" && domain == "test-domain" && namespace == "ui"
         )));
         assert!(errs.iter().any(|err| matches!(
             err,
-            ModuleRegistryError::InvalidNamespace { module, namespace, details }
+            ModuleRegistryError::InvalidNamespace { module, domain, namespace, details }
                 if module == "test-module"
+                    && domain == "test-domain"
                     && namespace == "bad//path"
                     && details == &NamespacePathError::EmptySegment
         )));
         assert!(errs.iter().any(|err| matches!(
             err,
-            ModuleRegistryError::InvalidNamespace { module, namespace, details }
+            ModuleRegistryError::InvalidNamespace { module, domain, namespace, details }
                 if module == "test-module"
+                    && domain == "test-domain"
                     && namespace == r"bad\path"
                     && details == &NamespacePathError::BackslashSeparator
         )));
         assert!(errs.iter().any(|err| matches!(
             err,
-            ModuleRegistryError::InvalidNamespace { module, namespace, details }
+            ModuleRegistryError::InvalidNamespace { module, domain, namespace, details }
                 if module == "test-module"
+                    && domain == "test-domain"
                     && namespace == "../escape"
                     && details == &NamespacePathError::CurrentOrParentSegment
         )));
         assert!(errs.iter().any(|err| matches!(
             err,
-            ModuleRegistryError::InvalidNamespace { module, namespace, details }
+            ModuleRegistryError::InvalidNamespace { module, domain, namespace, details }
                 if module == "test-module"
+                    && domain == "test-domain"
                     && namespace == " ui "
                     && details == &NamespacePathError::OuterWhitespace
         )));
@@ -251,9 +278,12 @@ mod tests {
         static PATH_NAMESPACES: &[&str] = &["ui/button", "errors/forms"];
         static PATH_DATA: ModuleData = ModuleData {
             name: "path-module",
-            domain: crate::__macro::static_domain("path-domain"),
+            owner: crate::__macro::static_domain("path-domain"),
             supported_languages: SUPPORTED,
-            namespaces: PATH_NAMESPACES,
+            domains: &[crate::ModuleDomain {
+                domain: crate::__macro::static_domain("path-domain"),
+                namespaces: PATH_NAMESPACES,
+            }],
         };
 
         validate_module_registry([&PATH_DATA]).expect("path-based namespaces should be valid");
@@ -262,7 +292,7 @@ mod tests {
     #[test]
     fn module_data_resource_plan_delegates_to_shared_builder() {
         let plan = DATA.resource_plan();
-        let direct = resource_plan_for(DATA.domain(), DATA.namespaces);
+        let direct = resource_plan_for(DATA.domains[0].domain.as_str(), DATA.domains[0].namespaces);
         assert_eq!(plan, direct);
     }
 
@@ -270,9 +300,12 @@ mod tests {
     fn module_data_try_resource_plan_reports_invalid_namespaces() {
         static BAD_DATA: ModuleData = ModuleData {
             name: "bad-module",
-            domain: crate::__macro::static_domain("bad-domain"),
+            owner: crate::__macro::static_domain("bad-domain"),
             supported_languages: SUPPORTED,
-            namespaces: &["../outside"],
+            domains: &[crate::ModuleDomain {
+                domain: crate::__macro::static_domain("bad-domain"),
+                namespaces: &["../outside"],
+            }],
         };
 
         let err = BAD_DATA

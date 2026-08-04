@@ -4,6 +4,7 @@
 mod language;
 
 use es_fluent_shared::CanonicalLanguageIdentifierError;
+use es_fluent_shared::fluent::{FluentDomain, FluentIdentifierError};
 use es_fluent_shared::namespace::{NamespacePathError, ResolvedNamespace};
 use fs_err::{self as fs, DirEntry};
 use path_slash::PathExt as _;
@@ -124,6 +125,29 @@ pub enum I18nConfigError {
         #[source]
         source: NamespacePathError,
     },
+    /// Encountered an invalid configured domain.
+    #[error("Invalid domain '{domain}' in i18n.toml: {source}")]
+    InvalidDomain {
+        /// The invalid domain string.
+        domain: String,
+        /// The domain validation error.
+        #[source]
+        source: FluentIdentifierError,
+    },
+    /// Encountered the same configured domain more than once.
+    #[error("Duplicate domain '{domain}' in i18n.toml")]
+    DuplicateDomain {
+        /// The repeated domain string.
+        domain: String,
+    },
+    /// The package's implicit default domain was also listed explicitly.
+    #[error("Domain '{domain}' repeats package '{package}'s implicit default domain in i18n.toml")]
+    DefaultDomainRepeated {
+        /// The package name and implicit default domain.
+        package: String,
+        /// The repeated configured domain.
+        domain: String,
+    },
     /// Encountered an invalid configured assets directory.
     #[error("Invalid assets_dir '{path}' in i18n.toml: {reason}")]
     InvalidAssetsDir {
@@ -163,7 +187,13 @@ pub struct RawI18nConfig {
     /// ```
     #[serde(default)]
     pub namespaces: Option<Vec<String>>,
-    /// Whether `cargo es-fluent check --all` should warn when a non-fallback
+    /// Additional FTL domains owned by this package.
+    ///
+    /// The package name is always the default domain. Values listed here are
+    /// used by `#[fluent(domain = "...")]` and produce sibling domain files.
+    #[serde(default)]
+    pub domains: Vec<String>,
+    /// Whether `cargo es-fluent check --all-locales` should warn when a non-fallback
     /// locale copies the fallback message text.
     ///
     /// # Examples
@@ -192,6 +222,18 @@ impl RawI18nConfig {
                     .collect()
             })
             .transpose()?;
+        let mut seen_domains = std::collections::BTreeSet::new();
+        let domains = self
+            .domains
+            .into_iter()
+            .map(|domain| {
+                if !seen_domains.insert(domain.clone()) {
+                    return Err(I18nConfigError::DuplicateDomain { domain });
+                }
+                FluentDomain::try_new(domain.clone())
+                    .map_err(|source| I18nConfigError::InvalidDomain { domain, source })
+            })
+            .collect::<Result<Vec<_>, _>>()?;
 
         let assets_dir = normalize_relative_assets_dir(&self.assets_dir)?;
 
@@ -200,6 +242,7 @@ impl RawI18nConfig {
             assets_dir,
             fluent_feature: self.fluent_feature,
             namespaces,
+            domains,
             check_fallback_copies: self.check_fallback_copies,
         })
     }
@@ -237,7 +280,10 @@ pub struct I18nConfig {
     /// namespaces = ["ui", "errors", "messages"]
     /// ```
     pub namespaces: Option<Vec<ResolvedNamespace>>,
-    /// Whether `cargo es-fluent check --all` should warn when a non-fallback
+    /// Additional FTL domains owned by this package.
+    #[builder(default)]
+    pub domains: Vec<FluentDomain>,
+    /// Whether `cargo es-fluent check --all-locales` should warn when a non-fallback
     /// locale copies the fallback message text.
     #[builder(default = true)]
     pub check_fallback_copies: bool,
@@ -319,9 +365,29 @@ impl ResolvedI18nLayout {
     pub fn allowed_namespaces(&self) -> Option<&[ResolvedNamespace]> {
         self.config.namespaces.as_deref()
     }
+
+    /// Returns the additional FTL domains owned by this package.
+    pub fn domains(&self) -> &[FluentDomain] {
+        &self.config.domains
+    }
 }
 
 impl I18nConfig {
+    /// Validates configuration rules that depend on the owning Cargo package.
+    pub fn validate_for_package(&self, package_name: &str) -> Result<(), I18nConfigError> {
+        if let Some(domain) = self
+            .domains
+            .iter()
+            .find(|domain| domain.as_str() == package_name)
+        {
+            return Err(I18nConfigError::DefaultDomainRepeated {
+                package: package_name.to_string(),
+                domain: domain.as_str().to_string(),
+            });
+        }
+        Ok(())
+    }
+
     fn validate_resolved_assets_dir(assets_path: &Path) -> Result<(), I18nConfigError> {
         let display_path = assets_path.to_slash_lossy();
 

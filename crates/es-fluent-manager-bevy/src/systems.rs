@@ -81,10 +81,12 @@ fn update_text_for_entity<T: FluentMessage>(
 mod tests {
     use super::*;
     use crate::{
-        ActiveLanguageId, FtlAsset, I18nBundle, I18nDomainBundles, I18nResource,
-        RequestedLanguageId,
+        ActiveLanguageId, FluentResourceScope, FtlAsset, I18nDomainBundles, I18nReadyLocales,
+        I18nResource, I18nResourceKey, RequestedLanguageId,
     };
-    use es_fluent_manager_core::{FluentDomain, ResourceKey, SyncFluentBundle};
+    use es_fluent_manager_core::{
+        ModuleResourceSpec, ResourceKey, StaticFluentDomain, SyncFluentBundle,
+    };
     use fluent_bundle::FluentResource;
     use std::collections::HashMap;
     use std::sync::Arc;
@@ -114,8 +116,11 @@ mod tests {
             localize: &mut es_fluent::FluentMessageLookup<'_>,
         ) -> String {
             localize(
-                es_fluent::registry::__macro::static_domain(self.domain),
-                es_fluent::registry::__macro::static_entry_id(self.id),
+                es_fluent::registry::__macro::static_message_key(
+                    "app",
+                    es_fluent::registry::__macro::static_domain(self.domain),
+                    es_fluent::registry::__macro::static_entry_id(self.id),
+                ),
                 None,
             )
         }
@@ -125,9 +130,16 @@ mod tests {
         Arc::new(FluentResource::try_new(source.to_string()).expect("valid FTL"))
     }
 
-    fn domain(value: &str) -> FluentDomain {
-        FluentDomain::try_new(value)
-            .unwrap_or_else(|error| panic!("test domain '{value}' should be valid: {error}"))
+    fn static_domain(value: &'static str) -> StaticFluentDomain {
+        es_fluent_manager_core::__macro::static_domain(value)
+    }
+
+    fn scope(domain: &'static str) -> FluentResourceScope {
+        FluentResourceScope::new(static_domain("app"), static_domain(domain))
+    }
+
+    fn resource_key(key: &'static str) -> I18nResourceKey {
+        I18nResourceKey::new(static_domain("app"), ResourceKey::from_static_path(key))
     }
 
     fn bundle_for(
@@ -148,10 +160,9 @@ mod tests {
             "app".to_string(),
             Handle::<FtlAsset>::default(),
         );
-        assets.loaded_resources.insert(
-            (lang, ResourceKey::from_static_path("app")),
-            resource("hello = hi"),
-        );
+        assets
+            .loaded_resources
+            .insert((lang, resource_key("app")), resource("hello = hi"));
         assets
     }
 
@@ -161,7 +172,7 @@ mod tests {
         let mut app = App::new();
         app.insert_resource(loaded_assets_for(lang.clone()));
         app.insert_resource(I18nResource::new(lang));
-        app.insert_resource(I18nBundle::default());
+        app.insert_resource(I18nReadyLocales::default());
         app.insert_resource(RequestedLanguageId(langid!("en-US")));
         app.insert_resource(ActiveLanguageId(langid!("en-US")));
         app.insert_resource(I18nDomainBundles::default());
@@ -193,7 +204,7 @@ mod tests {
         app.insert_resource(I18nResource::new(lang.clone()));
         app.insert_resource(RequestedLanguageId(lang.clone()));
         app.insert_resource(ActiveLanguageId(lang.clone()));
-        app.insert_resource(I18nBundle::default());
+        app.insert_resource(I18nReadyLocales::default());
         app.insert_resource(I18nDomainBundles::default());
         app.add_message::<LocaleChangedEvent>();
         app.add_systems(
@@ -227,37 +238,38 @@ mod tests {
             (requested.clone(), "admin", admin_exact.clone()),
             (parent.clone(), "app", app_parent.clone()),
         ] {
-            assets.add_asset(
+            assets.add_asset_spec(
+                static_domain("app"),
                 lang.clone(),
-                domain.to_string(),
+                ModuleResourceSpec::base(domain, true),
                 Handle::<FtlAsset>::default(),
             );
             assets
                 .loaded_resources
-                .insert((lang, ResourceKey::try_new(domain).unwrap()), resource);
+                .insert((lang, resource_key(domain)), resource);
         }
 
         let mut domain_bundles = I18nDomainBundles::default();
         domain_bundles.set_bundles(
             requested.clone(),
             HashMap::from([
-                (domain("app"), bundle_for(&requested, app_exact.clone())),
-                (domain("admin"), bundle_for(&requested, admin_exact.clone())),
+                (scope("app"), bundle_for(&requested, app_exact.clone())),
+                (scope("admin"), bundle_for(&requested, admin_exact.clone())),
             ]),
         );
         domain_bundles.set_locale_resources(
             requested.clone(),
             HashMap::from([
-                (domain("app"), vec![app_exact]),
-                (domain("admin"), vec![admin_exact]),
+                (scope("app"), vec![app_exact]),
+                (scope("admin"), vec![admin_exact]),
             ]),
         );
         domain_bundles.set_bundles(
             parent.clone(),
-            HashMap::from([(domain("app"), bundle_for(&parent, app_parent.clone()))]),
+            HashMap::from([(scope("app"), bundle_for(&parent, app_parent.clone()))]),
         );
         domain_bundles
-            .set_locale_resources(parent, HashMap::from([(domain("app"), vec![app_parent])]));
+            .set_locale_resources(parent, HashMap::from([(scope("app"), vec![app_parent])]));
 
         let mut app = App::new();
         app.insert_resource(assets);
@@ -265,7 +277,7 @@ mod tests {
             requested.clone(),
             requested.clone(),
         ));
-        app.insert_resource(I18nBundle::default());
+        app.insert_resource(I18nReadyLocales::default());
         app.insert_resource(RequestedLanguageId(requested.clone()));
         app.insert_resource(ActiveLanguageId(requested));
         app.insert_resource(domain_bundles);

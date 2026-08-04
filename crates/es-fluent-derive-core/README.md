@@ -1,12 +1,12 @@
+# es-fluent-derive-core
+
 [![Docs](https://docs.rs/es-fluent-derive-core/badge.svg)](https://docs.rs/es-fluent-derive-core/)
 [![Crates.io](https://img.shields.io/crates/v/es-fluent-derive-core.svg)](https://crates.io/crates/es-fluent-derive-core)
 
-# es-fluent-derive-core
+Build-time parsing, validation, and code-generation support for
+`es-fluent-derive`. It is separated from the proc-macro crate so the
+same derive rules can be reused without exposing proc-macro entry points.
 
-**Internal Crate**: Build-time logic for `es-fluent`.
-
-This crate contains the logic required by `es-fluent-derive` to parse attributes (including namespace options), validate structures, and generate naming conventions. It is separated from the proc-macro crate to keep compile times minimal.
-
-Runtime-safe shared metadata, registry helpers, and naming primitives live in `es-fluent-shared`. `es-fluent-derive-core` contains build-time option parsing, validation, and proc-macro-facing utilities.
-
-Most users should depend on `es-fluent` and use its derive macros instead of depending on this crate directly. Proc-macro integrations should usually depend on `es-fluent-derive`.
+Applications should depend on [`es-fluent`](../es-fluent/README.md).
+Proc-macro integrations should normally use
+[`es-fluent-derive`](../es-fluent-derive/README.md).

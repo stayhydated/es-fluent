@@ -5,7 +5,7 @@
 use es_fluent_shared::meta::TypeKind;
 use es_fluent_shared::namer::FluentKey;
 use es_fluent_shared::registry::{
-    FtlTypeInfo, FtlVariant, NamespaceRule, ResolvedNamespace, StaticFluentArgumentName,
+    FtlScope, FtlTypeInfo, FtlVariant, NamespaceRule, ResolvedNamespace, StaticFluentArgumentName,
     StaticFluentEntryId,
 };
 use proc_macro2::Span;
@@ -68,6 +68,7 @@ pub fn enum_type(name: &str, variants: Vec<FtlVariant>) -> FtlTypeInfo {
         TypeKind::Enum,
         leak_str(name),
         leak_slice(variants),
+        FtlScope::new("test-package", None),
         "",
         "test",
         None,
@@ -80,6 +81,7 @@ pub fn struct_type(name: &str, variants: Vec<FtlVariant>) -> FtlTypeInfo {
         TypeKind::Struct,
         leak_str(name),
         leak_slice(variants),
+        FtlScope::new("test-package", None),
         "",
         "test",
         None,
@@ -96,6 +98,7 @@ pub fn enum_type_with_namespace(
         TypeKind::Enum,
         leak_str(name),
         leak_slice(variants),
+        FtlScope::new("test-package", None),
         "",
         "test",
         Some(NamespaceRule::Literal(

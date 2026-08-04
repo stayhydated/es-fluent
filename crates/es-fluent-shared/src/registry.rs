@@ -111,6 +111,44 @@ impl PartialEq<&str> for StaticFluentEntryId {
     }
 }
 
+/// A fully scoped Fluent message key emitted by derive macros.
+///
+/// `owner` identifies the crate whose `i18n.toml` defines `domain`. Domains are
+/// package-local, so two crates may both define a domain such as `ui` without
+/// sharing runtime lookup scope.
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+pub struct StaticFluentMessageKey {
+    owner: StaticFluentDomain,
+    domain: StaticFluentDomain,
+    id: StaticFluentEntryId,
+}
+
+impl StaticFluentMessageKey {
+    /// Creates a fully scoped key from validated static parts.
+    pub const fn new(
+        owner: StaticFluentDomain,
+        domain: StaticFluentDomain,
+        id: StaticFluentEntryId,
+    ) -> Self {
+        Self { owner, domain, id }
+    }
+
+    /// Returns the crate that owns this key's domain definition.
+    pub const fn owner(self) -> StaticFluentDomain {
+        self.owner
+    }
+
+    /// Returns the package-local Fluent domain.
+    pub const fn domain(self) -> StaticFluentDomain {
+        self.domain
+    }
+
+    /// Returns the Fluent message identifier.
+    pub const fn id(self) -> StaticFluentEntryId {
+        self.id
+    }
+}
+
 /// Static Fluent argument name emitted by derive macros.
 #[derive(derive_more::AsRef, Clone, Copy, Debug, derive_more::Display, Eq, Hash, PartialEq)]
 #[as_ref(str)]
@@ -255,18 +293,47 @@ impl FtlVariant {
     }
 }
 
+/// Package and package-local domain scope for generated FTL inventory.
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+pub struct FtlScope {
+    source_package: &'static str,
+    domain: Option<StaticFluentDomain>,
+}
+
+impl FtlScope {
+    /// Creates an inventory scope from a Cargo package and optional explicit domain.
+    pub const fn new(source_package: &'static str, domain: Option<StaticFluentDomain>) -> Self {
+        Self {
+            source_package,
+            domain,
+        }
+    }
+
+    /// Returns the Cargo package that declares the inventory.
+    pub const fn source_package(self) -> &'static str {
+        self.source_package
+    }
+
+    /// Returns the optional explicit package-local output domain.
+    pub const fn domain(self) -> Option<StaticFluentDomain> {
+        self.domain
+    }
+}
+
 /// Type information for FTL registration, used by derive macros and the CLI.
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
 pub struct FtlTypeInfo {
     type_kind: TypeKind,
     type_name: &'static str,
     variants: &'static [FtlVariant],
+    /// The Cargo package and optional explicit output domain.
+    scope: FtlScope,
     /// The file path where this type is defined (from `file!()` macro).
     file_path: &'static str,
     /// The module path where this type is defined (from `module_path!()` macro).
     module_path: &'static str,
     /// Optional namespace for FTL file output. If Some, the type will be written to
-    /// `{lang}/{crate}/{namespace}.ftl` instead of `{lang}/{crate}.ftl`.
+    /// `{lang}/{domain}/{namespace}.ftl` instead of `{lang}/{domain}.ftl`.
     namespace: Option<NamespaceRule>,
 }
 
@@ -282,6 +349,7 @@ impl FtlTypeInfo {
         type_kind: TypeKind,
         type_name: &'static str,
         variants: &'static [FtlVariant],
+        scope: FtlScope,
         file_path: &'static str,
         module_path: &'static str,
         namespace: Option<NamespaceRule>,
@@ -290,6 +358,7 @@ impl FtlTypeInfo {
             type_kind,
             type_name,
             variants,
+            scope,
             file_path,
             module_path,
             namespace,
@@ -308,12 +377,20 @@ impl FtlTypeInfo {
         self.variants
     }
 
+    pub fn source_package(&self) -> &'static str {
+        self.scope.source_package()
+    }
+
     pub fn file_path(&self) -> &'static str {
         self.file_path
     }
 
     pub fn module_path(&self) -> &'static str {
         self.module_path
+    }
+
+    pub fn domain(&self) -> Option<StaticFluentDomain> {
+        self.scope.domain()
     }
 
     pub fn namespace(&self) -> Option<&NamespaceRule> {
@@ -369,8 +446,9 @@ impl FtlTypeInfo {
 #[doc(hidden)]
 pub mod __macro {
     use super::{
-        FtlTypeInfo, FtlVariant, NamespaceRule, ResolvedNamespace, StaticFluentArgumentName,
-        StaticFluentDomain, StaticFluentEntryId, StaticFluentVariantKey,
+        FtlScope, FtlTypeInfo, FtlVariant, NamespaceRule, ResolvedNamespace,
+        StaticFluentArgumentName, StaticFluentDomain, StaticFluentEntryId, StaticFluentMessageKey,
+        StaticFluentVariantKey,
     };
     use crate::meta::TypeKind;
 
@@ -380,6 +458,14 @@ pub mod __macro {
 
     pub const fn static_entry_id(value: &'static str) -> StaticFluentEntryId {
         StaticFluentEntryId::new_unchecked(value)
+    }
+
+    pub const fn static_message_key(
+        owner: &'static str,
+        domain: StaticFluentDomain,
+        id: StaticFluentEntryId,
+    ) -> StaticFluentMessageKey {
+        StaticFluentMessageKey::new(StaticFluentDomain::new_unchecked(owner), domain, id)
     }
 
     pub const fn static_argument_name(value: &'static str) -> StaticFluentArgumentName {
@@ -408,6 +494,7 @@ pub mod __macro {
         type_kind: TypeKind,
         type_name: &'static str,
         variants: &'static [FtlVariant],
+        scope: FtlScope,
         file_path: &'static str,
         module_path: &'static str,
         namespace: Option<NamespaceRule>,
@@ -416,17 +503,25 @@ pub mod __macro {
             type_kind,
             type_name,
             variants,
+            scope,
             file_path,
             module_path,
             namespace,
         )
+    }
+
+    pub const fn ftl_scope(
+        source_package: &'static str,
+        domain: Option<StaticFluentDomain>,
+    ) -> FtlScope {
+        FtlScope::new(source_package, domain)
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::{
-        FtlTypeInfo, NamespacePathError, NamespaceRule, StaticFluentArgumentName,
+        FtlScope, FtlTypeInfo, NamespacePathError, NamespaceRule, StaticFluentArgumentName,
         StaticFluentDomain, StaticFluentEntryId, StaticFluentVariantKey,
     };
     use crate::meta::TypeKind;
@@ -550,6 +645,7 @@ mod tests {
             TypeKind::Enum,
             "ButtonCopy",
             &[],
+            FtlScope::new("demo", None),
             "src/ui/button.rs",
             "demo",
             Some(NamespaceRule::FileRelative),
@@ -574,6 +670,7 @@ mod tests {
             TypeKind::Enum,
             "EscapingCopy",
             &[],
+            FtlScope::new("demo", None),
             "src/lib.rs",
             "demo",
             Some(super::__macro::namespace_literal("../escape")),
@@ -599,11 +696,13 @@ mod tests {
             TypeKind::Enum,
             "Status",
             VARIANTS,
+            FtlScope::new("demo", None),
             "src/status.rs",
             "demo",
             None,
         );
 
+        assert_eq!(info.source_package(), "demo");
         assert_eq!(info.source_file().unwrap().as_str(), "src/status.rs");
         assert_eq!(VARIANTS[0].entry_id().as_str(), "status-Ready");
         assert_eq!(VARIANTS[0].message_id().as_str(), "status-Ready");
@@ -624,7 +723,15 @@ mod tests {
             "demo",
             42,
         )];
-        let info = FtlTypeInfo::new(TypeKind::Enum, "Status", VARIANTS, "", "demo", None);
+        let info = FtlTypeInfo::new(
+            TypeKind::Enum,
+            "Status",
+            VARIANTS,
+            FtlScope::new("demo", None),
+            "",
+            "demo",
+            None,
+        );
 
         assert!(info.source_file().is_none());
         assert!(info.source_location_for(&VARIANTS[0]).is_none());

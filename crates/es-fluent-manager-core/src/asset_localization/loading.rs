@@ -236,8 +236,20 @@ pub enum ResourceLoadStatus {
 /// Loads a locale from a resource plan while keeping readiness/error bookkeeping centralized.
 pub fn load_locale_resources(
     plan: &[ModuleResourceSpec],
-    mut load: impl FnMut(&ModuleResourceSpec) -> ResourceLoadStatus,
+    load: impl FnMut(&ModuleResourceSpec) -> ResourceLoadStatus,
 ) -> (Vec<Arc<FluentResource>>, LocaleLoadReport) {
+    let (entries, report) = load_locale_resource_entries(plan, load);
+    (
+        entries.into_iter().map(|(_, resource)| resource).collect(),
+        report,
+    )
+}
+
+/// Loads a locale while retaining the resource key for domain-aware bundling.
+pub fn load_locale_resource_entries(
+    plan: &[ModuleResourceSpec],
+    mut load: impl FnMut(&ModuleResourceSpec) -> ResourceLoadStatus,
+) -> (Vec<(ResourceKey, Arc<FluentResource>)>, LocaleLoadReport) {
     let mut report = LocaleLoadReport::from_plan(plan);
     let mut resources = Vec::new();
 
@@ -245,7 +257,7 @@ pub fn load_locale_resources(
         match load(spec) {
             ResourceLoadStatus::Loaded(resource) => {
                 report.mark_loaded(spec.key.clone());
-                resources.push(resource);
+                resources.push((spec.key.clone(), resource));
             },
             ResourceLoadStatus::Missing => {
                 report.record_error(ResourceLoadError::missing(spec));
