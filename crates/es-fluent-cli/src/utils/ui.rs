@@ -1,7 +1,9 @@
 // CLI output formatting with consistent styling using indicatif and colored.
-// Textual output uses println!/eprintln! so raw ANSI sequences pass through unchanged.
+// Textual output uses anstream's print macros for ANSI-aware terminal output and clean
+// broken-pipe handling.
 
 use crate::core::CrateInfo;
+use anstream::{eprintln, print, println};
 use colored::Colorize as _;
 use indicatif::{ProgressBar, ProgressStyle};
 use std::io::IsTerminal as _;
@@ -88,7 +90,7 @@ impl Ui {
         pb
     }
 
-    // Output helpers use println!/eprintln! for raw ANSI passthrough.
+    // Output helpers use anstream macros for ANSI-aware terminal output.
 
     pub fn print_header() {
         println!("{}", "Fluent FTL Generator".dimmed());
@@ -237,14 +239,8 @@ impl Ui {
         println!("{} {}", "Syncing".dimmed(), crate_name.green());
     }
 
-    pub fn print_would_add_keys(count: usize, locale: &str, crate_name: &str) {
-        println!(
-            "{} {} key(s) to {} ({})",
-            "Would add".yellow(),
-            count,
-            locale.cyan(),
-            crate_name.bold()
-        );
+    pub fn print_would_add_keys(count: usize, locale: &str, crate_name: &str, path: Option<&str>) {
+        Self::print_sync_file_action("Would add".yellow(), count, locale, crate_name, path);
     }
 
     pub fn print_would_create_locale(locale: &str, crate_name: &str) {
@@ -265,12 +261,39 @@ impl Ui {
         );
     }
 
-    pub fn print_added_keys(count: usize, locale: &str) {
-        println!("{} {} key(s) to {}", "Added".green(), count, locale.cyan());
+    pub fn print_added_keys(count: usize, locale: &str, crate_name: &str, path: Option<&str>) {
+        Self::print_sync_file_action("Added".green(), count, locale, crate_name, path);
     }
 
     pub fn print_synced_key(key: &str) {
         println!("  {} {}", "->".dimmed(), key);
+    }
+
+    fn print_sync_file_action(
+        action: colored::ColoredString,
+        count: usize,
+        locale: &str,
+        crate_name: &str,
+        path: Option<&str>,
+    ) {
+        if let Some(path) = path {
+            println!(
+                "{} {} key(s) to {} ({}): {}",
+                action,
+                count,
+                locale.cyan(),
+                crate_name.bold(),
+                path
+            );
+        } else {
+            println!(
+                "{} {} key(s) to {} ({})",
+                action,
+                count,
+                locale.cyan(),
+                crate_name.bold()
+            );
+        }
     }
 
     pub fn print_all_in_sync() {
@@ -484,8 +507,8 @@ mod tests {
         Ui::print_syncing("crate-a");
         Ui::print_would_create_locale("es", "crate-a");
         Ui::print_created_locale("es", "crate-a");
-        Ui::print_would_add_keys(2, "es", "crate-a");
-        Ui::print_added_keys(2, "es");
+        Ui::print_would_add_keys(2, "es", "crate-a", Some("i18n/es/crate-a.ftl"));
+        Ui::print_added_keys(2, "es", "crate-a", Some("i18n/es/crate-a.ftl"));
         Ui::print_synced_key("hello_world");
         Ui::print_all_in_sync();
         Ui::print_no_locale_changes_needed();

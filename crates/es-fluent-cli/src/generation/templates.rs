@@ -1,5 +1,5 @@
 use askama::Template;
-use es_fluent_runner::{PackageName, RustModulePrefix};
+use es_fluent_runner::PackageName;
 
 /// Template for the generated .gitignore
 #[derive(Template)]
@@ -13,7 +13,7 @@ pub struct GitignoreTemplate;
 pub struct MonolithicCrateDep<'a> {
     pub name: &'a PackageName,
     pub path: String,
-    pub ident: RustModulePrefix,
+    pub ident: String,
     pub has_features: bool,
     pub features: &'a [String],
 }

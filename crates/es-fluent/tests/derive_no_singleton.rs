@@ -1,4 +1,4 @@
-use es_fluent::registry::{StaticFluentDomain, StaticFluentEntryId};
+use es_fluent::registry::StaticFluentMessageKey;
 use es_fluent::{EsFluent, FluentArgs, FluentLocalizer, FluentLocalizerExt as _, FluentValue};
 
 #[derive(EsFluent)]
@@ -31,20 +31,11 @@ struct TestLocalizer {
 impl FluentLocalizer for TestLocalizer {
     fn localize<'a>(
         &self,
-        _id: StaticFluentEntryId,
-        _args: Option<&FluentArgs<'a>>,
-    ) -> Option<String> {
-        None
-    }
-
-    fn localize_in_domain<'a>(
-        &self,
-        _domain: StaticFluentDomain,
-        id: StaticFluentEntryId,
+        key: StaticFluentMessageKey,
         args: Option<&FluentArgs<'a>>,
     ) -> Option<String> {
         let args = args.map(FluentArgs::as_raw);
-        match id.as_str() {
+        match key.id().as_str() {
             "child" => Some(self.child_value.to_string()),
             "parent" => {
                 let FluentValue::String(child) = args?.get("child")? else {

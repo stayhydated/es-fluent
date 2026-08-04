@@ -1,0 +1,6 @@
+error: Attribute error in message struct container: `#[fluent(id = ...)]` cannot be used in message struct container `IdOnStruct`
+       help: accepted keys here are domain and namespace
+ --> tests/ui/id_is_enum_only_on_struct.rs:4:10
+  |
+4 | #[fluent(id = "auth_error")]
+  |          ^^

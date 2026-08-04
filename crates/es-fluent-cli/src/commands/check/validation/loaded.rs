@@ -1,7 +1,7 @@
 use super::context::ValidationContext;
 use crate::core::ValidationIssue;
 use crate::ftl::LoadedFtlFile;
-use es_fluent_shared::fluent::{FluentArgumentName, FluentEntryId};
+use es_fluent_shared::fluent::{FluentArgumentName, FluentDomain, FluentEntryId, FluentMessageKey};
 use fluent_syntax::ast;
 use indexmap::IndexMap;
 use indexmap::map::Entry;
@@ -12,7 +12,6 @@ const SAME_AS_FALLBACK_MARKER: &str = "es-fluent: same-as-fallback";
 #[derive(Clone)]
 struct ActualKeyInfo {
     variables: HashSet<FluentArgumentName>,
-    file_path: String,
     locale_relative_path: String,
     header_link: String,
     translation_fingerprint: String,
@@ -25,19 +24,30 @@ pub(super) struct FallbackKeyInfo {
     translation_fingerprint: String,
 }
 
-pub(super) type FallbackKeys = IndexMap<FluentEntryId, FallbackKeyInfo>;
+pub(super) type FallbackKeys = IndexMap<FluentMessageKey, FallbackKeyInfo>;
 
-pub(super) fn collect_fallback_keys(loaded_files: &[LoadedFtlFile]) -> FallbackKeys {
+pub(super) fn collect_fallback_keys(
+    ctx: &ValidationContext<'_>,
+    loaded_files: &[LoadedFtlFile],
+) -> FallbackKeys {
     let mut fallback_keys = IndexMap::new();
 
     for file in loaded_files {
+        let Some(domain) = domain_from_locale_relative_path(&file.relative_path) else {
+            continue;
+        };
         for entry in &file.resource.body {
             let ast::Entry::Message(msg) = entry else {
                 continue;
             };
-            let Ok(key) = FluentEntryId::try_new(msg.id.name.clone()) else {
+            let Ok(id) = FluentEntryId::try_new(msg.id.name.clone()) else {
                 continue;
             };
+            let key = FluentMessageKey::new(
+                FluentDomain::try_new(ctx.owner.to_string()).expect("Cargo package owner is valid"),
+                domain.clone(),
+                id,
+            );
 
             if let Entry::Vacant(slot) = fallback_keys.entry(key) {
                 slot.insert(FallbackKeyInfo {
@@ -65,7 +75,7 @@ pub(super) fn validate_loaded_ftl_files(
         let expected_path = ctx.expected_resource_path(locale, key_info);
         let Some(actual) = actual_keys.get(key) else {
             issues.push(ctx.missing_key_issue(
-                key.as_str(),
+                key.id().as_str(),
                 locale,
                 &expected_path,
                 &expected_path,
@@ -75,7 +85,7 @@ pub(super) fn validate_loaded_ftl_files(
 
         if actual.locale_relative_path != key_info.resource.locale_relative_path.as_str() {
             issues.push(ctx.missing_key_issue(
-                key.as_str(),
+                key.id().as_str(),
                 locale,
                 &expected_path,
                 &actual.header_link,
@@ -91,7 +101,7 @@ pub(super) fn validate_loaded_ftl_files(
             && !actual.allow_same_as_fallback
         {
             issues.push(ctx.untranslated_message_issue(
-                key.as_str(),
+                key.id().as_str(),
                 locale,
                 fallback_locale,
                 &actual.header_link,
@@ -104,7 +114,7 @@ pub(super) fn validate_loaded_ftl_files(
             }
 
             issues.push(ctx.missing_variable_issue(
-                key.as_str(),
+                key.id().as_str(),
                 variable.as_str(),
                 locale,
                 &actual.header_link,
@@ -119,7 +129,7 @@ pub(super) fn validate_loaded_ftl_files(
             }
 
             issues.push(ctx.unexpected_variable_issue(
-                key.as_str(),
+                key.id().as_str(),
                 variable.as_str(),
                 locale,
                 &actual.header_link,
@@ -135,10 +145,14 @@ fn collect_actual_keys(
     loaded_files: Vec<LoadedFtlFile>,
     locale: &str,
     issues: &mut Vec<ValidationIssue>,
-) -> IndexMap<FluentEntryId, ActualKeyInfo> {
-    let mut actual_keys: IndexMap<FluentEntryId, ActualKeyInfo> = IndexMap::new();
+) -> IndexMap<FluentMessageKey, ActualKeyInfo> {
+    let mut actual_keys: IndexMap<FluentMessageKey, ActualKeyInfo> = IndexMap::new();
+    let mut seen_bundle_entries: IndexMap<(FluentDomain, FluentEntryId), String> = IndexMap::new();
 
     for file in loaded_files {
+        let Some(domain) = domain_from_locale_relative_path(&file.relative_path) else {
+            continue;
+        };
         let relative_path = ctx.to_relative_path(&file.abs_path);
         let header_link = ctx.format_terminal_link(
             &relative_path,
@@ -155,8 +169,8 @@ fn collect_actual_keys(
                         .any(|line| line.contains(SAME_AS_FALLBACK_MARKER));
                 },
                 ast::Entry::Message(msg) => {
-                    let key = match FluentEntryId::try_new(msg.id.name.clone()) {
-                        Ok(key) => key,
+                    let id = match FluentEntryId::try_new(msg.id.name.clone()) {
+                        Ok(id) => id,
                         Err(error) => {
                             issues.push(ctx.syntax_error_issue(
                                 locale,
@@ -167,23 +181,30 @@ fn collect_actual_keys(
                             continue;
                         },
                     };
-                    if let Some(previous) = actual_keys.get(&key) {
+                    let key = FluentMessageKey::new(
+                        FluentDomain::try_new(ctx.owner.to_string())
+                            .expect("Cargo package owner is valid"),
+                        domain.clone(),
+                        id.clone(),
+                    );
+                    let bundle_key = (domain.clone(), id.clone());
+                    if let Some(first_file) = seen_bundle_entries.get(&bundle_key) {
                         issues.push(ctx.duplicate_key_issue(
-                            key.as_str(),
+                            key.id().as_str(),
                             locale,
-                            &previous.file_path,
+                            first_file,
                             &relative_path,
                             &header_link,
                         ));
                         allow_same_as_fallback = false;
                         continue;
                     }
+                    seen_bundle_entries.insert(bundle_key, relative_path.clone());
 
                     actual_keys.insert(
                         key,
                         ActualKeyInfo {
                             variables: collect_actual_variables(ctx, msg, locale, &file, issues),
-                            file_path: relative_path.clone(),
                             locale_relative_path: crate::utils::paths::slash_path(
                                 &file.relative_path,
                             ),
@@ -194,6 +215,33 @@ fn collect_actual_keys(
                     );
                     allow_same_as_fallback = false;
                 },
+                ast::Entry::Term(term) => {
+                    let id = match FluentEntryId::try_new(term.id.name.clone()) {
+                        Ok(id) => id,
+                        Err(error) => {
+                            issues.push(ctx.syntax_error_issue(
+                                locale,
+                                &file.abs_path,
+                                format!("Invalid FTL term id '-{}': {error}", term.id.name),
+                            ));
+                            allow_same_as_fallback = false;
+                            continue;
+                        },
+                    };
+                    let bundle_key = (domain.clone(), id.clone());
+                    if let Some(first_file) = seen_bundle_entries.get(&bundle_key) {
+                        issues.push(ctx.duplicate_key_issue(
+                            id.as_str(),
+                            locale,
+                            first_file,
+                            &relative_path,
+                            &header_link,
+                        ));
+                    } else {
+                        seen_bundle_entries.insert(bundle_key, relative_path.clone());
+                    }
+                    allow_same_as_fallback = false;
+                },
                 _ => {
                     allow_same_as_fallback = false;
                 },
@@ -202,6 +250,12 @@ fn collect_actual_keys(
     }
 
     actual_keys
+}
+
+fn domain_from_locale_relative_path(path: &std::path::Path) -> Option<FluentDomain> {
+    let first = path.components().next()?.as_os_str().to_str()?;
+    let domain = first.strip_suffix(".ftl").unwrap_or(first);
+    FluentDomain::try_new(domain.to_string()).ok()
 }
 
 fn collect_actual_variables(

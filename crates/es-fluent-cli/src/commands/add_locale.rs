@@ -28,7 +28,7 @@ pub fn run_add_locale(args: AddLocaleArgs) -> Result<(), CliError> {
         SyncArgs {
             workspace: args.workspace,
             locale: args.locale,
-            all: false,
+            all_locales: false,
             create: true,
             dry_run: args.dry_run,
             output: OutputFormat::Text,
@@ -94,6 +94,60 @@ mod tests {
 
         assert!(result.is_ok());
         assert!(temp.path().join("i18n/fr-FR").is_dir());
+    }
+
+    #[test]
+    #[cfg(unix)]
+    fn run_add_locale_rolls_back_created_locales_when_commit_fails() {
+        use std::os::unix::fs::PermissionsExt as _;
+
+        let temp = tempfile::tempdir().expect("workspace tempdir");
+        fs::write(
+            temp.path().join("Cargo.toml"),
+            "[workspace]\nmembers = [\"a\", \"b\"]\nresolver = \"2\"\n",
+        )
+        .expect("write workspace manifest");
+
+        for name in ["a", "b"] {
+            let root = temp.path().join(name);
+            fs::create_dir_all(root.join("src")).expect("create src");
+            fs::create_dir_all(root.join("i18n/en")).expect("create fallback locale");
+            fs::write(
+                root.join("Cargo.toml"),
+                format!(
+                    "[package]\nname = \"{name}\"\nversion = \"0.1.0\"\nedition = \"2024\"\n\n[lib]\npath = \"src/lib.rs\"\n"
+                ),
+            )
+            .expect("write manifest");
+            fs::write(root.join("src/lib.rs"), "pub fn marker() {}\n").expect("write lib");
+            fs::write(
+                root.join("i18n.toml"),
+                "fallback_language = \"en\"\nassets_dir = \"i18n\"\n",
+            )
+            .expect("write config");
+        }
+        fs::write(temp.path().join("b/i18n/en/b.ftl"), "hello = Hello\n")
+            .expect("write second fallback");
+        let blocked_parent = temp.path().join("b/i18n");
+        fs::set_permissions(&blocked_parent, std::fs::Permissions::from_mode(0o555))
+            .expect("make second assets directory read-only");
+
+        let result = run_add_locale(AddLocaleArgs {
+            workspace: WorkspaceArgs {
+                path: Some(temp.path().to_path_buf()),
+                package: None,
+            },
+            locale: vec!["fr-FR".to_string()],
+            dry_run: false,
+        });
+
+        fs::set_permissions(&blocked_parent, std::fs::Permissions::from_mode(0o755))
+            .expect("restore second assets permissions");
+        assert!(
+            matches!(result, Err(CliError::Other(message)) if message.contains("add-locale transaction failed") && message.contains("rolled back"))
+        );
+        assert!(!temp.path().join("a/i18n/fr-FR").exists());
+        assert!(!temp.path().join("b/i18n/fr-FR").exists());
     }
 
     #[test]

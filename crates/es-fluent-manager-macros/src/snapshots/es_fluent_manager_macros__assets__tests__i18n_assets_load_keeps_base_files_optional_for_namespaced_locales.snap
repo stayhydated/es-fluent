@@ -1,6 +1,5 @@
 ---
 source: crates/es-fluent-manager-macros/src/assets.rs
-assertion_line: 452
 expression: assets
 ---
 I18nAssets {
@@ -8,8 +7,13 @@ I18nAssets {
     languages: [
         "en",
     ],
-    namespaces: [
-        "ui",
+    domains: [
+        (
+            "my-crate",
+            [
+                "ui",
+            ],
+        ),
     ],
     resource_specs_by_language: [
         (

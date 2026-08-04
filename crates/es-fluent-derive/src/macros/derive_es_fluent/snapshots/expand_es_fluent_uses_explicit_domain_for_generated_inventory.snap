@@ -2,16 +2,21 @@
 source: crates/es-fluent-derive/src/macros/derive_es_fluent/mod.rs
 expression: tokens
 ---
-impl ::es_fluent::FluentMessage for Languages {
+impl ::es_fluent::FluentMessage for UiGreeting {
     fn to_fluent_string_with(
         &self,
         localize: &mut ::es_fluent::FluentMessageLookup<'_>,
     ) -> String {
         match self {
-            Self::En => {
+            Self::Greeting => {
                 localize(
-                    ::es_fluent::registry::__macro::static_domain("es-fluent-lang"),
-                    ::es_fluent::registry::__macro::static_entry_id("es-fluent-lang-en"),
+                    ::es_fluent::registry::__macro::static_message_key(
+                        env!("CARGO_PKG_NAME"),
+                        ::es_fluent::registry::__macro::static_domain("ui"),
+                        ::es_fluent::registry::__macro::static_entry_id(
+                            "ui_greeting-Greeting",
+                        ),
+                    ),
                     None,
                 )
             }
@@ -20,12 +25,12 @@ impl ::es_fluent::FluentMessage for Languages {
 }
 #[doc(hidden)]
 #[allow(non_snake_case)]
-mod __es_fluent_inventory_Languages {
+mod __es_fluent_inventory_UiGreeting {
     use super::*;
     static VARIANTS: &[::es_fluent::registry::FtlVariant] = &[
         ::es_fluent::registry::__macro::ftl_variant(
-            "En",
-            ::es_fluent::registry::__macro::static_entry_id("es-fluent-lang-en"),
+            "Greeting",
+            ::es_fluent::registry::__macro::static_entry_id("ui_greeting-Greeting"),
             &[],
             module_path!(),
             line!(),
@@ -33,8 +38,12 @@ mod __es_fluent_inventory_Languages {
     ];
     static TYPE_INFO: ::es_fluent::registry::FtlTypeInfo = ::es_fluent::registry::__macro::ftl_type_info(
         ::es_fluent::meta::TypeKind::Enum,
-        "Languages",
+        "UiGreeting",
         VARIANTS,
+        ::es_fluent::registry::__macro::ftl_scope(
+            env!("CARGO_PKG_NAME"),
+            Some(::es_fluent::registry::__macro::static_domain("ui")),
+        ),
         file!(),
         module_path!(),
         None,
@@ -43,10 +52,12 @@ mod __es_fluent_inventory_Languages {
         ::es_fluent::registry::RegisteredFtlType(& TYPE_INFO)
     );
 }
-impl ::es_fluent::EsFluentChoice for Languages {
+impl ::es_fluent::EsFluentChoice for UiGreeting {
     fn as_fluent_choice(&self) -> ::es_fluent::registry::StaticFluentVariantKey {
         match self {
-            Self::En => ::es_fluent::registry::__macro::static_variant_key("en"),
+            Self::Greeting => {
+                ::es_fluent::registry::__macro::static_variant_key("greeting")
+            }
         }
     }
 }

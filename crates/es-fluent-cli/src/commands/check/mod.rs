@@ -17,6 +17,7 @@ use crate::core::{
 };
 use crate::generation::MonolithicExecutor;
 use crate::utils::ui;
+use anstream::println;
 use clap::Parser;
 use miette::NamedSource;
 use serde::Serialize;
@@ -32,10 +33,10 @@ pub struct CheckArgs {
 
     /// Include non-fallback validation, fallback-copy warnings, and orphan-file checks.
     #[arg(long)]
-    pub all: bool,
+    pub all_locales: bool,
 
-    /// Crates to skip during validation. Can be specified multiple times
-    /// (e.g., --ignore foo --ignore bar) or comma-separated (e.g., --ignore "foo, bar").
+    /// Crates to skip during validation; cannot be used with --package. Can be specified
+    /// multiple times or comma-separated.
     #[arg(long, value_delimiter = ',')]
     pub ignore: Vec<String>,
 
@@ -43,7 +44,7 @@ pub struct CheckArgs {
     #[arg(long)]
     pub force_run: bool,
 
-    /// Disable --all warnings for non-fallback messages that match the fallback locale; requires --all.
+    /// Disable fallback-copy warnings during --all-locales checks; requires --all-locales.
     #[arg(long = "no-fallback-copy-check", action = clap::ArgAction::SetFalse, default_value_t = true)]
     #[builder(default = true)]
     pub check_fallback_copies: bool,
@@ -248,7 +249,7 @@ pub(crate) fn count_issues(issues: &[ValidationIssue]) -> (usize, usize) {
 
 pub(crate) fn collect_check_run(
     workspace: &WorkspaceCrates,
-    all: bool,
+    all_locales: bool,
     ignore: &[String],
     force_run: bool,
     check_fallback_copies: bool,
@@ -258,12 +259,11 @@ pub(crate) fn collect_check_run(
     let ignore_crates = normalize_ignore_crates(ignore)?;
 
     if workspace.crates.is_empty() {
-        return Ok(CheckRun {
-            crates_discovered: 0,
-            crates_checked: 0,
-            workspace_warnings: empty_check_set_warnings(workspace, &ignore_crates),
-            issues: Vec::new(),
-        });
+        return Err(CliError::Other(
+            workspace
+                .empty_selection_message()
+                .unwrap_or_else(|| "no crates with i18n.toml were found".to_string()),
+        ));
     }
 
     // Filter out ignored crates
@@ -299,15 +299,10 @@ pub(crate) fn collect_check_run(
         .filter(|krate| !locale_setup_issue_crates.contains(krate.name.as_str()))
         .collect();
 
-    if crates_to_check.is_empty() {
-        let workspace_warnings = empty_check_set_warnings(workspace, &ignore_crates);
-        all_issues.sort_by_cached_key(|issue| issue.sort_key());
-        return Ok(CheckRun {
-            crates_discovered: workspace.crates.len(),
-            crates_checked: 0,
-            workspace_warnings,
-            issues: all_issues,
-        });
+    if crates_to_check.is_empty() && skipped_to_report.is_empty() {
+        return Err(CliError::Other(
+            "all selected crates were ignored by --ignore".to_string(),
+        ));
     }
 
     if crates_ready_for_validation.is_empty() {
@@ -380,7 +375,7 @@ pub(crate) fn collect_check_run(
             krate,
             &workspace.workspace_info.root_dir,
             temp_store.base_dir(),
-            all,
+            all_locales,
             check_fallback_copies,
         ) {
             Ok(issues) => {
@@ -413,11 +408,8 @@ pub(crate) fn collect_check_run(
         .filter(|krate| !locale_setup_issue_crates.contains(krate.name.as_str()))
         .map(|krate| (*krate).clone())
         .collect();
-    for orphaned in super::clean::orphaned::find_orphaned_file_infos_for_workspace(
-        workspace,
-        &filtered_crates,
-        all,
-    )? {
+    for orphaned in super::clean::orphaned::find_orphaned_file_infos(&filtered_crates, all_locales)?
+    {
         let source = relative_path(&orphaned.abs_path, &workspace.workspace_info.root_dir);
         all_issues.push(ValidationIssue::OrphanedFtlFile(OrphanedFtlFileError {
             src: NamedSource::new(source.clone(), String::new()),
@@ -569,21 +561,6 @@ fn locale_setup_issues_for_crates(
     (issues, issue_crates)
 }
 
-fn empty_check_set_warnings(
-    workspace: &WorkspaceCrates,
-    ignore_crates: &HashSet<String>,
-) -> Vec<String> {
-    if let Some(message) = workspace.empty_selection_message() {
-        return vec![message];
-    }
-
-    if !ignore_crates.is_empty() {
-        return vec!["all selected crates were ignored by --ignore".to_string()];
-    }
-
-    Vec::new()
-}
-
 fn normalize_ignore_crates(ignore: &[String]) -> Result<HashSet<String>, CliError> {
     let mut normalized = HashSet::new();
     for krate in ignore {
@@ -635,9 +612,9 @@ fn validate_known_ignore_crates(
 /// Run the check command.
 pub fn run_check(args: CheckArgs) -> Result<(), CliError> {
     let output = args.output;
-    if !args.all && !args.check_fallback_copies {
+    if !args.all_locales && !args.check_fallback_copies {
         let error = CliError::Other(
-            "--no-fallback-copy-check requires --all because fallback-copy warnings only run during all-locale checks"
+            "--no-fallback-copy-check requires --all-locales because fallback-copy warnings only run during all-locale checks"
                 .to_string(),
         );
         if output.is_json() {
@@ -655,6 +632,23 @@ pub fn run_check(args: CheckArgs) -> Result<(), CliError> {
         },
         Err(error) => return Err(error),
     };
+    if args
+        .workspace
+        .package
+        .as_deref()
+        .is_some_and(|package| !package.trim().is_empty())
+        && !ignore_crates.is_empty()
+    {
+        let error = CliError::Other(
+            "--ignore cannot be used with --package; select packages with one filtering mode"
+                .to_string(),
+        );
+        if output.is_json() {
+            output.print_json(&CheckJsonReport::command_error(0, error))?;
+            return Err(CliError::Exit(1));
+        }
+        return Err(error);
+    }
     let workspace = match WorkspaceCrates::discover(args.workspace) {
         Ok(workspace) => workspace,
         Err(error) if output.is_json() => {
@@ -690,7 +684,7 @@ pub fn run_check(args: CheckArgs) -> Result<(), CliError> {
 
     let run = match collect_check_run(
         &workspace,
-        args.all,
+        args.all_locales,
         &args.ignore,
         args.force_run,
         args.check_fallback_copies,

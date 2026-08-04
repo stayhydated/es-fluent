@@ -3,7 +3,7 @@ use super::{
     ModuleDiscoveryError, ModuleRegistrationKind,
 };
 use crate::asset_localization::ModuleData;
-use es_fluent_shared::registry::{StaticFluentDomain, StaticFluentEntryId};
+use es_fluent_shared::registry::StaticFluentMessageKey;
 use parking_lot::RwLock;
 use std::io;
 use std::sync::Arc;
@@ -134,7 +134,7 @@ pub(crate) fn format_supported_languages(languages: &[LanguageIdentifier]) -> St
 }
 
 pub(crate) fn format_module_support(data: &ModuleData) -> String {
-    if data.domain() == data.name {
+    if data.owner.as_str() == data.name {
         return format!(
             "{} (supports: {})",
             data.name,
@@ -143,9 +143,9 @@ pub(crate) fn format_module_support(data: &ModuleData) -> String {
     }
 
     format!(
-        "{} (domain: {}, supports: {})",
+        "{} (owner: {}, supports: {})",
         data.name,
-        data.domain(),
+        data.owner,
         format_supported_languages(data.supported_languages)
     )
 }
@@ -404,34 +404,16 @@ impl FluentManager {
         Ok(())
     }
 
-    /// Localizes a message by its validated static ID.
-    ///
-    /// This searches localizers in discovery order and returns the first match.
-    /// Use [`Self::localize_in_domain`] when the caller needs domain-scoped
-    /// lookup instead of first-match behavior.
+    /// Localizes a fully scoped static message key.
     pub fn localize<'a>(
         &self,
-        id: StaticFluentEntryId,
-        args: Option<&FluentArgumentMap<'a>>,
-    ) -> Option<String> {
-        for (_, localizer) in self.localizers.read().iter() {
-            if let Some(message) = localizer.localize(id, args) {
-                return Some(message);
-            }
-        }
-        None
-    }
-
-    /// Localizes a message by its validated static ID within a validated static domain.
-    pub fn localize_in_domain<'a>(
-        &self,
-        domain: StaticFluentDomain,
-        id: StaticFluentEntryId,
+        key: StaticFluentMessageKey,
         args: Option<&FluentArgumentMap<'a>>,
     ) -> Option<String> {
         for (data, localizer) in self.localizers.read().iter() {
-            if data.domain == domain
-                && let Some(message) = localizer.localize(id, args)
+            if data.owner == key.owner()
+                && data.owns_domain(key.domain())
+                && let Some(message) = localizer.localize(key, args)
             {
                 return Some(message);
             }
@@ -440,7 +422,7 @@ impl FluentManager {
         None
     }
 
-    /// Runs a group of domain-scoped lookups against the current localizer set.
+    /// Runs a group of scoped lookups against the current localizer set.
     ///
     /// The active localizer list is read-locked for the entire callback so
     /// nested typed-message lookups cannot observe a partially switched locale.
@@ -448,19 +430,17 @@ impl FluentManager {
         &self,
         f: &mut dyn FnMut(
             &mut dyn for<'a> FnMut(
-                StaticFluentDomain,
-                StaticFluentEntryId,
+                StaticFluentMessageKey,
                 Option<&'a FluentArgumentMap<'a>>,
             ) -> Option<String>,
         ),
     ) {
         let localizers = self.localizers.read();
-        let mut lookup = |domain: StaticFluentDomain,
-                          id: StaticFluentEntryId,
-                          args: Option<&FluentArgumentMap<'_>>| {
+        let mut lookup = |key: StaticFluentMessageKey, args: Option<&FluentArgumentMap<'_>>| {
             for (data, localizer) in localizers.iter() {
-                if data.domain == domain
-                    && let Some(message) = localizer.localize(id, args)
+                if data.owner == key.owner()
+                    && data.owns_domain(key.domain())
+                    && let Some(message) = localizer.localize(key, args)
                 {
                     return Some(message);
                 }
@@ -483,39 +463,57 @@ mod tests {
 
     static MANAGER_INLINE_METADATA_DATA: ModuleData = ModuleData {
         name: "manager-inline-metadata",
-        domain: crate::__macro::static_domain("manager-inline-metadata"),
+        owner: crate::__macro::static_domain("manager-inline-metadata"),
         supported_languages: &[],
-        namespaces: &[],
+        domains: &[crate::ModuleDomain {
+            domain: crate::__macro::static_domain("manager-inline-metadata"),
+            namespaces: &[],
+        }],
     };
     static MANAGER_INLINE_RUNTIME_DATA: ModuleData = ModuleData {
         name: "manager-inline-runtime",
-        domain: crate::__macro::static_domain("manager-inline-runtime"),
+        owner: crate::__macro::static_domain("manager-inline-runtime"),
         supported_languages: &[langid!("en")],
-        namespaces: &[],
+        domains: &[crate::ModuleDomain {
+            domain: crate::__macro::static_domain("manager-inline-runtime"),
+            namespaces: &[],
+        }],
     };
     static MANAGER_INLINE_FOLLOWER_DATA: ModuleData = ModuleData {
         name: "manager-inline-follower",
-        domain: crate::__macro::static_domain("manager-inline-follower"),
+        owner: crate::__macro::static_domain("manager-inline-follower"),
         supported_languages: &[langid!("en")],
-        namespaces: &[],
+        domains: &[crate::ModuleDomain {
+            domain: crate::__macro::static_domain("manager-inline-follower"),
+            namespaces: &[],
+        }],
     };
     static MANAGER_SHARED_DOMAIN_FIRST_DATA: ModuleData = ModuleData {
         name: "manager-shared-domain-first",
-        domain: crate::__macro::static_domain("manager-shared-domain"),
+        owner: crate::__macro::static_domain("manager-shared-domain-first"),
         supported_languages: &[langid!("en")],
-        namespaces: &[],
+        domains: &[crate::ModuleDomain {
+            domain: crate::__macro::static_domain("manager-shared-domain"),
+            namespaces: &[],
+        }],
     };
     static MANAGER_SHARED_DOMAIN_SECOND_DATA: ModuleData = ModuleData {
         name: "manager-shared-domain-second",
-        domain: crate::__macro::static_domain("manager-shared-domain"),
+        owner: crate::__macro::static_domain("manager-shared-domain-second"),
         supported_languages: &[langid!("en")],
-        namespaces: &[],
+        domains: &[crate::ModuleDomain {
+            domain: crate::__macro::static_domain("manager-shared-domain"),
+            namespaces: &[],
+        }],
     };
     static MANAGER_SCOPED_LOOKUP_DATA: ModuleData = ModuleData {
         name: "manager-scoped-lookup",
-        domain: crate::__macro::static_domain("manager-scoped-lookup"),
+        owner: crate::__macro::static_domain("manager-scoped-lookup"),
         supported_languages: &[langid!("en"), langid!("fr")],
-        namespaces: &[],
+        domains: &[crate::ModuleDomain {
+            domain: crate::__macro::static_domain("manager-scoped-lookup"),
+            namespaces: &[],
+        }],
     };
     static MANAGER_INLINE_METADATA: StaticModuleDescriptor =
         StaticModuleDescriptor::new(&MANAGER_INLINE_METADATA_DATA);
@@ -538,12 +536,16 @@ mod tests {
         continue_child: Option<Mutex<mpsc::Receiver<()>>>,
     }
 
-    fn static_domain(value: &'static str) -> StaticFluentDomain {
-        crate::__macro::static_domain(value)
-    }
-
-    fn static_entry(value: &'static str) -> StaticFluentEntryId {
-        crate::__macro::static_entry_id(value)
+    fn static_key(
+        owner: &'static str,
+        domain: &'static str,
+        id: &'static str,
+    ) -> StaticFluentMessageKey {
+        crate::__macro::static_message_key(
+            owner,
+            crate::__macro::static_domain(domain),
+            crate::__macro::static_entry_id(id),
+        )
     }
 
     impl Localizer for ManagerInlineLocalizer {
@@ -553,10 +555,10 @@ mod tests {
 
         fn localize<'a>(
             &self,
-            id: StaticFluentEntryId,
+            key: StaticFluentMessageKey,
             _args: Option<&FluentArgumentMap<'a>>,
         ) -> Option<String> {
-            (id == "inline").then(|| self.0.to_string())
+            (key.id() == "inline").then(|| self.0.to_string())
         }
     }
 
@@ -567,10 +569,10 @@ mod tests {
 
         fn localize<'a>(
             &self,
-            id: StaticFluentEntryId,
+            key: StaticFluentMessageKey,
             _args: Option<&FluentArgumentMap<'a>>,
         ) -> Option<String> {
-            (id == self.id).then(|| self.value.to_string())
+            (key.id() == self.id).then(|| self.value.to_string())
         }
     }
 
@@ -603,10 +605,10 @@ mod tests {
 
         fn localize<'a>(
             &self,
-            id: StaticFluentEntryId,
+            key: StaticFluentMessageKey,
             _args: Option<&FluentArgumentMap<'a>>,
         ) -> Option<String> {
-            if id == "child" {
+            if key.id() == "child" {
                 if let Some(child_seen) = &self.child_seen {
                     child_seen
                         .lock()
@@ -623,8 +625,8 @@ mod tests {
                 }
             }
 
-            matches!(id.as_str(), "child" | "parent")
-                .then(|| format!("{}-{}", self.language, id.as_str()))
+            matches!(key.id().as_str(), "child" | "parent")
+                .then(|| format!("{}-{}", self.language, key.id().as_str()))
         }
     }
 
@@ -716,11 +718,11 @@ mod tests {
         let formatted = format_module_discovery_errors(vec![
             ModuleDiscoveryError::InconsistentModuleMetadata {
                 name: "one".to_string(),
-                domain: "one-domain".to_string(),
+                owner: "one-owner".to_string(),
             },
             ModuleDiscoveryError::DuplicateModuleRegistration {
                 name: "two".to_string(),
-                domain: "two-domain".to_string(),
+                owner: "two-owner".to_string(),
                 kind: ModuleRegistrationKind::MetadataOnly,
                 count: 2,
             },
@@ -758,7 +760,13 @@ mod tests {
             .expect_err("followers alone should not make a locale supported");
 
         assert!(matches!(err, LocalizationError::LanguageNotSupported(_)));
-        assert_eq!(manager.localize(static_entry("inline"), None), None);
+        assert_eq!(
+            manager.localize(
+                static_key("manager-inline-runtime", "manager-inline-runtime", "inline"),
+                None,
+            ),
+            None
+        );
     }
 
     #[test]
@@ -773,7 +781,14 @@ mod tests {
             .expect("external support should let follower modules commit");
 
         assert_eq!(
-            manager.localize(static_entry("inline"), None),
+            manager.localize(
+                static_key(
+                    "manager-inline-follower",
+                    "manager-inline-follower",
+                    "inline"
+                ),
+                None,
+            ),
             Some("follower".to_string())
         );
     }
@@ -790,14 +805,9 @@ mod tests {
             .expect("runtime module should support the locale");
 
         assert_eq!(
-            manager.localize(static_entry("inline"), None),
-            Some("runtime".to_string())
-        );
-        assert_eq!(
-            manager.localize_in_domain(
-                static_domain("manager-inline-runtime"),
-                static_entry("inline"),
-                None
+            manager.localize(
+                static_key("manager-inline-runtime", "manager-inline-runtime", "inline"),
+                None,
             ),
             Some("runtime".to_string())
         );
@@ -818,17 +828,23 @@ mod tests {
             .expect("shared-domain modules should support the locale");
 
         assert_eq!(
-            manager.localize_in_domain(
-                static_domain("manager-shared-domain"),
-                static_entry("first-message"),
+            manager.localize(
+                static_key(
+                    "manager-shared-domain-first",
+                    "manager-shared-domain",
+                    "first-message",
+                ),
                 None
             ),
             Some("first".to_string())
         );
         assert_eq!(
-            manager.localize_in_domain(
-                static_domain("manager-shared-domain"),
-                static_entry("second-message"),
+            manager.localize(
+                static_key(
+                    "manager-shared-domain-second",
+                    "manager-shared-domain",
+                    "second-message",
+                ),
                 None
             ),
             Some("second".to_string())
@@ -856,14 +872,12 @@ mod tests {
             let mut rendered = None;
             render_manager.with_lookup(&mut |lookup| {
                 let child = lookup(
-                    static_domain("manager-scoped-lookup"),
-                    static_entry("child"),
+                    static_key("manager-scoped-lookup", "manager-scoped-lookup", "child"),
                     None,
                 )
                 .expect("child lookup should resolve");
                 let parent = lookup(
-                    static_domain("manager-scoped-lookup"),
-                    static_entry("parent"),
+                    static_key("manager-scoped-lookup", "manager-scoped-lookup", "parent"),
                     None,
                 )
                 .expect("parent lookup should resolve");
@@ -918,9 +932,8 @@ mod tests {
             .expect("localizer swap thread should complete without panicking");
 
         assert_eq!(
-            manager.localize_in_domain(
-                static_domain("manager-scoped-lookup"),
-                static_entry("parent"),
+            manager.localize(
+                static_key("manager-scoped-lookup", "manager-scoped-lookup", "parent",),
                 None
             ),
             Some("fr-parent".to_string())

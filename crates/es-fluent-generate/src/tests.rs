@@ -1,8 +1,8 @@
 use super::*;
 use es_fluent_shared::meta::TypeKind;
 use es_fluent_shared::registry::{
-    __macro, FtlTypeInfo, FtlVariant, NamespaceRule, ResolvedNamespace, StaticFluentArgumentName,
-    StaticFluentEntryId,
+    __macro, FtlScope, FtlTypeInfo, FtlVariant, NamespaceRule, ResolvedNamespace,
+    StaticFluentArgumentName, StaticFluentEntryId,
 };
 use fluent_syntax::{ast, parser};
 use fs_err as fs;
@@ -46,6 +46,31 @@ fn test_type_at(name: &str, variants: Vec<FtlVariant>, file_path: &str) -> FtlTy
     test_type_at_with_namespace(name, variants, file_path, None)
 }
 
+fn test_type_with_domain(
+    name: &str,
+    variants: Vec<FtlVariant>,
+    domain: &'static str,
+) -> FtlTypeInfo {
+    test_type_with_domain_and_namespace(name, variants, domain, None)
+}
+
+fn test_type_with_domain_and_namespace(
+    name: &str,
+    variants: Vec<FtlVariant>,
+    domain: &'static str,
+    namespace: Option<NamespaceRule>,
+) -> FtlTypeInfo {
+    FtlTypeInfo::new(
+        TypeKind::Struct,
+        leak_str(name),
+        leak_slice(variants),
+        FtlScope::new("test-package", Some(__macro::static_domain(domain))),
+        "",
+        "test",
+        namespace,
+    )
+}
+
 fn test_type_at_with_namespace(
     name: &str,
     variants: Vec<FtlVariant>,
@@ -56,6 +81,7 @@ fn test_type_at_with_namespace(
         TypeKind::Struct,
         leak_str(name),
         leak_slice(variants),
+        FtlScope::new("test-package", None),
         leak_str(file_path),
         "test",
         namespace,
@@ -130,6 +156,83 @@ fn generate_rejects_duplicate_keys_within_one_type_before_writing() {
 }
 
 #[test]
+fn generate_does_not_write_earlier_resources_when_a_later_resource_is_invalid() {
+    let temp = tempfile::tempdir().expect("tempdir");
+    let first_path = temp.path().join("first.ftl");
+    let second_path = temp.path().join("second.ftl");
+    fs::write(&first_path, "manual = Keep me\n").expect("write first");
+    fs::write(&second_path, "broken = {\n").expect("write invalid second");
+    let first = test_type_with_domain(
+        "FirstMessage",
+        vec![test_variant("FirstMessage", "first-message", &[])],
+        "first",
+    );
+    let second = test_type_with_domain(
+        "SecondMessage",
+        vec![test_variant("SecondMessage", "second-message", &[])],
+        "second",
+    );
+
+    let error = generate(
+        "demo",
+        temp.path(),
+        temp.path(),
+        &[first, second],
+        FluentParseMode::Conservative,
+        false,
+    )
+    .expect_err("invalid later resource should fail");
+
+    assert!(error.to_string().contains("Fluent parse errors"));
+    assert_eq!(
+        fs::read_to_string(first_path).expect("read first"),
+        "manual = Keep me\n",
+        "the earlier valid resource must remain unchanged"
+    );
+    assert_eq!(
+        fs::read_to_string(second_path).expect("read second"),
+        "broken = {\n"
+    );
+}
+
+#[test]
+fn clean_does_not_write_earlier_resources_when_a_later_resource_is_invalid() {
+    let temp = tempfile::tempdir().expect("tempdir");
+    let first_path = temp.path().join("first.ftl");
+    let second_path = temp.path().join("second.ftl");
+    fs::write(
+        &first_path,
+        "first-message = First\nstale-message = Remove me\n",
+    )
+    .expect("write first");
+    fs::write(&second_path, "broken = {\n").expect("write invalid second");
+    let first = test_type_with_domain(
+        "FirstMessage",
+        vec![test_variant("FirstMessage", "first-message", &[])],
+        "first",
+    );
+    let second = test_type_with_domain(
+        "SecondMessage",
+        vec![test_variant("SecondMessage", "second-message", &[])],
+        "second",
+    );
+
+    let error = clean::clean("demo", temp.path(), temp.path(), &[first, second], false)
+        .expect_err("invalid later resource should fail");
+
+    assert!(error.to_string().contains("Fluent parse errors"));
+    assert_eq!(
+        fs::read_to_string(first_path).expect("read first"),
+        "first-message = First\nstale-message = Remove me\n",
+        "the earlier valid resource must remain unchanged"
+    );
+    assert_eq!(
+        fs::read_to_string(second_path).expect("read second"),
+        "broken = {\n"
+    );
+}
+
+#[test]
 fn generate_rejects_duplicate_keys_across_types() {
     let temp = tempfile::tempdir().expect("tempdir");
     let first = test_type_at(
@@ -159,6 +262,76 @@ fn generate_rejects_duplicate_keys_across_types() {
     assert!(message.contains("CancelButton"));
     assert!(message.contains("src/save.rs:3"));
     assert!(message.contains("src/cancel.rs:9"));
+}
+
+#[test]
+fn generate_allows_the_same_id_in_independent_domains() {
+    let temp = tempfile::tempdir().expect("tempdir");
+    let ui = test_type_with_domain(
+        "UiGreeting",
+        vec![test_variant("UiGreeting", "shared-greeting", &[])],
+        "ui",
+    );
+    let emails = test_type_with_domain(
+        "EmailGreeting",
+        vec![test_variant("EmailGreeting", "shared-greeting", &[])],
+        "emails",
+    );
+
+    generate(
+        "demo",
+        temp.path(),
+        temp.path(),
+        &[ui, emails],
+        FluentParseMode::Aggressive,
+        false,
+    )
+    .expect("domains should have independent ID scopes");
+
+    assert!(
+        fs::read_to_string(temp.path().join("ui.ftl"))
+            .expect("ui FTL")
+            .contains("shared-greeting")
+    );
+    assert!(
+        fs::read_to_string(temp.path().join("emails.ftl"))
+            .expect("emails FTL")
+            .contains("shared-greeting")
+    );
+}
+
+#[test]
+fn generate_rejects_the_same_id_across_namespace_files_in_one_domain() {
+    let temp = tempfile::tempdir().expect("tempdir");
+    let main = test_type_with_domain(
+        "MainGreeting",
+        vec![test_variant("MainGreeting", "shared-greeting", &[])],
+        "ui",
+    );
+    let namespaced = test_type_with_domain_and_namespace(
+        "NamespacedGreeting",
+        vec![test_variant("NamespacedGreeting", "shared-greeting", &[])],
+        "ui",
+        Some(NamespaceRule::literal("forms").expect("valid namespace")),
+    );
+
+    let error = generate(
+        "demo",
+        temp.path(),
+        temp.path(),
+        &[main, namespaced],
+        FluentParseMode::Aggressive,
+        false,
+    )
+    .expect_err("one runtime domain cannot contain duplicate IDs");
+
+    assert!(
+        error
+            .to_string()
+            .contains("Duplicate generated FTL key 'shared-greeting'")
+    );
+    assert!(!temp.path().join("ui.ftl").exists());
+    assert!(!temp.path().join("ui/forms.ftl").exists());
 }
 
 #[test]
@@ -545,7 +718,9 @@ fn plan_outputs_uses_canonical_resource_specs_for_paths() {
             ResolvedNamespace::new("ui/forms").expect("valid test namespace"),
         )),
     );
-    let items = vec![&base, &namespaced];
+    let custom_domain =
+        test_type_with_domain("UiType", vec![test_variant("Ui", "ui_type-Ui", &[])], "ui");
+    let items = vec![&base, &namespaced, &custom_domain];
 
     let outputs = crate::pipeline::plan_outputs("crate-name", &i18n_root, temp.path(), &items)
         .expect("planned outputs");
@@ -563,6 +738,10 @@ fn plan_outputs_uses_canonical_resource_specs_for_paths() {
             )
         })
         .expect("namespaced output");
+    let custom_domain_output = outputs
+        .iter()
+        .find(|output| output.file_path == i18n_root.join("ui.ftl"))
+        .expect("custom domain output");
     let base_resource = base_output.route.resource_spec("crate-name", true);
     let namespace_resource = namespace_output.route.resource_spec("crate-name", true);
 
@@ -578,6 +757,7 @@ fn plan_outputs_uses_canonical_resource_specs_for_paths() {
         "crate-name/ui/forms.ftl"
     );
     assert_eq!(base_output.file_path, i18n_root.join("crate-name.ftl"));
+    assert_eq!(custom_domain_output.file_path, i18n_root.join("ui.ftl"));
     assert_eq!(
         namespace_output.file_path,
         i18n_root.join("crate-name/ui/forms.ftl")

@@ -1,0 +1,14 @@
+[workspace]
+members = [ "host", "owner-a", "owner-b" ]
+resolver = "3"
+
+[workspace.package]
+edition = "2024"
+publish = false
+version = "0.0.0"
+
+[workspace.dependencies]
+es-fluent = { path = "../../../crates/es-fluent" }
+es-fluent-build = { path = "../../../crates/es-fluent-build" }
+es-fluent-manager-embedded = { path = "../../../crates/es-fluent-manager-embedded" }
+unic-langid = "0.9"

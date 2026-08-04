@@ -1,54 +1,54 @@
-# Workspace Crates
+# Choose crates
 
-Start with the high-level crates. A typical application needs the facade crate,
-one runtime manager, and optionally the language-enum helper.
+Most applications need the `es-fluent` facade, one runtime manager,
+and the CLI during development.
 
-```toml
+| Need | Crate or command |
+| --- | --- |
+| Typed messages, labels, variants, and choices | `es-fluent` |
+| General Rust, CLI, TUI, or desktop runtime | `es-fluent-manager-embedded` |
+| Dioxus client or SSR runtime | `es-fluent-manager-dioxus` |
+| Bevy ECS and UI runtime | `es-fluent-manager-bevy` |
+| Typed locale enum and language labels | `es-fluent-lang` |
+| Generate, check, sync, format, and inspect FTL | `cargo es-fluent` from `es-fluent-cli` |
+| Rebuild when locale assets change | `es-fluent-build` under `[build-dependencies]` |
+
+A general Rust application can start with:
+
+~~~toml
 [dependencies]
-es-fluent = "*"
-es-fluent-manager-embedded = "*"
-es-fluent-lang = "*"
-```
+es-fluent = "0.18"
+es-fluent-manager-embedded = "0.18"
+unic-langid = "0.9"
+~~~
 
 Install the CLI separately:
 
-```sh
+~~~sh
 cargo install es-fluent-cli --locked
-```
+~~~
 
-Swap `es-fluent-manager-embedded` for `es-fluent-manager-dioxus` in Dioxus
-apps by enabling `client`, `ssr`, or both surfaces as needed. Use
-`es-fluent-manager-bevy` in Bevy apps.
+## Compatible release lines
 
-## Crates You Usually Use
+The framework-specific managers follow their framework version:
 
-| Crate                        | Use it for                                                                      | Covered in this book                                                                                                           |
-| ---------------------------- | ------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
-| `es-fluent`                  | Derives, traits, and the public localization facade                             | [Getting Started](getting_started.md), [Deriving Messages](deriving_messages.md), [Namespaces & File Splitting](namespaces.md) |
-| `es-fluent-manager-embedded` | Embedded-runtime apps, CLIs, TUIs, desktop apps                                 | [Runtime Managers](managers.md)                                                                                                |
-| `es-fluent-manager-dioxus`   | Dioxus apps using provider/hook-based client locale state or request-scoped SSR | [Runtime Managers](managers.md)                                                                                                |
-| `es-fluent-manager-bevy`     | Bevy integration, reactive localized UI, asset loading                          | [Runtime Managers](managers.md)                                                                                                |
-| `es-fluent-lang`             | Type-safe locale enum generation and localized language names                   | [Language Enum](language_enum.md)                                                                                              |
-| `es-fluent-cli`              | Generating, checking, cleaning, syncing, formatting, and inspecting FTL files   | [CLI Tooling](cli.md)                                                                                                          |
+| Surface | Release line | Runtime compatibility |
+| --- | --- | --- |
+| `es-fluent`, CLI, embedded manager, and language enum | `0.18.x` | General Rust |
+| `es-fluent-manager-dioxus` | `0.7.x` | Dioxus `0.7.x` |
+| `es-fluent-manager-bevy` | `0.19.x` | Bevy `0.19.x` |
 
-## Public Support Crates
+## Supporting crates
 
-| Crate                      | Role                                                         |
-| -------------------------- | ------------------------------------------------------------ |
-| `es-fluent-derive`         | Proc-macro implementation re-exported by `es-fluent`         |
-| `es-fluent-lang-macro`     | Implementation crate behind `#[es_fluent_language]`          |
-| `es-fluent-build`          | Build-script helper for locale asset rebuild tracking        |
-| `es-fluent-manager-core`   | Shared runtime traits, module registration, fallback logic   |
-| `es-fluent-manager-macros` | Compile-time module registration and `BevyFluentText` derive |
+Application code normally uses the facade and a concrete manager. The following
+crates are intended for narrower integration work:
 
-## Internal Workspace Crates
+- `es-fluent-derive` and `es-fluent-lang-macro` implement
+  macros re-exported by the public facades.
+- `es-fluent-manager-core` exposes shared runtime contracts for custom
+  manager integrations.
+- `es-fluent-manager-macros` exposes the manager module and Bevy text
+  macros re-exported by concrete managers.
 
-| Crate                   | Responsibility                                                                  |
-| ----------------------- | ------------------------------------------------------------------------------- |
-| `es-fluent-shared`      | Runtime-safe metadata, naming, namespace, and path helpers                      |
-| `es-fluent-derive-core` | Build-time option parsing and validation for derives                            |
-| `es-fluent-toml`        | `i18n.toml` parsing, path resolution, and locale discovery                      |
-| `es-fluent-generate`    | FTL AST generation, merging, cleaning, and formatting                           |
-| `es-fluent-cli-helpers` | Runtime logic executed inside the generated runner binary                       |
-| `es-fluent-runner`      | Shared runner protocol types and `.es-fluent/metadata` path helpers             |
-| `xtask`                 | Repository maintenance tasks such as rebuilding the book and language-name data |
+Continue with [Getting started](getting_started.md), or choose a manager in
+[Runtime managers](managers.md).

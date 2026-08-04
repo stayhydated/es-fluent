@@ -14,6 +14,8 @@ readme = "README.md"
 [dependencies]
 colored = { workspace = true }
 es-fluent-shared = { workspace = true }
+es-fluent-runner = { workspace = true }
+es-fluent-toml = { workspace = true }
 fluent-syntax = { workspace = true }
 fs-err = { workspace = true }
 heck = { workspace = true }

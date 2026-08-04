@@ -1,5 +1,5 @@
 use super::*;
-use es_fluent::registry::{__macro, FtlTypeInfo, FtlVariant};
+use es_fluent::registry::{__macro, FtlScope, FtlTypeInfo, FtlVariant};
 use es_fluent_shared::meta::TypeKind;
 use fs_err as fs;
 use std::path::Path;
@@ -10,6 +10,7 @@ static ALLOWED_INFO: FtlTypeInfo = FtlTypeInfo::new(
     TypeKind::Struct,
     "AllowedType",
     EMPTY_VARIANTS,
+    FtlScope::new("test-crate", None),
     "src/lib.rs",
     "test_crate",
     Some(__macro::namespace_literal("ui")),
@@ -18,6 +19,7 @@ static DISALLOWED_INFO: FtlTypeInfo = FtlTypeInfo::new(
     TypeKind::Struct,
     "DisallowedType",
     EMPTY_VARIANTS,
+    FtlScope::new("test-crate", None),
     "src/lib.rs",
     "test_crate",
     Some(__macro::namespace_literal("errors")),
@@ -26,6 +28,7 @@ static INVALID_NAMESPACE_INFO: FtlTypeInfo = FtlTypeInfo::new(
     TypeKind::Struct,
     "InvalidNamespaceType",
     EMPTY_VARIANTS,
+    FtlScope::new("test-crate", None),
     "src/lib.rs",
     "test_crate",
     Some(__macro::namespace_literal("../escape")),
@@ -41,6 +44,7 @@ static CLEAN_INFO: FtlTypeInfo = FtlTypeInfo::new(
     TypeKind::Enum,
     "GroupA",
     CLEAN_VARIANTS,
+    FtlScope::new("coverage-test-crate", None),
     "src/lib.rs",
     "coverage_test_crate",
     None,
@@ -384,6 +388,35 @@ fn clean_marks_changes_when_cleaner_rewrites_files() {
 }
 
 #[test]
+fn clean_all_does_not_write_an_earlier_locale_when_a_later_locale_is_invalid() {
+    let temp = tempfile::tempdir().expect("tempdir");
+    write_basic_i18n_config(temp.path());
+    let fallback = temp.path().join("i18n/en-US/coverage-test-crate.ftl");
+    let fallback_before = "## GroupA\n\ngroup_a-Key1 = Keep\norphan-Old = remove only on success\n";
+    fs::write(&fallback, fallback_before).expect("write fallback");
+    let invalid = temp.path().join("i18n/fr/coverage-test-crate.ftl");
+    fs::write(&invalid, "broken = {\n").expect("write invalid later locale");
+    let generator = EsFluentGenerator::builder()
+        .crate_name("coverage-test-crate")
+        .manifest_dir(temp.path())
+        .build();
+
+    let error = generator
+        .clean(true, false)
+        .expect_err("later locale parse error should fail");
+
+    assert!(error.to_string().contains("Fluent parse errors"));
+    assert_eq!(
+        fs::read_to_string(fallback).expect("read unchanged fallback"),
+        fallback_before
+    );
+    assert_eq!(
+        fs::read_to_string(invalid).expect("read unchanged invalid locale"),
+        "broken = {\n"
+    );
+}
+
+#[test]
 #[serial_test::serial(process)]
 fn detect_crate_name_works_in_test_environment() {
     with_env_vars(
@@ -459,6 +492,7 @@ fn env_helpers_restore_unset_variables() {
 
 #[test]
 fn collect_type_infos_returns_empty_for_unknown_crate() {
-    let infos = super::inventory::collect_type_infos("definitely_unknown_crate_name");
+    let infos = super::inventory::collect_type_infos("definitely_unknown_crate_name")
+        .expect("valid package name");
     assert!(infos.is_empty());
 }

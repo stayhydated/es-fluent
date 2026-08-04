@@ -306,6 +306,14 @@ impl LanguageExpansion {
     fn static_domain_expr(&self, es_fluent: &proc_macro2::TokenStream) -> proc_macro2::TokenStream {
         static_domain_tokens(es_fluent, self.message_model.domain())
     }
+
+    fn owner_expr(&self) -> proc_macro2::TokenStream {
+        if self.link_builtin {
+            quote! { "es-fluent-lang" }
+        } else {
+            quote! { env!("CARGO_PKG_NAME") }
+        }
+    }
 }
 
 fn emit_language_expansion(
@@ -535,11 +543,19 @@ fn generate_fluent_message_impl(
     let enum_ident = &model.enum_ident;
     let es_fluent = crate_paths.facade();
     let domain_expr = model.static_domain_expr(es_fluent);
+    let owner_expr = model.owner_expr();
     let match_arms = model.entries.iter().map(|entry| {
         let variant_ident = &entry.variant_ident;
         let message_id = static_entry_id_tokens(es_fluent, entry.message.message_id());
         quote! {
-            Self::#variant_ident => localize(#domain_expr, #message_id, None)
+            Self::#variant_ident => localize(
+                #es_fluent::registry::__macro::static_message_key(
+                    #owner_expr,
+                    #domain_expr,
+                    #message_id,
+                ),
+                None,
+            )
         }
     });
 
@@ -590,6 +606,10 @@ fn generate_inventory_submit(
                     #es_fluent::meta::TypeKind::Enum,
                     #type_name,
                     VARIANTS,
+                    #es_fluent::registry::__macro::ftl_scope(
+                        env!("CARGO_PKG_NAME"),
+                        None,
+                    ),
                     file!(),
                     module_path!(),
                     None,

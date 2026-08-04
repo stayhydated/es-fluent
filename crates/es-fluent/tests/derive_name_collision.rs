@@ -1,6 +1,6 @@
 #![cfg(feature = "derive")]
 
-use es_fluent::registry::{StaticFluentDomain, StaticFluentEntryId};
+use es_fluent::registry::StaticFluentMessageKey;
 use es_fluent::{EsFluent, FluentArgs, FluentLocalizer, FluentLocalizerExt as _};
 
 #[derive(EsFluent)]
@@ -14,19 +14,10 @@ struct IdLocalizer;
 impl FluentLocalizer for IdLocalizer {
     fn localize<'a>(
         &self,
-        id: StaticFluentEntryId,
+        key: StaticFluentMessageKey,
         _args: Option<&FluentArgs<'a>>,
     ) -> Option<String> {
-        Some(id.as_str().to_string())
-    }
-
-    fn localize_in_domain<'a>(
-        &self,
-        _domain: StaticFluentDomain,
-        id: StaticFluentEntryId,
-        _args: Option<&FluentArgs<'a>>,
-    ) -> Option<String> {
-        Some(id.as_str().to_string())
+        Some(key.id().as_str().to_string())
     }
 }
 

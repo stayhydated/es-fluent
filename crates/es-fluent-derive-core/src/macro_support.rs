@@ -80,6 +80,22 @@ pub fn static_entry_id_tokens(
     }
 }
 
+pub fn static_message_key_tokens(
+    facade_path: &TokenStream,
+    domain_override: Option<&FluentDomain>,
+    entry_id: &FluentMessageId,
+) -> TokenStream {
+    let domain = static_domain_tokens(facade_path, domain_override);
+    let entry_id = static_entry_id_tokens(facade_path, entry_id);
+    quote! {
+        #facade_path::registry::__macro::static_message_key(
+            env!("CARGO_PKG_NAME"),
+            #domain,
+            #entry_id,
+        )
+    }
+}
+
 pub fn static_argument_name_tokens(
     facade_path: &TokenStream,
     argument_name: &FluentArgumentName,

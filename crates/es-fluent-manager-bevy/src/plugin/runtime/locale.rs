@@ -1,6 +1,7 @@
 use crate::{
-    ActiveLanguageId, BundleBuildFailures, I18nAssets, I18nBundle, I18nResource, LanguageSelection,
-    LocaleChangeEvent, LocaleChangedEvent, PendingLanguageChange, RequestedLanguageId,
+    ActiveLanguageId, BundleBuildFailures, I18nAssets, I18nReadyLocales, I18nResource,
+    LanguageSelection, LocaleChangeEvent, LocaleChangedEvent, PendingLanguageChange,
+    RequestedLanguageId,
 };
 use bevy::ecs::system::SystemParam;
 use bevy::prelude::*;
@@ -47,7 +48,7 @@ enum RequestedLanguageResolution {
 pub(crate) struct LocaleChangeParams<'w> {
     locale_changed_events: MessageWriter<'w, LocaleChangedEvent>,
     i18n_resource: ResMut<'w, I18nResource>,
-    i18n_bundle: Res<'w, I18nBundle>,
+    i18n_bundle: Res<'w, I18nReadyLocales>,
     i18n_assets: Res<'w, I18nAssets>,
     bundle_build_failures: Res<'w, BundleBuildFailures>,
     requested_language_id: ResMut<'w, RequestedLanguageId>,
@@ -57,7 +58,7 @@ pub(crate) struct LocaleChangeParams<'w> {
 
 fn resolve_requested_language(
     requested_language: &LanguageIdentifier,
-    i18n_bundle: &I18nBundle,
+    i18n_bundle: &I18nReadyLocales,
     i18n_assets: &I18nAssets,
     bundle_build_failures: &BundleBuildFailures,
 ) -> RequestedLanguageResolution {
@@ -200,7 +201,6 @@ mod tests {
     use super::*;
     use crate::{FtlAsset, I18nDomainBundles};
     use bevy::asset::{AssetEvent, AssetLoadFailedEvent};
-    use es_fluent_manager_core::SyncFluentBundle;
     use es_fluent_manager_core::{LocaleRelativeFtlPath, ModuleResourceSpec, ResourceKey};
     use std::sync::Arc;
     use unic_langid::langid;
@@ -217,15 +217,12 @@ mod tests {
             .extend(events.read().map(|event| event.0.clone()));
     }
 
-    fn insert_ready_bundle(i18n_bundle: &mut I18nBundle, lang: LanguageIdentifier) {
-        i18n_bundle.set_bundle(
-            lang.clone(),
-            Arc::new(SyncFluentBundle::new_concurrent(vec![lang])),
-        );
+    fn insert_ready_bundle(i18n_bundle: &mut I18nReadyLocales, lang: LanguageIdentifier) {
+        i18n_bundle.mark_ready(lang);
     }
 
     fn app_with_locale_system(
-        i18n_bundle: I18nBundle,
+        i18n_bundle: I18nReadyLocales,
         i18n_assets: I18nAssets,
         failures: BundleBuildFailures,
         pending_language_change: PendingLanguageChange,
@@ -240,7 +237,7 @@ mod tests {
     }
 
     fn app_with_locale_system_and_resource(
-        i18n_bundle: I18nBundle,
+        i18n_bundle: I18nReadyLocales,
         i18n_assets: I18nAssets,
         failures: BundleBuildFailures,
         pending_language_change: PendingLanguageChange,
@@ -268,7 +265,7 @@ mod tests {
     #[test]
     fn resolve_requested_language_returns_ready_exact_locale() {
         let lang = langid!("en");
-        let mut i18n_bundle = I18nBundle::default();
+        let mut i18n_bundle = I18nReadyLocales::default();
         insert_ready_bundle(&mut i18n_bundle, lang.clone());
 
         match resolve_requested_language(
@@ -287,7 +284,7 @@ mod tests {
 
     #[test]
     fn resolve_requested_language_returns_ready_parent_fallback() {
-        let mut i18n_bundle = I18nBundle::default();
+        let mut i18n_bundle = I18nReadyLocales::default();
         insert_ready_bundle(&mut i18n_bundle, langid!("en"));
 
         match resolve_requested_language(
@@ -311,7 +308,7 @@ mod tests {
 
         match resolve_requested_language(
             &langid!("en-US"),
-            &I18nBundle::default(),
+            &I18nReadyLocales::default(),
             &i18n_assets,
             &BundleBuildFailures::default(),
         ) {
@@ -332,7 +329,7 @@ mod tests {
 
         match resolve_requested_language(
             &langid!("en-US"),
-            &I18nBundle::default(),
+            &I18nReadyLocales::default(),
             &I18nAssets::new(),
             &failures,
         ) {
@@ -347,7 +344,7 @@ mod tests {
     #[test]
     fn resolve_requested_language_treats_failed_ready_cache_as_diagnostic_only() {
         let lang = langid!("en");
-        let mut i18n_bundle = I18nBundle::default();
+        let mut i18n_bundle = I18nReadyLocales::default();
         let mut failures = BundleBuildFailures::default();
         insert_ready_bundle(&mut i18n_bundle, lang.clone());
         failures
@@ -367,7 +364,7 @@ mod tests {
     fn resolve_requested_language_returns_unavailable_without_any_candidate() {
         match resolve_requested_language(
             &langid!("de-AT"),
-            &I18nBundle::default(),
+            &I18nReadyLocales::default(),
             &I18nAssets::new(),
             &BundleBuildFailures::default(),
         ) {
@@ -379,7 +376,7 @@ mod tests {
     #[test]
     fn handle_locale_changes_applies_ready_locale_and_emits_change_event() {
         let fr = langid!("fr");
-        let mut i18n_bundle = I18nBundle::default();
+        let mut i18n_bundle = I18nReadyLocales::default();
         insert_ready_bundle(&mut i18n_bundle, fr.clone());
         let mut app = app_with_locale_system(
             i18n_bundle,
@@ -409,7 +406,7 @@ mod tests {
             es_fluent_manager_core::FluentManager::try_new_with_discovered_modules()
                 .expect("test runtime module discovery should be valid"),
         );
-        let mut i18n_bundle = I18nBundle::default();
+        let mut i18n_bundle = I18nReadyLocales::default();
         insert_ready_bundle(&mut i18n_bundle, resolved.clone());
         let mut app = app_with_locale_system_and_resource(
             i18n_bundle,
@@ -451,7 +448,7 @@ mod tests {
             .select_language(&en)
             .expect("test fallback manager should support runtime-only English");
         let mut app = app_with_locale_system_and_resource(
-            I18nBundle::default(),
+            I18nReadyLocales::default(),
             I18nAssets::new(),
             BundleBuildFailures::default(),
             PendingLanguageChange::default(),
@@ -477,7 +474,7 @@ mod tests {
         let mut i18n_assets = I18nAssets::new();
         i18n_assets.add_asset(fr.clone(), "app".to_string(), Handle::default());
         let mut app = app_with_locale_system(
-            I18nBundle::default(),
+            I18nReadyLocales::default(),
             i18n_assets,
             BundleBuildFailures::default(),
             PendingLanguageChange::default(),
@@ -504,7 +501,12 @@ mod tests {
             false,
         );
         let mut i18n_assets = I18nAssets::new();
-        i18n_assets.add_optional_asset_spec(fr.clone(), optional_spec, Handle::default());
+        i18n_assets.add_optional_asset_spec(
+            es_fluent_manager_core::__macro::static_domain("app"),
+            fr.clone(),
+            optional_spec,
+            Handle::default(),
+        );
 
         let mut app = App::new();
         app.add_message::<AssetEvent<FtlAsset>>()
@@ -514,7 +516,7 @@ mod tests {
             .insert_resource(I18nResource::new(langid!("en")))
             .insert_resource(RequestedLanguageId(langid!("en")))
             .insert_resource(ActiveLanguageId(langid!("en")))
-            .insert_resource(I18nBundle::default())
+            .insert_resource(I18nReadyLocales::default())
             .insert_resource(I18nDomainBundles::default())
             .insert_resource(i18n_assets)
             .insert_resource(BundleBuildFailures::default())
@@ -552,7 +554,7 @@ mod tests {
             .0
             .insert(de.clone(), vec!["duplicate message".to_string()]);
         let mut app = app_with_locale_system(
-            I18nBundle::default(),
+            I18nReadyLocales::default(),
             I18nAssets::new(),
             failures,
             PendingLanguageChange(Some(LanguageSelection::new(fr.clone(), fr.clone()))),
@@ -583,7 +585,7 @@ mod tests {
     #[test]
     fn handle_locale_changes_keeps_current_locale_when_ready_selection_is_already_active() {
         let en = langid!("en");
-        let mut i18n_bundle = I18nBundle::default();
+        let mut i18n_bundle = I18nReadyLocales::default();
         insert_ready_bundle(&mut i18n_bundle, en.clone());
         let mut app = app_with_locale_system(
             i18n_bundle,

@@ -1,168 +1,144 @@
-# Getting Started
+# Getting started
 
-## Dependencies
+This tutorial creates a Rust binary that generates a fallback Fluent resource
+and prints a typed localized message. Run the commands from a Cargo package
+with both `src/lib.rs` and `src/main.rs`; the CLI discovers
+localizable types through library targets.
 
-Add `es-fluent` and a runtime manager. Derive macros are enabled by default:
+## Install dependencies
 
-```toml
+Add the facade, embedded manager, and locale identifier crate:
+
+~~~toml
 [dependencies]
-es-fluent = "*"
+es-fluent = "0.18"
+es-fluent-manager-embedded = "0.18"
 unic-langid = "0.9"
+~~~
 
-# Enable localized temporal arguments for the date/time library you use.
-# es-fluent = { version = "*", features = ["icu-datetime"] }
-# es-fluent = { version = "*", features = ["jiff"] }
-# es-fluent = { version = "*", features = ["chrono"] }
+Install the Cargo subcommand:
 
-# For simple apps and CLIs:
-es-fluent-manager-embedded = "*"
+~~~sh
+cargo install es-fluent-cli --locked
+~~~
 
-# For Dioxus apps, enable only the runtime surface you use.
-# es-fluent-manager-dioxus = { version = "*", features = ["client"] }
-# es-fluent-manager-dioxus = { version = "*", features = ["ssr"] }
-# es-fluent-manager-dioxus = { version = "*", features = ["client", "ssr"] }
-```
+## Configure locale assets
 
-See [Deriving Messages](deriving_messages.md#localized-temporal-arguments) for
-the temporal field types supported by each feature.
+Create `i18n.toml` next to `Cargo.toml`:
 
-## Project Configuration
+~~~toml
+fallback_language = "en"
+assets_dir = "assets/locales"
+~~~
 
-Create `i18n.toml` next to your crate's `Cargo.toml`, create the fallback
-locale directory, and expose an i18n module from your library target when you
-use manager macros:
+Create the fallback locale directory:
 
-```rust
+~~~sh
+mkdir -p assets/locales/en
+~~~
+
+See [Configure a project](configuration.md) for feature-gated derives,
+namespace allowlists, additional domains, and validation settings.
+
+## Define the runtime module
+
+Create a library-reachable manager module:
+
+~~~rust
 // src/i18n.rs
 pub use es_fluent_manager_embedded::{
     EmbeddedI18n as I18n, EmbeddedInitError, LocalizationError,
 };
 
 es_fluent_manager_embedded::define_i18n_module!();
-```
+~~~
 
-```rust
+Define a typed message in the library target:
+
+~~~rust
 // src/lib.rs
 pub mod i18n;
-```
 
-Use the Dioxus or Bevy manager crate in that module for framework-specific
-integrations. If manager macros scan locale assets at compile time, add
-`es-fluent-build` under `[build-dependencies]` and call
-`es_fluent_build::track_i18n_assets();` from `build.rs` so Cargo rebuilds when
-locale files are added, removed, or renamed.
-
-Create an `i18n.toml` next to your crate's `Cargo.toml`:
-
-```toml
-# Default fallback language (required)
-fallback_language = "en"
-
-# Path to FTL assets relative to the crate root; must stay inside the crate
-# and must not use existing symlinked path components or locale targets (required)
-assets_dir = "assets/locales"
-
-# Features to enable if the crate's es-fluent derives are gated behind a feature (optional)
-fluent_feature = ["my-feature"]
-
-# Optional allowlist of namespace values for FTL file splitting
-namespaces = ["ui", "errors", "messages"]
-
-# Optional: disable warnings when non-fallback messages copy fallback text
-check_fallback_copies = false
-```
-
-The CLI and build tools use this file as the single source of truth for locating `.ftl` files and validating keys.
-Locale directory names use canonical BCP-47 tags. Deprecated aliases such as
-`iw` and `src` are rejected; use canonical replacements such as `he` and `sc`.
-The executable README example ships `en`, `fr-FR`, and `zh-CN`, with `en` as
-the fallback locale.
-
-## End-to-End Example
-
-Here's a minimal project that defines a localizable enum, generates the FTL skeleton, and prints a translated message.
-
-### 1. Define a type
-
-```rust
-// src/lib.rs
 use es_fluent::EsFluent;
 
 #[derive(EsFluent)]
-pub enum LoginError {
-    InvalidPassword,
-    UserNotFound { username: String },
+pub struct Greeting<'a> {
+    pub name: &'a str,
 }
-```
+~~~
 
-### 2. Generate the FTL file
+## Generate fallback FTL
 
-```sh
+Run:
+
+~~~sh
 cargo es-fluent generate
-```
+~~~
 
-This creates `assets/locales/en/{your_crate}.ftl` with a skeleton:
+For a package named `my-crate`, generation creates
+`assets/locales/en/my-crate.ftl` with an entry like:
 
-```ftl
-## LoginError
+~~~ftl
+## Greeting
 
-login_error-InvalidPassword = Invalid Password
-login_error-UserNotFound = User Not Found { $username }
-```
+greeting = Greeting { $name }
+~~~
 
-Edit the values to your liking — the CLI will preserve your changes on subsequent runs.
+Replace the generated value with fallback-language copy:
 
-### 3. Initialize and localize
+~~~ftl
+## Greeting
 
-```rust
+greeting = Hello, { $name }!
+~~~
+
+Conservative generation preserves edited values on later runs.
+
+## Localize the message
+
+A package named `my-crate` is imported as `my_crate` from
+its binary target:
+
+~~~rust
 // src/main.rs
-use my_crate::i18n::I18n;
+use my_crate::{Greeting, i18n::I18n};
 use unic_langid::langid;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let i18n = I18n::try_new_with_language(langid!("en"))?;
-
-    let err = my_crate::LoginError::UserNotFound {
-        username: "alice".to_string(),
-    };
-    println!("{}", i18n.localize_message(&err));
-    // → "User Not Found alice"
-
+    println!("{}", i18n.localize_message(&Greeting { name: "Ada" }));
     Ok(())
 }
-```
+~~~
 
-## Workflow Summary
+Run the program:
 
-A typical `es-fluent` workflow:
+~~~sh
+cargo run
+~~~
 
-1. **Configure** — Create `i18n.toml` with your fallback language and asset path.
-2. **Derive** — Annotate structs and enums with `#[derive(EsFluent)]`.
-3. **Generate** — Run `cargo es-fluent generate` to create FTL file skeletons.
-4. **Translate** — Edit the generated `.ftl` files with real translations.
-5. **Use** — Call `i18n.localize_message(&value)` at runtime through an explicit manager.
+It prints:
 
-When adding a new target language later, seed it from the fallback locale:
+~~~text
+Hello, Ada!
+~~~
 
-```sh
+## Continue the workflow
+
+After adding or changing localizable types, use:
+
+~~~sh
+cargo es-fluent generate
+cargo es-fluent status --all-locales
+~~~
+
+Add a translated locale with:
+
+~~~sh
 cargo es-fluent add-locale fr-FR
-```
+~~~
 
-The fallback locale directory, such as `assets/locales/en`, must exist as a
-directory before syncing or adding target locales; it may be empty before
-generated keys exist. Existing target locale paths must be directories.
-If the requested locale already exists and no fallback keys are missing,
-rerunning `add-locale` is a successful no-op.
-Locale creation preflights every selected crate for setup, fallback parse, and
-requested-locale path errors before writing any selected crate. Unexpected
-write-time I/O failures after preflight succeeds are still not rolled back.
-
-Before committing, `cargo es-fluent status --all` summarizes generation,
-formatting, sync, orphan-cleanup, and validation work that remains. It does not
-edit project source or locale files, but it may prepare `.es-fluent` runner
-metadata and Cargo build output while checking valid crates. If `.es-fluent`
-already exists, it and existing entries below it must be real paths, not
-symlinks. Empty selections and setup errors are reported before that runner
-preparation.
-
-The following chapters break down each of these steps in detail.
+Then edit the seeded FTL and run
+`cargo es-fluent check --all-locales`. See
+[CLI reference](cli.md) for command behavior and
+[Runtime managers](managers.md) for Dioxus and Bevy setup.

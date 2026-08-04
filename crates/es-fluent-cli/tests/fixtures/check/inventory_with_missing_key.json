@@ -1,7 +1,11 @@
 {
   "expected_keys": [
     {
-      "key": "missing_key",
+      "key": {
+        "owner": "test-app",
+        "domain": "test-app",
+        "id": "missing_key"
+      },
       "variables": [],
       "source_file": null,
       "source_line": null

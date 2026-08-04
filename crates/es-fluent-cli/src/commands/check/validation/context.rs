@@ -9,6 +9,7 @@ use terminal_link::Link;
 
 pub(super) struct ValidationContext<'a> {
     pub(super) expected_keys: &'a ExpectedKeys,
+    pub(super) owner: &'a str,
     pub(super) workspace_root: &'a Path,
     pub(super) manifest_dir: &'a Path,
 }
@@ -31,10 +32,10 @@ impl ValidationContext<'_> {
             .iter()
             .map(|(key, key_info)| {
                 let expected_path = self.expected_resource_path(locale, key_info);
-                let help = format!("Add translation for '{}' in {}", key, expected_path);
+                let help = format!("Add translation for '{}' in {}", key.id(), expected_path);
                 ValidationIssue::MissingKey(MissingKeyError {
                     src: NamedSource::new(ftl_path, String::new()),
-                    key: key.to_string(),
+                    key: key.id().to_string(),
                     locale: locale.to_string(),
                     help,
                 })

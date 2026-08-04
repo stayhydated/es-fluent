@@ -1,118 +1,105 @@
-# CLI Workflow
+# CLI workflow
 
-Use this reference when scaffolding projects, generating FTL, checking translations, formatting locale files, or keeping locale folders synchronized in Rust applications.
+Read this reference when generating, validating, formatting, synchronizing,
+inspecting, or cleaning FTL resources.
 
-Examples use Cargo's subcommand form, `cargo es-fluent <COMMAND>`. The installed binary also accepts direct invocation as `cargo-es-fluent <COMMAND>`.
+## Prerequisites
 
-## Configuration
+- Install with `cargo install es-fluent-cli --locked`.
+- Put `i18n.toml` beside the owner package's
+  `Cargo.toml`.
+- Create the fallback locale directory.
+- Keep localizable types in a library target.
 
-The standard `i18n.toml` lives next to the crate `Cargo.toml`:
+Examples use `cargo es-fluent <COMMAND>`. Direct
+`cargo-es-fluent` invocation is equivalent.
 
-```toml
-fallback_language = "en"
-assets_dir = "assets/locales"
+## Routine workflow
 
-# Optional: features needed to compile inventory for derives.
-fluent_feature = ["my-feature"]
+After changing derived types:
 
-# Optional: restrict string namespace values.
-namespaces = ["ui", "errors", "messages"]
-
-# Optional: disable warnings when non-fallback messages copy fallback text.
-check_fallback_copies = false
-```
-
-`assets_dir` is relative to the crate root. Locale directory names and locale arguments should use canonical BCP-47 tags such as `en`, `fr-FR`, and `zh-CN`.
-
-## Setup
-
-Create `i18n.toml` next to the crate `Cargo.toml`, create the fallback locale
-directory, and put localizable types in a library target. Inventory collection
-reads library targets, so binary-only derives in `src/main.rs` are not
-discovered.
-
-When using manager macros, expose a public i18n module from the library target
-and call the manager crate's `define_i18n_module!()` macro from that module. If
-locale assets are scanned at compile time, add `es-fluent-build` under
-`[build-dependencies]` and call `es_fluent_build::track_i18n_assets();` from
-`build.rs`.
-
-## Routine Commands
-
-After adding or changing derived localizable types:
-
-```sh
+~~~sh
 cargo es-fluent generate
-```
+cargo es-fluent status --all-locales
+cargo es-fluent check --all-locales
+~~~
 
-Generation updates fallback FTL, adds new messages, updates declared variables, and preserves existing translations in conservative mode.
+Generation uses conservative mode by default: it adds derived entries and
+updates their variables while preserving existing translations. Preview
+aggressive regeneration before using it:
 
-Validate locale setup and Rust/FTL alignment:
+~~~sh
+cargo es-fluent generate --mode aggressive --dry-run
+~~~
 
-```sh
-cargo es-fluent check --all
-```
+`status` is non-mutating and summarizes pending generation, cleanup,
+formatting, sync, orphan, and validation work.
 
-With `--all`, check reports non-fallback messages that still match fallback text as untranslated warnings. For intentionally invariant text such as product names, package names, or keyboard keys, add this marker before that message:
+## Manage locales
 
-```ftl
-# es-fluent: same-as-fallback
-```
-
-Run a pre-commit status check:
-
-```sh
-cargo es-fluent status --all
-```
-
-Use `--all` when status should include non-fallback locale formatting, sync, orphan-file, and validation checks.
-
-Format generated FTL:
-
-```sh
-cargo es-fluent fmt --all
-```
-
-Sync missing fallback keys into all existing non-fallback locale directories:
-
-```sh
-cargo es-fluent sync --all
-```
-
-Create a locale directory and seed its FTL files from the fallback locale:
-
-```sh
+~~~sh
 cargo es-fluent add-locale fr-FR
-```
+cargo es-fluent sync --all-locales
+cargo es-fluent fmt --all-locales
+~~~
 
-To create locales through the machine-readable `sync` surface, select them
-explicitly; `--create` cannot be combined with `--all`:
+Use `sync --locale <LANG> --create` when explicit locale creation
+needs the `sync` JSON surface. `--create` and
+`--all-locales` are mutually exclusive.
 
-```sh
-cargo es-fluent sync --locale fr-FR --create --output json
-```
+All-locale validation warns when translated text still matches fallback text.
+Mark intentionally invariant entries:
 
-Remove generated keys that no longer correspond to Rust derives:
+~~~ftl
+# es-fluent: same-as-fallback
+product-name = es-fluent
+~~~
 
-```sh
-cargo es-fluent clean --all
-```
+## Clean carefully
 
-Inspect discovered locale files and Rust links:
+`clean` removes entries absent from derive inventory, including
+manual-only entries, and can remove empty package-owned files. Always preview:
 
-```sh
+~~~sh
+cargo es-fluent clean --all-locales --dry-run
+cargo es-fluent clean --orphaned --dry-run
+~~~
+
+`--orphaned` finds non-fallback files without a matching fallback
+resource.
+
+## Inspect and automate
+
+~~~sh
 cargo es-fluent tree
+cargo es-fluent tree --link-mode ftl
 cargo es-fluent tree --output json
-```
+~~~
 
-## Common Rules
+Text `tree` can link to Rust or FTL source. JSON output does not
+accept `--link-mode`.
 
-Runner-backed commands keep their generated workspace and metadata under
-`.es-fluent` and their Cargo artifacts under the `es-fluent` subdirectory of
-the workspace target directory (`target/es-fluent` by default).
+`check`, `fmt`, `sync`, `tree`, and
+`status` support `--output json`. Use the exit status plus
+the report fields relevant to warnings or dry-run work.
 
-Generated FTL keys must be unique within each output file. `generate`, `clean`, and `check` fail when two derived items produce the same key in the same output file.
+Commands that write FTL plan the selected change before committing it and roll
+back earlier writes if the command fails.
 
-For namespaced types, `check` validates the expected namespace file. A key in `{crate}.ftl` still counts as missing if the Rust type belongs in `{crate}/{namespace}.ftl`.
+## Select workspace scope
 
-Comma-separated list options are trimmed, empty entries are rejected, and duplicate values are ignored in generated output.
+- `--path <PATH>` selects a crate, workspace, manifest, or path
+  inside a member.
+- A workspace-root path processes all configured packages.
+- A member path selects that member.
+- `--package <NAME>` selects one configured package.
+- `check --ignore <NAME>` excludes packages and cannot be combined
+  with `--package`.
+
+A filter selecting no configured package exits non-zero. Package-scoped runs do
+not analyze unrelated sibling derive inventory.
+
+The Cargo package name is the default package-local domain. Additional
+`domains` remain owned by the declaring package. Namespaces split a
+domain into files; they do not change ownership. The same domain and ID may
+appear in another package.

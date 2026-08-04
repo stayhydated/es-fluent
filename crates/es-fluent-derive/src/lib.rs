@@ -134,7 +134,7 @@ pub fn derive_fluent_choice(input: proc_macro::TokenStream) -> proc_macro::Token
 /// // Usage:
 /// // let _ = Gender::localize_label(&i18n);
 /// // let _ = Gender::try_localize_label(&i18n);
-/// // let _ = Gender::fluent_label_id();
+/// // let _ = Gender::fluent_label_key();
 /// ```
 ///
 /// # Attributes

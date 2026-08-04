@@ -4,7 +4,7 @@ pub(crate) mod orphaned;
 
 use super::common::{
     GenerationVerb, WorkspaceArgs, WorkspaceCrates, render_generation_results_with_dry_run,
-    run_generation_for_crates, validate_generation_paths,
+    run_generation_for_crates_with_transaction, validate_generation_paths,
 };
 use crate::core::{CliError, GenerationAction};
 use clap::Parser;
@@ -15,9 +15,10 @@ pub struct CleanArgs {
     #[command(flatten)]
     pub workspace: WorkspaceArgs,
 
-    /// Clean all discovered locale directories, not just the fallback language.
+    /// Clean generated entries in all discovered locale directories; orphan-file cleanup
+    /// still requires --orphaned.
     #[arg(long)]
-    pub all: bool,
+    pub all_locales: bool,
 
     /// Dry run - show locale-file changes and orphan removals without making changes.
     #[arg(long)]
@@ -28,7 +29,7 @@ pub struct CleanArgs {
     pub force_run: bool,
 
     /// Also remove orphaned FTL files from non-fallback locales.
-    /// Explicitly passing this flag scans non-fallback locales even without --all.
+    /// Explicitly passing this flag scans non-fallback locales even without --all-locales.
     #[arg(long)]
     pub orphaned: bool,
 }
@@ -40,25 +41,35 @@ pub fn run_clean(args: CleanArgs) -> Result<(), CliError> {
     if !workspace.print_discovery(crate::utils::ui::Ui::print_clean_header) {
         return workspace.require_non_empty_selection();
     }
-    if !args.orphaned || args.all {
+    if !args.orphaned || args.all_locales {
         workspace.require_all_crates_valid()?;
     }
     validate_generation_paths(&workspace.valid, !args.orphaned)?;
-    if args.all || args.orphaned {
+    if args.orphaned {
         orphaned::validate_orphaned_scan_setup(&workspace, true)?;
     }
 
+    let orphaned_plan = if args.orphaned {
+        Some(orphaned::plan_orphaned_files(&workspace, true)?)
+    } else {
+        None
+    };
+
     if !workspace.valid.is_empty() {
         let action = GenerationAction::Clean {
-            all_locales: args.all,
+            all_locales: args.all_locales,
             dry_run: args.dry_run,
         };
-        let results = run_generation_for_crates(
+        let results = run_generation_for_crates_with_transaction(
             &workspace.workspace_info,
             &workspace.valid,
             &action,
             args.force_run,
             true,
+            orphaned_plan
+                .as_ref()
+                .map(|plan| plan.transaction().clone())
+                .unwrap_or_default(),
         );
         let has_errors =
             render_generation_results_with_dry_run(&results, args.dry_run, GenerationVerb::Clean);
@@ -68,10 +79,16 @@ pub fn run_clean(args: CleanArgs) -> Result<(), CliError> {
                 "generation command failed; see diagnostics above".to_string(),
             ));
         }
+    } else if let Some(plan) = &orphaned_plan
+        && !args.dry_run
+    {
+        plan.transaction()
+            .commit()
+            .map_err(|error| CliError::Other(error.to_string()))?;
     }
 
-    if args.all || args.orphaned {
-        orphaned::clean_orphaned_files(&workspace, true, args.dry_run)?;
+    if let Some(plan) = &orphaned_plan {
+        orphaned::render_orphaned_cleanup(plan, args.dry_run);
     }
 
     Ok(())
@@ -92,7 +109,7 @@ mod tests {
                 path: Some(temp.path().to_path_buf()),
                 package: Some("missing-crate".to_string()),
             },
-            all: false,
+            all_locales: false,
             dry_run: false,
             force_run: false,
             orphaned: false,
@@ -112,7 +129,7 @@ mod tests {
                 path: Some(temp.path().to_path_buf()),
                 package: None,
             },
-            all: false,
+            all_locales: false,
             dry_run: false,
             force_run: false,
             orphaned: false,
@@ -132,7 +149,7 @@ mod tests {
                 path: Some(temp.path().to_path_buf()),
                 package: None,
             },
-            all: false,
+            all_locales: false,
             dry_run: false,
             force_run: false,
             orphaned: false,
@@ -152,7 +169,7 @@ mod tests {
                 path: Some(temp.path().to_path_buf()),
                 package: None,
             },
-            all: false,
+            all_locales: false,
             dry_run: false,
             force_run: false,
             orphaned: false,
@@ -174,7 +191,7 @@ mod tests {
                 path: Some(temp.path().to_path_buf()),
                 package: None,
             },
-            all: false,
+            all_locales: false,
             dry_run: false,
             force_run: false,
             orphaned: true,
@@ -199,7 +216,7 @@ mod tests {
                 path: Some(temp.path().to_path_buf()),
                 package: None,
             },
-            all: false,
+            all_locales: false,
             dry_run: true,
             force_run: false,
             orphaned: true,
@@ -216,11 +233,12 @@ mod tests {
     }
 
     #[test]
-    fn run_clean_all_rejects_locale_path_file_before_runner_setup() {
+    fn run_clean_all_skips_orphan_scan_setup_without_orphaned_flag() {
         let temp = crate::test_fixtures::create_test_crate_workspace();
+        let args_path = temp.path().join("runner-args.txt");
         crate::test_fixtures::setup_fake_runner_and_cache(
             &temp,
-            FakeRunnerBehavior::silent_success(),
+            FakeRunnerBehavior::record_args(&args_path),
         );
         fs::write(temp.path().join("i18n/fr"), "not a directory\n").expect("write locale file");
 
@@ -229,24 +247,17 @@ mod tests {
                 path: Some(temp.path().to_path_buf()),
                 package: None,
             },
-            all: true,
+            all_locales: true,
             dry_run: true,
             force_run: false,
             orphaned: false,
         });
 
-        let Err(error) = result else {
-            panic!("expected locale path file error, got {result:?}");
-        };
-        let message = error.to_string();
-        assert!(message.contains("locale path"));
-        assert!(message.contains("fr for test-app"));
+        assert!(result.is_ok());
+        let args = fs::read_to_string(args_path).expect("read recorded runner args");
         assert!(
-            !temp
-                .path()
-                .join(".es-fluent/metadata/test-app/clean.json")
-                .exists(),
-            "clean runner should not execute after orphan-scan setup errors"
+            args.contains(r#""command":"clean""#) && args.contains(r#""all_locales":true"#),
+            "clean --all-locales should run generated-entry cleanup without orphan-scan setup, got {args}"
         );
     }
 
@@ -270,7 +281,7 @@ mod tests {
                 path: Some(temp.path().to_path_buf()),
                 package: None,
             },
-            all: false,
+            all_locales: false,
             dry_run: true,
             force_run: false,
             orphaned: true,
@@ -300,7 +311,7 @@ mod tests {
                 path: Some(temp.path().to_path_buf()),
                 package: None,
             },
-            all: false,
+            all_locales: false,
             dry_run: true,
             force_run: false,
             orphaned: true,
@@ -330,7 +341,7 @@ mod tests {
                 path: Some(temp.path().to_path_buf()),
                 package: None,
             },
-            all: false,
+            all_locales: false,
             dry_run: false,
             force_run: false,
             orphaned: false,
@@ -348,7 +359,7 @@ mod tests {
                 path: Some(temp.path().to_path_buf()),
                 package: Some("missing-crate".to_string()),
             },
-            all: false,
+            all_locales: false,
             dry_run: false,
             force_run: false,
             orphaned: true,
@@ -372,7 +383,7 @@ mod tests {
                 path: Some(temp.path().to_path_buf()),
                 package: None,
             },
-            all: false,
+            all_locales: false,
             dry_run: false,
             force_run: false,
             orphaned: true,
@@ -382,7 +393,7 @@ mod tests {
     }
 
     #[test]
-    fn run_clean_all_also_removes_orphaned_files() {
+    fn run_clean_all_preserves_orphaned_files_without_orphaned_flag() {
         let temp = crate::test_fixtures::create_workspace_with_locales(&[
             ("en", "hello = Hello\n"),
             ("es", "hello = Hola\n"),
@@ -399,14 +410,17 @@ mod tests {
                 path: Some(temp.path().to_path_buf()),
                 package: None,
             },
-            all: true,
+            all_locales: true,
             dry_run: false,
             force_run: false,
             orphaned: false,
         });
 
         assert!(result.is_ok());
-        assert!(!orphan.exists(), "clean --all should remove file orphans");
+        assert!(
+            orphan.exists(),
+            "clean --all-locales should leave file orphans for an explicit --orphaned run"
+        );
     }
 
     #[test]
@@ -427,7 +441,7 @@ mod tests {
                 path: Some(temp.path().to_path_buf()),
                 package: None,
             },
-            all: false,
+            all_locales: false,
             dry_run: false,
             force_run: false,
             orphaned: true,
@@ -451,13 +465,15 @@ mod tests {
             &temp,
             FakeRunnerBehavior::record_args(&args_path),
         );
+        let orphan = temp.path().join("i18n/es/orphan.ftl");
+        fs::write(&orphan, "orphan = Orphan\n").expect("write orphan");
 
         let result = run_clean(CleanArgs {
             workspace: WorkspaceArgs {
                 path: Some(temp.path().to_path_buf()),
                 package: None,
             },
-            all: true,
+            all_locales: true,
             dry_run: false,
             force_run: false,
             orphaned: true,
@@ -467,7 +483,11 @@ mod tests {
         let args = fs::read_to_string(args_path).expect("read recorded runner args");
         assert!(
             args.contains(r#""command":"clean""#) && args.contains(r#""all_locales":true"#),
-            "clean --orphaned --all should run the normal all-locale clean request, got {args}"
+            "clean --orphaned --all-locales should run the normal all-locale clean request, got {args}"
+        );
+        assert!(
+            !orphan.exists(),
+            "clean --all-locales --orphaned should remove file orphans"
         );
     }
 
@@ -480,7 +500,7 @@ mod tests {
                 path: Some(temp.path().to_path_buf()),
                 package: None,
             },
-            all: true,
+            all_locales: true,
             dry_run: true,
             force_run: false,
             orphaned: true,
@@ -491,7 +511,7 @@ mod tests {
         );
         assert!(
             !temp.path().join(".es-fluent").exists(),
-            "clean --all --orphaned should fail before runner setup for binary-only crates"
+            "clean --all-locales --orphaned should fail before runner setup for binary-only crates"
         );
     }
 }

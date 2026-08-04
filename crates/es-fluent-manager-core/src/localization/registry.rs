@@ -22,11 +22,11 @@ pub enum ModuleDiscoveryError {
     InvalidMetadata(crate::asset_localization::ModuleRegistryError),
     InconsistentModuleMetadata {
         name: String,
-        domain: String,
+        owner: String,
     },
     DuplicateModuleRegistration {
         name: String,
-        domain: String,
+        owner: String,
         kind: ModuleRegistrationKind,
         count: usize,
     },
@@ -36,18 +36,18 @@ impl std::fmt::Display for ModuleDiscoveryError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::InvalidMetadata(error) => write!(f, "{error}"),
-            Self::InconsistentModuleMetadata { name, domain } => write!(
+            Self::InconsistentModuleMetadata { name, owner } => write!(
                 f,
-                "module '{name}' (domain '{domain}') has mismatched metadata between registrations",
+                "module '{name}' (owner '{owner}') has mismatched metadata between registrations",
             ),
             Self::DuplicateModuleRegistration {
                 name,
-                domain,
+                owner,
                 kind,
                 count,
             } => write!(
                 f,
-                "module '{name}' (domain '{domain}') has {count} duplicate {kind} registrations",
+                "module '{name}' (owner '{owner}') has {count} duplicate {kind} registrations",
             ),
         }
     }
@@ -91,7 +91,7 @@ fn validate_single_module_data(data: &'static ModuleData, errors: &mut Vec<Modul
 /// module list or the collected registry/discovery errors.
 ///
 /// Strict validation still allows one metadata-only registration plus one
-/// runtime-localizer registration for the same exact (`name`, `domain`)
+/// runtime-localizer registration for the same exact (`name`, `owner`)
 /// identity, because that pairing is used intentionally by some integrations.
 /// It rejects repeated registrations of the same kind for one identity and all
 /// metadata validation failures reported by `validate_module_registry()`. Exact
@@ -118,14 +118,14 @@ pub fn try_filter_module_registry(
         );
     }
 
-    for ((name, domain), inspection) in inspections {
+    for ((name, owner), inspection) in inspections {
         if let (Some(metadata_only), Some(runtime_localizer)) =
             (inspection.metadata_only, inspection.runtime_localizer)
             && metadata_only != runtime_localizer
         {
             errors.push(ModuleDiscoveryError::InconsistentModuleMetadata {
                 name: name.to_string(),
-                domain: domain.to_string(),
+                owner: owner.to_string(),
             });
 
             if inspection.chosen_data != Some(metadata_only) {
@@ -140,7 +140,7 @@ pub fn try_filter_module_registry(
         if counts.metadata_only > 1 {
             errors.push(ModuleDiscoveryError::DuplicateModuleRegistration {
                 name: name.to_string(),
-                domain: domain.to_string(),
+                owner: owner.to_string(),
                 kind: ModuleRegistrationKind::MetadataOnly,
                 count: counts.metadata_only,
             });
@@ -148,7 +148,7 @@ pub fn try_filter_module_registry(
         if counts.runtime_localizer > 1 {
             errors.push(ModuleDiscoveryError::DuplicateModuleRegistration {
                 name: name.to_string(),
-                domain: domain.to_string(),
+                owner: owner.to_string(),
                 kind: ModuleRegistrationKind::RuntimeLocalizer,
                 count: counts.runtime_localizer,
             });
@@ -169,7 +169,9 @@ fn inspect_module_registry(
 
     for module in modules {
         let data = module.data();
-        let inspection = inspections.entry((data.name, data.domain())).or_default();
+        let inspection = inspections
+            .entry((data.name, data.owner.as_str()))
+            .or_default();
         inspection.chosen_data.get_or_insert(data);
 
         match module.registration_kind() {
@@ -198,15 +200,21 @@ mod tests {
     static REGISTRY_TEST_LANGUAGES: &[LanguageIdentifier] = &[langid!("en")];
     static REGISTRY_TEST_DATA: ModuleData = ModuleData {
         name: "registry-test",
-        domain: crate::__macro::static_domain("registry-domain"),
+        owner: crate::__macro::static_domain("registry-domain"),
         supported_languages: REGISTRY_TEST_LANGUAGES,
-        namespaces: &[],
+        domains: &[crate::ModuleDomain {
+            domain: crate::__macro::static_domain("registry-domain"),
+            namespaces: &[],
+        }],
     };
     static REGISTRY_INVALID_DATA: ModuleData = ModuleData {
         name: "registry-invalid",
-        domain: crate::__macro::static_domain("registry-invalid"),
+        owner: crate::__macro::static_domain("registry-invalid"),
         supported_languages: &[],
-        namespaces: &[" ../escape "],
+        domains: &[crate::ModuleDomain {
+            domain: crate::__macro::static_domain("registry-invalid"),
+            namespaces: &[" ../escape "],
+        }],
     };
     static REGISTRY_METADATA: StaticModuleDescriptor =
         StaticModuleDescriptor::new(&REGISTRY_TEST_DATA);
@@ -226,7 +234,7 @@ mod tests {
 
         fn localize<'a>(
             &self,
-            _id: crate::StaticFluentEntryId,
+            _key: crate::StaticFluentMessageKey,
             _args: Option<&crate::FluentArgumentMap<'a>>,
         ) -> Option<String> {
             None
@@ -375,23 +383,23 @@ mod tests {
 
         let inconsistent = ModuleDiscoveryError::InconsistentModuleMetadata {
             name: "name".to_string(),
-            domain: "domain".to_string(),
+            owner: "owner".to_string(),
         };
         assert_eq!(
             inconsistent.to_string(),
-            "module 'name' (domain 'domain') has mismatched metadata between registrations"
+            "module 'name' (owner 'owner') has mismatched metadata between registrations"
         );
         assert!(inconsistent.source().is_none());
 
         let duplicate = ModuleDiscoveryError::DuplicateModuleRegistration {
             name: "name".to_string(),
-            domain: "domain".to_string(),
+            owner: "owner".to_string(),
             kind: ModuleRegistrationKind::RuntimeLocalizer,
             count: 3,
         };
         assert_eq!(
             duplicate.to_string(),
-            "module 'name' (domain 'domain') has 3 duplicate runtime-localizer registrations"
+            "module 'name' (owner 'owner') has 3 duplicate runtime-localizer registrations"
         );
         assert!(duplicate.source().is_none());
     }

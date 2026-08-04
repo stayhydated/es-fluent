@@ -41,7 +41,7 @@ fn generate(context: &CodegenContext, expansion: &EsFluentStructExpansion) -> To
     let message_entry =
         MessageEntrySpec::from_metadata(expansion.message_entry().clone(), message_arguments);
 
-    let fluent_message_body = message_entry.localize_with_expr(context, None);
+    let fluent_message_body = message_entry.localize_with_expr(context, expansion.domain());
 
     // Generate inventory submission for all types
     // FTL metadata is purely structural (type name, field names)

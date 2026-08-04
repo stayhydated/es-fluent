@@ -107,7 +107,7 @@ fn run_generate_entrypoint_supports_generate_and_clean_subcommands() {
         .current_dir(temp.path())
         .env("ES_FLUENT_TEST_I18N", i18n_toml.to_str().expect("path"))
         .env("ES_FLUENT_TEST_CRATE", "unknown-crate")
-        .args(["clean", "--all", "--dry-run"])
+        .args(["clean", "--all-locales", "--dry-run"])
         .assert()
         .success();
 

@@ -40,6 +40,7 @@ pub struct InventoryModuleInput<'a> {
     pub module_name_prefix: &'a str,
     pub type_kind: TypeKind,
     pub entries: Vec<MessageEntryModel>,
+    pub domain: Option<DomainName>,
     pub namespace: Option<NamespaceRule>,
 }
 
@@ -71,30 +72,17 @@ pub fn generate_localize_label_impl(
     ftl_key: &FluentMessageId,
     domain_override: Option<&DomainName>,
 ) -> TokenStream {
-    let ftl_key_expr = static_entry_id_tokens(context, ftl_key);
+    let key_expr = static_message_key_tokens(context, domain_override, ftl_key);
 
     let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
     let es_fluent = context.facade_path().tokens();
-    let domain_expr = static_domain_tokens(context, domain_override);
     quote! {
         impl #impl_generics #es_fluent::FluentLabel for #ident #ty_generics #where_clause {
-            fn fluent_label_domain() -> #es_fluent::registry::StaticFluentDomain {
-                #domain_expr
-            }
-
-            fn fluent_label_id() -> #es_fluent::registry::StaticFluentEntryId {
-                #ftl_key_expr
+            fn fluent_label_key() -> #es_fluent::registry::StaticFluentMessageKey {
+                #key_expr
             }
         }
     }
-}
-
-pub(crate) fn static_domain_tokens(
-    context: &CodegenContext,
-    domain_override: Option<&DomainName>,
-) -> TokenStream {
-    let es_fluent = context.facade_path().tokens();
-    es_fluent_derive_core::macro_support::static_domain_tokens(es_fluent, domain_override)
 }
 
 pub(crate) fn static_entry_id_tokens(
@@ -103,6 +91,19 @@ pub(crate) fn static_entry_id_tokens(
 ) -> TokenStream {
     let es_fluent = context.facade_path().tokens();
     es_fluent_derive_core::macro_support::static_entry_id_tokens(es_fluent, entry_id)
+}
+
+pub(crate) fn static_message_key_tokens(
+    context: &CodegenContext,
+    domain_override: Option<&DomainName>,
+    entry_id: &FluentMessageId,
+) -> TokenStream {
+    let es_fluent = context.facade_path().tokens();
+    es_fluent_derive_core::macro_support::static_message_key_tokens(
+        es_fluent,
+        domain_override,
+        entry_id,
+    )
 }
 
 pub(crate) fn static_argument_name_tokens(
@@ -344,6 +345,7 @@ pub fn emit_generated_unit_enum(
             module_name_prefix: "inventory",
             type_kind: TypeKind::Enum,
             entries: model.messages().to_vec(),
+            domain: model.domain().cloned(),
             namespace: model.namespace().cloned(),
         },
         label: InventoryModuleInput {
@@ -351,6 +353,7 @@ pub fn emit_generated_unit_enum(
             module_name_prefix: "label_inventory",
             type_kind: TypeKind::Enum,
             entries: vec![label_entry.clone()],
+            domain: model.domain().cloned(),
             namespace: model.namespace().cloned(),
         },
     };
@@ -402,6 +405,7 @@ pub fn message_inventory_output<'a>(
         module_name_prefix,
         type_kind: *model.type_kind(),
         entries: model.messages().to_vec(),
+        domain: model.domain().cloned(),
         namespace: model.namespace().cloned(),
     })
 }
@@ -409,6 +413,7 @@ pub fn message_inventory_output<'a>(
 pub fn label_inventory_output<'a>(
     ident: &'a syn::Ident,
     type_kind: TypeKind,
+    domain: Option<DomainName>,
     namespace: Option<NamespaceRule>,
     label_entry: MessageEntryModel,
 ) -> InventoryOutput<'a> {
@@ -417,6 +422,7 @@ pub fn label_inventory_output<'a>(
         module_name_prefix: "label_inventory",
         type_kind,
         entries: vec![label_entry],
+        domain,
         namespace,
     })
 }
@@ -456,6 +462,7 @@ fn generate_inventory_module(
         module_name_prefix,
         type_kind,
         entries,
+        domain,
         namespace,
     } = input;
 
@@ -468,6 +475,13 @@ fn generate_inventory_module(
         .map(|metadata| inventory_variant_tokens_for_model(context, metadata))
         .collect();
     let namespace_expr = namespace_rule_tokens(context, namespace.as_ref());
+    let domain_expr = domain
+        .as_ref()
+        .map(|domain| {
+            let domain = domain.as_str();
+            quote! { Some(#es_fluent::registry::__macro::static_domain(#domain)) }
+        })
+        .unwrap_or_else(|| quote! { None });
 
     quote! {
         #[doc(hidden)]
@@ -484,6 +498,10 @@ fn generate_inventory_module(
                     #type_kind,
                     #type_name,
                     VARIANTS,
+                    #es_fluent::registry::__macro::ftl_scope(
+                        env!("CARGO_PKG_NAME"),
+                        #domain_expr,
+                    ),
                     file!(),
                     module_path!(),
                     #namespace_expr,

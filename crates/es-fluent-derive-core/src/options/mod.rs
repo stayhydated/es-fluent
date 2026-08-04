@@ -1014,6 +1014,37 @@ impl NamespacedAttributeArgs {
     }
 }
 
+/// Shared explicit domain and namespace arguments for message containers.
+#[derive(Builder, Clone, Debug, Default, FromMeta, Getters)]
+pub struct ScopedAttributeArgs {
+    #[darling(default)]
+    domain: Option<SpannedValue<DomainName>>,
+    #[darling(flatten)]
+    namespace_args: NamespacedAttributeArgs,
+}
+
+impl ScopedAttributeArgs {
+    /// Returns the typed explicit package-local domain.
+    pub fn domain_name(&self) -> Option<&SpannedValue<DomainName>> {
+        self.domain.as_ref()
+    }
+
+    /// Returns the namespace value if provided.
+    pub fn namespace(&self) -> Option<&NamespaceRule> {
+        self.namespace_args.namespace()
+    }
+
+    /// Returns the span of the namespace value if provided.
+    pub fn namespace_span(&self) -> Option<proc_macro2::Span> {
+        self.namespace_args.namespace_span()
+    }
+
+    /// Returns the parsed namespace spec if provided.
+    pub fn namespace_spec(&self) -> Option<&SpannedNamespaceRule> {
+        self.namespace_args.namespace_spec()
+    }
+}
+
 #[derive(Builder, Clone, Debug, Default, FromMeta, Getters)]
 pub struct DerivedNamespacedAttributeArgs {
     /// The traits to derive on the FTL enum.

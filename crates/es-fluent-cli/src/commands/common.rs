@@ -1,6 +1,7 @@
 use crate::core::{CliError, CrateInfo, GenerateResult, GenerationAction, WorkspaceInfo};
 use crate::generation::MonolithicExecutor;
 use crate::utils::ui;
+use anstream::{print, println};
 use anyhow::Context as _;
 use clap::{Args, ValueEnum};
 use colored::Colorize as _;
@@ -10,10 +11,10 @@ use std::path::{Component, Path, PathBuf};
 #[derive(Args, Clone, Debug)]
 pub struct WorkspaceArgs {
     /// Existing path to a crate/workspace root, its Cargo.toml, or a path inside a crate (defaults to current directory).
-    #[arg(short, long)]
+    #[arg(short = 'P', long)]
     pub path: Option<PathBuf>,
     /// Workspace package name to process, even when --path points inside a different member.
-    #[arg(short = 'P', long)]
+    #[arg(short, long)]
     pub package: Option<String>,
 }
 
@@ -385,6 +386,24 @@ pub fn run_generation_for_crates(
     force_run: bool,
     show_progress: bool,
 ) -> Vec<GenerateResult> {
+    run_generation_for_crates_with_transaction(
+        workspace,
+        crates,
+        action,
+        force_run,
+        show_progress,
+        es_fluent_runner::FileTransaction::default(),
+    )
+}
+
+pub(crate) fn run_generation_for_crates_with_transaction(
+    workspace: &WorkspaceInfo,
+    crates: &[CrateInfo],
+    action: &GenerationAction,
+    force_run: bool,
+    show_progress: bool,
+    additional_transaction: es_fluent_runner::FileTransaction,
+) -> Vec<GenerateResult> {
     let runner_workspace = WorkspaceInfo {
         root_dir: workspace.root_dir.clone(),
         target_dir: workspace.target_dir.clone(),
@@ -428,14 +447,34 @@ pub fn run_generation_for_crates(
 
     // Process sequentially since they share the same binary
     // (parallel could cause contention on first build)
-    crates
+    let planned = crates
         .iter()
         .map(|krate| {
-            let result = executor.execute_generation_action(krate, action, force_run);
+            let result = executor.plan_generation_action(krate, action, force_run);
             pb.inc(1);
             result
         })
-        .collect()
+        .collect::<Vec<_>>();
+    let (mut results, transactions): (Vec<_>, Vec<_>) = planned.into_iter().unzip();
+
+    if results.iter().any(|result| result.error.is_some()) || action.is_dry_run() {
+        return results;
+    }
+
+    let mut transaction = additional_transaction;
+    let transaction_result = transactions
+        .into_iter()
+        .try_for_each(|planned| transaction.extend(planned))
+        .and_then(|()| transaction.commit().map(|_| ()));
+    if let Err(error) = transaction_result {
+        let message = format!("transaction failed: {error}");
+        for result in &mut results {
+            result.error = Some(message.clone());
+            result.changed = false;
+        }
+    }
+
+    results
 }
 
 pub(crate) fn validate_generation_paths(
@@ -1094,6 +1133,135 @@ mod tests {
             !dependencies.contains_key("b"),
             "runner should not link unrequested crates: {dependencies:?}"
         );
+    }
+
+    #[test]
+    #[cfg(unix)]
+    fn run_generation_for_crates_rolls_back_all_packages_when_commit_fails() {
+        use std::os::unix::fs::PermissionsExt as _;
+
+        let temp = tempfile::tempdir().expect("tempdir");
+        fs::write(
+            temp.path().join("Cargo.toml"),
+            "[workspace]\nmembers = [\"a\", \"b\"]\nresolver = \"2\"\n",
+        )
+        .expect("write workspace manifest");
+
+        let mut crates = Vec::new();
+        for name in ["a", "b"] {
+            let manifest_dir = temp.path().join(name);
+            let src_dir = manifest_dir.join("src");
+            let i18n_toml = manifest_dir.join("i18n.toml");
+            fs::create_dir_all(&src_dir).expect("create src");
+            fs::create_dir_all(manifest_dir.join("i18n/en")).expect("create i18n");
+            fs::write(
+                manifest_dir.join("Cargo.toml"),
+                format!(
+                    "[package]\nname = \"{name}\"\nversion = \"0.1.0\"\nedition = \"2024\"\n\n[lib]\npath = \"src/lib.rs\"\n"
+                ),
+            )
+            .expect("write manifest");
+            fs::write(src_dir.join("lib.rs"), "pub fn marker() {}\n").expect("write lib");
+            fs::write(
+                &i18n_toml,
+                "fallback_language = \"en\"\nassets_dir = \"i18n\"\n",
+            )
+            .expect("write i18n config");
+            crates.push(CrateInfo {
+                name: package(name),
+                manifest_dir: crate::core::ManifestDir::from_discovered(manifest_dir.clone()),
+                src_dir: crate::core::SourceDir::from_discovered(src_dir),
+                i18n_config_path: crate::core::DiscoveredI18nConfigPath::from_discovered(i18n_toml),
+                ftl_output_dir: crate::core::DiscoveredFtlOutputDir::from_discovered(
+                    manifest_dir.join("i18n/en"),
+                ),
+                has_lib_rs: true,
+                fluent_features: Vec::new(),
+            });
+        }
+
+        let first_path = temp.path().join("a/i18n/en/a.ftl");
+        fs::write(&first_path, "first = Original\n").expect("write first original");
+        let blocked_dir = temp.path().join("b/i18n/en/blocked");
+        fs::create_dir(&blocked_dir).expect("create blocked directory");
+        let second_path = blocked_dir.join("b.ftl");
+
+        let mut first_transaction = es_fluent_runner::FileTransaction::default();
+        first_transaction
+            .plan_write(&first_path, b"first = Updated\n".to_vec())
+            .expect("plan first write");
+        let mut second_transaction = es_fluent_runner::FileTransaction::default();
+        second_transaction
+            .plan_write(&second_path, b"second = Updated\n".to_vec())
+            .expect("plan second write");
+        fs::set_permissions(&blocked_dir, std::fs::Permissions::from_mode(0o555))
+            .expect("make second target read-only");
+
+        let workspace = WorkspaceInfo {
+            root_dir: temp.path().to_path_buf(),
+            target_dir: temp.path().join("target"),
+            crates,
+        };
+        let temp_store = es_fluent_runner::RunnerMetadataStore::temp_for_workspace(temp.path());
+        for (krate, transaction) in workspace
+            .crates
+            .iter()
+            .zip([first_transaction, second_transaction])
+        {
+            temp_store
+                .write_result(
+                    &krate.name,
+                    &es_fluent_runner::RunnerResult {
+                        changed: true,
+                        transaction,
+                    },
+                )
+                .expect("write runner result");
+        }
+
+        let binary_path = crate::test_fixtures::fake_runner_binary_path(&workspace.target_dir);
+        let crate_hashes = workspace
+            .crates
+            .iter()
+            .map(|krate| {
+                (
+                    krate.name.clone(),
+                    crate::generation::cache::compute_crate_inputs_hash(
+                        &krate.manifest_dir,
+                        &krate.src_dir,
+                        Some(&krate.i18n_config_path),
+                    ),
+                )
+            })
+            .collect();
+        crate::test_fixtures::install_fake_runner_with_cache(
+            &binary_path,
+            &temp_store,
+            temp.path(),
+            &FakeRunnerBehavior::silent_success(),
+            env!("CARGO_PKG_VERSION"),
+            crate_hashes,
+        );
+
+        let results = run_generation_for_crates(
+            &workspace,
+            &workspace.crates,
+            &GenerationAction::Generate {
+                mode: FluentParseMode::default(),
+                dry_run: false,
+            },
+            false,
+            false,
+        );
+
+        fs::set_permissions(&blocked_dir, std::fs::Permissions::from_mode(0o755))
+            .expect("restore target permissions");
+        assert!(results.iter().all(|result| result.error.is_some()));
+        assert_eq!(
+            fs::read_to_string(first_path).expect("read first after rollback"),
+            "first = Original\n"
+        );
+        assert!(!second_path.exists());
     }
 
     #[test]

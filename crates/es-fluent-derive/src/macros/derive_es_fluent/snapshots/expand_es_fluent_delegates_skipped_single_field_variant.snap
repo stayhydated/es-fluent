@@ -24,6 +24,7 @@ mod __es_fluent_inventory_LoginError {
         ::es_fluent::meta::TypeKind::Enum,
         "LoginError",
         VARIANTS,
+        ::es_fluent::registry::__macro::ftl_scope(env!("CARGO_PKG_NAME"), None),
         file!(),
         module_path!(),
         None,

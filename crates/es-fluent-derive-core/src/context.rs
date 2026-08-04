@@ -29,6 +29,7 @@ impl ContainerEnvelope {
                 Ok(Self::Struct(StructContainer {
                     ident: opts.ident,
                     generics: opts.generics,
+                    domain: opts.attr_args.domain_name().cloned(),
                     namespace: opts.attr_args.namespace_spec().map(|namespace| {
                         SpannedNamespaceRule::new(namespace.rule().clone(), namespace.span())
                     }),
@@ -82,7 +83,7 @@ impl ContainerEnvelope {
 
     pub fn fluent_domain_with_span(&self) -> Option<&SpannedValue<DomainName>> {
         match self {
-            Self::Struct(_) => None,
+            Self::Struct(container) => container.fluent_domain_with_span(),
             Self::Enum(container) => container.fluent_domain_with_span(),
         }
     }
@@ -97,6 +98,7 @@ impl ContainerEnvelope {
 pub struct StructContainer {
     ident: syn::Ident,
     generics: syn::Generics,
+    domain: Option<SpannedValue<DomainName>>,
     namespace: Option<SpannedNamespaceRule>,
 }
 
@@ -111,6 +113,10 @@ impl StructContainer {
 
     pub fn fluent_namespace(&self) -> Option<&SpannedNamespaceRule> {
         self.namespace.as_ref()
+    }
+
+    pub fn fluent_domain_with_span(&self) -> Option<&SpannedValue<DomainName>> {
+        self.domain.as_ref()
     }
 }
 
@@ -184,7 +190,7 @@ impl ContainerContext {
                         .unwrap_or_else(|| opts.ident().span()),
                 )
             }),
-            fluent_domain: None,
+            fluent_domain: opts.attr_args().domain_name().cloned(),
         }
     }
 
@@ -236,7 +242,7 @@ struct ParentStructOpts {
     ident: syn::Ident,
     generics: syn::Generics,
     #[darling(flatten)]
-    attr_args: crate::options::NamespacedAttributeArgs,
+    attr_args: crate::options::ScopedAttributeArgs,
 }
 
 #[derive(Clone, Debug, darling::FromDeriveInput)]

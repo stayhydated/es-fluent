@@ -73,6 +73,59 @@ fn test_read_from_path_success() {
 }
 
 #[test]
+fn test_read_from_path_validates_additional_domains() {
+    let temp_dir = TempDir::new().unwrap();
+    let config_path = temp_dir.path().join("i18n.toml");
+    fs::write(
+        &config_path,
+        r#"
+fallback_language = "en"
+assets_dir = "i18n"
+domains = ["ui", "emails"]
+"#,
+    )
+    .unwrap();
+
+    let config = I18nConfig::read_from_path(&config_path).expect("valid domains");
+    assert_eq!(
+        config
+            .domains
+            .iter()
+            .map(FluentDomain::as_str)
+            .collect::<Vec<_>>(),
+        ["ui", "emails"]
+    );
+
+    fs::write(
+        &config_path,
+        r#"
+fallback_language = "en"
+assets_dir = "i18n"
+domains = ["ui/forms"]
+"#,
+    )
+    .unwrap();
+    assert!(matches!(
+        I18nConfig::read_from_path(&config_path),
+        Err(I18nConfigError::InvalidDomain { domain, .. }) if domain == "ui/forms"
+    ));
+
+    fs::write(
+        &config_path,
+        r#"
+fallback_language = "en"
+assets_dir = "i18n"
+domains = ["ui", "ui"]
+"#,
+    )
+    .unwrap();
+    assert!(matches!(
+        I18nConfig::read_from_path(&config_path),
+        Err(I18nConfigError::DuplicateDomain { domain }) if domain == "ui"
+    ));
+}
+
+#[test]
 fn test_read_from_path_file_not_found() {
     let non_existent_path = Path::new("/non/existent/path/i18n.toml");
     let result = I18nConfig::read_from_path(non_existent_path);
@@ -276,6 +329,7 @@ fn test_raw_config_rejects_invalid_fallback_language() {
         assets_dir: PathBuf::from("i18n"),
         fluent_feature: None,
         namespaces: None,
+        domains: Vec::new(),
         check_fallback_copies: true,
     }
     .validate();
@@ -294,6 +348,7 @@ fn test_raw_config_rejects_invalid_namespace() {
         assets_dir: PathBuf::from("i18n"),
         fluent_feature: None,
         namespaces: Some(vec!["../ui".to_string()]),
+        domains: Vec::new(),
         check_fallback_copies: true,
     }
     .validate();

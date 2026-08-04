@@ -1,5 +1,5 @@
 use super::FluentLocalizer;
-use crate::registry::{StaticFluentDomain, StaticFluentEntryId};
+use crate::registry::StaticFluentMessageKey;
 
 /// A trait for types that have a Fluent label key representing the type itself.
 ///
@@ -7,57 +7,43 @@ use crate::registry::{StaticFluentDomain, StaticFluentEntryId};
 /// source types, and by `#[derive(EsFluentVariants)]` for each generated
 /// variant enum.
 pub trait FluentLabel {
-    /// Returns the validated static domain for this type-level label.
-    fn fluent_label_domain() -> StaticFluentDomain;
-
-    /// Returns the validated static message id for this type-level label.
-    fn fluent_label_id() -> StaticFluentEntryId;
+    /// Returns the fully scoped static key for this type-level label.
+    fn fluent_label_key() -> StaticFluentMessageKey;
 
     /// Attempts to return the localized label for this type using an explicit
     /// localization context.
     fn try_localize_label<L: FluentLocalizer + ?Sized>(localizer: &L) -> Option<String> {
-        try_localize_label(
-            localizer,
-            Self::fluent_label_domain(),
-            Self::fluent_label_id(),
-        )
+        try_localize_label(localizer, Self::fluent_label_key())
     }
 
     /// Returns the localized label for this type using an explicit localization
     /// context.
     fn localize_label<L: FluentLocalizer + ?Sized>(localizer: &L) -> String {
-        localize_label(
-            localizer,
-            Self::fluent_label_domain(),
-            Self::fluent_label_id(),
-        )
+        localize_label(localizer, Self::fluent_label_key())
     }
 }
 
 #[doc(hidden)]
 pub fn try_localize_label<L: FluentLocalizer + ?Sized>(
     localizer: &L,
-    domain: StaticFluentDomain,
-    id: StaticFluentEntryId,
+    key: StaticFluentMessageKey,
 ) -> Option<String> {
-    localizer.localize_in_domain(domain, id, None)
+    localizer.localize(key, None)
 }
 
 #[doc(hidden)]
 pub fn localize_label<L: FluentLocalizer + ?Sized>(
     localizer: &L,
-    domain: StaticFluentDomain,
-    id: StaticFluentEntryId,
+    key: StaticFluentMessageKey,
 ) -> String {
-    localizer
-        .localize_in_domain(domain, id, None)
-        .unwrap_or_else(|| {
-            panic!(
-                "missing Fluent label `{}` in domain `{}`",
-                id.as_str(),
-                domain.as_str(),
-            )
-        })
+    localizer.localize(key, None).unwrap_or_else(|| {
+        panic!(
+            "missing Fluent label `{}` in domain `{}` owned by `{}`",
+            key.id().as_str(),
+            key.domain().as_str(),
+            key.owner().as_str(),
+        )
+    })
 }
 
 #[cfg(test)]
@@ -65,12 +51,12 @@ mod tests {
     use super::*;
     use crate::FluentArgs;
 
-    fn static_domain(value: &'static str) -> StaticFluentDomain {
-        StaticFluentDomain::try_new(value).expect("valid test domain")
-    }
-
-    fn static_entry(value: &'static str) -> StaticFluentEntryId {
-        StaticFluentEntryId::try_new(value).expect("valid test message id")
+    fn static_key(id: &'static str) -> StaticFluentMessageKey {
+        crate::registry::__macro::static_message_key(
+            "label-owner",
+            crate::registry::__macro::static_domain("label-domain"),
+            crate::registry::__macro::static_entry_id(id),
+        )
     }
 
     struct LabelLocalizer;
@@ -78,33 +64,21 @@ mod tests {
     impl FluentLocalizer for LabelLocalizer {
         fn localize<'a>(
             &self,
-            id: StaticFluentEntryId,
+            key: StaticFluentMessageKey,
             _args: Option<&FluentArgs<'a>>,
         ) -> Option<String> {
-            (id == "label-id").then(|| "Label".to_string())
-        }
-
-        fn localize_in_domain<'a>(
-            &self,
-            domain: StaticFluentDomain,
-            id: StaticFluentEntryId,
-            args: Option<&FluentArgs<'a>>,
-        ) -> Option<String> {
-            (domain == "label-domain")
-                .then(|| self.localize(id, args))
-                .flatten()
+            (key.owner() == "label-owner"
+                && key.domain() == "label-domain"
+                && key.id() == "label-id")
+                .then(|| "Label".to_string())
         }
     }
 
     struct TestLabel;
 
     impl FluentLabel for TestLabel {
-        fn fluent_label_domain() -> StaticFluentDomain {
-            static_domain("label-domain")
-        }
-
-        fn fluent_label_id() -> StaticFluentEntryId {
-            static_entry("label-id")
+        fn fluent_label_key() -> StaticFluentMessageKey {
+            static_key("label-id")
         }
     }
 
@@ -112,8 +86,9 @@ mod tests {
     fn label_trait_exposes_typed_metadata_and_localizes() {
         let localizer = LabelLocalizer;
 
-        assert_eq!(TestLabel::fluent_label_domain(), "label-domain");
-        assert_eq!(TestLabel::fluent_label_id(), "label-id");
+        assert_eq!(TestLabel::fluent_label_key().owner(), "label-owner");
+        assert_eq!(TestLabel::fluent_label_key().domain(), "label-domain");
+        assert_eq!(TestLabel::fluent_label_key().id(), "label-id");
         assert_eq!(
             TestLabel::try_localize_label(&localizer),
             Some("Label".into())
@@ -126,38 +101,21 @@ mod tests {
         let localizer = LabelLocalizer;
 
         assert_eq!(
-            try_localize_label(
-                &localizer,
-                static_domain("label-domain"),
-                static_entry("label-id")
-            ),
+            try_localize_label(&localizer, static_key("label-id")),
             Some("Label".into())
         );
         assert_eq!(
-            try_localize_label(
-                &localizer,
-                static_domain("label-domain"),
-                static_entry("missing-id")
-            ),
+            try_localize_label(&localizer, static_key("missing-id")),
             None
         );
-        assert_eq!(
-            localize_label(
-                &localizer,
-                static_domain("label-domain"),
-                static_entry("label-id")
-            ),
-            "Label"
-        );
+        assert_eq!(localize_label(&localizer, static_key("label-id")), "Label");
     }
 
     #[test]
-    #[should_panic(expected = "missing Fluent label `missing-id` in domain `label-domain`")]
+    #[should_panic(
+        expected = "missing Fluent label `missing-id` in domain `label-domain` owned by `label-owner`"
+    )]
     fn localize_label_panics_when_the_typed_label_is_missing() {
-        let _ = localize_label(
-            &LabelLocalizer,
-            static_domain("label-domain"),
-            static_entry("missing-id"),
-        );
+        let _ = localize_label(&LabelLocalizer, static_key("missing-id"));
     }
 }

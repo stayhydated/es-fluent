@@ -1,13 +1,17 @@
 use super::*;
-use es_fluent_manager_core::StaticFluentEntryId;
+use es_fluent_manager_core::StaticFluentMessageKey;
 #[cfg(feature = "localized-langs")]
 use es_fluent_manager_core::{FluentArgumentMap, StaticFluentArgumentName};
 #[cfg(feature = "localized-langs")]
 use fluent_bundle::FluentValue;
 use unic_langid::langid;
 
-fn static_entry(value: &'static str) -> StaticFluentEntryId {
-    es_fluent_manager_core::__macro::static_entry_id(value)
+fn static_entry(value: &'static str) -> StaticFluentMessageKey {
+    es_fluent_manager_core::__macro::static_message_key(
+        "es-fluent-lang",
+        es_fluent_manager_core::__macro::static_domain("es-fluent-lang"),
+        es_fluent_manager_core::__macro::static_entry_id(value),
+    )
 }
 
 #[cfg(feature = "localized-langs")]
@@ -171,7 +175,7 @@ fn localized_mode_ignores_unused_args() {
 #[test]
 fn uses_standard_module_registration() {
     let registration = inventory::iter::<&'static dyn I18nModuleRegistration>()
-        .find(|registration| registration.data().domain() == "es-fluent-lang")
+        .find(|registration| registration.data().owner == "es-fluent-lang")
         .expect("es-fluent-lang module registration should be present");
     let localizer = registration
         .create_localizer()

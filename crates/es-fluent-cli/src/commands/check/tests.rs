@@ -24,7 +24,7 @@ fn check_args(temp: &tempfile::TempDir) -> CheckArgs {
             path: Some(temp.path().to_path_buf()),
             package: None,
         })
-        .all(false)
+        .all_locales(false)
         .ignore(Vec::new())
         .force_run(false)
         .check_fallback_copies(true)
@@ -57,14 +57,16 @@ fn run_check_reports_discovered_crate_without_library_target() {
 }
 
 #[test]
-fn run_check_can_ignore_discovered_crate_without_library_target() {
+fn run_check_errors_when_ignored_binary_crate_leaves_no_selection() {
     let temp = crate::test_fixtures::create_binary_only_i18n_workspace();
     let mut args = check_args(&temp);
     args.ignore = vec!["bin-app".to_string()];
 
     let result = run_check(args);
 
-    assert!(result.is_ok());
+    assert!(
+        matches!(result, Err(CliError::Other(message)) if message.contains("all selected crates were ignored"))
+    );
 }
 
 #[test]
@@ -76,7 +78,7 @@ fn run_check_trims_comma_separated_ignore_values() {
     })
     .expect("discover workspace");
 
-    let run = collect_check_run(
+    let error = collect_check_run(
         &workspace,
         false,
         &[" valid-app ".to_string(), " bin-app ".to_string()],
@@ -84,13 +86,13 @@ fn run_check_trims_comma_separated_ignore_values() {
         true,
         false,
     )
-    .expect("collect check run");
+    .err()
+    .expect("ignoring every selected crate should fail");
 
-    assert_eq!(run.crates_discovered, 1);
-    assert_eq!(run.crates_checked, 0);
-    assert_eq!(
-        run.workspace_warnings,
-        vec!["all selected crates were ignored by --ignore".to_string()]
+    assert!(
+        error
+            .to_string()
+            .contains("all selected crates were ignored")
     );
 }
 
@@ -131,49 +133,33 @@ fn run_check_rejects_no_fallback_copy_check_without_all_before_workspace_discove
     let result = run_check(args);
 
     assert!(
-        matches!(result, Err(CliError::Other(message)) if message.contains("--no-fallback-copy-check requires --all"))
+        matches!(result, Err(CliError::Other(message)) if message.contains("--no-fallback-copy-check requires --all-locales"))
     );
 }
 
 #[test]
-fn run_check_returns_ok_when_package_filter_matches_nothing() {
+fn run_check_errors_when_package_filter_matches_nothing() {
     let temp = crate::test_fixtures::create_test_crate_workspace();
     let mut args = check_args(&temp);
     args.workspace.package = Some("missing-crate".to_string());
 
     let result = run_check(args);
 
-    assert!(result.is_ok());
+    assert!(matches!(result, Err(CliError::Other(message)) if message.contains("missing-crate")));
 }
 
 #[test]
-fn run_check_reports_package_filter_warning_before_validating_ignore() {
+fn run_check_rejects_package_with_ignore_before_workspace_discovery() {
     let temp = crate::test_fixtures::create_test_crate_workspace();
     let mut args = check_args(&temp);
-    args.workspace.package = Some("missing-crate".to_string());
-    args.ignore = vec!["unknown-crate".to_string()];
-
-    let workspace = WorkspaceCrates::discover(args.workspace.clone()).expect("discover workspace");
-    let run = collect_check_run(
-        &workspace,
-        args.all,
-        &args.ignore,
-        args.force_run,
-        args.check_fallback_copies,
-        false,
-    )
-    .expect("package miss should be reported before ignore validation");
-
-    assert_eq!(run.crates_discovered, 0);
-    assert_eq!(run.crates_checked, 0);
-    assert_eq!(
-        run.workspace_warnings,
-        vec!["no configured crate found matching package filter 'missing-crate'".to_string()]
-    );
-    assert!(run.issues.is_empty());
+    args.workspace.path = Some(std::path::PathBuf::from("/definitely/missing/path"));
+    args.workspace.package = Some("test-app".to_string());
+    args.ignore = vec!["other-crate".to_string()];
 
     let result = run_check(args);
-    assert!(result.is_ok());
+    assert!(
+        matches!(result, Err(CliError::Other(message)) if message.contains("--ignore cannot be used with --package"))
+    );
 }
 
 #[test]
@@ -512,15 +498,15 @@ fn run_check_respects_no_fallback_copy_check_flag() {
     let args = check_args(&temp);
     assert!(
         run_check(args).is_ok(),
-        "fallback-copy warnings are only reported with --all"
+        "fallback-copy warnings are only reported with --all-locales"
     );
 
     let mut args = check_args(&temp);
-    args.all = true;
+    args.all_locales = true;
     assert!(matches!(run_check(args), Err(CliError::Validation(_))));
 
     let mut args = check_args(&temp);
-    args.all = true;
+    args.all_locales = true;
     args.check_fallback_copies = false;
     assert!(run_check(args).is_ok());
 }
@@ -541,17 +527,19 @@ fn run_check_returns_validation_error_for_missing_key() {
 }
 
 #[test]
-fn run_check_returns_ok_when_all_crates_are_ignored() {
+fn run_check_errors_when_all_crates_are_ignored() {
     let temp = crate::test_fixtures::create_test_crate_workspace();
     let mut args = check_args(&temp);
     args.ignore = vec!["test-app".to_string()];
     let result = run_check(args);
 
-    assert!(result.is_ok());
+    assert!(
+        matches!(result, Err(CliError::Other(message)) if message.contains("all selected crates were ignored"))
+    );
 }
 
 #[test]
-fn collect_check_run_reports_when_all_crates_are_ignored() {
+fn collect_check_run_errors_when_all_crates_are_ignored() {
     let temp = crate::test_fixtures::create_test_crate_workspace();
     let workspace = WorkspaceCrates::discover(WorkspaceArgs {
         path: Some(temp.path().to_path_buf()),
@@ -559,7 +547,7 @@ fn collect_check_run_reports_when_all_crates_are_ignored() {
     })
     .expect("discover workspace");
 
-    let run = collect_check_run(
+    let error = collect_check_run(
         &workspace,
         false,
         &["test-app".to_string()],
@@ -567,19 +555,18 @@ fn collect_check_run_reports_when_all_crates_are_ignored() {
         true,
         false,
     )
-    .expect("collect check run");
+    .err()
+    .expect("collect check run should reject an empty check set");
 
-    assert_eq!(run.crates_discovered, 1);
-    assert_eq!(run.crates_checked, 0);
-    assert_eq!(
-        run.workspace_warnings,
-        vec!["all selected crates were ignored by --ignore".to_string()]
+    assert!(
+        error
+            .to_string()
+            .contains("all selected crates were ignored")
     );
-    assert!(run.issues.is_empty());
 }
 
 #[test]
-fn collect_check_run_reports_missing_package_before_validating_ignore() {
+fn collect_check_run_errors_for_missing_package() {
     let temp = crate::test_fixtures::create_test_crate_workspace();
     let workspace = WorkspaceCrates::discover(WorkspaceArgs {
         path: Some(temp.path().to_path_buf()),
@@ -587,51 +574,11 @@ fn collect_check_run_reports_missing_package_before_validating_ignore() {
     })
     .expect("discover workspace");
 
-    let run = collect_check_run(
-        &workspace,
-        false,
-        &["test-app".to_string()],
-        false,
-        true,
-        false,
-    )
-    .expect("collect check run");
+    let error = collect_check_run(&workspace, false, &[], false, true, false)
+        .err()
+        .expect("missing package should fail");
 
-    assert_eq!(run.crates_discovered, 0);
-    assert_eq!(run.crates_checked, 0);
-    assert_eq!(
-        run.workspace_warnings,
-        vec!["no configured crate found matching package filter 'missing-crate'".to_string()]
-    );
-    assert!(run.issues.is_empty());
-}
-
-#[test]
-fn collect_check_run_allows_known_ignored_crate_outside_package_filter() {
-    let temp = crate::test_fixtures::create_mixed_library_and_binary_i18n_workspace();
-    let workspace = WorkspaceCrates::discover(WorkspaceArgs {
-        path: Some(temp.path().to_path_buf()),
-        package: Some("valid-app".to_string()),
-    })
-    .expect("discover workspace");
-
-    let run = collect_check_run(
-        &workspace,
-        false,
-        &["valid-app".to_string(), "bin-app".to_string()],
-        false,
-        true,
-        false,
-    )
-    .expect("collect check run");
-
-    assert_eq!(run.crates_discovered, 1);
-    assert_eq!(run.crates_checked, 0);
-    assert_eq!(
-        run.workspace_warnings,
-        vec!["all selected crates were ignored by --ignore".to_string()]
-    );
-    assert!(run.issues.is_empty());
+    assert!(error.to_string().contains("missing-crate"));
 }
 
 #[test]
@@ -880,7 +827,7 @@ fn run_check_all_reports_orphaned_files() {
     fs::write(&inventory_path, INVENTORY_WITH_HELLO).expect("write inventory");
 
     let mut args = check_args(&temp);
-    args.all = true;
+    args.all_locales = true;
     let result = run_check(args);
 
     let Err(CliError::Validation(report)) = result else {

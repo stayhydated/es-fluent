@@ -12,6 +12,7 @@ fn namespace_allowlist_failures_match_user_diagnostics() {
         r#"
 fallback_language = "en"
 assets_dir = "i18n"
+domains = ["auth"]
 namespaces = ["allowed"]
 "#,
     )

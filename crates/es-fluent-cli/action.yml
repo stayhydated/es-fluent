@@ -10,19 +10,19 @@ inputs:
     required: false
     default: .
   package:
-    description: Optional package name to filter workspace crates (passed as --package).
+    description: Optional package name to filter workspace crates (passed as --package); cannot be combined with ignore.
     required: false
     default: ""
-  all:
+  all_locales:
     description: Include non-fallback validation, fallback-copy warnings, and orphan-file checks. Must be true or false.
     required: false
     default: "false"
   ignore:
-    description: "Crates to skip (comma- or newline-separated; blank entries ignored), passed as --ignore."
+    description: "Crates to skip (comma- or newline-separated; blank entries ignored), passed as --ignore; cannot be combined with package."
     required: false
     default: ""
   no_fallback_copy_check:
-    description: Disable fallback-copy warnings for all-locale checks. Must be true or false and requires all=true.
+    description: Disable fallback-copy warnings for all-locale checks. Must be true or false and requires all_locales=true.
     required: false
     default: "false"
   force_run:
@@ -68,7 +68,7 @@ runs:
       env:
         ES_FLUENT_PATH: ${{ inputs.path }}
         ES_FLUENT_PACKAGE: ${{ inputs.package }}
-        ES_FLUENT_ALL: ${{ inputs.all }}
+        ES_FLUENT_ALL_LOCALES: ${{ inputs.all_locales }}
         ES_FLUENT_IGNORE: ${{ inputs.ignore }}
         ES_FLUENT_NO_FALLBACK_COPY_CHECK: ${{ inputs.no_fallback_copy_check }}
         ES_FLUENT_FORCE_RUN: ${{ inputs.force_run }}
@@ -98,8 +98,8 @@ runs:
         if [[ -n "$ES_FLUENT_PACKAGE" ]]; then
           args+=(--package "$ES_FLUENT_PACKAGE")
         fi
-        if action_bool all "$ES_FLUENT_ALL"; then
-          args+=(--all)
+        if action_bool all_locales "$ES_FLUENT_ALL_LOCALES"; then
+          args+=(--all-locales)
         fi
         if [[ -n "$ES_FLUENT_IGNORE" ]]; then
           ignore_value=$(

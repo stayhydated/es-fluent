@@ -52,48 +52,9 @@ impl CrateFtlLayout {
     }
 
     /// Discover and load all FTL files for this crate in the locale.
+    #[cfg(test)]
     pub fn discover_and_load_files(&self) -> Result<Vec<LoadedFtlFile>> {
         load_ftl_files(self.discover_files()?)
-    }
-
-    /// Mirror the fallback crate file set into this locale.
-    pub fn expected_files_from_fallback(
-        &self,
-        fallback: &CrateFtlLayout,
-    ) -> Result<HashSet<PathBuf>> {
-        if self.locale_dir.exists() {
-            ensure_ftl_directory_is_real(&self.locale_dir)?;
-        }
-        if fallback.locale_dir.exists() {
-            ensure_ftl_directory_is_real(&fallback.locale_dir)?;
-        }
-
-        let mut expected = HashSet::new();
-
-        let fallback_main_file = fallback.main_file();
-        if fallback_main_file.exists() {
-            ensure_ftl_path_is_file(&fallback_main_file)?;
-            expected.insert(self.main_file());
-        }
-
-        let fallback_crate_dir = fallback.crate_dir();
-        if fallback_crate_dir.exists() {
-            ensure_ftl_directory_is_real(&fallback_crate_dir)?;
-            if !fallback_crate_dir.is_dir() {
-                return Err(anyhow!(
-                    "Expected crate namespace path to be a directory: {}",
-                    fallback_crate_dir.display()
-                ));
-            }
-
-            for fallback_file in
-                discover_nested_ftl_files(&fallback_crate_dir, &fallback.locale_dir)?
-            {
-                expected.insert(self.locale_dir.join(fallback_file.relative_path));
-            }
-        }
-
-        Ok(expected)
     }
 }
 
@@ -125,7 +86,7 @@ pub struct LoadedFtlFile {
     pub relative_path: PathBuf,
     /// Parsed resource.
     pub resource: ast::Resource<String>,
-    /// Extracted message keys.
+    /// Extracted message and term keys.
     pub keys: HashSet<String>,
 }
 
@@ -178,6 +139,20 @@ pub fn discover_crate_ftl_files_in_locale_dir(
         files.extend(discover_nested_ftl_files(&crate_subdir, locale_dir)?);
     }
 
+    Ok(files)
+}
+
+/// Discover the main and namespaced FTL files for each package-owned domain.
+pub fn discover_domain_ftl_files_in_locale_dir(
+    locale_dir: &Path,
+    domains: &[String],
+) -> Result<Vec<FtlFileInfo>> {
+    let mut files = Vec::new();
+    for domain in domains {
+        files.extend(discover_crate_ftl_files_in_locale_dir(locale_dir, domain)?);
+    }
+    files.sort_by(|left, right| left.relative_path.cmp(&right.relative_path));
+    files.dedup_by(|left, right| left.abs_path == right.abs_path);
     Ok(files)
 }
 
@@ -254,7 +229,12 @@ pub fn load_ftl_files(files: Vec<FtlFileInfo>) -> Result<Vec<LoadedFtlFile>> {
     for file_info in files {
         if file_info.abs_path.exists() {
             let resource = crate::ftl::parse_ftl_file(&file_info.abs_path)?;
-            let keys = crate::ftl::extract_message_keys(&resource);
+            let keys = resource
+                .body
+                .iter()
+                .filter_map(es_fluent_generate::ftl::entry_key)
+                .map(|key| key.into_owned())
+                .collect();
 
             loaded_files.push(LoadedFtlFile {
                 abs_path: file_info.abs_path.clone(),
@@ -269,12 +249,26 @@ pub fn load_ftl_files(files: Vec<FtlFileInfo>) -> Result<Vec<LoadedFtlFile>> {
 }
 
 /// Discover and load all FTL files for a locale and crate.
+#[cfg(test)]
 pub fn discover_and_load_ftl_files(
     assets_dir: &Path,
     locale: &str,
     crate_name: &str,
 ) -> Result<Vec<LoadedFtlFile>> {
     CrateFtlLayout::from_assets_dir(assets_dir, locale, crate_name).discover_and_load_files()
+}
+
+/// Discover and load the resources for each package-owned domain in a locale.
+pub fn discover_and_load_domain_ftl_files(
+    assets_dir: &Path,
+    locale: &str,
+    domains: &[String],
+) -> Result<Vec<LoadedFtlFile>> {
+    let locale_dir = locale_output_dir(assets_dir, locale);
+    load_ftl_files(discover_domain_ftl_files_in_locale_dir(
+        &locale_dir,
+        domains,
+    )?)
 }
 
 #[cfg(test)]
@@ -333,6 +327,33 @@ mod tests {
             files
                 .iter()
                 .any(|info| info.relative_path == std::path::Path::new("test-crate/ui.ftl"))
+        );
+    }
+
+    #[test]
+    fn test_discover_domain_ftl_files_includes_additional_domain_resources() {
+        let temp_dir = TempDir::new().unwrap();
+        let locale_dir = temp_dir.path().join("en");
+        fs::create_dir_all(locale_dir.join("ui/forms")).unwrap();
+        fs::write(locale_dir.join("test-crate.ftl"), "main = Main").unwrap();
+        fs::write(locale_dir.join("ui.ftl"), "title = Title").unwrap();
+        fs::write(locale_dir.join("ui/forms/input.ftl"), "input = Input").unwrap();
+
+        let files = discover_domain_ftl_files_in_locale_dir(
+            &locale_dir,
+            &["test-crate".to_string(), "ui".to_string()],
+        )
+        .unwrap();
+        assert_eq!(
+            files
+                .iter()
+                .map(|file| file.relative_path.as_path())
+                .collect::<Vec<_>>(),
+            [
+                Path::new("test-crate.ftl"),
+                Path::new("ui/forms/input.ftl"),
+                Path::new("ui.ftl"),
+            ]
         );
     }
 
@@ -484,33 +505,15 @@ mod tests {
         fs::create_dir_all(&locale_dir).unwrap();
         fs::write(
             locale_dir.join("test-crate.ftl"),
-            "hello = Hello\nworld = World",
+            "-brand = Brand\nhello = Hello\nworld = World",
         )
         .unwrap();
 
         let files = discover_and_load_ftl_files(temp_dir.path(), "en", "test-crate").unwrap();
         assert_eq!(files.len(), 1);
-        assert_eq!(files[0].keys.len(), 2);
+        assert_eq!(files[0].keys.len(), 3);
+        assert!(files[0].keys.contains("-brand"));
         assert!(files[0].keys.contains("hello"));
         assert!(files[0].keys.contains("world"));
-    }
-
-    #[test]
-    fn crate_layout_mirrors_fallback_structure() {
-        let temp_dir = TempDir::new().unwrap();
-        let fallback = temp_dir.path().join("en");
-        let target = temp_dir.path().join("es");
-        fs::create_dir_all(fallback.join("test-crate/forms")).unwrap();
-        fs::write(fallback.join("test-crate.ftl"), "hello = Hello").unwrap();
-        fs::write(fallback.join("test-crate/forms/input.ftl"), "input = Input").unwrap();
-
-        let fallback_layout = CrateFtlLayout::new(fallback, "test-crate");
-        let target_layout = CrateFtlLayout::new(target.clone(), "test-crate");
-        let expected = target_layout
-            .expected_files_from_fallback(&fallback_layout)
-            .unwrap();
-
-        assert!(expected.contains(&target.join("test-crate.ftl")));
-        assert!(expected.contains(&target.join("test-crate/forms/input.ftl")));
     }
 }

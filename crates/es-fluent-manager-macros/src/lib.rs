@@ -15,7 +15,7 @@ use proc_macro::TokenStream;
 ///
 /// 1.  Read the `i18n.toml` configuration file.
 /// 2.  Discover the available languages in the configured `assets_dir`.
-/// 3.  Generate a `RustEmbed` struct for the i18n assets.
+/// 3.  Generate a `RustEmbed` struct filtered to the discovered resource plan.
 /// 4.  Generate an `EmbeddedI18nModule` for the crate.
 #[proc_macro]
 pub fn define_embedded_i18n_module(input: TokenStream) -> TokenStream {
@@ -40,7 +40,7 @@ pub fn define_bevy_i18n_module(input: TokenStream) -> TokenStream {
 ///
 /// 1.  Read the `i18n.toml` configuration file.
 /// 2.  Discover the available languages in the configured `assets_dir`.
-/// 3.  Generate Dioxus `asset!` registrations for the i18n assets.
+/// 3.  Generate Dioxus `asset!` registrations for the discovered resource plan.
 /// 4.  Generate explicit async asset loader helpers for Dioxus integrations.
 #[proc_macro]
 pub fn define_dioxus_i18n_module(input: TokenStream) -> TokenStream {

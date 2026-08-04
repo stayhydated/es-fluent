@@ -23,7 +23,7 @@ pub use es_fluent_lang_macro::es_fluent_language;
 #[doc(hidden)]
 use es_fluent_manager_core::{
     FluentArgumentMap, I18nModule, I18nModuleDescriptor, I18nModuleRegistration, LocalizationError,
-    Localizer, ModuleData, StaticFluentEntryId,
+    Localizer, ModuleData, ModuleDomain, StaticFluentMessageKey,
 };
 use icu_experimental::displaynames::{DisplayNamesOptions, multi::LocaleDisplayNamesFormatter};
 use icu_locale::Locale;
@@ -100,9 +100,12 @@ struct EsFluentLanguageModule;
 
 static ES_FLUENT_LANG_MODULE_DATA: ModuleData = ModuleData {
     name: "es-fluent-lang",
-    domain: es_fluent_manager_core::__macro::static_domain("es-fluent-lang"),
+    owner: es_fluent_manager_core::__macro::static_domain("es-fluent-lang"),
     supported_languages: &[],
-    namespaces: &[],
+    domains: &[ModuleDomain {
+        domain: es_fluent_manager_core::__macro::static_domain("es-fluent-lang"),
+        namespaces: &[],
+    }],
 };
 
 impl I18nModuleDescriptor for EsFluentLanguageModule {
@@ -144,17 +147,22 @@ impl Localizer for EsFluentLanguageLocalizer {
 
     fn localize<'a>(
         &self,
-        id: StaticFluentEntryId,
+        key: StaticFluentMessageKey,
         args: Option<&FluentArgumentMap<'a>>,
     ) -> Option<String> {
+        if key.owner() != ES_FLUENT_LANG_MODULE_DATA.owner
+            || !ES_FLUENT_LANG_MODULE_DATA.owns_domain(key.domain())
+        {
+            return None;
+        }
         if args.is_some_and(|args| !args.is_empty()) {
             tracing::debug!(
                 "Ignoring Fluent args for built-in language label '{}'; ICU-backed labels do not accept arguments",
-                id.as_str()
+                key.id().as_str()
             );
         }
 
-        let target_language = parse_message_language(id.as_str())?;
+        let target_language = parse_message_language(key.id().as_str())?;
 
         #[cfg(feature = "localized-langs")]
         let display_language = self.current_lang.read().clone();
@@ -179,7 +187,7 @@ mod force_link_support {
     pub(crate) fn force_link() -> usize {
         let module: &'static dyn I18nModuleRegistration = &ES_FLUENT_LANGUAGE_MODULE;
         let _ = module.create_localizer();
-        usize::from(!module.data().domain().is_empty())
+        usize::from(!module.data().owner.as_str().is_empty())
     }
 }
 

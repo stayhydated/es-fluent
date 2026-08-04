@@ -1,12 +1,15 @@
 use crate::core::{CrateInfo, GenerateResult, GenerationAction, WorkspaceInfo};
 use anyhow::{Result, bail};
-use es_fluent_runner::{I18nTomlPath, RunnerMetadataStore, RunnerRequest};
+use es_fluent_runner::{
+    FileTransaction, I18nTomlPath, RunnerMetadataStore, RunnerRequest, RunnerResult,
+};
 use std::time::Instant;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct RunnerExecution {
     pub output: String,
     pub changed: bool,
+    pub transaction: FileTransaction,
 }
 
 impl GenerationAction {
@@ -73,15 +76,20 @@ impl<'a> MonolithicExecutor<'a> {
         force_run: bool,
     ) -> Result<RunnerExecution> {
         let output = super::runner::run_monolithic(self.workspace, request, force_run)?;
-        let changed = match request {
+        let result = match request {
             RunnerRequest::Generate { crate_name, .. }
-            | RunnerRequest::Clean { crate_name, .. } => {
-                self.metadata_store.result_changed(crate_name)
-            },
-            RunnerRequest::Check { .. } => false,
+            | RunnerRequest::Clean { crate_name, .. } => self
+                .metadata_store
+                .read_result(crate_name)
+                .unwrap_or_default(),
+            RunnerRequest::Check { .. } => RunnerResult::default(),
         };
 
-        Ok(RunnerExecution { output, changed })
+        Ok(RunnerExecution {
+            output,
+            changed: result.changed,
+            transaction: result.transaction,
+        })
     }
 
     pub(crate) fn execute_generation_action(
@@ -90,21 +98,42 @@ impl<'a> MonolithicExecutor<'a> {
         action: &GenerationAction,
         force_run: bool,
     ) -> GenerateResult {
+        let (mut result, transaction) = self.plan_generation_action(krate, action, force_run);
+        if result.error.is_none()
+            && !action.is_dry_run()
+            && let Err(error) = transaction.commit()
+        {
+            result.error = Some(error.to_string());
+            result.changed = false;
+        }
+        result
+    }
+
+    pub(crate) fn plan_generation_action(
+        &self,
+        krate: &CrateInfo,
+        action: &GenerationAction,
+        force_run: bool,
+    ) -> (GenerateResult, FileTransaction) {
         let start = Instant::now();
         let execution = self.try_execute_generation_action(krate, action, force_run);
         let duration = start.elapsed();
 
         match execution {
-            Ok(execution) => GenerateResult::success(
-                krate.name.clone(),
-                duration,
-                crate::utils::count_ftl_resources(&krate.ftl_output_dir, krate.name.as_str()),
-                normalize_output(execution.output),
-                execution.changed,
+            Ok(execution) => (
+                GenerateResult::success(
+                    krate.name.clone(),
+                    duration,
+                    crate::utils::count_ftl_resources(&krate.ftl_output_dir, krate.name.as_str()),
+                    normalize_output(execution.output),
+                    execution.changed,
+                ),
+                execution.transaction,
             ),
-            Err(error) => {
-                GenerateResult::failure(krate.name.clone(), duration, format!("{error:#}"))
-            },
+            Err(error) => (
+                GenerateResult::failure(krate.name.clone(), duration, format!("{error:#}")),
+                FileTransaction::default(),
+            ),
         }
     }
 

@@ -1,0 +1,20 @@
+[package]
+name = "owner-b"
+edition.workspace = true
+publish.workspace = true
+version.workspace = true
+
+[lib]
+name = "owner_b_api"
+path = "src/api.rs"
+
+[features]
+default = [  ]
+embedded = [ "dep:es-fluent-manager-embedded" ]
+
+[dependencies]
+es-fluent.workspace = true
+es-fluent-manager-embedded = { optional = true, workspace = true }
+
+[build-dependencies]
+es-fluent-build.workspace = true

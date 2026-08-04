@@ -1,6 +1,8 @@
-# Namespaces & File Splitting
+# Namespaces and file splitting
 
-By default, all your FTL keys land in a single `{crate}.ftl` file per locale. As a project grows, this gets unwieldy. Namespaces let you route specific types into separate `.ftl` files. Every derive macro (`EsFluent`, `EsFluentLabel`, `EsFluentVariants`) supports the same namespace attribute.
+Namespaces route selected types into separate `.ftl` files instead of the
+default `{crate}.ftl` resource. `EsFluent`, `EsFluentLabel`, and
+`EsFluentVariants` support the same namespace modes.
 
 Use exactly one namespace source for each generated output. When multiple
 derives are combined on one type, either inherit a shared namespace from
@@ -8,7 +10,7 @@ derives are combined on one type, either inherit a shared namespace from
 `#[fluent_label(...)]` / `#[fluent_variants(...)]` output, but do not combine
 those namespace sources.
 
-## Output Layout
+## Output layout
 
 | Declaration    | File path                                     |
 | -------------- | --------------------------------------------- |
@@ -20,9 +22,9 @@ namespace files are the canonical per-locale resources.
 `{crate}.ftl` remains an optional mixed-mode resource for non-namespaced
 messages when it exists.
 
-## Namespace Modes
+## Namespace modes
 
-### Explicit String
+### Explicit string
 
 `namespace = "name"` sets an explicit string namespace. Literal namespaces
 must be safe locale-relative paths: no empty segments, `.`/`..`, backslashes,
@@ -38,7 +40,7 @@ pub struct Button<'a>(pub &'a str);
 
 This writes the key to `assets_dir/{locale}/{crate}/ui.ftl`.
 
-### File Stem
+### File stem
 
 `namespace = file` uses the source file's stem as the namespace.
 
@@ -55,7 +57,7 @@ pub struct Dialog {
 
 A type in `src/components/dialog.rs` maps to namespace `dialog`.
 
-### File Relative
+### File relative
 
 `namespace = file_relative` uses the file path relative to the crate root, strips `src/`, and removes the extension.
 
@@ -92,30 +94,31 @@ pub enum FolderStatus {
 
 A type in `src/user/profile.rs` maps to namespace `user`.
 
-### Folder Relative
+### Folder relative
 
 `namespace = folder_relative` uses the parent folder path relative to the crate root, stripping `src/` when nested and keeping `src` for root module files.
 
 ```rust
 use es_fluent::EsFluentLabel;
 
-// In src/user/profile.rs
+// In src/screens/user/profile.rs
 #[derive(EsFluentLabel)]
 #[fluent(namespace = folder_relative)]
 pub struct FolderUserProfile;
 ```
 
-A type in `src/user/profile.rs` maps to namespace `user`.
+A type in `src/screens/user/profile.rs` maps to namespace `screens/user`. With
+`namespace = folder`, the same file would map only to `user`.
 
-## Quick Reference
+## Quick reference
 
-| Syntax                        | Example source file | Resulting namespace |
-| ----------------------------- | ------------------- | ------------------- |
-| `namespace = "name"`          | any                 | `name`              |
-| `namespace = file`            | `src/ui/button.rs`  | `button`            |
-| `namespace = file_relative`   | `src/ui/button.rs`  | `ui/button`         |
-| `namespace = folder`          | `src/ui/button.rs`  | `ui`                |
-| `namespace = folder_relative` | `src/ui/button.rs`  | `ui`                |
+| Syntax | Example source file | Resulting namespace |
+| --- | --- | --- |
+| `namespace = "name"` | any | `name` |
+| `namespace = file` | `src/ui/button.rs` | `button` |
+| `namespace = file_relative` | `src/ui/button.rs` | `ui/button` |
+| `namespace = folder` | `src/screens/ui/button.rs` | `ui` |
+| `namespace = folder_relative` | `src/screens/ui/button.rs` | `screens/ui` |
 
 ## Validation
 

@@ -3,6 +3,8 @@ mod fixtures;
 use assert_cmd::Command;
 use predicates::prelude::*;
 use serde_json::Value;
+use std::io::{BufRead as _, Read as _};
+use std::process::Stdio;
 
 const SUBCOMMANDS: &[&str] = &[
     "generate",
@@ -24,7 +26,8 @@ fn binary_help_command_succeeds() {
         .assert()
         .success()
         .stdout(predicate::str::contains("Usage: cargo es-fluent <COMMAND>"))
-        .stdout(predicate::str::contains("generate"));
+        .stdout(predicate::str::contains("generate"))
+        .stdout(predicate::str::contains("[alias: format]").not());
 
     Command::cargo_bin("cargo-es-fluent")
         .expect("binary exists")
@@ -32,6 +35,58 @@ fn binary_help_command_succeeds() {
         .assert()
         .success()
         .stdout(predicate::str::contains("generate"));
+}
+
+#[test]
+fn binary_tree_treats_a_closed_stdout_pipe_as_clean_shutdown() {
+    let temp = fixtures::create_workspace();
+    let mut ftl = String::new();
+    for index in 0..20_000 {
+        ftl.push_str(&format!("message-{index} = Message {index}\n"));
+    }
+    std::fs::write(temp.path().join("i18n/en/test-app.ftl"), ftl).expect("write large FTL fixture");
+
+    for (output_args, expected_first_line) in [
+        (&[][..], "Fluent FTL Tree"),
+        (&["--output", "json"][..], "{"),
+    ] {
+        let mut args = vec![
+            "tree",
+            "--path",
+            temp.path().to_str().expect("workspace path"),
+            "--all-locales",
+            "--e2e",
+        ];
+        args.extend_from_slice(output_args);
+        let mut child = std::process::Command::new(env!("CARGO_BIN_EXE_cargo-es-fluent"))
+            .args(args)
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()
+            .expect("spawn cargo-es-fluent");
+
+        let stdout = child.stdout.take().expect("piped stdout");
+        let mut reader = std::io::BufReader::new(stdout);
+        let mut first_line = String::new();
+        reader
+            .read_line(&mut first_line)
+            .expect("read first output line");
+        assert_eq!(first_line.trim_end(), expected_first_line);
+        drop(reader);
+
+        let mut stderr = child.stderr.take().expect("piped stderr");
+        let status = child.wait().expect("wait for cargo-es-fluent");
+        let mut stderr_text = String::new();
+        stderr
+            .read_to_string(&mut stderr_text)
+            .expect("read stderr");
+
+        assert!(status.success(), "unexpected exit status: {status}");
+        assert!(
+            !stderr_text.contains("Broken pipe") && !stderr_text.contains("panicked"),
+            "unexpected stderr: {stderr_text}"
+        );
+    }
 }
 
 #[test]
@@ -49,10 +104,9 @@ fn binary_direct_invocation_accepts_subcommand_help() {
         .expect("binary exists")
         .args(["format", "--help"])
         .assert()
-        .success()
-        .stdout(predicate::str::contains(
-            "Usage: cargo es-fluent fmt [OPTIONS]",
-        ));
+        .failure()
+        .stdout(predicate::str::is_empty())
+        .stderr(predicate::str::contains("unrecognized subcommand 'format'"));
 
     Command::cargo_bin("cargo-es-fluent")
         .expect("binary exists")
@@ -60,7 +114,7 @@ fn binary_direct_invocation_accepts_subcommand_help() {
         .assert()
         .success()
         .stdout(predicate::str::contains(
-            "Generate FTL files once for all crates with i18n.toml",
+            "Generate FTL files once for selected crates with i18n.toml",
         ));
 
     Command::cargo_bin("cargo-es-fluent")
@@ -135,7 +189,22 @@ fn binary_generate_help_describes_workspace_wide_package_filter() {
         .success()
         .stdout(predicate::str::contains(
             "Workspace package name to process, even when --path points inside a different member",
-        ));
+        ))
+        .stdout(predicate::str::contains("-p, --package <PACKAGE>"))
+        .stdout(predicate::str::contains("-P, --path <PATH>"));
+}
+
+#[test]
+fn binary_rejects_retired_all_option() {
+    for subcommand in ["clean", "fmt", "check", "status", "sync", "tree"] {
+        Command::cargo_bin("cargo-es-fluent")
+            .expect("binary exists")
+            .args(["es-fluent", subcommand, "--all"])
+            .assert()
+            .failure()
+            .stdout(predicate::str::is_empty())
+            .stderr(predicate::str::contains("unexpected argument '--all'"));
+    }
 }
 
 #[test]
@@ -146,7 +215,7 @@ fn binary_sync_help_describes_create_target_scope() {
         .assert()
         .success()
         .stdout(predicate::str::contains(
-            "Create missing target locale directories for explicit --locale targets; cannot be used with --all",
+            "Create missing target locale directories for explicit --locale targets; cannot be used with --all-locales",
         ));
 }
 
@@ -182,7 +251,19 @@ fn binary_clean_help_describes_orphaned_scan_scope() {
         .assert()
         .success()
         .stdout(predicate::str::contains(
-            "scans non-fallback locales even without --all",
+            "scans non-fallback locales even without --all-locales",
+        ));
+}
+
+#[test]
+fn binary_clean_help_describes_inventory_authoritative_scope() {
+    Command::cargo_bin("cargo-es-fluent")
+        .expect("binary exists")
+        .args(["es-fluent", "--help"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains(
+            "Remove FTL entries and package-owned files absent from Rust inventory",
         ));
 }
 
@@ -211,13 +292,78 @@ fn binary_check_help_describes_all_scope() {
 }
 
 #[test]
+fn binary_check_help_describes_filter_conflict() {
+    Command::cargo_bin("cargo-es-fluent")
+        .expect("binary exists")
+        .args(["es-fluent", "check", "--help"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("cannot be used with --package"));
+}
+
+#[test]
+fn binary_check_rejects_package_with_ignore_before_workspace_discovery() {
+    Command::cargo_bin("cargo-es-fluent")
+        .expect("binary exists")
+        .args([
+            "es-fluent",
+            "check",
+            "--path",
+            "/definitely/missing/path",
+            "--package",
+            "test-app",
+            "--ignore",
+            "other-crate",
+        ])
+        .assert()
+        .failure()
+        .stdout(predicate::str::is_empty())
+        .stderr(predicate::str::contains(
+            "--ignore cannot be used with --package",
+        ))
+        .stderr(predicate::str::contains("/definitely/missing/path").not());
+
+    let output = Command::cargo_bin("cargo-es-fluent")
+        .expect("binary exists")
+        .args([
+            "es-fluent",
+            "check",
+            "--path",
+            "/definitely/missing/path",
+            "--package",
+            "test-app",
+            "--ignore",
+            "other-crate",
+            "--output",
+            "json",
+        ])
+        .assert()
+        .failure()
+        .stderr(predicate::str::is_empty())
+        .get_output()
+        .stdout
+        .clone();
+
+    let json: Value = serde_json::from_slice(&output).expect("check stdout is JSON only");
+    assert_eq!(json["crates_discovered"], 0);
+    assert_eq!(json["error_count"], 1);
+    assert_eq!(json["issues"][0]["kind"], "command_error");
+    let help = json["issues"][0]["help"].as_str().expect("issue help");
+    assert!(help.contains("--ignore cannot be used with --package"));
+    assert!(!help.contains("/definitely/missing/path"));
+}
+
+#[test]
 fn action_wrapper_rejects_invalid_boolean_inputs() {
     let action = std::fs::read_to_string(
         std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("action.yml"),
     )
     .expect("read action.yml");
 
-    assert!(action.contains("action_bool all \"$ES_FLUENT_ALL\""));
+    assert!(action.contains("all_locales:"));
+    assert!(!action.contains("\n  all:\n"));
+    assert!(action.contains("action_bool all_locales \"$ES_FLUENT_ALL_LOCALES\""));
+    assert!(!action.contains("ES_FLUENT_ALL:"));
     assert!(action.contains("no_fallback_copy_check:"));
     assert!(action.contains("ES_FLUENT_NO_FALLBACK_COPY_CHECK"));
     assert!(
@@ -244,8 +390,8 @@ fn public_action_usage_points_at_repository_owner() {
     assert!(book_cli.contains("uses: stayhydated/es-fluent/crates/es-fluent-cli@"));
     assert!(!book_cli.contains("stayhydrated/es-fluent"));
     assert!(book_cli.contains("`no_fallback_copy_check`"));
-    assert!(readme.contains("cargo es-fluent tree\ncargo es-fluent tree --all"));
-    assert!(book_cli.contains("cargo es-fluent tree\ncargo es-fluent tree --all"));
+    assert!(readme.contains("cargo es-fluent tree\ncargo es-fluent tree --all-locales"));
+    assert!(book_cli.contains("cargo es-fluent tree\ncargo es-fluent tree --all-locales"));
 }
 
 #[test]
@@ -286,7 +432,7 @@ fn binary_check_help_describes_fallback_copy_scope() {
         .assert()
         .success()
         .stdout(predicate::str::contains(
-            "Disable --all warnings for non-fallback messages that match the fallback locale; requires --all",
+            "Disable fallback-copy warnings during --all-locales checks; requires --all-locales",
         ));
 }
 
@@ -299,7 +445,7 @@ fn binary_check_rejects_no_fallback_copy_check_without_all_before_workspace_disc
         .failure()
         .stdout(predicate::str::is_empty())
         .stderr(predicate::str::contains("--no-fallback-copy-check"))
-        .stderr(predicate::str::contains("--all"))
+        .stderr(predicate::str::contains("--all-locales"))
         .stderr(predicate::str::contains("requires"));
 
     let output = Command::cargo_bin("cargo-es-fluent")
@@ -324,7 +470,7 @@ fn binary_check_rejects_no_fallback_copy_check_without_all_before_workspace_disc
     assert_eq!(json["error_count"], 1);
     assert_eq!(json["issues"][0]["kind"], "command_error");
     let help = json["issues"][0]["help"].as_str().expect("issue help");
-    assert!(help.contains("--no-fallback-copy-check requires --all"));
+    assert!(help.contains("--no-fallback-copy-check requires --all-locales"));
     assert!(
         !help.contains("/definitely/missing/path"),
         "check should reject the flag combination before workspace discovery"
@@ -366,7 +512,10 @@ fn binary_tree_help_describes_link_mode_scope() {
         .assert()
         .success()
         .stdout(predicate::str::contains(
-            "Text hyperlink target mode for message, attribute, and variable rows",
+            "Text-output hyperlink target mode for message, attribute, and variable rows",
+        ))
+        .stdout(predicate::str::contains(
+            "cannot be used with --output json",
         ));
 }
 
@@ -388,6 +537,8 @@ fn binary_watch_help_matches_supported_generation_options() {
 #[test]
 fn binary_every_command_has_a_noninteractive_success_path() {
     let temp = fixtures::create_workspace();
+    std::fs::remove_file(temp.path().join("i18n/en/test-app.ftl"))
+        .expect("remove inventory-stale fixture FTL");
     let workspace = temp.path().to_str().expect("workspace path");
 
     let cases: &[(&str, &[&str])] = &[
@@ -395,10 +546,7 @@ fn binary_every_command_has_a_noninteractive_success_path() {
         ("watch", &["watch", "--help"]),
         ("clean", &["clean", "--path", workspace, "--dry-run"]),
         ("fmt", &["fmt", "--path", workspace]),
-        (
-            "check",
-            &["check", "--path", workspace, "--package", "missing-package"],
-        ),
+        ("check", &["check", "--path", workspace]),
         (
             "status",
             &["status", "--path", workspace, "--output", "json"],
@@ -458,7 +606,7 @@ fn binary_write_commands_reject_missing_package_filter() {
             workspace,
             "--package",
             "missing-package",
-            "--all",
+            "--all-locales",
         ],
     ];
 
@@ -825,12 +973,12 @@ fn create_workspace_with_shared_locale_root() -> assert_fs::TempDir {
     let temp = fixtures::tempdir();
     std::fs::write(
         temp.path().join("Cargo.toml"),
-        "[workspace]\nmembers = [\"a\", \"b\"]\nresolver = \"2\"\n",
+        "[workspace]\nmembers = [\"a\", \"a/b\"]\nresolver = \"2\"\n",
     )
     .expect("write workspace manifest");
 
-    for name in ["a", "b"] {
-        let crate_dir = temp.path().join(name);
+    for (name, relative_dir) in [("a", "a"), ("b", "a/b")] {
+        let crate_dir = temp.path().join(relative_dir);
         std::fs::create_dir_all(crate_dir.join("src")).expect("create src");
         std::fs::write(
             crate_dir.join("Cargo.toml"),
@@ -842,16 +990,16 @@ fn create_workspace_with_shared_locale_root() -> assert_fs::TempDir {
         std::fs::write(crate_dir.join("src/lib.rs"), "pub fn marker() {}\n").expect("write lib");
     }
 
-    std::fs::create_dir_all(temp.path().join("a/i18n/en")).expect("create fallback locale");
-    std::fs::create_dir_all(temp.path().join("a/i18n/fr")).expect("create target locale");
+    std::fs::create_dir_all(temp.path().join("a/b/i18n/en")).expect("create fallback locale");
+    std::fs::create_dir_all(temp.path().join("a/b/i18n/fr")).expect("create target locale");
     std::fs::write(
         temp.path().join("a/i18n.toml"),
-        "fallback_language = \"en\"\nassets_dir = \"i18n\"\n",
+        "fallback_language = \"en\"\nassets_dir = \"b/i18n\"\n",
     )
     .expect("write a i18n config");
     std::fs::write(
-        temp.path().join("b/i18n.toml"),
-        "fallback_language = \"en\"\nassets_dir = \"../a/i18n\"\n",
+        temp.path().join("a/b/i18n.toml"),
+        "fallback_language = \"en\"\nassets_dir = \"i18n\"\n",
     )
     .expect("write b i18n config");
     for (locale, name, key) in [
@@ -860,8 +1008,11 @@ fn create_workspace_with_shared_locale_root() -> assert_fs::TempDir {
         ("fr", "a", "hello = Bonjour\n"),
         ("fr", "b", "bye = Salut\n"),
     ] {
-        std::fs::write(temp.path().join(format!("a/i18n/{locale}/{name}.ftl")), key)
-            .expect("write shared locale ftl");
+        std::fs::write(
+            temp.path().join(format!("a/b/i18n/{locale}/{name}.ftl")),
+            key,
+        )
+        .expect("write shared locale ftl");
     }
 
     temp
@@ -870,7 +1021,7 @@ fn create_workspace_with_shared_locale_root() -> assert_fs::TempDir {
 #[test]
 fn binary_clean_orphaned_package_filter_preserves_unselected_sibling_files() {
     let temp = create_workspace_with_shared_locale_root();
-    let sibling_file = temp.path().join("a/i18n/fr/b.ftl");
+    let sibling_file = temp.path().join("a/b/i18n/fr/b.ftl");
 
     Command::cargo_bin("cargo-es-fluent")
         .expect("binary exists")
@@ -918,11 +1069,6 @@ fn binary_generate_package_filter_does_not_link_unselected_crates() {
             "fallback_language = \"en\"\nassets_dir = \"i18n\"\n",
         )
         .expect("write i18n config");
-        std::fs::write(
-            temp.path().join(format!("{name}/i18n/en/{name}.ftl")),
-            "hello = Hello\n",
-        )
-        .expect("write ftl");
     }
     std::fs::write(temp.path().join("a/src/lib.rs"), "pub fn marker() {}\n").expect("write a lib");
     std::fs::write(temp.path().join("b/src/lib.rs"), "this is not rust\n").expect("write b lib");
@@ -968,11 +1114,6 @@ fn binary_status_package_filter_does_not_link_unselected_crates() {
             "fallback_language = \"en\"\nassets_dir = \"i18n\"\n",
         )
         .expect("write i18n config");
-        std::fs::write(
-            temp.path().join(format!("{name}/i18n/en/{name}.ftl")),
-            "hello = Hello\n",
-        )
-        .expect("write ftl");
     }
     std::fs::write(temp.path().join("a/src/lib.rs"), "pub fn marker() {}\n").expect("write a lib");
     std::fs::write(temp.path().join("b/src/lib.rs"), "this is not rust\n").expect("write b lib");
@@ -1000,6 +1141,39 @@ fn binary_status_package_filter_does_not_link_unselected_crates() {
     assert_eq!(json["crates_checked"], 1);
     assert_eq!(json["clean"], true);
     assert_eq!(json["generation_errors"], Value::Array(Vec::new()));
+}
+
+#[test]
+fn binary_status_json_reports_inventory_cleanup_work() {
+    let temp = fixtures::create_workspace();
+
+    let output = Command::cargo_bin("cargo-es-fluent")
+        .expect("binary exists")
+        .args([
+            "es-fluent",
+            "status",
+            "--path",
+            temp.path().to_str().expect("workspace path"),
+            "--output",
+            "json",
+        ])
+        .assert()
+        .failure()
+        .stderr(predicate::str::is_empty())
+        .get_output()
+        .stdout
+        .clone();
+    let json: Value = serde_json::from_slice(&output).expect("status stdout is JSON only");
+
+    assert_eq!(json["generation_stale_crates"], 0);
+    assert_eq!(json["cleanup_stale_crates"], 1);
+    assert_eq!(json["cleanup_errors"], Value::Array(Vec::new()));
+    assert_eq!(json["clean"], false);
+    assert_eq!(
+        std::fs::read_to_string(temp.path().join("i18n/en/test-app.ftl"))
+            .expect("status must preserve FTL"),
+        fixtures::HELLO_FTL
+    );
 }
 
 #[test]
@@ -1051,7 +1225,7 @@ fn binary_status_all_json_counts_same_sync_locale_in_multiple_workspace_crates()
             "status",
             "--path",
             temp.path().to_str().expect("workspace path"),
-            "--all",
+            "--all-locales",
             "--output",
             "json",
         ])
@@ -1176,7 +1350,7 @@ fn binary_fmt_all_json_reports_noncanonical_locale_directory() {
             "fmt",
             "--path",
             temp.path().to_str().expect("workspace path"),
-            "--all",
+            "--all-locales",
             "--output",
             "json",
         ])
@@ -1383,7 +1557,7 @@ fn binary_status_json_reports_locale_named_asset_path_as_setup_error() {
             "status",
             "--path",
             temp.path().to_str().expect("workspace path"),
-            "--all",
+            "--all-locales",
             "--output",
             "json",
         ])
@@ -1705,7 +1879,7 @@ fn binary_json_read_commands_report_invalid_i18n_config_as_json() {
 
     let cases: &[(&str, &[&str])] = &[
         ("check", &["check"]),
-        ("sync", &["sync", "--all"]),
+        ("sync", &["sync", "--all-locales"]),
         ("tree", &["tree"]),
     ];
 
@@ -1793,7 +1967,7 @@ fn binary_status_all_json_reports_noncanonical_locale_directory_as_setup_error()
             "status",
             "--path",
             temp.path().to_str().expect("workspace path"),
-            "--all",
+            "--all-locales",
             "--output",
             "json",
         ])
@@ -1842,7 +2016,7 @@ fn binary_status_all_json_reports_orphans_outside_validation_errors() {
             "status",
             "--path",
             temp.path().to_str().expect("workspace path"),
-            "--all",
+            "--all-locales",
             "--output",
             "json",
         ])
@@ -1938,7 +2112,7 @@ fn binary_check_all_json_reports_locale_named_asset_path_as_error() {
             "check",
             "--path",
             temp.path().to_str().expect("workspace path"),
-            "--all",
+            "--all-locales",
             "--output",
             "json",
         ])
@@ -1970,7 +2144,7 @@ fn binary_check_all_json_reports_assets_dir_path_as_one_error() {
             "check",
             "--path",
             temp.path().to_str().expect("workspace path"),
-            "--all",
+            "--all-locales",
             "--output",
             "json",
         ])
@@ -2131,7 +2305,7 @@ fn binary_check_all_json_reports_noncanonical_locale_dir_before_uncompilable_rus
             "check",
             "--path",
             temp.path().to_str().expect("workspace path"),
-            "--all",
+            "--all-locales",
             "--output",
             "json",
         ])
@@ -2221,7 +2395,7 @@ fn binary_check_json_reports_valid_crate_orphans_with_other_setup_errors() {
             "check",
             "--path",
             temp.path().to_str().expect("workspace path"),
-            "--all",
+            "--all-locales",
             "--output",
             "json",
         ])
@@ -2774,7 +2948,7 @@ fn binary_fmt_all_json_rejects_locale_named_asset_path_as_file() {
             "fmt",
             "--path",
             temp.path().to_str().expect("workspace path"),
-            "--all",
+            "--all-locales",
             "--output",
             "json",
         ])
@@ -2798,7 +2972,7 @@ fn binary_fmt_all_json_rejects_locale_named_asset_path_as_file() {
 }
 
 #[test]
-fn binary_fmt_json_keeps_successful_files_with_mixed_workspace_errors() {
+fn binary_fmt_json_leaves_all_files_unchanged_with_mixed_workspace_errors() {
     let temp = fixtures::tempdir();
     std::fs::write(
         temp.path().join("Cargo.toml"),
@@ -2829,6 +3003,8 @@ fn binary_fmt_json_keeps_successful_files_with_mixed_workspace_errors() {
     }
     std::fs::write(temp.path().join("a/i18n/en/a.ftl"), "z = Z\na = A\n")
         .expect("write unsorted ftl");
+    let unsorted_path = temp.path().join("a/i18n/en/a.ftl");
+    let before = std::fs::read_to_string(&unsorted_path).expect("read unsorted FTL");
     std::fs::write(temp.path().join("b/i18n/en/b.ftl"), "hello = Hello\n")
         .expect("write fallback ftl");
     std::fs::write(temp.path().join("b/i18n/fr"), "not a directory\n").expect("write locale file");
@@ -2840,7 +3016,7 @@ fn binary_fmt_json_keeps_successful_files_with_mixed_workspace_errors() {
             "fmt",
             "--path",
             temp.path().to_str().expect("workspace path"),
-            "--all",
+            "--all-locales",
             "--output",
             "json",
         ])
@@ -2851,15 +3027,12 @@ fn binary_fmt_json_keeps_successful_files_with_mixed_workspace_errors() {
         .stdout
         .clone();
     let json: Value = serde_json::from_slice(&output).expect("fmt stdout is JSON only");
-    assert_eq!(json["formatted_count"], 1);
+    assert_eq!(json["formatted_count"], 0);
     assert_eq!(json["error_count"], 1);
     assert!(
         json["files"]
             .as_array()
-            .is_some_and(|files| files.iter().any(|file| file["changed"] == true
-                && file["path"]
-                    .as_str()
-                    .is_some_and(|path| path.ends_with("a.ftl"))))
+            .is_some_and(|files| files.iter().all(|file| file["changed"] == false))
     );
     assert!(
         json["files"]
@@ -2867,6 +3040,11 @@ fn binary_fmt_json_keeps_successful_files_with_mixed_workspace_errors() {
             .is_some_and(|files| files.iter().any(|file| file["error"]
                 .as_str()
                 .is_some_and(|error| error.contains("locale directory 'fr'"))))
+    );
+    assert_eq!(
+        std::fs::read_to_string(&unsorted_path).expect("read FTL after failed format"),
+        before,
+        "a planning error must abort the complete formatting transaction"
     );
     assert!(json["errors"][0].as_str().is_some_and(
         |error| error.contains("locale directory 'fr'") && error.contains("b/i18n/fr")
@@ -2885,7 +3063,7 @@ fn binary_sync_all_rejects_locale_named_asset_path_as_file() {
             "sync",
             "--path",
             temp.path().to_str().expect("workspace path"),
-            "--all",
+            "--all-locales",
             "--output",
             "json",
         ])
@@ -2925,7 +3103,7 @@ fn binary_sync_all_rejects_assets_dir_path_as_file() {
             "sync",
             "--path",
             temp.path().to_str().expect("workspace path"),
-            "--all",
+            "--all-locales",
             "--output",
             "json",
         ])
@@ -3024,7 +3202,41 @@ fn binary_sync_dry_run_json_reports_preview_mode_without_writing() {
     assert_eq!(json["keys_added"], 1);
     assert_eq!(json["locales_affected"], 1);
     assert_eq!(json["results"][0]["locale"], "fr-FR");
+    assert_eq!(json["results"][0]["path"], "i18n/fr-FR/test-app.ftl");
     assert_eq!(json["results"][0]["locale_created"], true);
+    assert!(!temp.path().join("i18n/fr-FR").exists());
+}
+
+#[test]
+fn binary_sync_json_uses_null_path_for_directory_only_locale_creation() {
+    let temp = fixtures::create_workspace();
+    std::fs::remove_file(temp.path().join("i18n/en/test-app.ftl")).expect("remove fallback FTL");
+
+    let output = Command::cargo_bin("cargo-es-fluent")
+        .expect("binary exists")
+        .args([
+            "es-fluent",
+            "sync",
+            "--path",
+            temp.path().to_str().expect("workspace path"),
+            "--locale",
+            "fr-FR",
+            "--create",
+            "--dry-run",
+            "--output",
+            "json",
+        ])
+        .assert()
+        .success()
+        .stderr(predicate::str::is_empty())
+        .get_output()
+        .stdout
+        .clone();
+
+    let json: Value = serde_json::from_slice(&output).expect("sync stdout is JSON only");
+    assert_eq!(json["results"][0]["locale_created"], true);
+    assert_eq!(json["results"][0]["path"], Value::Null);
+    assert_eq!(json["results"][0]["keys_added"], 0);
     assert!(!temp.path().join("i18n/fr-FR").exists());
 }
 
@@ -3081,6 +3293,7 @@ fn binary_sync_and_add_locale_support_binary_only_file_workflows_without_runner(
     assert_eq!(json["keys_added"], 1);
     assert_eq!(json["locales_affected"], 1);
     assert_eq!(json["results"][0]["locale"], "fr");
+    assert_eq!(json["results"][0]["path"], "i18n/fr/binary-only-files.ftl");
     assert_eq!(json["results"][0]["added_keys"][0], "bye");
     assert_eq!(
         std::fs::read_to_string(temp.path().join("i18n/fr/binary-only-files.ftl"))
@@ -3113,6 +3326,7 @@ fn binary_sync_and_add_locale_support_binary_only_file_workflows_without_runner(
             "Would create locale directory for es",
         ))
         .stdout(predicate::str::contains("Would add 2 key(s)"))
+        .stdout(predicate::str::contains("i18n/es/binary-only-files.ftl"))
         .stdout(predicate::str::contains("+ hello = Hello"))
         .stdout(predicate::str::contains("+ bye = Bye"))
         .stderr(predicate::str::is_empty());
@@ -3202,7 +3416,7 @@ fn binary_tree_all_json_rejects_missing_fallback_locale_directory() {
             "tree",
             "--path",
             temp.path().to_str().expect("workspace path"),
-            "--all",
+            "--all-locales",
             "--output",
             "json",
         ])
@@ -3438,7 +3652,7 @@ fn binary_tree_all_json_rejects_locale_named_asset_path_as_file() {
             "tree",
             "--path",
             temp.path().to_str().expect("workspace path"),
-            "--all",
+            "--all-locales",
             "--output",
             "json",
         ])
@@ -3537,7 +3751,7 @@ fn binary_tree_json_no_attributes_hides_attribute_only_variables() {
 }
 
 #[test]
-fn binary_tree_json_reports_ftl_parse_errors_without_failing() {
+fn binary_tree_json_reports_ftl_parse_errors_and_fails() {
     let temp = fixtures::create_workspace();
     std::fs::write(
         temp.path().join("i18n/en/test-app.ftl"),
@@ -3556,20 +3770,44 @@ fn binary_tree_json_reports_ftl_parse_errors_without_failing() {
             "json",
         ])
         .assert()
-        .success()
+        .failure()
         .stderr(predicate::str::is_empty())
         .get_output()
         .stdout
         .clone();
     let json: Value = serde_json::from_slice(&output).expect("tree stdout is JSON only");
-    assert_eq!(json["error_count"], 0);
+    assert_eq!(json["error_count"], 1);
     let file = &json["crates"][0]["locales"][0]["files"][0];
     assert_eq!(file["parse_error"], true);
     assert!(file["entries"].as_array().expect("entries").is_empty());
+    assert_eq!(json["errors"][0]["crate_name"], "test-app");
+    assert!(
+        json["errors"][0]["message"]
+            .as_str()
+            .is_some_and(
+                |message| message.contains("failed to parse FTL file 'test-app.ftl'")
+                    && message.contains("Fluent parse errors")
+            )
+    );
+
+    Command::cargo_bin("cargo-es-fluent")
+        .expect("binary exists")
+        .args([
+            "es-fluent",
+            "tree",
+            "--path",
+            temp.path().to_str().expect("workspace path"),
+        ])
+        .assert()
+        .failure()
+        .stderr(
+            predicate::str::contains("failed to parse FTL file 'test-app.ftl'")
+                .and(predicate::str::contains("Fluent parse errors")),
+        );
 }
 
 #[test]
-fn binary_tree_json_is_file_only_even_with_rust_link_mode() {
+fn binary_tree_json_is_file_only_without_link_mode() {
     let temp = fixtures::tempdir();
     std::fs::create_dir_all(temp.path().join("src")).expect("create src");
     std::fs::create_dir_all(temp.path().join("i18n/en")).expect("create i18n");
@@ -3593,8 +3831,6 @@ fn binary_tree_json_is_file_only_even_with_rust_link_mode() {
             "tree",
             "--path",
             temp.path().to_str().expect("workspace path"),
-            "--link-mode",
-            "rust",
             "--output",
             "json",
         ])
@@ -3621,7 +3857,7 @@ fn binary_tree_json_is_file_only_even_with_rust_link_mode() {
 }
 
 #[test]
-fn binary_tree_json_rejects_invalid_link_mode_before_workspace_discovery() {
+fn binary_tree_json_rejects_link_mode_before_workspace_discovery() {
     let output = Command::cargo_bin("cargo-es-fluent")
         .expect("binary exists")
         .args([
@@ -3630,7 +3866,7 @@ fn binary_tree_json_rejects_invalid_link_mode_before_workspace_discovery() {
             "--path",
             "/definitely/missing/path",
             "--link-mode",
-            "bad",
+            "ftl",
             "--output",
             "json",
         ])
@@ -3647,10 +3883,10 @@ fn binary_tree_json_rejects_invalid_link_mode_before_workspace_discovery() {
     let message = json["errors"][0]["message"]
         .as_str()
         .expect("tree error message");
-    assert!(message.contains("invalid link mode 'bad'"));
+    assert!(message.contains("--link-mode cannot be used with --output json"));
     assert!(
         !message.contains("/definitely/missing/path"),
-        "tree should reject invalid link modes before workspace discovery"
+        "tree should reject the output-mode conflict before workspace discovery"
     );
 }
 
@@ -3734,7 +3970,7 @@ fn binary_tree_text_rust_mode_inspects_binary_only_crate_without_runner() {
 }
 
 #[test]
-fn binary_sync_rejects_create_with_all() {
+fn binary_sync_rejects_create_with_all_locales() {
     let temp = fixtures::create_workspace();
 
     Command::cargo_bin("cargo-es-fluent")
@@ -3744,14 +3980,14 @@ fn binary_sync_rejects_create_with_all() {
             "sync",
             "--path",
             temp.path().to_str().expect("workspace path"),
-            "--all",
+            "--all-locales",
             "--create",
         ])
         .assert()
         .failure()
-        .stderr(predicate::str::contains("--all"))
+        .stderr(predicate::str::contains("--all-locales"))
         .stderr(predicate::str::contains("--create"))
-        .stderr(predicate::str::contains("cannot be used"));
+        .stderr(predicate::str::contains("conflicts"));
 }
 
 #[test]
@@ -3802,12 +4038,12 @@ fn binary_sync_json_rejects_target_selection_conflicts_before_workspace_discover
                 "sync",
                 "--path",
                 missing_path,
-                "--all",
+                "--all-locales",
                 "--create",
                 "--output",
                 "json",
             ][..],
-            "--create requires explicit --locale targets",
+            "--create conflicts with --all-locales",
         ),
         (
             &[
@@ -3825,13 +4061,13 @@ fn binary_sync_json_rejects_target_selection_conflicts_before_workspace_discover
                 "sync",
                 "--path",
                 missing_path,
-                "--all",
+                "--all-locales",
                 "--locale",
                 "fr-FR",
                 "--output",
                 "json",
             ][..],
-            "--all cannot be combined with --locale",
+            "--all-locales cannot be combined with --locale",
         ),
     ];
 
@@ -4499,7 +4735,7 @@ fn binary_clean_orphaned_all_binary_only_fails_before_file_cleanup() {
             "clean",
             "--path",
             temp.path().to_str().expect("workspace path"),
-            "--all",
+            "--all-locales",
             "--orphaned",
             "--dry-run",
         ])
@@ -4509,7 +4745,7 @@ fn binary_clean_orphaned_all_binary_only_fails_before_file_cleanup() {
 
     assert!(
         temp.path().join("i18n/fr/orphan.ftl").exists(),
-        "clean --all --orphaned should fail before file-only orphan cleanup when clean cannot run"
+        "clean --all-locales --orphaned should fail before file-only orphan cleanup when clean cannot run"
     );
     assert!(!temp.path().join(".es-fluent").exists());
     assert!(!temp.path().join("target").exists());
@@ -4552,6 +4788,8 @@ fn binary_clean_all_accepts_relative_assets_dir() {
         "hello = Bonjour\n",
     )
     .expect("write fr ftl");
+    let orphan = temp.path().join("i18n/fr/orphan.ftl");
+    std::fs::write(&orphan, "orphan = Orphan\n").expect("write orphan");
 
     Command::cargo_bin("cargo-es-fluent")
         .expect("binary exists")
@@ -4560,12 +4798,18 @@ fn binary_clean_all_accepts_relative_assets_dir() {
             "clean",
             "--path",
             temp.path().to_str().expect("workspace path"),
-            "--all",
+            "--all-locales",
             "--dry-run",
         ])
         .assert()
         .success()
+        .stdout(predicate::str::contains("Would remove orphaned file").not())
         .stderr(predicate::str::contains("Invalid assets_dir").not());
+
+    assert!(
+        orphan.exists(),
+        "clean --all-locales should preserve file orphans without --orphaned"
+    );
 }
 
 #[test]
@@ -5142,6 +5386,16 @@ fn binary_sync_json_counts_same_locale_in_multiple_workspace_crates() {
     assert_eq!(json["keys_added"], 2);
     assert_eq!(json["locales_affected"], 2);
     assert_eq!(json["results"].as_array().expect("results").len(), 2);
+    let paths = json["results"]
+        .as_array()
+        .expect("results")
+        .iter()
+        .map(|result| result["path"].as_str().expect("result path"))
+        .collect::<std::collections::HashSet<_>>();
+    assert_eq!(
+        paths,
+        std::collections::HashSet::from(["a/i18n/fr/a.ftl", "b/i18n/fr/b.ftl"])
+    );
 }
 
 #[test]
@@ -5180,7 +5434,7 @@ fn binary_json_commands_reject_empty_package_filter_before_workspace_discovery()
                 missing_path,
                 "--package",
                 " ",
-                "--all",
+                "--all-locales",
                 "--output",
                 "json",
             ],
@@ -5346,13 +5600,11 @@ fn binary_text_commands_report_missing_package_filter() {
             .expect("binary exists")
             .args(std::iter::once("es-fluent").chain(args.iter().copied()))
             .assert()
-            .success()
+            .failure()
             .stdout(predicate::str::contains("missing-package"))
-            .stdout(
-                predicate::str::contains("workspace warning").or(predicate::str::contains(
-                    "WARNING: no configured crate found matching package filter",
-                )),
-            );
+            .stderr(predicate::str::contains(
+                "no configured crate found matching package filter 'missing-package'",
+            ));
     }
 
     Command::cargo_bin("cargo-es-fluent")
@@ -5385,7 +5637,7 @@ fn binary_text_commands_report_missing_package_filter() {
 }
 
 #[test]
-fn binary_check_reports_when_all_selected_crates_are_ignored() {
+fn binary_check_fails_when_all_selected_crates_are_ignored() {
     let temp = fixtures::create_workspace();
     let workspace = temp.path().to_str().expect("workspace path");
 
@@ -5400,8 +5652,8 @@ fn binary_check_reports_when_all_selected_crates_are_ignored() {
             "test-app",
         ])
         .assert()
-        .success()
-        .stdout(predicate::str::contains(
+        .failure()
+        .stderr(predicate::str::contains(
             "all selected crates were ignored by --ignore",
         ))
         .stdout(predicate::str::contains("No crates with i18n.toml found.").not());
@@ -5419,18 +5671,21 @@ fn binary_check_reports_when_all_selected_crates_are_ignored() {
             "json",
         ])
         .assert()
-        .success()
+        .failure()
+        .stderr(predicate::str::is_empty())
         .get_output()
         .stdout
         .clone();
     let json: Value = serde_json::from_slice(&output).expect("check stdout is JSON only");
     assert_eq!(json["crates_discovered"], 1);
     assert_eq!(json["crates_checked"], 0);
-    assert_eq!(
-        json["workspace_warnings"],
-        Value::Array(vec![Value::String(
-            "all selected crates were ignored by --ignore".to_string()
-        )])
+    assert_eq!(json["workspace_warnings"], Value::Array(Vec::new()));
+    assert_eq!(json["error_count"], 1);
+    assert_eq!(json["issues"][0]["kind"], "command_error");
+    assert!(
+        json["issues"][0]["help"]
+            .as_str()
+            .is_some_and(|help| help.contains("all selected crates were ignored by --ignore"))
     );
 }
 
@@ -5479,7 +5734,7 @@ fn binary_check_accepts_comma_separated_ignore_with_spaces() {
             "--path",
             temp.path().to_str().expect("workspace path"),
             "--ignore",
-            "a, b",
+            " a, a ",
             "--output",
             "json",
         ])
@@ -5491,7 +5746,7 @@ fn binary_check_accepts_comma_separated_ignore_with_spaces() {
 
     let json: Value = serde_json::from_slice(&output).expect("check stdout is JSON only");
     assert_eq!(json["crates_discovered"], 2);
-    assert_eq!(json["crates_checked"], 0);
+    assert_eq!(json["crates_checked"], 1);
 }
 
 #[test]
@@ -5802,6 +6057,112 @@ fn binary_sync_accepts_comma_separated_locales_with_spaces() {
     }));
     assert!(!temp.path().join("i18n/fr-FR").exists());
     assert!(!temp.path().join("i18n/zh-CN").exists());
+}
+
+#[test]
+fn binary_sync_json_adds_missing_fluent_terms() {
+    let temp = fixtures::create_workspace();
+    let workspace = temp.path().to_str().expect("workspace path");
+    std::fs::create_dir_all(temp.path().join("i18n/fr")).expect("create target locale");
+    std::fs::write(
+        temp.path().join("i18n/en/test-app.ftl"),
+        "-brand = Brand\nhello = Hello\n",
+    )
+    .expect("write fallback terms");
+    std::fs::write(
+        temp.path().join("i18n/fr/test-app.ftl"),
+        "hello = Bonjour\n",
+    )
+    .expect("write target locale");
+
+    let output = Command::cargo_bin("cargo-es-fluent")
+        .expect("binary exists")
+        .args([
+            "es-fluent",
+            "sync",
+            "--path",
+            workspace,
+            "--locale",
+            "fr",
+            "--output",
+            "json",
+        ])
+        .assert()
+        .success()
+        .stderr(predicate::str::is_empty())
+        .get_output()
+        .stdout
+        .clone();
+    let json: Value = serde_json::from_slice(&output).expect("sync stdout is JSON only");
+
+    assert_eq!(json["keys_added"], 1);
+    assert_eq!(json["results"][0]["added_keys"][0], "-brand");
+    let content = std::fs::read_to_string(temp.path().join("i18n/fr/test-app.ftl"))
+        .expect("read synced locale");
+    assert!(content.contains("-brand = Brand"));
+}
+
+#[test]
+#[cfg(unix)]
+fn binary_sync_json_reports_rolled_back_transaction_without_results() {
+    use std::os::unix::fs::PermissionsExt as _;
+
+    let temp = fixtures::create_workspace();
+    let workspace = temp.path().to_str().expect("workspace path");
+    std::fs::create_dir_all(temp.path().join("i18n/en/test-app"))
+        .expect("create fallback namespace");
+    std::fs::create_dir_all(temp.path().join("i18n/fr/test-app")).expect("create target namespace");
+    std::fs::write(
+        temp.path().join("i18n/en/test-app.ftl"),
+        "hello = Hello\nworld = World\n",
+    )
+    .expect("write fallback main");
+    std::fs::write(
+        temp.path().join("i18n/en/test-app/ui.ftl"),
+        "button = Button\n",
+    )
+    .expect("write fallback namespace");
+    let target_main = temp.path().join("i18n/fr/test-app.ftl");
+    std::fs::write(&target_main, "hello = Bonjour\n").expect("write target main");
+    let target_before = std::fs::read_to_string(&target_main).expect("read target before");
+    let blocked_parent = temp.path().join("i18n/fr/test-app");
+    std::fs::set_permissions(&blocked_parent, std::fs::Permissions::from_mode(0o555))
+        .expect("make target namespace read-only");
+
+    let output = Command::cargo_bin("cargo-es-fluent")
+        .expect("binary exists")
+        .args([
+            "es-fluent",
+            "sync",
+            "--path",
+            workspace,
+            "--locale",
+            "fr",
+            "--output",
+            "json",
+        ])
+        .assert()
+        .failure()
+        .stderr(predicate::str::is_empty())
+        .get_output()
+        .stdout
+        .clone();
+
+    std::fs::set_permissions(&blocked_parent, std::fs::Permissions::from_mode(0o755))
+        .expect("restore target namespace permissions");
+    let json: Value = serde_json::from_slice(&output).expect("sync error stdout is JSON only");
+    assert_eq!(json["keys_added"], 0);
+    assert_eq!(json["locales_affected"], 0);
+    assert_eq!(json["results"], serde_json::json!([]));
+    assert_eq!(json["error_count"], 1);
+    assert!(json["errors"][0].as_str().is_some_and(
+        |error| error.contains("sync transaction failed") && error.contains("rolled back")
+    ));
+    assert_eq!(
+        std::fs::read_to_string(&target_main).expect("read target after rollback"),
+        target_before
+    );
+    assert!(!blocked_parent.join("ui.ftl").exists());
 }
 
 #[test]

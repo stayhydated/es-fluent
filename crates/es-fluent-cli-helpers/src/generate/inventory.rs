@@ -1,22 +1,29 @@
 use super::GeneratorError;
 use es_fluent::registry::FtlTypeInfo;
-use es_fluent_runner::PackageName;
+use es_fluent_runner::{PackageName, RunnerIoError};
 use es_fluent_toml::ResolvedI18nLayout;
 use std::path::Path;
 
-pub(super) fn collect_type_infos(crate_name: &str) -> Vec<&'static FtlTypeInfo> {
-    let crate_ident = PackageName::try_new(crate_name)
-        .expect("crate names should be valid package names")
-        .rust_module_prefix()
-        .to_string();
-    es_fluent::registry::get_all_ftl_type_infos()
-        .filter(|info| {
-            info.module_path() == crate_ident
-                || info
-                    .module_path()
-                    .starts_with(&format!("{}::", crate_ident))
-        })
-        .collect()
+pub(super) fn collect_type_infos(
+    crate_name: &str,
+) -> Result<Vec<&'static FtlTypeInfo>, RunnerIoError> {
+    let package_name = PackageName::try_new(crate_name)?;
+    let mut type_infos = Vec::new();
+
+    for info in es_fluent::registry::get_all_ftl_type_infos() {
+        let source_package = PackageName::try_new(info.source_package()).map_err(|error| {
+            RunnerIoError::InvalidInventorySourcePackage {
+                source_package: info.source_package().to_string(),
+                source_type: format!("type '{}' in '{}'", info.type_name(), info.file_path()),
+                reason: error.to_string(),
+            }
+        })?;
+        if source_package == package_name {
+            type_infos.push(info);
+        }
+    }
+
+    Ok(type_infos)
 }
 
 pub(super) fn validate_namespaces(

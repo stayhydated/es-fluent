@@ -197,7 +197,7 @@ fn hash_bytes(bytes: &[u8]) -> u64 {
 
 pub(super) struct ModuleDiscovery {
     pub(super) modules: Vec<&'static dyn I18nModuleRegistration>,
-    pub(super) domains: HashSet<&'static str>,
+    pub(super) domains: HashSet<(&'static str, &'static str)>,
     pub(super) asset_languages: HashSet<LanguageIdentifier>,
     pub(super) all_languages: HashSet<LanguageIdentifier>,
 }
@@ -213,7 +213,9 @@ pub(super) fn discover_modules() -> Result<ModuleDiscovery, Vec<ModuleDiscoveryE
 
     for module in &modules {
         let data = module.data();
-        domains.insert(data.domain());
+        for domain in data.domains {
+            domains.insert((data.owner.as_str(), domain.domain.as_str()));
+        }
         for lang in data.supported_languages {
             all_languages.insert(lang.clone());
             if module.registration_kind() == ModuleRegistrationKind::MetadataOnly {
@@ -222,10 +224,8 @@ pub(super) fn discover_modules() -> Result<ModuleDiscovery, Vec<ModuleDiscoveryE
         }
 
         info!(
-            "Discovered i18n module: {} with domain: {}, namespaces: {:?}",
-            data.name,
-            data.domain(),
-            data.namespaces
+            "Discovered i18n module: {} with owner: {}, domains: {:?}",
+            data.name, data.owner, data.domains,
         );
     }
 
@@ -369,17 +369,27 @@ pub(super) fn build_i18n_assets(
                 if let Some(path) = embedded_asset_path_for_module(data, lang, &spec.key) {
                     let handle: Handle<FtlAsset> = asset_server.load(path);
                     if spec.required {
-                        i18n_assets.add_asset_spec(lang.clone(), spec.clone(), handle);
+                        i18n_assets.add_asset_spec(data.owner, lang.clone(), spec.clone(), handle);
                         debug!("Loading required embedded i18n asset: {}", path);
                     } else {
-                        i18n_assets.add_optional_asset_spec(lang.clone(), spec.clone(), handle);
+                        i18n_assets.add_optional_asset_spec(
+                            data.owner,
+                            lang.clone(),
+                            spec.clone(),
+                            handle,
+                        );
                         debug!("Loading optional embedded i18n asset: {}", path);
                     }
                     continue;
                 }
 
                 if let Some(content) = module.resource_content_for_language(lang, &spec.key) {
-                    i18n_assets.add_resource_content(lang.clone(), spec.clone(), content);
+                    i18n_assets.add_resource_content(
+                        data.owner,
+                        lang.clone(),
+                        spec.clone(),
+                        content,
+                    );
                     debug!(
                         "Loaded owner-provided i18n resource: {}/{}",
                         lang, spec.locale_relative_path
@@ -390,7 +400,7 @@ pub(super) fn build_i18n_assets(
                 let path = format!("{}/{}/{}", asset_path, lang, spec.locale_relative_path);
                 let handle: Handle<FtlAsset> = asset_server.load(&path);
                 if spec.required {
-                    i18n_assets.add_asset_spec(lang.clone(), spec.clone(), handle);
+                    i18n_assets.add_asset_spec(data.owner, lang.clone(), spec.clone(), handle);
                     debug!("Loading required i18n asset: {}", path);
                 } else {
                     if has_manifest_plan {
@@ -398,7 +408,12 @@ pub(super) fn build_i18n_assets(
                     } else {
                         debug!("Loading optional i18n asset: {}", path);
                     }
-                    i18n_assets.add_optional_asset_spec(lang.clone(), spec.clone(), handle);
+                    i18n_assets.add_optional_asset_spec(
+                        data.owner,
+                        lang.clone(),
+                        spec.clone(),
+                        handle,
+                    );
                 }
             }
         }
@@ -522,14 +537,15 @@ fn watch_embedded_i18n_asset_changes(
 mod tests {
     use super::*;
     use crate::{
-        ActiveLanguageId, BevyI18nEmbeddedAsset, BundleBuildFailures, I18nBundle,
-        I18nDomainBundles, LocaleChangeEvent, PendingLanguageChange,
+        ActiveLanguageId, BevyI18nEmbeddedAsset, BundleBuildFailures, I18nDomainBundles,
+        I18nReadyLocales, I18nResourceKey, LocaleChangeEvent, PendingLanguageChange,
     };
     use bevy::asset::AssetPlugin;
     use bevy::ecs::message::Messages;
     use es_fluent_manager_core::{
         FluentArgumentMap, LocaleRelativeFtlPath, LocalizationError, Localizer, ModuleData,
-        ModuleRegistrationKind, ModuleResourceSpec, ResourceKey, StaticFluentEntryId,
+        ModuleDomain, ModuleRegistrationKind, ModuleResourceSpec, ResourceKey,
+        StaticFluentMessageKey,
     };
     #[cfg(feature = "file_watcher")]
     use std::path::PathBuf;
@@ -540,22 +556,31 @@ mod tests {
     static TEST_MODULE_NAMESPACES: &[&str] = &["ui"];
     static TEST_MODULE_DATA: ModuleData = ModuleData {
         name: "setup-test-module",
-        domain: es_fluent_manager_core::__macro::static_domain("setup-domain"),
+        owner: es_fluent_manager_core::__macro::static_domain("setup-test-module"),
         supported_languages: TEST_MODULE_LANGUAGES,
-        namespaces: TEST_MODULE_NAMESPACES,
+        domains: &[ModuleDomain {
+            domain: es_fluent_manager_core::__macro::static_domain("setup-domain"),
+            namespaces: TEST_MODULE_NAMESPACES,
+        }],
     };
     static TEST_FOLLOWER_LANGUAGES: &[LanguageIdentifier] = &[langid!("fr")];
     static TEST_FOLLOWER_DATA: ModuleData = ModuleData {
         name: "setup-runtime-follower",
-        domain: es_fluent_manager_core::__macro::static_domain("setup-runtime-follower"),
+        owner: es_fluent_manager_core::__macro::static_domain("setup-runtime-follower"),
         supported_languages: TEST_FOLLOWER_LANGUAGES,
-        namespaces: &[],
+        domains: &[ModuleDomain {
+            domain: es_fluent_manager_core::__macro::static_domain("setup-runtime-follower"),
+            namespaces: &[],
+        }],
     };
     static TEST_EMBEDDED_ASSET_DATA: ModuleData = ModuleData {
         name: "setup-embedded-asset-module",
-        domain: es_fluent_manager_core::__macro::static_domain("setup-embedded-domain"),
+        owner: es_fluent_manager_core::__macro::static_domain("setup-embedded-asset-module"),
         supported_languages: TEST_MODULE_LANGUAGES,
-        namespaces: &[],
+        domains: &[ModuleDomain {
+            domain: es_fluent_manager_core::__macro::static_domain("setup-embedded-domain"),
+            namespaces: &[],
+        }],
     };
     static TEST_EMBEDDED_ASSETS: &[BevyI18nEmbeddedAsset] = &[BevyI18nEmbeddedAsset {
         source_path: "tests/fixtures/setup-embedded-domain.ftl",
@@ -571,8 +596,27 @@ mod tests {
     struct SetupFollowerModule;
     struct SetupFollowerLocalizer;
 
-    fn static_entry(value: &'static str) -> StaticFluentEntryId {
-        es_fluent_manager_core::__macro::static_entry_id(value)
+    fn static_key(
+        owner: &'static str,
+        domain: &'static str,
+        id: &'static str,
+    ) -> StaticFluentMessageKey {
+        es_fluent_manager_core::__macro::static_message_key(
+            owner,
+            es_fluent_manager_core::__macro::static_domain(domain),
+            es_fluent_manager_core::__macro::static_entry_id(id),
+        )
+    }
+
+    fn resource_key(
+        owner: es_fluent_manager_core::StaticFluentDomain,
+        lang: LanguageIdentifier,
+        key: &'static str,
+    ) -> (LanguageIdentifier, I18nResourceKey) {
+        (
+            lang,
+            I18nResourceKey::new(owner, ResourceKey::from_static_path(key)),
+        )
     }
 
     impl Localizer for SetupTestLocalizer {
@@ -586,7 +630,7 @@ mod tests {
 
         fn localize<'a>(
             &self,
-            _id: StaticFluentEntryId,
+            _key: StaticFluentMessageKey,
             _args: Option<&FluentArgumentMap<'a>>,
         ) -> Option<String> {
             None
@@ -604,10 +648,13 @@ mod tests {
 
         fn localize<'a>(
             &self,
-            id: StaticFluentEntryId,
+            key: StaticFluentMessageKey,
             _args: Option<&FluentArgumentMap<'a>>,
         ) -> Option<String> {
-            (id == "runtime-follower-label").then(|| "runtime follower label".to_string())
+            (key.owner() == "setup-runtime-follower"
+                && key.domain() == "setup-runtime-follower"
+                && key.id() == "runtime-follower-label")
+                .then(|| "runtime follower label".to_string())
         }
     }
 
@@ -852,9 +899,13 @@ mod tests {
         );
         assert_eq!(
             i18n_resource.localize(
-                static_entry("runtime-follower-label"),
+                static_key(
+                    "setup-runtime-follower",
+                    "setup-runtime-follower",
+                    "runtime-follower-label",
+                ),
                 None,
-                &I18nBundle::default()
+                &I18nDomainBundles::default()
             ),
             Some("runtime follower label".to_string())
         );
@@ -915,16 +966,20 @@ mod tests {
 
         assert_eq!(
             i18n_resource.localize(
-                static_entry("runtime-follower-label"),
+                static_key(
+                    "setup-runtime-follower",
+                    "setup-runtime-follower",
+                    "runtime-follower-label",
+                ),
                 None,
-                &I18nBundle::default()
+                &I18nDomainBundles::default()
             ),
             Some("runtime follower label".to_string())
         );
     }
 
     #[test]
-    fn build_i18n_assets_uses_manifest_resource_plans() {
+    fn build_i18n_assets_loads_custom_metadata_resources_from_host_asset_path() {
         let mut app = App::new();
         app.add_plugins(MinimalPlugins);
         app.add_plugins(AssetPlugin::default());
@@ -933,16 +988,27 @@ mod tests {
         let asset_server = app.world().resource::<AssetServer>();
         let i18n_assets = build_i18n_assets(asset_server, "localized", &[&SETUP_TEST_ASSET_MODULE]);
 
-        let required_key = (langid!("en"), ResourceKey::from_static_path("setup-domain"));
-        let optional_key = (
-            langid!("en"),
-            ResourceKey::from_static_path("setup-domain/ui"),
-        );
+        let required_key = resource_key(TEST_MODULE_DATA.owner, langid!("en"), "setup-domain");
+        let optional_key = resource_key(TEST_MODULE_DATA.owner, langid!("en"), "setup-domain/ui");
 
         assert!(i18n_assets.assets.contains_key(&required_key));
         assert!(i18n_assets.assets.contains_key(&optional_key));
         assert!(i18n_assets.resource_specs[&required_key].required);
         assert!(!i18n_assets.resource_specs[&optional_key].required);
+        assert_eq!(
+            asset_server
+                .get_path(i18n_assets.assets[&required_key].id().untyped())
+                .expect("required resource path")
+                .to_string(),
+            "localized/en/setup-domain.ftl"
+        );
+        assert_eq!(
+            asset_server
+                .get_path(i18n_assets.assets[&optional_key].id().untyped())
+                .expect("optional resource path")
+                .to_string(),
+            "localized/en/setup-domain/ui.ftl"
+        );
     }
 
     #[test]
@@ -956,11 +1022,8 @@ mod tests {
         let i18n_assets =
             build_i18n_assets(asset_server, "localized", &[&SETUP_OWNED_RESOURCE_MODULE]);
 
-        let required_key = (langid!("en"), ResourceKey::from_static_path("setup-domain"));
-        let optional_key = (
-            langid!("en"),
-            ResourceKey::from_static_path("setup-domain/ui"),
-        );
+        let required_key = resource_key(TEST_MODULE_DATA.owner, langid!("en"), "setup-domain");
+        let optional_key = resource_key(TEST_MODULE_DATA.owner, langid!("en"), "setup-domain/ui");
 
         assert!(i18n_assets.assets.is_empty());
         assert!(i18n_assets.resource_specs.contains_key(&required_key));
@@ -983,9 +1046,10 @@ mod tests {
         let i18n_assets =
             build_i18n_assets(asset_server, "localized", &[&SETUP_EMBEDDED_ASSET_MODULE]);
 
-        let required_key = (
+        let required_key = resource_key(
+            TEST_EMBEDDED_ASSET_DATA.owner,
             langid!("en"),
-            ResourceKey::from_static_path("setup-embedded-domain"),
+            "setup-embedded-domain",
         );
         let handle = i18n_assets
             .assets
@@ -1117,11 +1181,8 @@ mod tests {
             &[&SETUP_TEST_ASSET_MODULE, &SETUP_TEST_MODULE],
         );
 
-        let required_key = (langid!("en"), ResourceKey::from_static_path("setup-domain"));
-        let optional_key = (
-            langid!("en"),
-            ResourceKey::from_static_path("setup-domain/ui"),
-        );
+        let required_key = resource_key(TEST_MODULE_DATA.owner, langid!("en"), "setup-domain");
+        let optional_key = resource_key(TEST_MODULE_DATA.owner, langid!("en"), "setup-domain/ui");
 
         assert_eq!(i18n_assets.assets.len(), 2);
         assert!(i18n_assets.assets.contains_key(&required_key));
@@ -1144,7 +1205,7 @@ mod tests {
         let requested = langid!("en-US");
         let resolved = langid!("en");
         let mut app = App::new();
-        app.init_resource::<I18nBundle>()
+        app.init_resource::<I18nReadyLocales>()
             .init_resource::<I18nDomainBundles>()
             .init_resource::<BundleBuildFailures>();
 
@@ -1156,7 +1217,7 @@ mod tests {
         );
 
         assert!(app.world().get_resource::<I18nAssets>().is_some());
-        assert!(app.world().get_resource::<I18nBundle>().is_some());
+        assert!(app.world().get_resource::<I18nReadyLocales>().is_some());
         assert!(
             app.world()
                 .get_resource::<PendingLanguageChange>()
@@ -1179,7 +1240,7 @@ mod tests {
         app.add_plugins(MinimalPlugins);
         app.add_plugins(AssetPlugin::default());
         app.init_asset::<FtlAsset>();
-        app.init_resource::<I18nBundle>()
+        app.init_resource::<I18nReadyLocales>()
             .init_resource::<I18nDomainBundles>()
             .init_resource::<BundleBuildFailures>()
             .insert_resource(ActiveLanguageAfterLocaleSync::default())
@@ -1196,8 +1257,8 @@ mod tests {
             en,
         );
         app.world_mut()
-            .resource_mut::<I18nBundle>()
-            .mark_ready_without_unscoped_bundle(fr.clone());
+            .resource_mut::<I18nReadyLocales>()
+            .mark_ready(fr.clone());
         app.world_mut().write_message(LocaleChangeEvent(fr.clone()));
 
         app.update();

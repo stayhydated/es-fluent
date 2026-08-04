@@ -82,7 +82,7 @@ maintenance, examples, an mdBook, and a Dioxus-rendered web site.
   derive validation, config parsing, FTL generation, runner helpers, and runner
   protocol types.
 - `xtask`: repository maintenance commands for generated book, `llms.txt`, demo
-  bundles, web builds, FTL ownership checks, and release planning.
+  bundles, web builds, and release planning.
 
 ### Docs, Examples, and Web
 
@@ -93,6 +93,8 @@ maintenance, examples, an mdBook, and a Dioxus-rendered web site.
   root README and relevant book pages.
 - `examples/bevy-example`, `examples/gpui-example`,
   `examples/example-shared-lib`: integration examples and shared example code.
+  Their Trunk page inputs are staged by the owning `xtask` build commands
+  through `stayhydated-xtask`.
 - `web`: Dioxus-rendered GitHub Pages site and Dioxus integration example.
 
 ### Generated and Validation Surfaces
@@ -123,6 +125,40 @@ maintenance, examples, an mdBook, and a Dioxus-rendered web site.
   affected `.ftl` assets, CLI metadata expectations, examples, and docs aligned.
   Use the local `cargo es-fluent-local` alias when generated FTL or metadata is
   the affected surface.
+- Treat runner-backed `generate` and `clean` as filesystem transactions across
+  all selected packages and locale files. Runner processes plan mutations and
+  the CLI host commits only after every selected plan succeeds; keep
+  before-state verification, rollback tests, runner protocol metadata, CLI
+  documentation, and status cleanup previews synchronized.
+- Treat `fmt` as a filesystem transaction across every selected package and
+  locale file. Plan all formatting before writing; keep rollback tests, JSON
+  changed counts, CLI documentation, and status formatting previews
+  synchronized.
+- Treat `sync` and `add-locale` as filesystem transactions across every selected
+  package, locale directory, and FTL file. Plan all mutations before writing,
+  verify before-state at commit, and keep directory/file rollback tests, CLI
+  documentation, and JSON applied counts/results synchronized.
+- Keep `sync` text and JSON results resource-identifiable. JSON `results[].path`
+  is workspace-relative and is `null` only for directory-only locale creation
+  with an empty fallback locale.
+- Keep fallback message and term keys synchronized. Messages and terms share one
+  runtime Fluent ID namespace within each package-local domain, so `check`
+  reports duplicate messages, duplicate terms, and message/term ID collisions.
+- Treat `watch` shutdown as graceful: `q` and `Ctrl-C` wait for active
+  generation and any rerun already queued by a mid-generation input change.
+- Treat an omitted derive domain as generated FTL in the package-name resource.
+  Treat an explicit `#[fluent(domain = "...")]` as generated FTL in an
+  additional package-local resource declared by `domains` in that package's
+  `i18n.toml`; domains do not form cross-crate references.
+- Treat package plus domain as the generated-FTL ownership boundary.
+  Full-workspace `cargo es-fluent-local check --path . --all-locales` and `status
+  --all-locales` validate selected packages independently; the same domain filename or
+  ID in another package is not a collision. Keep package-scoped orphan cleanup
+  conservative about unselected fallback-relative paths, and do not infer
+  ownership globally from raw filenames.
+- Keep `tests/fixtures/multi-crate` aligned with package identity, custom
+  library target, dependency alias, manager resource-plan, CLI, and runtime
+  behavior changes.
 - When book, web, demo, or `llms.txt` behavior changes, edit the source under
   `book/src`, `web/src`, `web/assets`, `examples`, or `xtask`, then rebuild the
   affected generated surface when needed.
@@ -138,8 +174,6 @@ maintenance, examples, an mdBook, and a Dioxus-rendered web site.
   matching Rust docs because crate roots include README content.
 - `insta` snapshots are a repository testing convention; use or update
   snapshots when they are the local validation surface for the changed behavior.
-- Use `bun` for JavaScript and TypeScript dependency/scripts work in this
-  workspace; root `package.json` declares `packageManager = "bun@1.3.10"`.
 
 ## Validation and Editing Rules
 
@@ -151,9 +185,8 @@ maintenance, examples, an mdBook, and a Dioxus-rendered web site.
 - For Dioxus manager feature behavior, run
   `just test-dioxus-manager-feature-matrix`.
 - For generated FTL output or locale metadata, run
-  `cargo es-fluent-local check --path . --all`; use
-  `cargo es-fluent-local fmt --all` when formatting FTL files.
-- For FTL ownership changes, run `just ftl-ownership`.
+  `cargo es-fluent-local check --path . --all-locales`; use
+  `cargo es-fluent-local fmt --all-locales` when formatting FTL files.
 - For Rust documentation builds, run `just test-docs`.
 - For release ordering or package metadata changes, run `just test-publish`; it
   uses `cargo xtask release plan`, matching the CI package job.
@@ -163,9 +196,8 @@ maintenance, examples, an mdBook, and a Dioxus-rendered web site.
   relevant `cargo xtask build book`, `cargo xtask build llms-txt`,
   `cargo xtask build bevy-demo`, `cargo xtask build gpui-demo`,
   `cargo xtask build web`, or the aggregate `just web-build`.
-- For `web` integration changes covered by CI, use the relevant CI command:
-  `cargo test -p web --lib --no-default-features` or
-  `cargo check -p web --features web`.
+- For `web` integration changes covered by CI, use `cargo test -p web --lib`
+  or `cargo check -p web`; the site is an unconditional browser/SSG package.
 - If validation cannot be run, state why and what remains unvalidated. Do not
   claim a change works unless it was validated or the remaining risk is
   explicitly documented.

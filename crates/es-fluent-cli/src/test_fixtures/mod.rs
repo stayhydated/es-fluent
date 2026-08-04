@@ -413,6 +413,7 @@ pub fn save_runner_cache(
         crate_hashes,
         runner_mtime,
         cli_version: cli_version.to_string(),
+        runner_protocol_version: es_fluent_runner::RUNNER_PROTOCOL_VERSION,
         workspace_inputs_hash: crate::generation::cache::compute_workspace_inputs_hash(
             workspace_root,
         ),

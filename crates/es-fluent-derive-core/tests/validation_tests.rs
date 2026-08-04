@@ -36,30 +36,30 @@ mod attribute_context_tests {
     use super::*;
 
     #[test]
-    fn message_struct_container_rejects_enum_only_fluent_keys() {
-        for input in [
-            parse_quote! {
-                #[derive(EsFluent)]
-                #[fluent(domain = "shared")]
-                pub struct LoginForm {
-                    username: String,
-                }
-            },
-            parse_quote! {
-                #[derive(EsFluent)]
-                #[fluent(id = "shared")]
-                pub struct LoginForm {
-                    username: String,
-                }
-            },
-        ] {
-            let err =
-                es_fluent_derive_core::validation::validate_es_fluent_attribute_context(&input)
-                    .expect_err("struct-only context should reject enum-only keys");
-            let message = err.to_string();
-            assert!(message.contains("message struct container"));
-            assert!(message.contains("accepted key here is namespace"));
-        }
+    fn message_struct_container_allows_domain_but_rejects_explicit_id() {
+        let domain_input = parse_quote! {
+            #[derive(EsFluent)]
+            #[fluent(domain = "shared")]
+            pub struct LoginForm {
+                username: String,
+            }
+        };
+        es_fluent_derive_core::validation::validate_es_fluent_attribute_context(&domain_input)
+            .expect("package-local domains apply to structs");
+
+        let id_input = parse_quote! {
+            #[derive(EsFluent)]
+            #[fluent(id = "shared")]
+            pub struct LoginForm {
+                username: String,
+            }
+        };
+        let err =
+            es_fluent_derive_core::validation::validate_es_fluent_attribute_context(&id_input)
+                .expect_err("explicit IDs remain enum-only");
+        let message = err.to_string();
+        assert!(message.contains("message struct container"));
+        assert!(message.contains("accepted keys here are domain and namespace"));
     }
 
     #[test]
@@ -93,7 +93,10 @@ mod attribute_context_tests {
             es_fluent_derive_core::validation::validate_es_fluent_attribute_context(&struct_input)
                 .expect_err("unknown struct key should fail");
         assert!(err.to_string().contains("message struct container"));
-        assert!(err.to_string().contains("accepted key here is namespace"));
+        assert!(
+            err.to_string()
+                .contains("accepted keys here are domain and namespace")
+        );
 
         let enum_input: DeriveInput = parse_quote! {
             #[derive(EsFluent)]
@@ -215,7 +218,7 @@ mod attribute_context_tests {
     }
 
     #[test]
-    fn struct_parent_contexts_reject_unused_domain() {
+    fn struct_parent_contexts_allow_domain() {
         let label_input: DeriveInput = parse_quote! {
             #[derive(EsFluentLabel)]
             #[fluent(domain = "auth")]
@@ -223,15 +226,8 @@ mod attribute_context_tests {
                 username: String,
             }
         };
-        let err = es_fluent_derive_core::validation::validate_es_fluent_label_attribute_context(
-            &label_input,
-        )
-        .expect_err("domain is ignored by struct EsFluentLabel");
-        assert!(err.to_string().contains("label container"));
-        assert!(
-            err.to_string()
-                .contains("accepted parent key here is namespace")
-        );
+        es_fluent_derive_core::validation::validate_es_fluent_label_attribute_context(&label_input)
+            .expect("struct EsFluentLabel should inherit the package-local domain");
 
         let variants_input: DeriveInput = parse_quote! {
             #[derive(EsFluentVariants)]
@@ -240,15 +236,10 @@ mod attribute_context_tests {
                 username: String,
             }
         };
-        let err = es_fluent_derive_core::validation::validate_es_fluent_variants_attribute_context(
+        es_fluent_derive_core::validation::validate_es_fluent_variants_attribute_context(
             &variants_input,
         )
-        .expect_err("domain is ignored by struct EsFluentVariants");
-        assert!(err.to_string().contains("variants container"));
-        assert!(
-            err.to_string()
-                .contains("accepted parent key here is namespace")
-        );
+        .expect("struct EsFluentVariants should inherit the package-local domain");
     }
 }
 

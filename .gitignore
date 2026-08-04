@@ -3,6 +3,5 @@ target/
 .expanded.rs
 *.snap.new
 *.pending-snap
-node_modules/
 .rumdl_cache/
 *.profraw

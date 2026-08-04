@@ -5,6 +5,7 @@ use crossbeam_channel::{Receiver, Sender};
 use notify_debouncer_full::DebouncedEvent;
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
+use std::thread::JoinHandle;
 
 pub(super) struct WatchRuntime<'a> {
     workspace: Arc<WorkspaceInfo>,
@@ -15,6 +16,7 @@ pub(super) struct WatchRuntime<'a> {
     observed_hashes: HashMap<String, String>,
     active_generation_hashes: HashMap<String, String>,
     dirty_generating_crates: HashSet<String>,
+    generation_handles: HashMap<String, JoinHandle<()>>,
     result_tx: Sender<GenerateResult>,
     result_rx: Receiver<GenerateResult>,
 }
@@ -57,6 +59,7 @@ impl<'a> WatchRuntime<'a> {
             observed_hashes,
             active_generation_hashes: HashMap::new(),
             dirty_generating_crates: HashSet::new(),
+            generation_handles: HashMap::new(),
             result_tx,
             result_rx,
         }
@@ -81,15 +84,54 @@ impl<'a> WatchRuntime<'a> {
     pub(super) fn handle_generation_results(&mut self, app: &mut TuiApp<'_>) {
         while let Ok(result) = self.result_rx.try_recv() {
             let crate_name = result.name.clone();
-            let rerun_needed = self.finish_generation(crate_name.as_str());
-            app.update(Message::GenerationComplete { result });
-
-            if rerun_needed
-                && let Some(krate) = self.crates_by_name.get(crate_name.as_str()).copied()
+            if let Some(handle) = self.generation_handles.remove(crate_name.as_str())
+                && handle.join().is_err()
             {
-                self.start_generation(app, krate, false);
+                app.update(Message::WatchError {
+                    error: format!("generation thread panicked for {crate_name}"),
+                });
+            }
+            self.apply_generation_result(app, result);
+        }
+    }
+
+    pub(super) fn finish_pending_generations(
+        &mut self,
+        app: &mut TuiApp<'_>,
+    ) -> anyhow::Result<()> {
+        while !self.generation_handles.is_empty() {
+            let handles = std::mem::take(&mut self.generation_handles);
+            let mut completed_count = 0usize;
+            let mut panicked_crates = Vec::new();
+
+            for (crate_name, handle) in handles {
+                if handle.join().is_ok() {
+                    completed_count += 1;
+                } else {
+                    self.finish_generation(crate_name.as_str());
+                    app.update(Message::WatchError {
+                        error: format!("generation thread panicked for {crate_name}"),
+                    });
+                    panicked_crates.push(crate_name);
+                }
+            }
+
+            for _ in 0..completed_count {
+                let result = self.result_rx.recv().map_err(|_| {
+                    anyhow::anyhow!("generation result channel closed during watch shutdown")
+                })?;
+                self.apply_generation_result(app, result);
+            }
+
+            if !panicked_crates.is_empty() {
+                anyhow::bail!(
+                    "generation thread panicked for {}",
+                    panicked_crates.join(", ")
+                );
             }
         }
+
+        Ok(())
     }
 
     pub(super) fn handle_file_events(&mut self, app: &mut TuiApp<'_>, events: &[DebouncedEvent]) {
@@ -131,13 +173,25 @@ impl<'a> WatchRuntime<'a> {
         self.spawn_for(krate);
     }
 
-    fn spawn_for(&self, krate: &CrateInfo) {
-        super::generation::spawn_generation(
+    fn spawn_for(&mut self, krate: &CrateInfo) {
+        let handle = super::generation::spawn_generation(
             krate.clone(),
             self.workspace.clone(),
             self.mode,
             self.result_tx.clone(),
         );
+        self.generation_handles
+            .insert(krate.name.to_string(), handle);
+    }
+
+    fn apply_generation_result(&mut self, app: &mut TuiApp<'_>, result: GenerateResult) {
+        let crate_name = result.name.clone();
+        let rerun_needed = self.finish_generation(crate_name.as_str());
+        app.update(Message::GenerationComplete { result });
+
+        if rerun_needed && let Some(krate) = self.crates_by_name.get(crate_name.as_str()).copied() {
+            self.start_generation(app, krate, false);
+        }
     }
 
     fn observe_hash(&mut self, crate_name: &str, new_hash: String) -> bool {

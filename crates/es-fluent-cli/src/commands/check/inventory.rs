@@ -1,12 +1,12 @@
 use anyhow::Result;
 use es_fluent_runner::{PackageName, RunnerIoError, RunnerMetadataStore};
-use es_fluent_shared::fluent::{FluentArgumentName, FluentEntryId};
+use es_fluent_shared::fluent::{FluentArgumentName, FluentMessageKey};
 use es_fluent_shared::resource::ModuleResourceSpec;
 use es_fluent_shared::source::{SourceFile, SourceLine};
 use indexmap::IndexMap;
 use std::collections::HashSet;
 
-pub(crate) type ExpectedKeys = IndexMap<FluentEntryId, KeyInfo>;
+pub(crate) type ExpectedKeys = IndexMap<FluentMessageKey, KeyInfo>;
 
 /// Runtime info about an expected key with its variables and source location.
 #[derive(Clone)]
@@ -32,9 +32,13 @@ pub(crate) fn read_inventory_file(
             RunnerIoError::Json(_) => {
                 anyhow::Error::new(error).context("Failed to parse inventory JSON")
             },
-            RunnerIoError::InvalidRunnerRequest(_) | RunnerIoError::Message(_) => {
-                anyhow::Error::new(error)
-            },
+            RunnerIoError::InvalidRunnerRequest(_)
+            | RunnerIoError::TransactionConflict { .. }
+            | RunnerIoError::TransactionChanged { .. }
+            | RunnerIoError::TransactionCommit(_)
+            | RunnerIoError::TransactionRollback { .. }
+            | RunnerIoError::InvalidInventorySourcePackage { .. }
+            | RunnerIoError::Message(_) => anyhow::Error::new(error),
         })?;
 
     let mut expected_keys = IndexMap::new();
@@ -47,14 +51,17 @@ pub(crate) fn read_inventory_file(
                 variables,
                 resource: key_info
                     .resource
-                    .unwrap_or_else(|| ModuleResourceSpec::base(package_name.as_str(), true)),
+                    .unwrap_or_else(|| ModuleResourceSpec::base(key.domain().as_str(), true)),
                 source_file: key_info.source_file,
                 source_line: key_info.source_line,
             },
         );
         if previous.is_some() {
             anyhow::bail!(
-                "duplicate inventory key '{key}' in {}",
+                "duplicate inventory key '{}:{}:{}' in {}",
+                key.owner(),
+                key.domain(),
+                key.id(),
                 inventory_path.display()
             );
         }
@@ -66,10 +73,19 @@ pub(crate) fn read_inventory_file(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use es_fluent_shared::fluent::{FluentDomain, FluentEntryId};
     use std::fs;
 
     fn package(name: &str) -> PackageName {
         PackageName::try_new(name).expect("valid package name")
+    }
+
+    fn message_key(id: &str) -> FluentMessageKey {
+        FluentMessageKey::new(
+            FluentDomain::try_new("test-crate").unwrap(),
+            FluentDomain::try_new("test-crate").unwrap(),
+            FluentEntryId::try_new(id).unwrap(),
+        )
     }
 
     #[test]
@@ -83,13 +99,13 @@ mod tests {
             r#"{
   "expected_keys": [
     {
-      "key": "hello",
+      "key": {"owner": "test-crate", "domain": "test-crate", "id": "hello"},
       "variables": ["name", "count"],
       "source_file": "src/lib.rs",
       "source_line": 42
     },
     {
-      "key": "goodbye",
+      "key": {"owner": "test-crate", "domain": "test-crate", "id": "goodbye"},
       "variables": [],
       "source_file": null,
       "source_line": null
@@ -102,7 +118,7 @@ mod tests {
         let inventory = read_inventory_file(temp.path(), &package("test-crate")).unwrap();
 
         assert_eq!(inventory.len(), 2);
-        let hello_key = FluentEntryId::try_new("hello").unwrap();
+        let hello_key = message_key("hello");
         let hello = inventory.get(&hello_key).unwrap();
         assert!(
             hello
@@ -120,7 +136,7 @@ mod tests {
         );
         assert_eq!(hello.source_line.map(SourceLine::get), Some(42));
 
-        let goodbye_key = FluentEntryId::try_new("goodbye").unwrap();
+        let goodbye_key = message_key("goodbye");
         let goodbye = inventory.get(&goodbye_key).unwrap();
         assert!(goodbye.variables.is_empty());
         assert!(goodbye.source_file.is_none());
@@ -138,7 +154,7 @@ mod tests {
             r#"{
   "expected_keys": [
     {
-      "key": "_invalid",
+      "key": {"owner": "test-crate", "domain": "test-crate", "id": "_invalid"},
       "variables": ["name"],
       "source_file": "src/lib.rs",
       "source_line": 42
@@ -165,13 +181,13 @@ mod tests {
             r#"{
   "expected_keys": [
     {
-      "key": "hello",
+      "key": {"owner": "test-crate", "domain": "test-crate", "id": "hello"},
       "variables": ["name"],
       "source_file": "src/lib.rs",
       "source_line": 42
     },
     {
-      "key": "hello",
+      "key": {"owner": "test-crate", "domain": "test-crate", "id": "hello"},
       "variables": ["count"],
       "source_file": "src/other.rs",
       "source_line": 7
@@ -187,7 +203,7 @@ mod tests {
         assert!(
             error
                 .to_string()
-                .contains("duplicate inventory key 'hello'")
+                .contains("duplicate inventory key 'test-crate:test-crate:hello'")
         );
     }
 

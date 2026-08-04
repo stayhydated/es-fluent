@@ -3,7 +3,7 @@ use crate::generation::MonolithicExecutor;
 use crossbeam_channel::Sender;
 use std::path::Path;
 use std::sync::Arc;
-use std::thread;
+use std::thread::{self, JoinHandle};
 
 /// Compute a hash of the crate-local inputs that affect watch-mode generation.
 pub(super) fn compute_watch_inputs_hash(
@@ -24,7 +24,7 @@ pub(super) fn spawn_generation(
     workspace: Arc<WorkspaceInfo>,
     mode: FluentParseMode,
     result_tx: Sender<GenerateResult>,
-) {
+) -> JoinHandle<()> {
     thread::spawn(move || {
         let result = match crate::generation::acquire_monolithic_runner_lock(&workspace.root_dir)
             .and_then(|_runner_lock| {
@@ -48,5 +48,5 @@ pub(super) fn spawn_generation(
         };
 
         let _ = result_tx.send(result);
-    });
+    })
 }

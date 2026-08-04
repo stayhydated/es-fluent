@@ -1,7 +1,7 @@
 mod runtime;
 mod setup;
 
-use crate::{BundleBuildFailures, FtlAsset, FtlAssetLoader, I18nBundle, I18nDomainBundles};
+use crate::{BundleBuildFailures, FtlAsset, FtlAssetLoader, I18nDomainBundles, I18nReadyLocales};
 use bevy::prelude::*;
 use es_fluent_manager_core::ModuleDiscoveryError;
 use unic_langid::LanguageIdentifier;
@@ -120,7 +120,7 @@ impl Plugin for I18nPlugin {
     fn build(&self, app: &mut App) {
         app.init_asset::<FtlAsset>()
             .init_asset_loader::<FtlAssetLoader>()
-            .init_resource::<I18nBundle>()
+            .init_resource::<I18nReadyLocales>()
             .init_resource::<I18nDomainBundles>()
             .init_resource::<BundleBuildFailures>();
 

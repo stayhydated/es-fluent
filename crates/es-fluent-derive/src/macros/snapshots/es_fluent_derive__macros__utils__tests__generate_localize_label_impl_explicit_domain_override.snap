@@ -3,10 +3,11 @@ source: crates/es-fluent-derive/src/macros/utils.rs
 expression: tokens
 ---
 impl ::es_fluent::FluentLabel for Languages {
-    fn fluent_label_domain() -> ::es_fluent::registry::StaticFluentDomain {
-        ::es_fluent::registry::__macro::static_domain("es-fluent-lang")
-    }
-    fn fluent_label_id() -> ::es_fluent::registry::StaticFluentEntryId {
-        ::es_fluent::registry::__macro::static_entry_id("es-fluent-lang-label")
+    fn fluent_label_key() -> ::es_fluent::registry::StaticFluentMessageKey {
+        ::es_fluent::registry::__macro::static_message_key(
+            env!("CARGO_PKG_NAME"),
+            ::es_fluent::registry::__macro::static_domain("es-fluent-lang"),
+            ::es_fluent::registry::__macro::static_entry_id("es-fluent-lang-label"),
+        )
     }
 }

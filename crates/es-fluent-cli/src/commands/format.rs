@@ -6,13 +6,18 @@
 use super::common::{OutputFormat, WorkspaceArgs, WorkspaceCrates};
 use super::dry_run::{DryRunDiff, DryRunSummary};
 use crate::core::{CliError, CrateInfo, FormatError, FormatReport};
-use crate::ftl::{CrateFtlLayout, LocaleContext};
+use crate::ftl::LocaleContext;
 use crate::utils::ui;
 use anyhow::Result;
 use clap::Parser;
 use serde::Serialize;
 use std::fs;
 use std::path::{Path, PathBuf};
+
+struct FormatPlan {
+    results: Vec<FormatResult>,
+    transaction: es_fluent_runner::FileTransaction,
+}
 
 /// Arguments for the format command.
 #[derive(Debug, Parser)]
@@ -22,7 +27,7 @@ pub struct FormatArgs {
 
     /// Format all discovered locale directories, not just the fallback language.
     #[arg(long)]
-    pub all: bool,
+    pub all_locales: bool,
 
     /// Dry run - show what would be formatted without making changes.
     #[arg(long)]
@@ -136,76 +141,112 @@ pub fn run_format(args: FormatArgs) -> Result<(), CliError> {
         return Err(error);
     }
 
-    let mut total_formatted = 0;
-    let mut total_unchanged = 0;
     let mut errors: Vec<FormatError> = Vec::new();
     let mut json_errors: Vec<String> = Vec::new();
-    let mut files = Vec::new();
+    let mut results = Vec::new();
+    let mut transaction = es_fluent_runner::FileTransaction::default();
 
     let pb = if show_text {
-        ui::Ui::create_progress_bar(workspace.crates.len() as u64, "Formatting crates...")
+        ui::Ui::create_progress_bar(workspace.crates.len() as u64, "Planning formatting...")
     } else {
         indicatif::ProgressBar::hidden()
     };
 
     for krate in &workspace.crates {
-        pb.set_message(format!("Formatting {}", krate.name));
-        let results = match format_crate(krate, args.all, args.dry_run) {
-            Ok(results) => results,
-            Err(error) => {
-                if output.is_json() {
+        pb.set_message(format!("Planning {}", krate.name));
+        match plan_format_crate(krate, args.all_locales, args.dry_run) {
+            Ok(plan) => {
+                if let Err(error) = transaction.extend(plan.transaction) {
                     let message = relative_format_message(
                         &error.to_string(),
                         &workspace.workspace_info.root_dir,
                     );
                     json_errors.push(format!("{}: {}", krate.name, message));
-                    pb.inc(1);
-                    continue;
-                }
-                return Err(CliError::Other(error.to_string()));
-            },
-        };
-
-        for result in results {
-            let json_path = relative_format_path(&result.path, &workspace.workspace_info.root_dir);
-            files.push(FormatFileJson {
-                path: json_path.clone(),
-                changed: result.changed,
-                error: result.error.clone(),
-            });
-
-            if let Some(error) = result.error {
-                json_errors.push(format!("{json_path}: {error}"));
-                errors.push(FormatError {
-                    path: result.path,
-                    help: error,
-                });
-            } else if result.changed {
-                total_formatted += 1;
-                if show_text {
-                    pb.suspend(|| {
-                        let display_path = std::env::current_dir()
-                            .ok()
-                            .and_then(|cwd| result.path.strip_prefix(&cwd).ok())
-                            .unwrap_or(&result.path);
-
-                        if args.dry_run {
-                            ui::Ui::print_would_format(display_path);
-                            if let Some(diff) = &result.diff_info {
-                                diff.print();
-                            }
-                        } else {
-                            ui::Ui::print_formatted(display_path);
-                        }
+                    errors.push(FormatError {
+                        path: krate.manifest_dir.to_path_buf(),
+                        help: message,
                     });
+                } else {
+                    results.extend(plan.results);
                 }
-            } else {
-                total_unchanged += 1;
-            }
+            },
+            Err(error) => {
+                let message =
+                    relative_format_message(&error.to_string(), &workspace.workspace_info.root_dir);
+                json_errors.push(format!("{}: {}", krate.name, message));
+                errors.push(FormatError {
+                    path: krate.manifest_dir.to_path_buf(),
+                    help: message,
+                });
+            },
         }
         pb.inc(1);
     }
     pb.finish_and_clear();
+
+    for result in &results {
+        if let Some(error) = &result.error {
+            let json_path = relative_format_path(&result.path, &workspace.workspace_info.root_dir);
+            json_errors.push(format!("{json_path}: {error}"));
+            errors.push(FormatError {
+                path: result.path.clone(),
+                help: error.clone(),
+            });
+        }
+    }
+
+    if !args.dry_run
+        && errors.is_empty()
+        && let Err(error) = transaction.commit()
+    {
+        let message = relative_format_message(
+            &format!("format transaction failed: {error}"),
+            &workspace.workspace_info.root_dir,
+        );
+        json_errors.push(message.clone());
+        errors.push(FormatError {
+            path: workspace.workspace_info.root_dir.clone(),
+            help: message,
+        });
+    }
+
+    let transaction_aborted = !args.dry_run && !errors.is_empty();
+    let mut total_formatted = 0;
+    let mut total_unchanged = 0;
+    let mut files = Vec::new();
+    for result in results {
+        let json_path = relative_format_path(&result.path, &workspace.workspace_info.root_dir);
+        let changed = result.changed && !transaction_aborted;
+        files.push(FormatFileJson {
+            path: json_path,
+            changed,
+            error: result.error.clone(),
+        });
+
+        if result.error.is_some() {
+            continue;
+        }
+        if changed {
+            total_formatted += 1;
+            if show_text {
+                let display_path = std::env::current_dir()
+                    .ok()
+                    .and_then(|cwd| result.path.strip_prefix(&cwd).ok())
+                    .unwrap_or(&result.path);
+
+                if args.dry_run {
+                    ui::Ui::print_would_format(display_path);
+                    if let Some(diff) = &result.diff_info {
+                        diff.print();
+                    }
+                } else {
+                    ui::Ui::print_formatted(display_path);
+                }
+            }
+        } else if !result.changed {
+            total_unchanged += 1;
+        }
+    }
 
     if output.is_json() {
         let error_count = json_errors.len();
@@ -256,29 +297,48 @@ pub(crate) fn format_crate(
     all_locales: bool,
     check_only: bool,
 ) -> Result<Vec<FormatResult>> {
+    let plan = plan_format_crate(krate, all_locales, check_only)?;
+    if !check_only && plan.results.iter().all(|result| result.error.is_none()) {
+        plan.transaction.commit()?;
+    }
+    Ok(plan.results)
+}
+
+fn plan_format_crate(
+    krate: &CrateInfo,
+    all_locales: bool,
+    include_diff: bool,
+) -> Result<FormatPlan> {
     let ctx = LocaleContext::from_crate(krate, all_locales)?;
     if !ctx.assets_dir.is_dir() {
-        return Ok(vec![FormatResult::error(
-            &ctx.assets_dir,
-            format!(
-                "assets_dir for {} is missing or not a directory",
-                krate.name
-            ),
-        )]);
+        return Ok(FormatPlan {
+            results: vec![FormatResult::error(
+                &ctx.assets_dir,
+                format!(
+                    "assets_dir for {} is missing or not a directory",
+                    krate.name
+                ),
+            )],
+            transaction: es_fluent_runner::FileTransaction::default(),
+        });
     }
 
     let fallback_dir = ctx.locale_dir(&ctx.fallback);
     if !fallback_dir.is_dir() {
-        return Ok(vec![FormatResult::error(
-            &fallback_dir,
-            format!(
-                "fallback locale directory '{}' is missing or not a directory",
-                ctx.fallback
-            ),
-        )]);
+        return Ok(FormatPlan {
+            results: vec![FormatResult::error(
+                &fallback_dir,
+                format!(
+                    "fallback locale directory '{}' is missing or not a directory",
+                    ctx.fallback
+                ),
+            )],
+            transaction: es_fluent_runner::FileTransaction::default(),
+        });
     }
 
     let mut results = Vec::new();
+    let mut transaction = es_fluent_runner::FileTransaction::default();
 
     if all_locales {
         match crate::ftl::locale_named_non_directory_paths(&ctx.assets_dir) {
@@ -308,37 +368,58 @@ pub(crate) fn format_crate(
         }
 
         // Format main + namespaced files for this crate.
-        let ftl_files = CrateFtlLayout::from_assets_dir(&ctx.assets_dir, locale, &ctx.crate_name)
-            .discover_files()?;
+        let ftl_files = ctx.discover_files(locale)?;
         for file_info in ftl_files {
             let ftl_file = fs::canonicalize(&file_info.abs_path).unwrap_or(file_info.abs_path);
-            let result = format_ftl_file(&ftl_file, check_only);
+            let (result, file_transaction) = format_ftl_file(&ftl_file, include_diff);
+            if let Err(error) = transaction.extend(file_transaction) {
+                results.push(FormatResult::error(
+                    &ftl_file,
+                    format!("Failed to plan formatting: {error}"),
+                ));
+                continue;
+            }
             results.push(result);
         }
     }
 
-    Ok(results)
+    Ok(FormatPlan {
+        results,
+        transaction,
+    })
 }
 
 /// Format a single FTL file by sorting entries A-Z.
-fn format_ftl_file(path: &Path, check_only: bool) -> FormatResult {
+fn format_ftl_file(
+    path: &Path,
+    include_diff: bool,
+) -> (FormatResult, es_fluent_runner::FileTransaction) {
+    let mut transaction = es_fluent_runner::FileTransaction::default();
     let content = match fs::read_to_string(path) {
         Ok(c) => c,
-        Err(e) => return FormatResult::error(path, format!("Failed to read file: {}", e)),
+        Err(e) => {
+            return (
+                FormatResult::error(path, format!("Failed to read file: {}", e)),
+                transaction,
+            );
+        },
     };
 
     if content.trim().is_empty() {
-        return FormatResult::unchanged(path);
+        return (FormatResult::unchanged(path), transaction);
     }
 
     let (resource, errors) = es_fluent_generate::ftl::parse_ftl_content(content.clone());
     if !errors.is_empty() {
-        return FormatResult::error(
-            path,
-            format!(
-                "Refusing to format file with parse errors: {}",
-                es_fluent_generate::ftl::format_parse_errors(&errors)
+        return (
+            FormatResult::error(
+                path,
+                format!(
+                    "Refusing to format file with parse errors: {}",
+                    es_fluent_generate::ftl::format_parse_errors(&errors)
+                ),
             ),
+            transaction,
         );
     }
 
@@ -347,21 +428,27 @@ fn format_ftl_file(path: &Path, check_only: bool) -> FormatResult {
     let formatted_content = format!("{}\n", formatted.trim_end());
 
     if content == formatted_content {
-        return FormatResult::unchanged(path);
+        return (FormatResult::unchanged(path), transaction);
     }
 
-    // Try to write if not in check-only mode
-    if !check_only && let Err(e) = fs::write(path, &formatted_content) {
-        return FormatResult::error(path, format!("Failed to write file: {}", e));
+    if let Err(error) = transaction.plan_write_from(
+        path,
+        Some(content.as_bytes().to_vec()),
+        formatted_content.as_bytes().to_vec(),
+    ) {
+        return (
+            FormatResult::error(path, format!("Failed to plan formatting: {error}")),
+            es_fluent_runner::FileTransaction::default(),
+        );
     }
 
-    let diff = if check_only {
+    let diff = if include_diff {
         Some(DryRunDiff::new(content, formatted_content))
     } else {
         None
     };
 
-    FormatResult::changed(path, diff)
+    (FormatResult::changed(path, diff), transaction)
 }
 
 #[cfg(test)]
@@ -459,6 +546,45 @@ mod tests {
     }
 
     #[test]
+    fn format_plan_rejects_changed_before_state_without_partial_writes() {
+        let temp = tempfile::tempdir().expect("tempdir");
+        let krate = write_test_crate(temp.path());
+        let main_path = temp.path().join("i18n/en/test-app.ftl");
+        let namespaced_path = temp.path().join("i18n/en/test-app/ui.ftl");
+        let main_before = "zeta = Z\nalpha = A\n";
+        std::fs::write(&main_path, main_before).expect("write unsorted main FTL");
+
+        let plan = plan_format_crate(&krate, false, false).expect("plan formatting");
+        assert_eq!(
+            plan.results.iter().filter(|result| result.changed).count(),
+            2
+        );
+
+        let external_edit = "external = Edited after planning\n";
+        std::fs::write(&namespaced_path, external_edit).expect("edit after planning");
+        let error = plan
+            .transaction
+            .commit()
+            .expect_err("changed before-state should abort transaction");
+
+        assert!(
+            error
+                .to_string()
+                .contains("changed after the transaction was planned")
+        );
+        assert_eq!(
+            std::fs::read_to_string(&main_path).expect("read main after failed commit"),
+            main_before,
+            "validation must happen before any planned write"
+        );
+        assert_eq!(
+            std::fs::read_to_string(&namespaced_path).expect("read external edit"),
+            external_edit,
+            "the external edit must not be overwritten"
+        );
+    }
+
+    #[test]
     fn run_format_dry_run_and_real_cover_command_paths() {
         let temp = tempfile::tempdir().expect("tempdir");
         write_workspace_files(temp.path());
@@ -471,7 +597,7 @@ mod tests {
                 path: Some(temp.path().to_path_buf()),
                 package: None,
             },
-            all: false,
+            all_locales: false,
             dry_run: true,
             output: OutputFormat::Text,
         });
@@ -484,7 +610,7 @@ mod tests {
                 path: Some(temp.path().to_path_buf()),
                 package: None,
             },
-            all: false,
+            all_locales: false,
             dry_run: false,
             output: OutputFormat::Text,
         });
@@ -506,7 +632,7 @@ mod tests {
                 path: Some(temp.path().to_path_buf()),
                 package: Some("missing-package".to_string()),
             },
-            all: false,
+            all_locales: false,
             dry_run: false,
             output: OutputFormat::Text,
         });
@@ -579,18 +705,18 @@ mod tests {
         let temp = tempfile::tempdir().expect("tempdir");
 
         let missing = temp.path().join("missing.ftl");
-        let missing_result = format_ftl_file(&missing, false);
+        let (missing_result, _) = format_ftl_file(&missing, false);
         assert!(missing_result.error.is_some());
 
         let empty = temp.path().join("empty.ftl");
         std::fs::write(&empty, "   \n").expect("write empty");
-        let empty_result = format_ftl_file(&empty, false);
+        let (empty_result, _) = format_ftl_file(&empty, false);
         assert!(!empty_result.changed);
         assert!(empty_result.error.is_none());
 
         let invalid = temp.path().join("invalid.ftl");
         std::fs::write(&invalid, "zeta = { $name\nalpha = A\n").expect("write invalid");
-        let partial = format_ftl_file(&invalid, true);
+        let (partial, _) = format_ftl_file(&invalid, true);
         assert!(!partial.changed);
         assert!(partial.diff_info.is_none());
         assert!(
@@ -626,40 +752,6 @@ mod tests {
         assert_eq!(
             normalized,
             "Expected FTL path to be a file: i18n/en/test-app.ftl"
-        );
-    }
-
-    #[test]
-    fn format_ftl_file_returns_write_error_for_read_only_file() {
-        let temp = tempfile::tempdir().expect("tempdir");
-        let ftl = temp.path().join("read-only.ftl");
-        std::fs::write(&ftl, "zeta = Z\nalpha = A\n").expect("write ftl");
-
-        let mut perms = std::fs::metadata(&ftl).unwrap().permissions();
-        perms.set_readonly(true);
-        std::fs::set_permissions(&ftl, perms).unwrap();
-
-        let result = format_ftl_file(&ftl, false);
-
-        let mut restore = std::fs::metadata(&ftl).unwrap().permissions();
-        #[cfg(unix)]
-        {
-            use std::os::unix::fs::PermissionsExt as _;
-            restore.set_mode(0o644);
-        }
-        #[cfg(not(unix))]
-        {
-            restore.set_readonly(false);
-        }
-        std::fs::set_permissions(&ftl, restore).unwrap();
-
-        assert!(
-            result
-                .error
-                .as_deref()
-                .is_some_and(|err| err.contains("Failed to write file")),
-            "expected write error, got: {:?}",
-            result.error
         );
     }
 }

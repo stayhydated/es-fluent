@@ -1,19 +1,14 @@
 use dioxus::prelude::*;
-use stayhydated_dioxus::{Href, NavigationTarget, StayhydatedProjectPortal};
+use stayhydated_dioxus::{NavigationTarget, StayhydatedProjectSitePortal};
 
-use crate::site::{
-    constants::{PROJECT, VERSION},
-    routing::PageKind,
-};
+use crate::site::{constants::site, routing::PageKind};
 
 #[component]
 pub(crate) fn HomePage() -> Element {
     rsx! {
-        StayhydatedProjectPortal::<crate::site::routing::AppRoute> {
-            project: PROJECT,
-            version: VERSION,
+        StayhydatedProjectSitePortal::<crate::site::routing::AppRoute> {
+            site: site(),
             home: NavigationTarget::Internal(crate::site::routing::app_route(PageKind::Home)),
-            book: Href::new(crate::site::routing::book_href().into_string()),
             demos: NavigationTarget::Internal(crate::site::routing::app_route(PageKind::Demos)),
         }
     }

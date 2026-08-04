@@ -37,6 +37,7 @@ version = "0.18.1"
 
 [workspace.dependencies]
 anyhow = "1.0"
+anstream = "1.0"
 askama = "0.16"
 assert_cmd = "2.2"
 assert_fs = "1.1"
@@ -80,6 +81,7 @@ fluent-syntax = "0.12"
 fs-err = "3.3"
 futures = "0.3"
 getset = "0.1"
+globset = "0.4"
 gpui = { git = "https://github.com/zed-industries/zed", rev = "1a246efd7e1b83ab568ec5e3e6c1a43a42e1abba" }
 gpui-component = { git = "https://github.com/longbridge/gpui-component" }
 gpui_platform = { features = [
@@ -89,9 +91,9 @@ gpui_platform = { features = [
   "runtime_shaders",
 ], git = "https://github.com/zed-industries/zed", rev = "1a246efd7e1b83ab568ec5e3e6c1a43a42e1abba" }
 heck = "0.5"
-icu_experimental = "0.5"
 icu_calendar = "2.2"
 icu_datetime = "2.2"
+icu_experimental = "0.5"
 icu_locale = "2.2"
 icu_provider = { features = [ "sync" ], version = "2.2" }
 icu_time = "2.2"
@@ -119,9 +121,9 @@ serde = "1.0"
 serde_json = "1.0"
 serial_test = "3.5"
 similar = "3.1"
-stayhydated-dioxus = { git = "https://github.com/stayhydated/shared", rev = "0bd510bacbed798ac361469085cd8921eaa40361" }
-stayhydated-site = { git = "https://github.com/stayhydated/shared", rev = "0bd510bacbed798ac361469085cd8921eaa40361" }
-stayhydated-xtask = { git = "https://github.com/stayhydated/shared", rev = "0bd510bacbed798ac361469085cd8921eaa40361" }
+stayhydated-dioxus = { path = "../shared/crates/stayhydated-dioxus" }
+stayhydated-site = { path = "../shared/crates/stayhydated-site" }
+stayhydated-xtask = { path = "../shared/crates/stayhydated-xtask" }
 strum = "0.28"
 syn = "2.0"
 temp-env = "0.3"
