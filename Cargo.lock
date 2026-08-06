@@ -284,9 +284,9 @@ checksum = "84521a3cf562bc62942e294181d9eef17eb38ceb8c68677bc49f144e4c3d4f8d"
 
 [[package]]
 name = "android_system_properties"
-version = "0.1.5"
+version = "0.1.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "819e7219dbd41043ac279b19830f2efc897156490d7fd6ea916720117ee66311"
+checksum = "ae221649c9976a6f6c56ae1facf410f3ddb33cc661c4b7b61020a912d4237fbc"
 dependencies = [
  "libc",
 ]
@@ -2452,7 +2452,7 @@ dependencies = [
  "clang-sys",
  "itertools 0.13.0",
  "log",
- "prettyplease",
+ "prettyplease 0.2.37",
  "proc-macro2",
  "quote",
  "regex",
@@ -2533,9 +2533,9 @@ dependencies = [
 
 [[package]]
 name = "blake3"
-version = "1.8.5"
+version = "1.8.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0aa83c34e62843d924f905e0f5c866eb1dd6545fc4d719e803d9ba6030371fce"
+checksum = "76ae7bad254120e9e4c63bafc385310756f90c484eac0e36b8317cf09cb92a77"
 dependencies = [
  "arrayref",
  "arrayvec",
@@ -2627,7 +2627,7 @@ checksum = "6dee98b0db6a962de883bf5d20362dee4d7ca0d12fe39a7c6c73c844e1cd7c1f"
 dependencies = [
  "darling 0.23.0",
  "ident_case",
- "prettyplease",
+ "prettyplease 0.2.37",
  "proc-macro2",
  "quote",
  "rustversion",
@@ -3025,9 +3025,9 @@ dependencies = [
 
 [[package]]
 name = "clap"
-version = "4.6.5"
+version = "4.6.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "301b56658598e48f3648647ac6fc887be7e7108eddfa4e9b63fcf3ec58c0cadf"
+checksum = "473c7e07f409a8d772161724aa8db6a765a2532a70f9667eeb7b49d3d02fbdca"
 dependencies = [
  "clap_builder",
  "clap_derive",
@@ -3035,9 +3035,9 @@ dependencies = [
 
 [[package]]
 name = "clap_builder"
-version = "4.6.5"
+version = "4.6.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "94a65403d1a1bd28f7dc68eb8506e8874808ee5eecb59298de588e2e1407a078"
+checksum = "7b48fea5a88e9ae728a2dcbedbfc0e730f7d60da42e1cb049a83c9fb8b789889"
 dependencies = [
  "anstream",
  "anstyle",
@@ -5064,18 +5064,18 @@ dependencies = [
 name = "es-fluent-derive"
 version = "0.18.1"
 dependencies = [
- "darling 0.23.0",
+ "darling 0.24.0",
  "es-fluent",
  "es-fluent-derive-core",
  "es-fluent-shared",
  "fs-err",
  "insta",
  "path-slash",
- "prettyplease",
+ "prettyplease 0.3.0",
  "proc-macro2",
  "quote",
  "serial_test",
- "syn 2.0.119",
+ "syn 3.0.3",
  "temp-env",
  "tempfile",
  "toml 1.1.4+spec-1.1.0",
@@ -5087,7 +5087,7 @@ name = "es-fluent-derive-core"
 version = "0.18.1"
 dependencies = [
  "bon",
- "darling 0.23.0",
+ "darling 0.24.0",
  "es-fluent-shared",
  "es-fluent-toml",
  "getset",
@@ -5098,7 +5098,7 @@ dependencies = [
  "quote",
  "serial_test",
  "strum 0.28.0",
- "syn 2.0.119",
+ "syn 3.0.3",
  "temp-env",
  "tempfile",
  "thiserror 2.0.19",
@@ -5119,7 +5119,7 @@ dependencies = [
  "insta",
  "proc-macro2",
  "similar 3.1.2",
- "syn 2.0.119",
+ "syn 3.0.3",
  "tempfile",
  "tracing",
 ]
@@ -5148,11 +5148,11 @@ dependencies = [
  "heck 0.5.0",
  "insta",
  "path-slash",
- "prettyplease",
+ "prettyplease 0.3.0",
  "proc-macro2",
  "quote",
  "serial_test",
- "syn 2.0.119",
+ "syn 3.0.3",
  "temp-env",
  "tempfile",
  "unic-langid",
@@ -5245,11 +5245,11 @@ dependencies = [
  "heck 0.5.0",
  "insta",
  "path-slash",
- "prettyplease",
+ "prettyplease 0.3.0",
  "proc-macro2",
  "quote",
  "serial_test",
- "syn 2.0.119",
+ "syn 3.0.3",
  "temp-env",
  "tempfile",
  "trybuild",
@@ -5275,7 +5275,7 @@ dependencies = [
  "anyhow",
  "camino",
  "clap",
- "darling 0.23.0",
+ "darling 0.24.0",
  "derive_more",
  "fluent-syntax",
  "heck 0.5.0",
@@ -5284,7 +5284,7 @@ dependencies = [
  "quote",
  "serde",
  "strum 0.28.0",
- "syn 2.0.119",
+ "syn 3.0.3",
  "tempfile",
  "thiserror 2.0.19",
  "toml 1.1.4+spec-1.1.0",
@@ -6290,13 +6290,13 @@ dependencies = [
 [[package]]
 name = "gpui"
 version = "0.2.2"
-source = "git+https://github.com/zed-industries/zed#300972bea37c8cc1c67804c581f62ae6ab4c040e"
+source = "git+https://github.com/zed-industries/zed#101ca00a1352ed71ef398f21b47836565d1998e3"
 replace = "gpui 0.2.2 (git+https://github.com/zed-industries/zed?rev=20ce54f8e407d575cc2d873ffa1c09a08c2689f1)"
 
 [[package]]
 name = "gpui-component"
 version = "0.5.2"
-source = "git+https://github.com/longbridge/gpui-component#bbf7650abae59e3a984d48bd120a6f9094fed1f2"
+source = "git+https://github.com/longbridge/gpui-component#181cf147d1d68ff33bae60abb58a24917658142e"
 dependencies = [
  "aho-corasick",
  "anyhow",
@@ -6344,7 +6344,7 @@ dependencies = [
 [[package]]
 name = "gpui-component-assets"
 version = "0.5.1"
-source = "git+https://github.com/longbridge/gpui-component#bbf7650abae59e3a984d48bd120a6f9094fed1f2"
+source = "git+https://github.com/longbridge/gpui-component#181cf147d1d68ff33bae60abb58a24917658142e"
 dependencies = [
  "anyhow",
  "gpui 0.2.2 (git+https://github.com/zed-industries/zed)",
@@ -6358,7 +6358,7 @@ dependencies = [
 [[package]]
 name = "gpui-component-macros"
 version = "0.5.1"
-source = "git+https://github.com/longbridge/gpui-component#bbf7650abae59e3a984d48bd120a6f9094fed1f2"
+source = "git+https://github.com/longbridge/gpui-component#181cf147d1d68ff33bae60abb58a24917658142e"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -6495,7 +6495,7 @@ dependencies = [
 [[package]]
 name = "gpui_macros"
 version = "0.1.0"
-source = "git+https://github.com/zed-industries/zed#300972bea37c8cc1c67804c581f62ae6ab4c040e"
+source = "git+https://github.com/zed-industries/zed#101ca00a1352ed71ef398f21b47836565d1998e3"
 dependencies = [
  "heck 0.5.0",
  "proc-macro2",
@@ -9783,9 +9783,9 @@ dependencies = [
 
 [[package]]
 name = "open"
-version = "5.4.0"
+version = "5.4.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a0b3d059e795d52b8a72fef45658620edd4d9c359b338564aa14391ffa511ed5"
+checksum = "f9cfef937e9c486488c7e3d949ae31c0f1d06bdacd75b99c086cb35356e30408"
 dependencies = [
  "is-wsl",
  "libc",
@@ -10438,6 +10438,16 @@ checksum = "479ca8adacdd7ce8f1fb39ce9ecccbfe93a3f1344b3d0d97f20bc0196208f62b"
 dependencies = [
  "proc-macro2",
  "syn 2.0.119",
+]
+
+[[package]]
+name = "prettyplease"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2bfe0f4c752e450fc2faf62654f1c134747922825d5b04ca717b8874f41a40c0"
+dependencies = [
+ "proc-macro2",
+ "syn 3.0.3",
 ]
 
 [[package]]
@@ -11917,9 +11927,9 @@ dependencies = [
 
 [[package]]
 name = "serial_test"
-version = "3.5.0"
+version = "4.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "699f4197115b8a7e7ff19c9a315a4bd6fffec26cc4626ef45ecaea389e081c6d"
+checksum = "a6df5ed973ad8d834e09f824f9e9f449af6b9a3745f78dec7cc752770bd3bf11"
 dependencies = [
  "futures-executor",
  "futures-util",
@@ -11931,13 +11941,13 @@ dependencies = [
 
 [[package]]
 name = "serial_test_derive"
-version = "3.5.0"
+version = "4.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "94e153fc76e1c6a068703d6d29c508a0b15c061c4b7e43da59cc097bc342673c"
+checksum = "a22144e767da4ddd8416dbf383700542ffd8a5dc493dfecedfe1fe3ad03c98ae"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.119",
+ "syn 3.0.3",
 ]
 
 [[package]]
@@ -12339,7 +12349,7 @@ checksum = "a2eb9349b6444b326872e140eb1cf5e7c522154d69e7a0ffb0fb81c06b37543f"
 [[package]]
 name = "stayhydated-dioxus"
 version = "0.1.0"
-source = "git+https://github.com/stayhydated/shared?rev=3e63926d573ca52c14ad922a7711fc98865bab36#3e63926d573ca52c14ad922a7711fc98865bab36"
+source = "git+https://github.com/stayhydated/shared?rev=2b62be85c86ddfe616fc2081c1aeaa5c00decca6#2b62be85c86ddfe616fc2081c1aeaa5c00decca6"
 dependencies = [
  "bon",
  "dioxus",
@@ -12353,7 +12363,7 @@ dependencies = [
 [[package]]
 name = "stayhydated-dioxus-core"
 version = "0.1.0"
-source = "git+https://github.com/stayhydated/shared?rev=3e63926d573ca52c14ad922a7711fc98865bab36#3e63926d573ca52c14ad922a7711fc98865bab36"
+source = "git+https://github.com/stayhydated/shared?rev=2b62be85c86ddfe616fc2081c1aeaa5c00decca6#2b62be85c86ddfe616fc2081c1aeaa5c00decca6"
 dependencies = [
  "bytemuck",
  "derive_more",
@@ -12370,7 +12380,7 @@ dependencies = [
 [[package]]
 name = "stayhydated-site"
 version = "0.1.0"
-source = "git+https://github.com/stayhydated/shared?rev=3e63926d573ca52c14ad922a7711fc98865bab36#3e63926d573ca52c14ad922a7711fc98865bab36"
+source = "git+https://github.com/stayhydated/shared?rev=2b62be85c86ddfe616fc2081c1aeaa5c00decca6#2b62be85c86ddfe616fc2081c1aeaa5c00decca6"
 dependencies = [
  "derive_more",
  "dioxus",
@@ -12379,7 +12389,7 @@ dependencies = [
 [[package]]
 name = "stayhydated-xtask"
 version = "0.1.0"
-source = "git+https://github.com/stayhydated/shared?rev=3e63926d573ca52c14ad922a7711fc98865bab36#3e63926d573ca52c14ad922a7711fc98865bab36"
+source = "git+https://github.com/stayhydated/shared?rev=2b62be85c86ddfe616fc2081c1aeaa5c00decca6#2b62be85c86ddfe616fc2081c1aeaa5c00decca6"
 dependencies = [
  "anyhow",
  "bon",
@@ -15537,9 +15547,9 @@ checksum = "b9cc00251562a284751c9973bace760d86c0276c471b4be569fe6b068ee97a56"
 
 [[package]]
 name = "xml-rs"
-version = "0.8.28"
+version = "0.8.29"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3ae8337f8a065cfc972643663ea4279e04e7256de865aa66fe25cec5fb912d3f"
+checksum = "e450f9b2ed1dff33c94c12589a87338689467b9c4f5d8a5710bd09a847d2c8a7"
 
 [[package]]
 name = "xml5ever"
@@ -15844,18 +15854,18 @@ checksum = "6df3dc4292935e51816d896edcd52aa30bc297907c26167fec31e2b0c6a32524"
 
 [[package]]
 name = "zerocopy"
-version = "0.8.55"
+version = "0.8.56"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b5a105cd7b140f6eeec8acff2ea38135d3cab283ada58540f629fe51e46696eb"
+checksum = "556764e583adb45a9f8d413c2a147fa7e8d821e48e12b14fd560b607998b75eb"
 dependencies = [
  "zerocopy-derive",
 ]
 
 [[package]]
 name = "zerocopy-derive"
-version = "0.8.55"
+version = "0.8.56"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0fe976fb70c78cd64cccfe3a6fc142244e8a77b70959b30faf9d0ac37ee228eb"
+checksum = "f2ab42fc20575779bd240faa45f94a74256f755c0fa9e89f0ede20d91d0cdfc1"
 dependencies = [
  "proc-macro2",
  "quote",
