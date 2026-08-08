@@ -11,7 +11,7 @@ Bevy manager macros. Add it only as a build dependency:
 es-fluent-build = "*"
 ~~~
 
-~~~rust
+~~~rust,no_run
 // build.rs
 fn main() {
     es_fluent_build::track_i18n_assets();
