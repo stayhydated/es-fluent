@@ -17,7 +17,7 @@ es-fluent = "*"
 
 Derive a typed message in a library target:
 
-~~~rust
+~~~rust,ignore
 use es_fluent::EsFluent;
 
 #[derive(EsFluent)]
