@@ -32,6 +32,20 @@ impl ResolvedCratePath {
         }
     }
 
+    pub fn resolve_with_self_alias(package_name: &str, self_crate_ident: &str) -> Self {
+        match crate_name(package_name) {
+            Ok(FoundCrate::Itself) => Self::fallback(self_crate_ident),
+            Ok(FoundCrate::Name(name)) => {
+                let ident = format_ident!("{name}");
+                Self {
+                    tokens: quote! { ::#ident },
+                    rust_path: format!("::{name}"),
+                }
+            },
+            Err(_) => Self::fallback(self_crate_ident),
+        }
+    }
+
     pub fn fallback(crate_ident: &str) -> Self {
         let ident = format_ident!("{crate_ident}");
         Self {
@@ -51,6 +65,15 @@ impl ResolvedCratePath {
 
 pub fn resolve_crate_path(package_name: &str, fallback_crate_ident: &str) -> TokenStream {
     ResolvedCratePath::resolve(package_name, fallback_crate_ident)
+        .tokens()
+        .clone()
+}
+
+pub fn resolve_crate_path_with_self_alias(
+    package_name: &str,
+    self_crate_ident: &str,
+) -> TokenStream {
+    ResolvedCratePath::resolve_with_self_alias(package_name, self_crate_ident)
         .tokens()
         .clone()
 }

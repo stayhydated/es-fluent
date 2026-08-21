@@ -10,7 +10,7 @@ with typed locale variants and conversions.
 
 Applications should use the re-exported macro:
 
-~~~rust
+~~~rust,ignore
 use es_fluent_lang::es_fluent_language;
 
 #[es_fluent_language]

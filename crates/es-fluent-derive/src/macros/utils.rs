@@ -19,7 +19,7 @@ pub struct CodegenContext {
 impl CodegenContext {
     pub fn resolve() -> Self {
         Self {
-            facade_path: ResolvedCratePath::resolve("es-fluent", "es_fluent"),
+            facade_path: ResolvedCratePath::resolve_with_self_alias("es-fluent", "es_fluent"),
         }
     }
 

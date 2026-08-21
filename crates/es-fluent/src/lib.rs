@@ -1,6 +1,8 @@
 #![doc = include_str!("../README.md")]
 #![allow(clippy::needless_doctest_main)]
 
+extern crate self as es_fluent;
+
 #[doc(hidden)]
 pub mod meta;
 
