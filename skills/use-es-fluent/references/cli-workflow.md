@@ -14,6 +14,19 @@ inspecting, or cleaning FTL resources.
 Examples use `cargo es-fluent <COMMAND>`. Direct
 `cargo-es-fluent` invocation is equivalent.
 
+Use the read-only doctor before changing setup or when catalog diagnostics fail:
+
+~~~sh
+cargo es-fluent doctor
+cargo es-fluent doctor --output json
+~~~
+
+It checks configuration, fallback resources, Cargo's selected library and
+custom-build target graphs, build helper wiring, managers and features,
+registration, package-local missing-message policy, and fallback catalog inputs.
+A warning means static inspection could not prove the integration and requires
+manual verification.
+
 ## Routine workflow
 
 After changing derived types:
@@ -23,6 +36,12 @@ cargo es-fluent generate
 cargo es-fluent status --all-locales
 cargo es-fluent check --all-locales
 ~~~
+
+The CLI inventory runner uses a hidden environment mode so it can collect newly
+derived keys before the application's strict fallback catalog contains them.
+Catalog parsing is deferred to the requested CLI operation so its normal
+validation and transaction diagnostics remain authoritative. The runner does
+not change the package's configured missing-message policy.
 
 Generation uses conservative mode by default: it adds derived entries and
 updates their variables while preserving existing translations. Preview

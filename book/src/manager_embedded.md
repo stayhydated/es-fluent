@@ -60,9 +60,13 @@ When the initial language is not known at construction time, call
 
 Typed `localize_message(...)` and
 `localize_label(...)` treat a missing registered resource as a
-configuration error. Import `es_fluent::FluentLocalizerExt as _` and
-use `try_localize_message(...)` only at a boundary that handles the
-missing state. Labels provide a matching `try_localize_label(...)`.
+configuration error. The fallback locale is compile-time checked when
+`es-fluent-build` produces its catalog. Set
+`missing_message_policy = "fallback-str"` in the owning package's `i18n.toml` to
+return snake_case source names from normal typed lookup instead. Import
+`es_fluent::FluentLocalizerExt as _` and use
+`try_localize_message(...)` only at a boundary that handles the missing state.
+Labels provide a matching `try_localize_label(...)`.
 
 ## Select languages
 

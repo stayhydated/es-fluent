@@ -40,6 +40,7 @@ impl<'a> WatchRuntime<'a> {
                     &krate.manifest_dir,
                     &krate.src_dir,
                     &krate.i18n_config_path,
+                    krate.custom_build_target_path.as_deref(),
                 ),
             );
         }
@@ -144,6 +145,7 @@ impl<'a> WatchRuntime<'a> {
                 &krate.manifest_dir,
                 &krate.src_dir,
                 &krate.i18n_config_path,
+                krate.custom_build_target_path.as_deref(),
             );
             if !self.observe_hash(&crate_name, new_hash) {
                 continue;
@@ -246,6 +248,8 @@ mod tests {
             name: es_fluent_runner::PackageName::try_new("crate-a").expect("valid package name"),
             manifest_dir: crate::core::ManifestDir::from_discovered(PathBuf::from("/tmp/test")),
             src_dir: crate::core::SourceDir::from_discovered(PathBuf::from("/tmp/test/src")),
+            library_target_path: None,
+            custom_build_target_path: None,
             i18n_config_path: crate::core::DiscoveredI18nConfigPath::from_discovered(
                 PathBuf::from("/tmp/test/i18n.toml"),
             ),

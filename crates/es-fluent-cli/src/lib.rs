@@ -2,8 +2,8 @@
 
 use clap::{Parser, Subcommand};
 use commands::{
-    AddLocaleArgs, CheckArgs, CleanArgs, FormatArgs, GenerateArgs, StatusArgs, SyncArgs, TreeArgs,
-    WatchArgs,
+    AddLocaleArgs, CheckArgs, CleanArgs, DoctorArgs, FormatArgs, GenerateArgs, StatusArgs,
+    SyncArgs, TreeArgs, WatchArgs,
 };
 use miette::Result as MietteResult;
 
@@ -11,6 +11,7 @@ mod commands;
 mod core;
 mod ftl;
 mod generation;
+mod source_inspector;
 mod tui;
 mod utils;
 
@@ -59,6 +60,9 @@ enum Commands {
 
     /// Report whether generated, formatted, synced, cleaned, and checked surfaces are current
     Status(StatusArgs),
+
+    /// Read-only diagnosis of localization setup, build integration, managers, and fallback catalog readiness
+    Doctor(DoctorArgs),
 
     /// Sync missing translations from fallback to other locales
     Sync(SyncArgs),
@@ -143,6 +147,7 @@ fn dispatch(command: Commands) -> Result<(), CliError> {
         Commands::Fmt(args) => commands::run_format(args),
         Commands::Check(args) => commands::run_check(args),
         Commands::Status(args) => commands::run_status(args),
+        Commands::Doctor(args) => commands::run_doctor(args),
         Commands::Sync(args) => commands::run_sync(args),
         Commands::AddLocale(args) => commands::run_add_locale(args),
         Commands::Tree(args) => commands::run_tree(args),
@@ -172,6 +177,7 @@ mod tests {
         "fmt",
         "check",
         "status",
+        "doctor",
         "sync",
         "add-locale",
         "tree",
@@ -202,6 +208,7 @@ mod tests {
             Commands::Fmt(_) => "fmt",
             Commands::Check(_) => "check",
             Commands::Status(_) => "status",
+            Commands::Doctor(_) => "doctor",
             Commands::Sync(_) => "sync",
             Commands::AddLocale(_) => "add-locale",
             Commands::Tree(_) => "tree",
@@ -328,6 +335,7 @@ mod tests {
             (&["fmt"], "fmt"),
             (&["check"], "check"),
             (&["status"], "status"),
+            (&["doctor"], "doctor"),
             (&["sync", "--all-locales"], "sync"),
             (&["add-locale", "fr-FR"], "add-locale"),
             (&["tree"], "tree"),

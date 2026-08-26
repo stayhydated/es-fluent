@@ -12,6 +12,7 @@ rust-version.workspace = true
 readme = "README.md"
 
 [dependencies]
+es-fluent-shared = { workspace = true }
 es-fluent-toml = { workspace = true }
 
 [dev-dependencies]

@@ -14,7 +14,7 @@ establish a new es-fluent project. Read
 | Bevy ECS and UI | `es-fluent-manager-bevy` |
 | Typed language picker | `es-fluent-lang` |
 | FTL generation and validation | `es-fluent-cli` as `cargo es-fluent` |
-| Locale asset rebuild tracking | `es-fluent-build` under `[build-dependencies]` |
+| Locale tracking and strict fallback catalog | `es-fluent-build` under `[build-dependencies]` |
 
 Most applications should not depend directly on `es-fluent-derive`,
 `es-fluent-lang-macro`, `es-fluent-manager-core`, or
@@ -45,6 +45,9 @@ assets_dir = "assets/locales"
 # Optional literal namespace allowlist.
 # namespaces = ["ui", "errors"]
 
+# Optional package-local missing-message policy; strict is the default.
+# missing_message_policy = "fallback-str"
+
 # Optional additional package-local domains.
 # domains = ["emails"]
 
@@ -69,7 +72,8 @@ symlinks.
 
 ## Track asset changes
 
-Manager macros scan locale assets at compile time. Add:
+Configured derives and manager macros consume locale data at compile time. Add
+the helper to track changes and write the fallback-message catalog:
 
 ~~~toml
 [build-dependencies]
@@ -82,6 +86,11 @@ fn main() {
     es_fluent_build::track_i18n_assets();
 }
 ~~~
+
+Run `cargo es-fluent doctor` to verify the build dependency, Cargo-selected
+custom-build target, manager registration in the library target graph, fallback
+locale, and catalog inputs. Treat warnings as requests for manual verification
+when static inspection cannot prove the integration.
 
 ## Compose a workspace
 
@@ -107,4 +116,5 @@ cargo es-fluent status --path . --all-locales
 cargo es-fluent check --path . --all-locales
 ~~~
 
-Separate packages may reuse the same domain name and generated ID.
+Separate packages may reuse the same domain name and generated ID. Strict and
+fallback-string packages may coexist in one workspace build.

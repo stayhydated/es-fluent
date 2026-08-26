@@ -452,6 +452,7 @@ pub fn setup_fake_runner_and_cache(temp: &tempfile::TempDir, behavior: FakeRunne
         temp.path(),
         &src_dir,
         Some(&i18n_toml),
+        Some(&temp.path().join("build.rs")),
     );
     let temp_store = es_fluent_runner::RunnerMetadataStore::temp_for_workspace(temp.path());
     let mut crate_hashes = indexmap::IndexMap::new();

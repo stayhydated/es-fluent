@@ -4981,6 +4981,7 @@ dependencies = [
 name = "es-fluent-build"
 version = "0.18.1"
 dependencies = [
+ "es-fluent-shared",
  "es-fluent-toml",
  "path-slash",
  "serial_test",
@@ -5020,11 +5021,13 @@ dependencies = [
  "notify-debouncer-full",
  "path-slash",
  "predicates",
+ "proc-macro2",
  "ratatui",
  "serde",
  "serde_json",
  "serial_test",
  "similar 3.1.2",
+ "syn 3.0.3",
  "temp-env",
  "tempfile",
  "terminal-link",

@@ -18,29 +18,33 @@ impl ::es_fluent::FluentMessage for StatusVariants {
         match self {
             Self::Ready => {
                 localize(
-                    ::es_fluent::registry::__macro::static_message_key(
-                        env!("CARGO_PKG_NAME"),
-                        ::es_fluent::registry::StaticFluentDomain::from_package_name(
+                    {
+                        ::es_fluent::registry::__macro::static_message_key(
                             env!("CARGO_PKG_NAME"),
-                        ),
-                        ::es_fluent::registry::__macro::static_entry_id(
-                            "status_variants-Ready",
-                        ),
-                    ),
+                            ::es_fluent::registry::StaticFluentDomain::from_package_name(
+                                env!("CARGO_PKG_NAME"),
+                            ),
+                            ::es_fluent::registry::__macro::static_entry_id(
+                                "status_variants-Ready",
+                            ),
+                        )
+                    },
                     None,
                 )
             }
             Self::Failed => {
                 localize(
-                    ::es_fluent::registry::__macro::static_message_key(
-                        env!("CARGO_PKG_NAME"),
-                        ::es_fluent::registry::StaticFluentDomain::from_package_name(
+                    {
+                        ::es_fluent::registry::__macro::static_message_key(
                             env!("CARGO_PKG_NAME"),
-                        ),
-                        ::es_fluent::registry::__macro::static_entry_id(
-                            "status_variants-Failed",
-                        ),
-                    ),
+                            ::es_fluent::registry::StaticFluentDomain::from_package_name(
+                                env!("CARGO_PKG_NAME"),
+                            ),
+                            ::es_fluent::registry::__macro::static_entry_id(
+                                "status_variants-Failed",
+                            ),
+                        )
+                    },
                     None,
                 )
             }
@@ -116,12 +120,14 @@ mod __es_fluent_label_inventory_StatusVariants {
 }
 impl ::es_fluent::FluentLabel for StatusVariants {
     fn fluent_label_key() -> ::es_fluent::registry::StaticFluentMessageKey {
-        ::es_fluent::registry::__macro::static_message_key(
-            env!("CARGO_PKG_NAME"),
-            ::es_fluent::registry::StaticFluentDomain::from_package_name(
+        {
+            ::es_fluent::registry::__macro::static_message_key(
                 env!("CARGO_PKG_NAME"),
-            ),
-            ::es_fluent::registry::__macro::static_entry_id("status_variants_label"),
-        )
+                ::es_fluent::registry::StaticFluentDomain::from_package_name(
+                    env!("CARGO_PKG_NAME"),
+                ),
+                ::es_fluent::registry::__macro::static_entry_id("status_variants_label"),
+            )
+        }
     }
 }

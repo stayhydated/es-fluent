@@ -20,7 +20,8 @@ description: Use when adding, migrating, debugging, documenting, or reviewing es
    field or variant metadata, `EsFluentLabel` for type labels, and a
    unit-only `EsFluent` enum for selectors when it should also be a
    message.
-6. Generate fallback FTL, translate it, then run the narrow relevant CLI check.
+6. Run `cargo es-fluent doctor` to verify setup, generate fallback FTL, translate
+   it, then run the narrow relevant CLI check.
 7. Localize through the explicit manager or framework context. Use fallible
    lookup only where the caller intentionally handles missing output.
 
@@ -32,8 +33,12 @@ description: Use when adding, migrating, debugging, documenting, or reviewing es
 - Treat the Cargo package name as the implicit package-local FTL domain.
   Additional `domains` do not reference another crate.
 - Use namespaces to split one domain into files, not to establish ownership.
-- Add `es-fluent-build` under `[build-dependencies]` when
-  manager macros scan locale assets at compile time.
+- Add `es-fluent-build` under `[build-dependencies]` for configured crates so
+  locale changes rebuild and derives can compile-check the fallback catalog.
+- Keep the package-local `missing_message_policy` strict by default. Set it to
+  `fallback-str` in `i18n.toml` only when normal runtime lookup should return
+  snake_case source names after locale fallback fails; fallible lookup still
+  returns `None`.
 - Preserve edited fallback translations in conservative generation mode. Preview
   cleanup and aggressive generation before allowing deletions.
 - In workspaces, validate from the root when the task spans multiple owner

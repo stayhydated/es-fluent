@@ -10,13 +10,15 @@ impl ::es_fluent::FluentMessage for UiGreeting {
         match self {
             Self::Greeting => {
                 localize(
-                    ::es_fluent::registry::__macro::static_message_key(
-                        env!("CARGO_PKG_NAME"),
-                        ::es_fluent::registry::__macro::static_domain("ui"),
-                        ::es_fluent::registry::__macro::static_entry_id(
-                            "ui_greeting-Greeting",
-                        ),
-                    ),
+                    {
+                        ::es_fluent::registry::__macro::static_message_key(
+                            env!("CARGO_PKG_NAME"),
+                            ::es_fluent::registry::__macro::static_domain("ui"),
+                            ::es_fluent::registry::__macro::static_entry_id(
+                                "ui_greeting-Greeting",
+                            ),
+                        )
+                    },
                     None,
                 )
             }

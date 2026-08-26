@@ -61,6 +61,7 @@ impl<'a> MonolithicRunner<'a> {
                     &krate.manifest_dir,
                     &krate.src_dir,
                     Some(&krate.i18n_config_path),
+                    krate.custom_build_target_path.as_deref(),
                 );
                 current_hashes.insert(krate.name.clone(), hash);
             }
@@ -443,6 +444,7 @@ fn write_runner_cache(runner: &MonolithicRunner<'_>) {
                     &krate.manifest_dir,
                     &krate.src_dir,
                     Some(&krate.i18n_config_path),
+                    krate.custom_build_target_path.as_deref(),
                 );
                 crate_hashes.insert(krate.name.clone(), hash);
             }

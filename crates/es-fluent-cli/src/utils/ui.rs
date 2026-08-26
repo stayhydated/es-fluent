@@ -393,6 +393,8 @@ mod tests {
             src_dir: crate::core::SourceDir::from_discovered(std::path::PathBuf::from(
                 "/tmp/test/src",
             )),
+            library_target_path: None,
+            custom_build_target_path: None,
             i18n_config_path: crate::core::DiscoveredI18nConfigPath::from_discovered(
                 std::path::PathBuf::from("/tmp/test/i18n.toml"),
             ),

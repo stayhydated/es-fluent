@@ -5,7 +5,8 @@
 
 Parser and path resolver for package-local `i18n.toml` configuration.
 It validates fallback locales, asset paths, feature lists, namespace
-allowlists, additional package-local domains, and fallback-copy policy.
+allowlists, additional package-local domains, missing-message policy, and
+fallback-copy policy.
 
 Most applications use this crate through `es-fluent-cli`, manager
 macros, or `es-fluent-build`. Custom tooling can load a resolved

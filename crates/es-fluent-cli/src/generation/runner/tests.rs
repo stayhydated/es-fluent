@@ -72,6 +72,8 @@ fn create_workspace_fixture(
         name: package(crate_name),
         manifest_dir: crate::core::ManifestDir::from_discovered(temp.path().to_path_buf()),
         src_dir: crate::core::SourceDir::from_discovered(src_dir),
+        library_target_path: None,
+        custom_build_target_path: None,
         i18n_config_path: crate::core::DiscoveredI18nConfigPath::from_discovered(i18n_config_path),
         ftl_output_dir: crate::core::DiscoveredFtlOutputDir::from_discovered(
             temp.path().join("i18n/en"),
@@ -94,6 +96,7 @@ fn crate_inputs_hash(krate: &CrateInfo) -> String {
         &krate.manifest_dir,
         &krate.src_dir,
         Some(&krate.i18n_config_path),
+        krate.custom_build_target_path.as_deref(),
     )
 }
 
@@ -664,13 +667,17 @@ fn monolithic_runner_staleness_detects_crate_manifest_changes() {
 
 #[test]
 fn monolithic_runner_staleness_detects_build_script_changes() {
-    let (_temp, workspace) = create_workspace_fixture("build-script-stale", true);
+    let (_temp, mut workspace) = create_workspace_fixture("build-script-stale", true);
+    let build_script = workspace.crates[0].manifest_dir.join("build.rs");
+    crate::test_fixtures::write_file(&build_script, "fn main() {}\n");
+    workspace.crates[0].custom_build_target_path = Some(
+        crate::core::CustomBuildTargetPath::from_discovered(build_script.clone()),
+    );
     let runner = MonolithicRunner::new(&workspace);
     install_cached_runner(&runner, &workspace, &FakeRunnerBehavior::stdout("ok\n"));
 
-    let krate = &workspace.crates[0];
     crate::test_fixtures::write_file(
-        &krate.manifest_dir.join("build.rs"),
+        &build_script,
         "fn main() { println!(\"cargo:rerun-if-changed=build.rs\"); }\n",
     );
 

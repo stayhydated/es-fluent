@@ -18,6 +18,8 @@ fn test_crate(name: &str, has_lib_rs: bool) -> CrateInfo {
         name: es_fluent_runner::PackageName::try_new(name).expect("valid package name"),
         manifest_dir: crate::core::ManifestDir::from_discovered(PathBuf::from("/tmp/test")),
         src_dir: crate::core::SourceDir::from_discovered(PathBuf::from("/tmp/test/src")),
+        library_target_path: None,
+        custom_build_target_path: None,
         i18n_config_path: crate::core::DiscoveredI18nConfigPath::from_discovered(PathBuf::from(
             "/tmp/test/i18n.toml",
         )),
@@ -72,12 +74,14 @@ fn compute_src_hash_changes_when_i18n_changes() {
     let i18n_toml = temp.path().join("i18n.toml");
     crate::test_fixtures::toml_helpers::write_toml(&i18n_toml, &i18n_config("en", None, None));
 
-    let first = super::generation::compute_watch_inputs_hash(temp.path(), &src_dir, &i18n_toml);
+    let first =
+        super::generation::compute_watch_inputs_hash(temp.path(), &src_dir, &i18n_toml, None);
     crate::test_fixtures::toml_helpers::write_toml(
         &i18n_toml,
         &i18n_config("en", None, Some("i18n")),
     );
-    let second = super::generation::compute_watch_inputs_hash(temp.path(), &src_dir, &i18n_toml);
+    let second =
+        super::generation::compute_watch_inputs_hash(temp.path(), &src_dir, &i18n_toml, None);
 
     assert_ne!(first, second);
 }
@@ -107,6 +111,33 @@ fn process_file_events_filters_and_deduplicates_expected_paths() {
 }
 
 #[test]
+fn process_file_events_matches_custom_build_target_and_reachable_module() {
+    let temp = tempfile::tempdir().expect("tempdir");
+    let support = temp.path().join("support");
+    fs::create_dir_all(&support).expect("create support");
+    fs::write(
+        support.join("i18n.rs"),
+        "mod helper; fn main() { helper::run(); }\n",
+    )
+    .expect("write build target");
+    fs::write(support.join("helper.rs"), "pub fn run() {}\n").expect("write helper");
+    let mut krate = test_crate("crate-a", true);
+    krate.manifest_dir = crate::core::ManifestDir::from_discovered(temp.path().to_path_buf());
+    krate.custom_build_target_path = Some(crate::core::CustomBuildTargetPath::from_discovered(
+        support.join("i18n.rs"),
+    ));
+    let path_to_crate = super::events::build_path_to_crate(&[&krate], temp.path());
+
+    for path in [support.join("i18n.rs"), support.join("helper.rs")] {
+        let canonical = path.canonicalize().expect("canonical source");
+        assert_eq!(
+            super::events::process_file_events(&[event_with_path(&canonical)], &path_to_crate),
+            vec!["crate-a".to_string()]
+        );
+    }
+}
+
+#[test]
 fn process_file_events_ignores_cargo_target_for_root_source_crates() {
     let root_source_crate = CrateInfo {
         name: es_fluent_runner::PackageName::try_new("root-source").expect("valid package name"),
@@ -114,6 +145,8 @@ fn process_file_events_ignores_cargo_target_for_root_source_crates() {
             "/tmp/ws/root-source",
         )),
         src_dir: crate::core::SourceDir::from_discovered(PathBuf::from("/tmp/ws/root-source")),
+        library_target_path: None,
+        custom_build_target_path: None,
         i18n_config_path: crate::core::DiscoveredI18nConfigPath::from_discovered(PathBuf::from(
             "/tmp/ws/root-source/i18n.toml",
         )),
@@ -172,19 +205,24 @@ fn compute_watch_inputs_hash_changes_when_manifest_or_build_script_changes() {
     crate::test_fixtures::toml_helpers::write_toml(&i18n_toml, &i18n_config("en", None, None));
 
     let before_manifest =
-        super::generation::compute_watch_inputs_hash(temp.path(), &src_dir, &i18n_toml);
+        super::generation::compute_watch_inputs_hash(temp.path(), &src_dir, &i18n_toml, None);
     crate::test_fixtures::toml_helpers::write_toml(
         &temp.path().join("Cargo.toml"),
         &crate::test_fixtures::toml_helpers::package_manifest("watch-demo", "0.2.0"),
     );
     let after_manifest =
-        super::generation::compute_watch_inputs_hash(temp.path(), &src_dir, &i18n_toml);
+        super::generation::compute_watch_inputs_hash(temp.path(), &src_dir, &i18n_toml, None);
     assert_ne!(before_manifest, after_manifest);
 
     let before_build = after_manifest;
-    fs::write(temp.path().join("build.rs"), "fn main() {}\n").expect("write build.rs");
-    let after_build =
-        super::generation::compute_watch_inputs_hash(temp.path(), &src_dir, &i18n_toml);
+    let build_script = temp.path().join("build.rs");
+    fs::write(&build_script, "fn main() {}\n").expect("write build.rs");
+    let after_build = super::generation::compute_watch_inputs_hash(
+        temp.path(),
+        &src_dir,
+        &i18n_toml,
+        Some(&build_script),
+    );
     assert_ne!(before_build, after_build);
 }
 
@@ -194,6 +232,8 @@ fn process_file_events_matches_i18n_toml_to_exact_owning_crate() {
         name: es_fluent_runner::PackageName::try_new("crate-a").expect("valid package name"),
         manifest_dir: crate::core::ManifestDir::from_discovered(PathBuf::from("/tmp/ws/crate-a")),
         src_dir: crate::core::SourceDir::from_discovered(PathBuf::from("/tmp/ws/crate-a/src")),
+        library_target_path: None,
+        custom_build_target_path: None,
         i18n_config_path: crate::core::DiscoveredI18nConfigPath::from_discovered(PathBuf::from(
             "/tmp/ws/crate-a/i18n.toml",
         )),
@@ -207,6 +247,8 @@ fn process_file_events_matches_i18n_toml_to_exact_owning_crate() {
         name: es_fluent_runner::PackageName::try_new("crate-b").expect("valid package name"),
         manifest_dir: crate::core::ManifestDir::from_discovered(PathBuf::from("/tmp/ws/crate-b")),
         src_dir: crate::core::SourceDir::from_discovered(PathBuf::from("/tmp/ws/crate-b/src")),
+        library_target_path: None,
+        custom_build_target_path: None,
         i18n_config_path: crate::core::DiscoveredI18nConfigPath::from_discovered(PathBuf::from(
             "/tmp/ws/crate-b/i18n.toml",
         )),
@@ -238,6 +280,8 @@ fn process_file_events_maps_workspace_root_files_to_all_watched_crates() {
         src_dir: crate::core::SourceDir::from_discovered(PathBuf::from(
             "/tmp/ws/crates/crate-a/src",
         )),
+        library_target_path: None,
+        custom_build_target_path: None,
         i18n_config_path: crate::core::DiscoveredI18nConfigPath::from_discovered(PathBuf::from(
             "/tmp/ws/crates/crate-a/i18n.toml",
         )),
@@ -255,6 +299,8 @@ fn process_file_events_maps_workspace_root_files_to_all_watched_crates() {
         src_dir: crate::core::SourceDir::from_discovered(PathBuf::from(
             "/tmp/ws/crates/crate-b/src",
         )),
+        library_target_path: None,
+        custom_build_target_path: None,
         i18n_config_path: crate::core::DiscoveredI18nConfigPath::from_discovered(PathBuf::from(
             "/tmp/ws/crates/crate-b/i18n.toml",
         )),
@@ -356,6 +402,8 @@ fn create_valid_workspace_with_fake_runner_behavior(
         name: es_fluent_runner::PackageName::try_new("watch-crate").expect("valid package name"),
         manifest_dir: crate::core::ManifestDir::from_discovered(temp.path().to_path_buf()),
         src_dir: crate::core::SourceDir::from_discovered(src_dir.clone()),
+        library_target_path: None,
+        custom_build_target_path: None,
         i18n_config_path: crate::core::DiscoveredI18nConfigPath::from_discovered(i18n_toml.clone()),
         ftl_output_dir: crate::core::DiscoveredFtlOutputDir::from_discovered(
             temp.path().join("i18n/en"),
@@ -374,6 +422,7 @@ fn create_valid_workspace_with_fake_runner_behavior(
         temp.path(),
         &src_dir,
         Some(&i18n_toml),
+        krate.custom_build_target_path.as_deref(),
     );
     let mut crate_hashes = indexmap::IndexMap::new();
     crate_hashes.insert(krate.name.clone(), hash);
@@ -533,6 +582,8 @@ fn configure_file_watcher_reports_invalid_watch_roots() {
             temp.path().join("missing-manifest"),
         ),
         src_dir: crate::core::SourceDir::from_discovered(temp.path().join("missing-src")),
+        library_target_path: None,
+        custom_build_target_path: None,
         i18n_config_path: crate::core::DiscoveredI18nConfigPath::from_discovered(
             temp.path().join("i18n.toml"),
         ),
@@ -559,6 +610,8 @@ fn configure_file_watcher_reports_invalid_workspace_watch_root() {
             .expect("valid package name"),
         manifest_dir: crate::core::ManifestDir::from_discovered(temp.path().to_path_buf()),
         src_dir: crate::core::SourceDir::from_discovered(src_dir),
+        library_target_path: None,
+        custom_build_target_path: None,
         i18n_config_path: crate::core::DiscoveredI18nConfigPath::from_discovered(
             temp.path().join("i18n.toml"),
         ),
@@ -586,6 +639,8 @@ fn configure_file_watcher_reports_invalid_manifest_watch_root() {
             temp.path().join("missing-manifest"),
         ),
         src_dir: crate::core::SourceDir::from_discovered(src_dir),
+        library_target_path: None,
+        custom_build_target_path: None,
         i18n_config_path: crate::core::DiscoveredI18nConfigPath::from_discovered(
             temp.path().join("i18n.toml"),
         ),
@@ -758,6 +813,8 @@ fn watch_all_propagates_runner_preparation_errors() {
         name: es_fluent_runner::PackageName::try_new("broken-watch").expect("valid package name"),
         manifest_dir: crate::core::ManifestDir::from_discovered(temp.path().to_path_buf()),
         src_dir: crate::core::SourceDir::from_discovered(temp.path().join("src")),
+        library_target_path: None,
+        custom_build_target_path: None,
         i18n_config_path: crate::core::DiscoveredI18nConfigPath::from_discovered(
             temp.path().join("i18n.toml"),
         ),
@@ -839,6 +896,8 @@ fn watch_all_links_only_watched_crates() {
             name: es_fluent_runner::PackageName::try_new(name).expect("valid package name"),
             manifest_dir: crate::core::ManifestDir::from_discovered(manifest_dir.clone()),
             src_dir: crate::core::SourceDir::from_discovered(src_dir),
+            library_target_path: None,
+            custom_build_target_path: None,
             i18n_config_path: crate::core::DiscoveredI18nConfigPath::from_discovered(i18n_toml),
             ftl_output_dir: crate::core::DiscoveredFtlOutputDir::from_discovered(
                 manifest_dir.join("i18n/en"),
@@ -864,6 +923,7 @@ fn watch_all_links_only_watched_crates() {
             &watched_crate.manifest_dir,
             &watched_crate.src_dir,
             Some(&watched_crate.i18n_config_path),
+            watched_crate.custom_build_target_path.as_deref(),
         ),
     );
     crate::test_fixtures::install_fake_runner_with_cache(

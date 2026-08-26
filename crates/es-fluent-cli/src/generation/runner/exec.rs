@@ -1,4 +1,5 @@
 use anyhow::{Context as _, Result, bail};
+use es_fluent_shared::resource::INVENTORY_RUNNER_ENV;
 use fs_err as fs;
 use std::env;
 use std::path::{Path, PathBuf};
@@ -46,6 +47,7 @@ impl RunnerCrate<'_> {
             .arg("--")
             .args(args)
             .current_dir(self.temp_dir)
+            .env(INVENTORY_RUNNER_ENV, "1")
             .env("RUSTFLAGS", runner_rustflags());
 
         if env::var("NO_COLOR").is_err() {
@@ -80,6 +82,7 @@ impl RunnerCrate<'_> {
             .arg("--")
             .args(args)
             .current_dir(self.temp_dir)
+            .env(INVENTORY_RUNNER_ENV, "1")
             .env("RUSTFLAGS", runner_rustflags());
 
         let output = cmd.output().context("Failed to run cargo")?;

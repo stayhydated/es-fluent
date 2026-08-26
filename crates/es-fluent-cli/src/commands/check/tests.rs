@@ -373,6 +373,7 @@ fn collect_check_run_reports_valid_crate_orphans_alongside_other_setup_errors() 
             &a,
             &a.join("src"),
             Some(&a.join("i18n.toml")),
+            Some(&a.join("build.rs")),
         ),
     );
     crate::test_fixtures::install_fake_runner_with_cache(

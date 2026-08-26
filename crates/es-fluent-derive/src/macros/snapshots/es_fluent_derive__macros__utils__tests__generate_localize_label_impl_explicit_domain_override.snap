@@ -4,10 +4,12 @@ expression: tokens
 ---
 impl ::es_fluent::FluentLabel for Languages {
     fn fluent_label_key() -> ::es_fluent::registry::StaticFluentMessageKey {
-        ::es_fluent::registry::__macro::static_message_key(
-            env!("CARGO_PKG_NAME"),
-            ::es_fluent::registry::__macro::static_domain("es-fluent-lang"),
-            ::es_fluent::registry::__macro::static_entry_id("es-fluent-lang-label"),
-        )
+        {
+            ::es_fluent::registry::__macro::static_message_key(
+                env!("CARGO_PKG_NAME"),
+                ::es_fluent::registry::__macro::static_domain("es-fluent-lang"),
+                ::es_fluent::registry::__macro::static_entry_id("es-fluent-lang-label"),
+            )
+        }
     }
 }

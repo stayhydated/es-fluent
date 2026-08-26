@@ -208,6 +208,7 @@ fn configure_file_watcher(
         .watch(workspace_root, RecursiveMode::NonRecursive)
         .with_context(|| format!("Failed to watch {}", workspace_root.display()))?;
 
+    let mut custom_build_dirs = std::collections::BTreeSet::new();
     for krate in valid_crates {
         debouncer
             .watch(&krate.src_dir, RecursiveMode::Recursive)
@@ -216,6 +217,25 @@ fn configure_file_watcher(
         debouncer
             .watch(&krate.manifest_dir, RecursiveMode::NonRecursive)
             .with_context(|| format!("Failed to watch {}", krate.manifest_dir.display()))?;
+
+        if let Some(build_target) = &krate.custom_build_target_path {
+            for source in
+                crate::source_inspector::reachable_source_graph(build_target, &krate.manifest_dir)
+                    .paths
+            {
+                if !source.starts_with(&krate.src_dir)
+                    && source.parent() != Some(krate.manifest_dir.as_path())
+                    && let Some(parent) = source.parent()
+                {
+                    custom_build_dirs.insert(parent.to_path_buf());
+                }
+            }
+        }
+    }
+    for directory in custom_build_dirs {
+        debouncer
+            .watch(&directory, RecursiveMode::NonRecursive)
+            .with_context(|| format!("Failed to watch {}", directory.display()))?;
     }
 
     Ok((debouncer, file_rx))

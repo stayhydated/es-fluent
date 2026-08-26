@@ -14,12 +14,16 @@ use crate::macros::ir::{FluentArgument, GeneratedUnitEnumVariant};
 #[derive(Clone)]
 pub struct CodegenContext {
     facade_path: ResolvedCratePath,
+    fallback_validation: macro_support::FallbackValidation,
+    fallback_setup_diagnostic_emitted: std::cell::Cell<bool>,
 }
 
 impl CodegenContext {
     pub fn resolve() -> Self {
         Self {
             facade_path: ResolvedCratePath::resolve("es-fluent", "es_fluent"),
+            fallback_validation: macro_support::fallback_validation(),
+            fallback_setup_diagnostic_emitted: std::cell::Cell::new(false),
         }
     }
 
@@ -27,11 +31,41 @@ impl CodegenContext {
     pub fn fallback() -> Self {
         Self {
             facade_path: ResolvedCratePath::fallback("es_fluent"),
+            fallback_validation: macro_support::FallbackValidation::unconfigured(),
+            fallback_setup_diagnostic_emitted: std::cell::Cell::new(false),
+        }
+    }
+
+    #[cfg(test)]
+    pub fn fallback_str() -> Self {
+        Self {
+            facade_path: ResolvedCratePath::fallback("es_fluent"),
+            fallback_validation: macro_support::FallbackValidation::fallback_str_unconfigured(),
+            fallback_setup_diagnostic_emitted: std::cell::Cell::new(false),
         }
     }
 
     pub fn facade_path(&self) -> &ResolvedCratePath {
         &self.facade_path
+    }
+
+    fn fallback_diagnostic(
+        &self,
+        domain_override: Option<&DomainName>,
+        entry_id: &FluentMessageId,
+        source_name: &str,
+        span: proc_macro2::Span,
+    ) -> TokenStream {
+        if self.fallback_validation.is_setup_error()
+            && self.fallback_setup_diagnostic_emitted.replace(true)
+        {
+            return TokenStream::new();
+        }
+        self.fallback_validation
+            .diagnostic(domain_override, entry_id, source_name)
+            .map_or_else(TokenStream::new, |message| {
+                quote_spanned! { span=> compile_error!(#message); }
+            })
     }
 }
 
@@ -72,7 +106,16 @@ pub fn generate_localize_label_impl(
     ftl_key: &FluentMessageId,
     domain_override: Option<&DomainName>,
 ) -> TokenStream {
-    let key_expr = static_message_key_tokens(context, domain_override, ftl_key);
+    let source_name = namer::rust_ident_name(ident);
+    let fallback = namer::fallback_str(&source_name);
+    let key_expr = static_message_key_tokens(
+        context,
+        domain_override,
+        ftl_key,
+        &fallback,
+        &source_name,
+        ident.span(),
+    );
 
     let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
     let es_fluent = context.facade_path().tokens();
@@ -97,13 +140,26 @@ pub(crate) fn static_message_key_tokens(
     context: &CodegenContext,
     domain_override: Option<&DomainName>,
     entry_id: &FluentMessageId,
+    fallback: &str,
+    source_name: &str,
+    span: proc_macro2::Span,
 ) -> TokenStream {
+    let validation = context.fallback_diagnostic(domain_override, entry_id, source_name, span);
     let es_fluent = context.facade_path().tokens();
-    es_fluent_derive_core::macro_support::static_message_key_tokens(
+    let key = es_fluent_derive_core::macro_support::static_message_key_tokens(
         es_fluent,
         domain_override,
         entry_id,
-    )
+        context
+            .fallback_validation
+            .fallback_for_generated_key(fallback),
+    );
+    quote! {
+        {
+            #validation
+            #key
+        }
+    }
 }
 
 pub(crate) fn static_argument_name_tokens(
@@ -609,6 +665,29 @@ mod tests {
             "generate_localize_label_impl_explicit_domain_override",
             tokens
         );
+    }
+
+    #[test]
+    #[cfg_attr(not(target_os = "linux"), ignore = "insta snapshots are Linux-only")]
+    fn generate_localize_label_impl_emits_fallback_metadata_for_fallback_str_policy() {
+        let message_id = es_fluent_derive_core::semantic::spanned_message_id_from_value(
+            "hello",
+            proc_macro2::Span::call_site(),
+            AttrContext::LabelContainer,
+        )
+        .expect("message id")
+        .into_value();
+        let context = super::CodegenContext::fallback_str();
+        let tokens =
+            crate::snapshot_support::pretty_file_tokens(super::generate_localize_label_impl(
+                &context,
+                &parse_quote!(Greeting),
+                &parse_quote!(),
+                &message_id,
+                None,
+            ));
+
+        assert_snapshot!("generate_localize_label_impl_fallback_str_policy", tokens);
     }
 
     #[test]

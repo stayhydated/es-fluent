@@ -14,6 +14,9 @@ assets_dir = "assets/locales"
 # Optional allowlist for literal namespace values.
 # namespaces = ["ui", "errors"]
 
+# Optional package-local missing-message policy. The default is "strict".
+# missing_message_policy = "fallback-str"
+
 # Optional additional package-local FTL resources.
 # domains = ["emails"]
 
@@ -30,6 +33,7 @@ assets_dir = "assets/locales"
 | `fluent_feature` | No | Cargo features enabled while the CLI collects derive inventory. |
 | `namespaces` | No | Allowlist for literal `namespace = "..."` values. |
 | `domains` | No | Additional FTL domains owned by this package. |
+| `missing_message_policy` | No | `strict` (default) requires fallback message values; `fallback-str` gives normal typed lookup a generated snake_case fallback. |
 | `check_fallback_copies` | No | Enables or disables all-locale warnings for unchanged fallback text. |
 
 Locale directory names and CLI locale arguments must use canonical BCP-47 tags,
@@ -40,6 +44,25 @@ The configured asset path must stay inside the package. Existing path
 components, locale directories, and discovered FTL paths must have the expected
 file type and must not be symlinks. These checks prevent commands from reading
 or writing outside the configured locale tree.
+
+## Missing-message policy
+
+The default `strict` policy validates every generated key against the package's
+fallback catalog. Missing and attribute-only fallback messages produce
+source-spanned compile errors.
+
+Set the policy for a package that must keep normal typed rendering available
+after locale and Fluent fallback are exhausted:
+
+~~~toml
+missing_message_policy = "fallback-str"
+~~~
+
+Normal `localize_message(...)` and `localize_label(...)` calls then return the
+generated snake_case source name for a missing value. Fallible
+`try_localize_message(...)` and `try_localize_label(...)` calls still return
+`None`. The build helper continues to parse the fallback catalog, so malformed
+FTL and duplicate IDs remain errors.
 
 ## Resource layout
 
@@ -88,8 +111,10 @@ cargo es-fluent status --path . --all-locales
 cargo es-fluent check --path . --all-locales
 ~~~
 
-Each selected package is validated against its own domains and IDs. Different
-packages may reuse a domain name or generated ID without colliding.
+Each selected package is validated against its own domains, IDs, and
+missing-message policy. Strict and fallback-string packages can coexist in one
+workspace build. Different packages may reuse a domain name or generated ID
+without colliding.
 
 ## Feature-gated messages
 

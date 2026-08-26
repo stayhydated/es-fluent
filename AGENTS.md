@@ -115,6 +115,21 @@ maintenance, examples, an mdBook, and a Dioxus-rendered web site.
 - When public API or manager behavior changes, update the owning crate README,
   Rust docs/module docs, relevant examples, root README, and matching
   `book/src/*.md` pages.
+- Treat configured fallback-message coverage as a package-local compile-time
+  contract. The `es-fluent-build` helper writes the fallback catalog consumed by
+  derives; `missing_message_policy = "strict"` is the default, while
+  `"fallback-str"` puts snake_case source-name fallback metadata on that
+  package's generated keys across embedded, Dioxus client/SSR, and Bevy.
+  Fallible lookup remains `None`, and strict and fallback-string packages may
+  coexist in one workspace build. The CLI uses a hidden inventory environment
+  without changing application policy. Keep source-spanned diagnostics, shared
+  catalog parsing, `doctor` checks, docs, skills, and compile/runtime tests
+  synchronized.
+- Treat Cargo metadata as authoritative for library and custom-build target
+  paths. `doctor` verifies calls and manager registration through parsed local
+  module graphs; cache and watch inputs follow the selected custom-build target
+  and its reachable local modules. Unsupported static-analysis constructs are
+  warnings, not passes.
 - When CLI behavior changes, keep `crates/es-fluent-cli/README.md`,
   `book/src/cli.md`, `skills/use-es-fluent/references/cli-workflow.md`, and the
   relevant root README sections aligned. `crates/es-fluent-cli/tests/main_smoke.rs`
@@ -178,7 +193,8 @@ maintenance, examples, an mdBook, and a Dioxus-rendered web site.
 ## Validation and Editing Rules
 
 - Start with `just --list`; use the `justfile` rather than duplicating the full
-  command inventory here.
+  command inventory here. Use `just doctor` for read-only configuration,
+  build-script, manager, registration, policy, and fallback-catalog diagnostics.
 - For Rust code, prefer the narrowest package or surface check first. Use
   `just check`, `just clippy`, `just test`, or `just ci` when the change spans
   multiple workspace surfaces.

@@ -73,6 +73,66 @@ fn test_read_from_path_success() {
 }
 
 #[test]
+fn missing_message_policy_defaults_to_strict() {
+    let config: RawI18nConfig =
+        toml::from_str("fallback_language = \"en\"\nassets_dir = \"i18n\"\n").expect("config");
+
+    assert_eq!(config.missing_message_policy, MissingMessagePolicy::Strict);
+    assert_eq!(
+        config.validate().expect("validated").missing_message_policy,
+        MissingMessagePolicy::Strict
+    );
+}
+
+#[rstest]
+#[case("strict", MissingMessagePolicy::Strict)]
+#[case("fallback-str", MissingMessagePolicy::FallbackStr)]
+fn missing_message_policy_accepts_configured_values(
+    #[case] value: &str,
+    #[case] expected: MissingMessagePolicy,
+) {
+    let source = format!(
+        "fallback_language = \"en\"\nassets_dir = \"i18n\"\nmissing_message_policy = \"{value}\"\n"
+    );
+    let config: RawI18nConfig = toml::from_str(&source).expect("config");
+
+    assert_eq!(config.missing_message_policy, expected);
+}
+
+#[test]
+fn missing_message_policy_rejects_unknown_value() {
+    let error = toml::from_str::<RawI18nConfig>(
+        "fallback_language = \"en\"\nassets_dir = \"i18n\"\nmissing_message_policy = \"permissive\"\n",
+    )
+    .expect_err("unknown policy should fail");
+
+    assert!(error.to_string().contains("unknown variant `permissive`"));
+}
+
+#[rstest]
+#[case(MissingMessagePolicy::Strict, "strict")]
+#[case(MissingMessagePolicy::FallbackStr, "fallback-str")]
+fn missing_message_policy_serialization_round_trips(
+    #[case] policy: MissingMessagePolicy,
+    #[case] serialized: &str,
+) {
+    let config = RawI18nConfig {
+        fallback_language: "en".to_string(),
+        assets_dir: PathBuf::from("i18n"),
+        fluent_feature: None,
+        namespaces: None,
+        domains: Vec::new(),
+        missing_message_policy: policy,
+        check_fallback_copies: true,
+    };
+
+    let source = toml::to_string(&config).expect("serialize");
+    assert!(source.contains(&format!("missing_message_policy = \"{serialized}\"")));
+    let round_trip: RawI18nConfig = toml::from_str(&source).expect("deserialize");
+    assert_eq!(round_trip.missing_message_policy, policy);
+}
+
+#[test]
 fn test_read_from_path_validates_additional_domains() {
     let temp_dir = TempDir::new().unwrap();
     let config_path = temp_dir.path().join("i18n.toml");
@@ -330,6 +390,7 @@ fn test_raw_config_rejects_invalid_fallback_language() {
         fluent_feature: None,
         namespaces: None,
         domains: Vec::new(),
+        missing_message_policy: MissingMessagePolicy::Strict,
         check_fallback_copies: true,
     }
     .validate();
@@ -349,6 +410,7 @@ fn test_raw_config_rejects_invalid_namespace() {
         fluent_feature: None,
         namespaces: Some(vec!["../ui".to_string()]),
         domains: Vec::new(),
+        missing_message_policy: MissingMessagePolicy::Strict,
         check_fallback_copies: true,
     }
     .validate();

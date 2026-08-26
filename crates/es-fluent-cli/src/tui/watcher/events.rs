@@ -9,6 +9,7 @@ pub(super) struct PathToCrateMap {
     workspace_crates: Vec<String>,
     manifest_dirs: Vec<(PathBuf, String)>,
     src_dirs: Vec<SourceDirMatch>,
+    build_sources: Vec<(PathBuf, String)>,
     i18n_configs: IndexMap<PathBuf, String>,
 }
 
@@ -40,6 +41,21 @@ pub(super) fn build_path_to_crate(
                 manifest_dir: krate.manifest_dir.to_path_buf(),
                 src_dir: krate.src_dir.to_path_buf(),
                 crate_name: krate.name.to_string(),
+            })
+            .collect(),
+        build_sources: valid_crates
+            .iter()
+            .flat_map(|krate| {
+                krate
+                    .custom_build_target_path
+                    .as_ref()
+                    .map(|path| {
+                        crate::source_inspector::reachable_source_graph(path, &krate.manifest_dir)
+                            .paths
+                    })
+                    .unwrap_or_default()
+                    .into_iter()
+                    .map(|path| (path, krate.name.to_string()))
             })
             .collect(),
         i18n_configs: valid_crates
@@ -77,11 +93,14 @@ pub(super) fn process_file_events(
                 continue;
             }
 
-            if path
-                .file_name()
-                .is_some_and(|name| name == "Cargo.toml" || name == "build.rs")
+            if path.file_name().is_some_and(|name| name == "Cargo.toml")
                 && let Some(crate_name) = path_to_crate.match_manifest_path(path)
             {
+                affected.insert(crate_name.to_string(), ());
+                continue;
+            }
+
+            if let Some(crate_name) = path_to_crate.match_build_source(path) {
                 affected.insert(crate_name.to_string(), ());
                 continue;
             }
@@ -117,6 +136,13 @@ impl PathToCrateMap {
         self.manifest_dirs
             .iter()
             .find(|(manifest_dir, _)| path.parent() == Some(manifest_dir.as_path()))
+            .map(|(_, crate_name)| crate_name.as_str())
+    }
+
+    fn match_build_source(&self, path: &Path) -> Option<&str> {
+        self.build_sources
+            .iter()
+            .find(|(source, _)| source == path)
             .map(|(_, crate_name)| crate_name.as_str())
     }
 

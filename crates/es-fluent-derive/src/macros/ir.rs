@@ -57,6 +57,9 @@ impl MessageEntrySpec {
         LocalizeCallSpec {
             domain_override: domain_override.cloned(),
             ftl_key: self.metadata.message_id().clone(),
+            fallback: es_fluent_shared::namer::fallback_str(self.metadata.source_name()),
+            source_name: self.metadata.source_name().to_string(),
+            source_span: self.metadata.span(),
             arguments: self.runtime_arguments.clone(),
         }
         .localize_with_expr(context)
@@ -79,14 +82,23 @@ pub(crate) fn inventory_variant_tokens_for_model(
 pub(crate) struct LocalizeCallSpec {
     pub(crate) domain_override: Option<DomainName>,
     pub(crate) ftl_key: FluentMessageId,
+    pub(crate) fallback: String,
+    pub(crate) source_name: String,
+    pub(crate) source_span: proc_macro2::Span,
     pub(crate) arguments: Vec<FluentArgument>,
 }
 
 impl LocalizeCallSpec {
     pub(crate) fn localize_with_expr(&self, context: &CodegenContext) -> TokenStream {
         let es_fluent = context.facade_path().tokens();
-        let key_expr =
-            static_message_key_tokens(context, self.domain_override.as_ref(), &self.ftl_key);
+        let key_expr = static_message_key_tokens(
+            context,
+            self.domain_override.as_ref(),
+            &self.ftl_key,
+            &self.fallback,
+            &self.source_name,
+            self.source_span,
+        );
 
         if self.arguments.is_empty() {
             quote! {

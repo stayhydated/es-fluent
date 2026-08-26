@@ -1,14 +1,19 @@
 #![doc = include_str!("../README.md")]
 #![allow(clippy::needless_doctest_main)]
 
-use es_fluent_toml::I18nConfig;
-use std::path::Path;
+use es_fluent_shared::fluent::FluentDomain;
+use es_fluent_shared::resource::{
+    FALLBACK_CATALOG_ENV, FALLBACK_CATALOG_FILE_NAME, FallbackCatalog, INVENTORY_RUNNER_ENV,
+    ResourcePlan,
+};
+use es_fluent_toml::ResolvedI18nLayout;
+use std::path::{Path, PathBuf};
 
 #[allow(clippy::needless_doctest_main)]
-/// Emits Cargo rebuild hints for `i18n.toml` and the configured assets directory.
+/// Tracks configured locale assets and writes the strict fallback-message catalog.
 ///
-/// Call this from your crate's `build.rs` to ensure changes to locale files
-/// (including renames and deletions) trigger a rebuild, keeping embedded/localized data fresh.
+/// Call this from your crate's `build.rs` so locale changes trigger a rebuild and
+/// derived messages can be checked against resolvable fallback-locale values.
 ///
 /// # Example
 ///
@@ -20,15 +25,74 @@ use std::path::Path;
 /// ```
 pub fn track_i18n_assets() {
     let manifest_dir = std::env::var("CARGO_MANIFEST_DIR").expect("CARGO_MANIFEST_DIR must be set");
-    let config =
-        I18nConfig::read_from_manifest_dir().expect("Failed to read i18n.toml configuration");
-    let assets_dir = config
-        .assets_dir_from_manifest()
-        .expect("Failed to resolve assets directory from i18n.toml");
+    let package_name = std::env::var("CARGO_PKG_NAME").expect("CARGO_PKG_NAME must be set");
+    let out_dir = std::env::var_os("OUT_DIR")
+        .map(PathBuf::from)
+        .expect("OUT_DIR must be set");
+    let layout = ResolvedI18nLayout::from_manifest_dir(Path::new(&manifest_dir))
+        .expect("Failed to read i18n.toml configuration");
 
-    let config_path = Path::new(&manifest_dir).join("i18n.toml");
-    println!("cargo:rerun-if-changed={}", config_path.display());
-    println!("cargo:rerun-if-changed={}", assets_dir.display());
+    let catalog_path = out_dir.join(FALLBACK_CATALOG_FILE_NAME);
+    println!("cargo:rerun-if-changed={}", layout.config_path.display());
+    println!("cargo:rerun-if-changed={}", layout.assets_dir.display());
+    println!(
+        "cargo:rustc-env={FALLBACK_CATALOG_ENV}={}",
+        catalog_path.display()
+    );
+
+    if std::env::var_os(INVENTORY_RUNNER_ENV).is_some() {
+        std::fs::write(&catalog_path, b"")
+            .expect("Failed to initialize fallback Fluent message catalog");
+        return;
+    }
+
+    write_fallback_catalog(&layout, &package_name, &out_dir)
+        .expect("Failed to build fallback Fluent message catalog");
+}
+
+fn write_fallback_catalog(
+    layout: &ResolvedI18nLayout,
+    package_name: &str,
+    out_dir: &Path,
+) -> Result<(), String> {
+    layout
+        .config
+        .validate_for_package(package_name)
+        .map_err(|error| error.to_string())?;
+    let mut domains =
+        vec![FluentDomain::try_new(package_name.to_string()).map_err(|error| error.to_string())?];
+    domains.extend(layout.config.domains.iter().cloned());
+
+    let mut catalog = FallbackCatalog::default();
+    for domain in domains {
+        let plans = ResourcePlan::sparse_from_assets(domain.as_str(), &layout.assets_dir)
+            .map_err(|error| error.to_string())?;
+        let Some((_, resources)) = plans
+            .resource_specs_by_language()
+            .iter()
+            .find(|(language, _)| language == &layout.config.fallback_language)
+        else {
+            continue;
+        };
+
+        for resource in resources {
+            let path = layout
+                .output_dir
+                .join(resource.locale_relative_path.as_str());
+            let source = std::fs::read_to_string(&path)
+                .map_err(|error| format!("failed to read {}: {error}", path.display()))?;
+            catalog.insert_source(&domain, source).map_err(|error| {
+                format!(
+                    "failed to catalog fallback resource {}: {error}",
+                    path.display()
+                )
+            })?;
+        }
+    }
+
+    let path = out_dir.join(FALLBACK_CATALOG_FILE_NAME);
+    std::fs::write(&path, catalog.encode())
+        .map_err(|error| format!("failed to write {}: {error}", path.display()))
 }
 
 #[cfg(test)]
@@ -41,7 +105,18 @@ mod tests {
     use std::process::Command;
 
     fn with_manifest_env<T>(value: Option<&Path>, f: impl FnOnce() -> T) -> T {
-        temp_env::with_var("CARGO_MANIFEST_DIR", value, f)
+        let out_dir = value.map(|path| path.join("build-output"));
+        if let Some(out_dir) = &out_dir {
+            fs::create_dir_all(out_dir).expect("create build output");
+        }
+        temp_env::with_vars(
+            [
+                ("CARGO_MANIFEST_DIR", value.map(Path::as_os_str)),
+                ("CARGO_PKG_NAME", Some(std::ffi::OsStr::new("test-package"))),
+                ("OUT_DIR", out_dir.as_deref().map(Path::as_os_str)),
+            ],
+            f,
+        )
     }
 
     fn toml_path(path: &Path) -> String {
@@ -61,6 +136,53 @@ mod tests {
         with_manifest_env(Some(temp.path()), || {
             track_i18n_assets();
         });
+    }
+
+    #[test]
+    fn inventory_runner_initializes_catalog_without_parsing_fallback_ftl() {
+        let temp = tempfile::tempdir().expect("tempdir");
+        let locale_dir = temp.path().join("i18n/en");
+        fs::create_dir_all(&locale_dir).expect("create locale dir");
+        fs::write(
+            temp.path().join("i18n.toml"),
+            "fallback_language = \"en\"\nassets_dir = \"i18n\"\n",
+        )
+        .expect("write config");
+        fs::write(locale_dir.join("test-package.ftl"), "broken = {\n")
+            .expect("write malformed FTL");
+
+        temp_env::with_var(INVENTORY_RUNNER_ENV, Some("1"), || {
+            with_manifest_env(Some(temp.path()), track_i18n_assets);
+        });
+
+        assert_eq!(
+            fs::read(
+                temp.path()
+                    .join("build-output")
+                    .join(FALLBACK_CATALOG_FILE_NAME)
+            )
+            .expect("read catalog"),
+            b""
+        );
+    }
+
+    #[test]
+    fn fallback_str_policy_still_rejects_malformed_catalog() {
+        let temp = tempfile::tempdir().expect("tempdir");
+        let locale_dir = temp.path().join("i18n/en");
+        fs::create_dir_all(&locale_dir).expect("create locale dir");
+        fs::write(
+            temp.path().join("i18n.toml"),
+            "fallback_language = \"en\"\nassets_dir = \"i18n\"\nmissing_message_policy = \"fallback-str\"\n",
+        )
+        .expect("write config");
+        fs::write(locale_dir.join("test-package.ftl"), "broken = {\n")
+            .expect("write malformed FTL");
+
+        let result = with_manifest_env(Some(temp.path()), || {
+            std::panic::catch_unwind(track_i18n_assets)
+        });
+        assert!(result.is_err());
     }
 
     #[test]
@@ -182,6 +304,318 @@ es-fluent-build = {{ path = "{}" }}
         assert!(panic.is_err());
     }
 
+    #[test]
+    fn configured_derive_without_build_helper_reports_actionable_catalog_error() {
+        let temp = tempfile::tempdir().expect("tempdir");
+        let crate_dir = temp.path().join("missing-build-helper");
+        let src_dir = crate_dir.join("src");
+        let locale_dir = crate_dir.join("i18n/en");
+        let target_dir = temp.path().join("target");
+        let es_fluent_dir = Path::new(env!("CARGO_MANIFEST_DIR"))
+            .parent()
+            .expect("workspace crates directory")
+            .join("es-fluent");
+
+        fs::create_dir_all(&src_dir).expect("create src dir");
+        fs::create_dir_all(&locale_dir).expect("create locale dir");
+        fs::write(
+            crate_dir.join("Cargo.toml"),
+            format!(
+                "[package]\nname = \"missing-build-helper\"\nversion = \"0.1.0\"\nedition = \"2024\"\n\n[dependencies]\nes-fluent = {{ path = \"{}\" }}\n",
+                toml_path(&es_fluent_dir)
+            ),
+        )
+        .expect("write Cargo.toml");
+        fs::write(
+            src_dir.join("lib.rs"),
+            "#[derive(es_fluent::EsFluent)]\npub enum Greeting { Hello, Goodbye }\n",
+        )
+        .expect("write lib.rs");
+        fs::write(
+            crate_dir.join("i18n.toml"),
+            "fallback_language = \"en\"\nassets_dir = \"i18n\"\n",
+        )
+        .expect("write i18n.toml");
+        fs::write(
+            locale_dir.join("missing-build-helper.ftl"),
+            "greeting-Hello = Hello\ngreeting-Goodbye = Goodbye\n",
+        )
+        .expect("write fallback FTL");
+
+        let output = cargo_check_output(&crate_dir, &target_dir, &[]);
+        assert!(
+            !output.status.success(),
+            "build should require catalog setup"
+        );
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        for expected in [
+            "es-fluent fallback catalog is unavailable",
+            "package `missing-build-helper`",
+            "add `es-fluent-build` under `[build-dependencies]`",
+            "es_fluent_build::track_i18n_assets()",
+        ] {
+            assert!(
+                stderr.contains(expected),
+                "expected {expected:?} in stderr: {stderr}"
+            );
+        }
+        assert_eq!(
+            stderr
+                .matches("es-fluent fallback catalog is unavailable")
+                .count(),
+            1,
+            "setup diagnostics should be emitted once per derive: {stderr}"
+        );
+        assert!(!stderr.contains("OUT_DIR"));
+    }
+
+    #[test]
+    fn configured_missing_fallback_message_obeys_package_local_policy() {
+        let temp = tempfile::tempdir().expect("tempdir");
+        let crate_dir = temp.path().join("fallback-app");
+        let src_dir = crate_dir.join("src");
+        let locale_dir = crate_dir.join("i18n/en");
+        let target_dir = temp.path().join("target");
+        let workspace_crates = Path::new(env!("CARGO_MANIFEST_DIR"))
+            .parent()
+            .expect("workspace crates directory");
+
+        fs::create_dir_all(&src_dir).expect("create src dir");
+        fs::create_dir_all(&locale_dir).expect("create locale dir");
+        fs::write(
+            crate_dir.join("Cargo.toml"),
+            format!(
+                r#"[package]
+name = "fallback-app"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+es-fluent = {{ path = "{}" }}
+
+[build-dependencies]
+es-fluent-build = {{ path = "{}" }}
+"#,
+                toml_path(&workspace_crates.join("es-fluent")),
+                toml_path(Path::new(env!("CARGO_MANIFEST_DIR"))),
+            ),
+        )
+        .expect("write Cargo.toml");
+        fs::write(crate_dir.join("build.rs"), BUILD_TRACK_I18N_SOURCE).expect("write build.rs");
+        fs::write(
+            src_dir.join("lib.rs"),
+            "#[derive(es_fluent::EsFluent)]\npub struct MissingValue;\n",
+        )
+        .expect("write lib.rs");
+        fs::write(
+            crate_dir.join("i18n.toml"),
+            "fallback_language = \"en\"\nassets_dir = \"i18n\"\n",
+        )
+        .expect("write i18n.toml");
+        fs::write(locale_dir.join("fallback-app.ftl"), "present = Present\n")
+            .expect("write fallback FTL");
+
+        let strict = cargo_check_output(&crate_dir, &target_dir, &[]);
+        assert!(
+            !strict.status.success(),
+            "strict build should reject the missing key"
+        );
+        let strict_stderr = String::from_utf8_lossy(&strict.stderr);
+        for expected in [
+            "missing fallback Fluent message `missing_value`",
+            "domain `fallback-app`",
+            "Rust item `MissingValue`",
+            "pub struct MissingValue",
+            "expected a message value under `i18n/en`",
+            "cargo es-fluent generate --package fallback-app",
+        ] {
+            assert!(
+                strict_stderr.contains(expected),
+                "expected {expected:?} in strict stderr: {strict_stderr}"
+            );
+        }
+        assert!(!strict_stderr.contains("E0080"));
+        assert!(!strict_stderr.contains("OUT_DIR"));
+
+        fs::write(
+            locale_dir.join("fallback-app.ftl"),
+            "missing_value = Missing value\n",
+        )
+        .expect("write complete fallback FTL");
+        let complete = cargo_check_output(&crate_dir, &target_dir, &[]);
+        assert!(
+            complete.status.success(),
+            "strict build should accept the fallback key: {}",
+            String::from_utf8_lossy(&complete.stderr)
+        );
+
+        fs::write(locale_dir.join("fallback-app.ftl"), "present = Present\n")
+            .expect("restore missing fallback FTL");
+        fs::write(
+            crate_dir.join("i18n.toml"),
+            "fallback_language = \"en\"\nassets_dir = \"i18n\"\nmissing_message_policy = \"fallback-str\"\n",
+        )
+        .expect("write fallback policy");
+        let fallback = cargo_check_output(&crate_dir, &target_dir, &[]);
+        assert!(
+            fallback.status.success(),
+            "fallback-str build should succeed: {}",
+            String::from_utf8_lossy(&fallback.stderr)
+        );
+    }
+
+    #[test]
+    fn mixed_workspace_keeps_missing_message_policy_package_local() {
+        let temp = tempfile::tempdir().expect("tempdir");
+        let workspace_dir = temp.path().join("mixed-policy");
+        let strict_dir = workspace_dir.join("strict-app");
+        let fallback_dir = workspace_dir.join("fallback-app");
+        let target_dir = temp.path().join("target");
+        let workspace_crates = Path::new(env!("CARGO_MANIFEST_DIR"))
+            .parent()
+            .expect("workspace crates directory");
+        fs::create_dir_all(strict_dir.join("src")).expect("create strict src");
+        fs::create_dir_all(strict_dir.join("i18n/en")).expect("create strict locale");
+        fs::create_dir_all(fallback_dir.join("src")).expect("create fallback src");
+        fs::create_dir_all(fallback_dir.join("i18n/en")).expect("create fallback locale");
+        fs::write(
+            workspace_dir.join("Cargo.toml"),
+            "[workspace]\nmembers = [\"strict-app\", \"fallback-app\"]\nresolver = \"3\"\n",
+        )
+        .expect("write workspace manifest");
+        for (package, directory) in [("strict-app", &strict_dir), ("fallback-app", &fallback_dir)] {
+            fs::write(
+                directory.join("Cargo.toml"),
+                format!(
+                    "[package]\nname = \"{package}\"\nversion = \"0.1.0\"\nedition = \"2024\"\n\n[dependencies]\nes-fluent = {{ path = \"{}\" }}\n\n[build-dependencies]\nes-fluent-build = {{ path = \"{}\" }}\n",
+                    toml_path(&workspace_crates.join("es-fluent")),
+                    toml_path(Path::new(env!("CARGO_MANIFEST_DIR"))),
+                ),
+            )
+            .expect("write package manifest");
+            fs::write(directory.join("build.rs"), BUILD_TRACK_I18N_SOURCE)
+                .expect("write build script");
+        }
+        fs::write(
+            strict_dir.join("i18n.toml"),
+            "fallback_language = \"en\"\nassets_dir = \"i18n\"\n",
+        )
+        .expect("write strict config");
+        fs::write(
+            fallback_dir.join("i18n.toml"),
+            "fallback_language = \"en\"\nassets_dir = \"i18n\"\nmissing_message_policy = \"fallback-str\"\n",
+        )
+        .expect("write fallback config");
+        fs::write(
+            strict_dir.join("src/lib.rs"),
+            "#[derive(es_fluent::EsFluent)]\npub struct MissingStrict;\n",
+        )
+        .expect("write strict source");
+        fs::write(
+            fallback_dir.join("src/lib.rs"),
+            r#"#[derive(es_fluent::EsFluent)]
+pub struct MissingFallback;
+
+#[cfg(test)]
+mod tests {
+    use super::MissingFallback;
+    use es_fluent::{FluentArgs, FluentLocalizer, FluentLocalizerExt as _};
+    use es_fluent::registry::StaticFluentMessageKey;
+
+    struct Missing;
+
+    impl FluentLocalizer for Missing {
+        fn localize<'a>(&self, _key: StaticFluentMessageKey, _args: Option<&FluentArgs<'a>>) -> Option<String> {
+            None
+        }
+    }
+
+    #[test]
+    fn normal_and_fallible_lookup_keep_distinct_semantics() {
+        assert_eq!(Missing.localize_message(&MissingFallback), "missing_fallback");
+        assert_eq!(Missing.try_localize_message(&MissingFallback), None);
+    }
+}
+"#,
+        )
+        .expect("write fallback source");
+        fs::write(
+            strict_dir.join("i18n/en/strict-app.ftl"),
+            "present = Present\n",
+        )
+        .expect("write incomplete strict resource");
+        fs::write(
+            fallback_dir.join("i18n/en/fallback-app.ftl"),
+            "present = Present\n",
+        )
+        .expect("write fallback resource");
+
+        let strict = cargo_workspace_output(
+            &workspace_dir,
+            &target_dir,
+            &["check", "--quiet", "-p", "strict-app"],
+        );
+        assert!(!strict.status.success());
+        assert!(
+            String::from_utf8_lossy(&strict.stderr)
+                .contains("missing fallback Fluent message `missing_strict`")
+        );
+
+        let workspace = cargo_workspace_output(
+            &workspace_dir,
+            &target_dir,
+            &["check", "--quiet", "--workspace"],
+        );
+        assert!(!workspace.status.success());
+        let stderr = String::from_utf8_lossy(&workspace.stderr);
+        assert!(stderr.contains("domain `strict-app`"), "{stderr}");
+        assert!(stderr.contains("Rust item `MissingStrict`"), "{stderr}");
+
+        fs::write(
+            strict_dir.join("i18n/en/strict-app.ftl"),
+            "missing_strict = Missing strict\n",
+        )
+        .expect("complete strict resource");
+        let complete = cargo_workspace_output(
+            &workspace_dir,
+            &target_dir,
+            &["test", "--quiet", "--workspace"],
+        );
+        assert!(
+            complete.status.success(),
+            "mixed workspace should pass after completing strict resources: {}",
+            String::from_utf8_lossy(&complete.stderr)
+        );
+    }
+
+    fn cargo_workspace_output(
+        workspace_dir: &Path,
+        target_dir: &Path,
+        args: &[&str],
+    ) -> std::process::Output {
+        Command::new("cargo")
+            .args(args)
+            .current_dir(workspace_dir)
+            .env("CARGO_TARGET_DIR", target_dir)
+            .output()
+            .expect("run cargo workspace command")
+    }
+
+    fn cargo_check_output(
+        crate_dir: &Path,
+        target_dir: &Path,
+        args: &[&str],
+    ) -> std::process::Output {
+        let mut command = Command::new("cargo");
+        command
+            .arg("check")
+            .arg("--quiet")
+            .args(args)
+            .current_dir(crate_dir)
+            .env("CARGO_TARGET_DIR", target_dir);
+        command.output().expect("run cargo check")
+    }
+
     fn run_cargo_check(crate_dir: &Path, target_dir: &Path, trace_file: &Path) {
         let status = Command::new("cargo")
             .arg("check")
@@ -209,6 +643,11 @@ es-fluent-build = {{ path = "{}" }}
             panic.downcast_ref::<String>().map(String::as_str)
         }
     }
+
+    const BUILD_TRACK_I18N_SOURCE: &str = r#"fn main() {
+    es_fluent_build::track_i18n_assets();
+}
+"#;
 
     const BUILD_SCRIPT_SOURCE: &str = r#"use std::fs::OpenOptions;
 use std::io::Write;

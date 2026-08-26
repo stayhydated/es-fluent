@@ -9,6 +9,10 @@ pub fn rust_ident_name(ident: &syn::Ident) -> String {
     name.strip_prefix("r#").unwrap_or(&name).to_string()
 }
 
+pub fn fallback_str(source_name: &str) -> String {
+    source_name.to_snake_case()
+}
+
 #[derive(
     Clone, Debug, Deref, Display, Eq, From, Hash, Ord, PartialEq, PartialOrd, serde::Serialize,
 )]
@@ -100,6 +104,8 @@ mod tests {
         assert_eq!(from_ident.to_string(), "hello_world");
         assert_eq!(rust_ident_name(&raw_ident), "type");
         assert_eq!(from_raw_ident.to_string(), "type");
+        assert_eq!(fallback_str("HTTPServerError"), "http_server_error");
+        assert_eq!(fallback_str("field_name"), "field_name");
 
         assert_eq!(from_ident.join("suffix").to_string(), "hello_world-suffix");
         assert_eq!(from_ident.join("").to_string(), "hello_world");

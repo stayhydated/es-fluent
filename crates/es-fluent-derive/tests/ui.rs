@@ -16,9 +16,15 @@ namespaces = ["allowed"]
     )
     .expect("write trybuild i18n.toml");
 
-    let tests = trybuild::TestCases::new();
-    tests.compile_fail("tests/ui/*.rs");
-    tests.pass("tests/ui-pass/*.rs");
+    temp_env::with_var(
+        es_fluent_shared::resource::INVENTORY_RUNNER_ENV,
+        Some("1"),
+        || {
+            let tests = trybuild::TestCases::new();
+            tests.compile_fail("tests/ui/*.rs");
+            tests.pass("tests/ui-pass/*.rs");
+        },
+    );
 }
 
 fn workspace_target_dir() -> PathBuf {

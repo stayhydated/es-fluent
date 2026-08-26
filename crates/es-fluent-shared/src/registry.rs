@@ -121,6 +121,7 @@ pub struct StaticFluentMessageKey {
     owner: StaticFluentDomain,
     domain: StaticFluentDomain,
     id: StaticFluentEntryId,
+    fallback: Option<&'static str>,
 }
 
 impl StaticFluentMessageKey {
@@ -130,7 +131,27 @@ impl StaticFluentMessageKey {
         domain: StaticFluentDomain,
         id: StaticFluentEntryId,
     ) -> Self {
-        Self { owner, domain, id }
+        Self {
+            owner,
+            domain,
+            id,
+            fallback: None,
+        }
+    }
+
+    /// Creates a fully scoped key with a generated fallback string.
+    pub const fn with_fallback(
+        owner: StaticFluentDomain,
+        domain: StaticFluentDomain,
+        id: StaticFluentEntryId,
+        fallback: &'static str,
+    ) -> Self {
+        Self {
+            owner,
+            domain,
+            id,
+            fallback: Some(fallback),
+        }
     }
 
     /// Returns the crate that owns this key's domain definition.
@@ -146,6 +167,11 @@ impl StaticFluentMessageKey {
     /// Returns the Fluent message identifier.
     pub const fn id(self) -> StaticFluentEntryId {
         self.id
+    }
+
+    /// Returns the generated snake_case fallback string when one is available.
+    pub const fn fallback(self) -> Option<&'static str> {
+        self.fallback
     }
 }
 
@@ -466,6 +492,20 @@ pub mod __macro {
         id: StaticFluentEntryId,
     ) -> StaticFluentMessageKey {
         StaticFluentMessageKey::new(StaticFluentDomain::new_unchecked(owner), domain, id)
+    }
+
+    pub const fn static_message_key_with_fallback(
+        owner: &'static str,
+        domain: StaticFluentDomain,
+        id: StaticFluentEntryId,
+        fallback: &'static str,
+    ) -> StaticFluentMessageKey {
+        StaticFluentMessageKey::with_fallback(
+            StaticFluentDomain::new_unchecked(owner),
+            domain,
+            id,
+            fallback,
+        )
     }
 
     pub const fn static_argument_name(value: &'static str) -> StaticFluentArgumentName {

@@ -36,6 +36,9 @@ Add the facade and embedded manager:
 es-fluent = "0.18"
 es-fluent-manager-embedded = "0.18"
 unic-langid = "0.9"
+
+[build-dependencies]
+es-fluent-build = "0.18"
 ~~~
 
 Create `i18n.toml` beside `Cargo.toml`:
@@ -43,6 +46,15 @@ Create `i18n.toml` beside `Cargo.toml`:
 ~~~toml
 fallback_language = "en"
 assets_dir = "assets/locales"
+~~~
+
+Track locale assets and generate the strict fallback-message catalog:
+
+~~~rust,no_run
+// build.rs
+fn main() {
+    es_fluent_build::track_i18n_assets();
+}
 ~~~
 
 Keep localizable types and the manager module reachable from a library target:
@@ -69,11 +81,18 @@ Install the CLI, create the fallback locale, and generate FTL:
 ~~~sh
 cargo install es-fluent-cli --locked
 mkdir -p assets/locales/en
+cargo es-fluent doctor
 cargo es-fluent generate
 ~~~
 
 Follow the [getting-started tutorial](https://stayhydated.github.io/es-fluent/book/getting_started.html)
 to edit the fallback message and localize it at runtime.
+
+Configured packages use strict fallback-message validation by default. Set
+`missing_message_policy = "fallback-str"` in that package's `i18n.toml` when
+normal typed lookup should return the snake_case Rust type, field, or variant
+name after locale fallback is exhausted. Strict and fallback-string packages
+can coexist in one workspace build; fallible lookup remains `None`.
 
 ## Documentation
 
