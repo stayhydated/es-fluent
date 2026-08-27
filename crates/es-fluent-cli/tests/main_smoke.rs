@@ -973,8 +973,7 @@ fn binary_doctor_warns_when_static_inspection_is_indeterminate() {
 }
 
 #[test]
-fn binary_doctor_warns_for_opaque_item_macro_build_integration() {
-    let temp = fixtures::create_workspace();
+fn binary_doctor_warns_for_opaque_macro_build_integrations() {
     let crates_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
         .parent()
         .expect("workspace crates directory");
@@ -982,45 +981,53 @@ fn binary_doctor_warns_for_opaque_item_macro_build_integration() {
         .join("es-fluent-build")
         .to_string_lossy()
         .replace('\\', "/");
-    std::fs::write(
-        temp.path().join("Cargo.toml"),
-        format!(
-            "[package]\nname = \"test-app\"\nversion = \"0.1.0\"\nedition = \"2024\"\n\n[build-dependencies]\nes-fluent-build = {{ path = \"{build_path}\" }}\n"
+    for (source, reason) in [
+        (
+            "configure_i18n!();\nfn main() {}\n",
+            "opaque item macro expansion",
         ),
-    )
-    .expect("write Cargo.toml");
-    std::fs::write(
-        temp.path().join("build.rs"),
-        "configure_i18n!();\nfn main() {}\n",
-    )
-    .expect("write build.rs");
+        (
+            "fn main() { configure_i18n!(); }\n",
+            "opaque statement macro expansion",
+        ),
+    ] {
+        let temp = fixtures::create_workspace();
+        std::fs::write(
+            temp.path().join("Cargo.toml"),
+            format!(
+                "[package]\nname = \"test-app\"\nversion = \"0.1.0\"\nedition = \"2024\"\n\n[build-dependencies]\nes-fluent-build = {{ path = \"{build_path}\" }}\n"
+            ),
+        )
+        .expect("write Cargo.toml");
+        std::fs::write(temp.path().join("build.rs"), source).expect("write build.rs");
 
-    let output = Command::cargo_bin("cargo-es-fluent")
-        .expect("binary exists")
-        .args([
-            "es-fluent",
-            "doctor",
-            "--path",
-            temp.path().to_str().expect("workspace path"),
-            "--output",
-            "json",
-        ])
-        .output()
-        .expect("run doctor");
+        let output = Command::cargo_bin("cargo-es-fluent")
+            .expect("binary exists")
+            .args([
+                "es-fluent",
+                "doctor",
+                "--path",
+                temp.path().to_str().expect("workspace path"),
+                "--output",
+                "json",
+            ])
+            .output()
+            .expect("run doctor");
 
-    assert!(output.status.success());
-    let json: Value = serde_json::from_slice(&output.stdout).expect("doctor JSON");
-    assert!(json["checks"].as_array().is_some_and(|checks| {
-        checks.iter().any(|check| {
-            check["category"] == "build_script"
-                && check["status"] == "warning"
-                && check["message"]
-                    .as_str()
-                    .is_some_and(|message| message.contains("opaque item macro expansion"))
-        }) && !checks
-            .iter()
-            .any(|check| check["category"] == "build_script" && check["status"] == "error")
-    }));
+        assert!(output.status.success());
+        let json: Value = serde_json::from_slice(&output.stdout).expect("doctor JSON");
+        assert!(json["checks"].as_array().is_some_and(|checks| {
+            checks.iter().any(|check| {
+                check["category"] == "build_script"
+                    && check["status"] == "warning"
+                    && check["message"]
+                        .as_str()
+                        .is_some_and(|message| message.contains(reason))
+            }) && !checks
+                .iter()
+                .any(|check| check["category"] == "build_script" && check["status"] == "error")
+        }));
+    }
 }
 
 #[test]
@@ -1086,6 +1093,7 @@ fn binary_doctor_warns_for_branch_guarded_and_shadowed_build_helper_calls() {
 
     for source in [
         "fn main() { if false { es_fluent_build::track_i18n_assets(); } }\n",
+        "fn skip() -> bool { false }\nfn main() { if skip() { return; } es_fluent_build::track_i18n_assets(); }\n",
         "fn setup() { es_fluent_build::track_i18n_assets(); }\nfn main() { if false { setup(); } }\n",
         "use es_fluent_build::track_i18n_assets;\nfn main() { fn track_i18n_assets() {} track_i18n_assets(); }\n",
         "use es_fluent_build::track_i18n_assets;\nfn main() { let track_i18n_assets = || {}; track_i18n_assets(); }\n",

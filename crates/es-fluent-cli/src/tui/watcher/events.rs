@@ -140,8 +140,12 @@ pub(super) fn process_file_events(
                 continue;
             }
 
-            if let Some(crate_name) = path_to_crate.match_build_source(path) {
+            let mut matched_build_source = false;
+            for crate_name in path_to_crate.match_build_sources(path) {
                 affected.insert(crate_name.to_string(), ());
+                matched_build_source = true;
+            }
+            if matched_build_source {
                 continue;
             }
 
@@ -151,8 +155,12 @@ pub(super) fn process_file_events(
             }
 
             if path.extension().is_some_and(|ext| ext == "rs") {
-                if let Some(crate_name) = path_to_crate.match_build_source_dir(path) {
+                let mut matched_build_source_dir = false;
+                for crate_name in path_to_crate.match_build_source_dirs(path) {
                     affected.insert(crate_name.to_string(), ());
+                    matched_build_source_dir = true;
+                }
+                if matched_build_source_dir {
                     continue;
                 }
                 if let Some(crate_name) = path_to_crate.match_src_path(path) {
@@ -217,10 +225,10 @@ impl PathToCrateMap {
             .map(|(_, crate_name)| crate_name.as_str())
     }
 
-    fn match_build_source(&self, path: &Path) -> Option<&str> {
+    fn match_build_sources<'a>(&'a self, path: &'a Path) -> impl Iterator<Item = &'a str> + 'a {
         self.build_sources
             .iter()
-            .find(|(source, _)| source == path)
+            .filter(move |(source, _)| source == path)
             .map(|(_, crate_name)| crate_name.as_str())
     }
 
@@ -231,10 +239,10 @@ impl PathToCrateMap {
             .map(|(_, crate_name)| crate_name.as_str())
     }
 
-    fn match_build_source_dir(&self, path: &Path) -> Option<&str> {
+    fn match_build_source_dirs<'a>(&'a self, path: &'a Path) -> impl Iterator<Item = &'a str> + 'a {
         self.build_source_dirs
             .iter()
-            .find(|(directory, _)| {
+            .filter(move |(directory, _)| {
                 path.starts_with(directory) && !self.is_generated_build_path(path)
             })
             .map(|(_, crate_name)| crate_name.as_str())
@@ -253,7 +261,7 @@ impl PathToCrateMap {
     }
 
     fn is_build_source_event(&self, path: &Path) -> bool {
-        self.match_build_source(path).is_some()
+        self.match_build_sources(path).next().is_some()
             || self.match_missing_default_build_target(path).is_some()
             || self
                 .build_source_dirs

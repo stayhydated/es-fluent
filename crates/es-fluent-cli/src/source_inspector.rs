@@ -637,11 +637,17 @@ impl<'ast> syn::visit::Visit<'ast> for FunctionCallVisitor<'_> {
     }
 
     fn visit_block(&mut self, block: &'ast syn::Block) {
+        let mut following_execution_uncertain = false;
         for statement in &block.stmts {
-            self.visit_stmt(statement);
+            if following_execution_uncertain {
+                self.visit_execution_uncertain(|visitor| visitor.visit_stmt(statement));
+            } else {
+                self.visit_stmt(statement);
+            }
             if statement_unconditionally_terminates(statement) {
                 break;
             }
+            following_execution_uncertain |= statement_may_skip_following(statement);
         }
     }
 
@@ -963,13 +969,19 @@ impl<'ast> syn::visit::Visit<'ast> for EvidenceVisitor<'_> {
     fn visit_block(&mut self, block: &'ast syn::Block) {
         self.scopes
             .push(imports_for_statements(&block.stmts, self.target));
+        let mut following_execution_uncertain = false;
         for statement in &block.stmts {
-            self.visit_stmt(statement);
+            if following_execution_uncertain {
+                self.visit_execution_uncertain(|visitor| visitor.visit_stmt(statement));
+            } else {
+                self.visit_stmt(statement);
+            }
             if matches!(self.target, Some(SourceTarget::Call(_)))
                 && statement_unconditionally_terminates(statement)
             {
                 break;
             }
+            following_execution_uncertain |= statement_may_skip_following(statement);
             if let syn::Stmt::Local(local) = statement
                 && local_shadows_target(&local.pat, self.target)
             {
@@ -1021,6 +1033,13 @@ impl<'ast> syn::visit::Visit<'ast> for EvidenceVisitor<'_> {
 
     fn visit_stmt_macro(&mut self, statement: &'ast syn::StmtMacro) {
         self.visit_with_attributes(&statement.attrs, |visitor| {
+            if !statement.mac.path.is_ident("include") {
+                visitor.indeterminate_reasons.push(format!(
+                    "opaque statement macro expansion at {}:{}",
+                    visitor.current_file.display(),
+                    statement.mac.path.span().start().line
+                ));
+            }
             syn::visit::visit_stmt_macro(visitor, statement);
         });
     }
@@ -1102,6 +1121,77 @@ fn statement_unconditionally_terminates(statement: &syn::Stmt) -> bool {
     };
 
     expression_unconditionally_terminates(expression)
+}
+
+fn statement_may_skip_following(statement: &syn::Stmt) -> bool {
+    let mut visitor = FollowingStatementExitVisitor::default();
+    visitor.visit_stmt(statement);
+    visitor.found
+}
+
+#[derive(Default)]
+struct FollowingStatementExitVisitor {
+    found: bool,
+    nested_loop_depth: usize,
+    nested_try_block_depth: usize,
+}
+
+impl<'ast> syn::visit::Visit<'ast> for FollowingStatementExitVisitor {
+    fn visit_expr_return(&mut self, expression: &'ast syn::ExprReturn) {
+        self.found = true;
+        syn::visit::visit_expr_return(self, expression);
+    }
+
+    fn visit_expr_break(&mut self, expression: &'ast syn::ExprBreak) {
+        if self.nested_loop_depth == 0 || expression.label.is_some() {
+            self.found = true;
+        }
+        syn::visit::visit_expr_break(self, expression);
+    }
+
+    fn visit_expr_continue(&mut self, expression: &'ast syn::ExprContinue) {
+        if self.nested_loop_depth == 0 || expression.label.is_some() {
+            self.found = true;
+        }
+        syn::visit::visit_expr_continue(self, expression);
+    }
+
+    fn visit_expr_try(&mut self, expression: &'ast syn::ExprTry) {
+        if self.nested_try_block_depth == 0 {
+            self.found = true;
+        }
+        syn::visit::visit_expr_try(self, expression);
+    }
+
+    fn visit_expr_try_block(&mut self, expression: &'ast syn::ExprTryBlock) {
+        self.nested_try_block_depth += 1;
+        syn::visit::visit_expr_try_block(self, expression);
+        self.nested_try_block_depth -= 1;
+    }
+
+    fn visit_expr_loop(&mut self, expression: &'ast syn::ExprLoop) {
+        self.nested_loop_depth += 1;
+        syn::visit::visit_expr_loop(self, expression);
+        self.nested_loop_depth -= 1;
+    }
+
+    fn visit_expr_while(&mut self, expression: &'ast syn::ExprWhile) {
+        self.nested_loop_depth += 1;
+        syn::visit::visit_expr_while(self, expression);
+        self.nested_loop_depth -= 1;
+    }
+
+    fn visit_expr_for_loop(&mut self, expression: &'ast syn::ExprForLoop) {
+        self.nested_loop_depth += 1;
+        syn::visit::visit_expr_for_loop(self, expression);
+        self.nested_loop_depth -= 1;
+    }
+
+    fn visit_item_fn(&mut self, _function: &'ast syn::ItemFn) {}
+
+    fn visit_expr_closure(&mut self, _closure: &'ast syn::ExprClosure) {}
+
+    fn visit_expr_async(&mut self, _expression: &'ast syn::ExprAsync) {}
 }
 
 fn expression_unconditionally_terminates(expression: &syn::Expr) -> bool {
@@ -1502,6 +1592,24 @@ mod tests {
     }
 
     #[test]
+    fn build_helper_calls_after_conditional_exits_are_indeterminate() {
+        for source in [
+            "fn skip() -> bool { false } fn main() { if skip() { return; } es_fluent_build::track_i18n_assets(); }",
+            "fn skip() -> bool { false } fn setup() { es_fluent_build::track_i18n_assets(); } fn main() { if skip() { return; } setup(); }",
+        ] {
+            assert!(matches!(
+                inspect_fixture(
+                    &[("build.rs", source)],
+                    "build.rs",
+                    SourceTarget::Call("track_i18n_assets")
+                ),
+                InspectionOutcome::Indeterminate(reason)
+                    if reason.contains("under control flow that could not be proven to execute")
+            ));
+        }
+    }
+
+    #[test]
     fn block_local_function_shadowing_build_helper_import_is_indeterminate() {
         assert!(matches!(
             inspect_fixture(
@@ -1702,6 +1810,19 @@ mod tests {
             ),
             InspectionOutcome::Indeterminate(reason)
                 if reason.contains("opaque item macro expansion")
+        ));
+    }
+
+    #[test]
+    fn opaque_statement_macro_expansions_are_indeterminate() {
+        assert!(matches!(
+            inspect_fixture(
+                &[("build.rs", "fn main() { configure_i18n!(); }")],
+                "build.rs",
+                SourceTarget::Call("track_i18n_assets")
+            ),
+            InspectionOutcome::Indeterminate(reason)
+                if reason.contains("opaque statement macro expansion")
         ));
     }
 

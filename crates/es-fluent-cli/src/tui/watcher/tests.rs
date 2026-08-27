@@ -138,6 +138,54 @@ fn process_file_events_matches_custom_build_target_and_reachable_module() {
 }
 
 #[test]
+fn process_file_events_matches_every_owner_of_a_shared_build_helper() {
+    let temp = tempfile::tempdir().expect("tempdir");
+    let nested = temp.path().join("nested");
+    fs::create_dir_all(&nested).expect("create nested package directory");
+    let shared_build_helper = nested.join("shared.rs");
+    fs::write(&shared_build_helper, "pub fn configure() {}\n").expect("write shared build helper");
+    let outer_build_target = temp.path().join("outer-build.rs");
+    fs::write(
+        &outer_build_target,
+        "#[path = \"nested/shared.rs\"] mod shared; fn main() { shared::configure(); }\n",
+    )
+    .expect("write outer build target");
+    let inner_build_target = nested.join("inner-build.rs");
+    fs::write(
+        &inner_build_target,
+        "mod shared; fn main() { shared::configure(); }\n",
+    )
+    .expect("write inner build target");
+
+    let mut outer = test_crate("outer", true);
+    outer.manifest_dir = crate::core::ManifestDir::from_discovered(temp.path().to_path_buf());
+    outer.src_dir = crate::core::SourceDir::from_discovered(temp.path().join("src"));
+    outer.custom_build_target_path = Some(crate::core::CustomBuildTargetPath::from_discovered(
+        outer_build_target,
+    ));
+
+    let mut inner = test_crate("inner", true);
+    inner.manifest_dir = crate::core::ManifestDir::from_discovered(nested.clone());
+    inner.src_dir = crate::core::SourceDir::from_discovered(nested.join("src"));
+    inner.custom_build_target_path = Some(crate::core::CustomBuildTargetPath::from_discovered(
+        inner_build_target,
+    ));
+
+    let path_to_crate = super::events::build_path_to_crate(&[&outer, &inner], temp.path());
+    let mut affected = super::events::process_file_events(
+        &[event_with_path(
+            &shared_build_helper
+                .canonicalize()
+                .expect("canonical shared build helper"),
+        )],
+        &path_to_crate,
+    );
+    affected.sort();
+
+    assert_eq!(affected, vec!["inner".to_string(), "outer".to_string()]);
+}
+
+#[test]
 fn watcher_refreshes_custom_build_graph_and_directories_after_target_edit() {
     let temp = tempfile::tempdir().expect("tempdir");
     let src_dir = temp.path().join("src");
