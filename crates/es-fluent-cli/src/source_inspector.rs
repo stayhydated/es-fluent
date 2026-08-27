@@ -1002,6 +1002,12 @@ impl<'ast> syn::visit::Visit<'ast> for EvidenceVisitor<'_> {
                         item.mac.path.span().start().line
                     ));
                 }
+            } else if !item.mac.path.is_ident("include") {
+                visitor.indeterminate_reasons.push(format!(
+                    "opaque item macro expansion at {}:{}",
+                    visitor.current_file.display(),
+                    item.mac.path.span().start().line
+                ));
             }
             syn::visit::visit_item_macro(visitor, item);
         });
@@ -1687,6 +1693,19 @@ mod tests {
     }
 
     #[test]
+    fn opaque_item_macro_expansions_are_indeterminate() {
+        assert!(matches!(
+            inspect_fixture(
+                &[("build.rs", "configure_i18n!(); fn main() {}")],
+                "build.rs",
+                SourceTarget::Call("track_i18n_assets")
+            ),
+            InspectionOutcome::Indeterminate(reason)
+                if reason.contains("opaque item macro expansion")
+        ));
+    }
+
+    #[test]
     fn source_graph_marks_macro_wrapped_include_indeterminate_without_a_doctor_target() {
         let temp = tempfile::tempdir().expect("tempdir");
         let support = temp.path().join("support");
@@ -1706,6 +1725,12 @@ mod tests {
                 .indeterminate_reasons
                 .iter()
                 .any(|reason| { reason.contains("macro wrapper") && reason.contains("include") })
+        );
+        assert!(
+            graph
+                .indeterminate_reasons
+                .iter()
+                .any(|reason| reason.contains("opaque item macro expansion"))
         );
     }
 }

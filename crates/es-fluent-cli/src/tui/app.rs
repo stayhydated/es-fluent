@@ -63,6 +63,11 @@ impl<'a> TuiApp<'a> {
         self.states.insert(crate_name.to_string(), state);
     }
 
+    #[cfg(test)]
+    pub(crate) fn watch_error(&self) -> Option<&str> {
+        self.watch_error.as_deref()
+    }
+
     /// Advance the throbber animation if enough time has passed.
     pub fn tick(&mut self) {
         if self.last_tick.elapsed() >= self.tick_interval {

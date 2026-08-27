@@ -106,7 +106,8 @@ diagnostics remain authoritative.
 `watch` runs the same generation flow when Rust, manifest, build
 script, configuration, or workspace lockfile inputs change. Press `q`
 or `Ctrl-C` to stop after active work and any already queued rerun
-finish.
+finish. Transient Cargo metadata errors keep the previous build-source graph
+and watches active; saving a corrected manifest retries metadata discovery.
 
 ## Validate before committing
 

@@ -205,11 +205,21 @@ fn handle_watch_events(
     debouncer: Option<&mut FileDebouncer>,
 ) -> Result<()> {
     let mut affected_crates = runtime.affected_crates_for_events(events);
-    if let Some(update) = runtime.refresh_build_sources_if_needed(events)? {
-        if let Some(debouncer) = debouncer {
-            update_custom_build_watches(debouncer, update)?;
-        }
-        affected_crates.extend(runtime.affected_crates_for_events(events));
+    match runtime.refresh_build_sources_if_needed(events) {
+        Ok(Some(update)) => {
+            if let Some(debouncer) = debouncer {
+                update_custom_build_watches(debouncer, update)?;
+            }
+            affected_crates.extend(runtime.affected_crates_for_events(events));
+        },
+        Ok(None) => {},
+        Err(error) => {
+            app.update(tui::Message::WatchError {
+                error: format!(
+                    "failed to rediscover Cargo metadata; retaining previous build-source watches: {error:#}"
+                ),
+            });
+        },
     }
     affected_crates.sort();
     affected_crates.dedup();

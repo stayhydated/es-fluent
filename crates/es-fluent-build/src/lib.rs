@@ -119,7 +119,12 @@ fn assets_dir_is_manifest_root(layout: &ResolvedI18nLayout) -> bool {
     }
 }
 
-fn validate_sparse_catalog_inputs(
+/// Validates sparse locale assets before resource-plan discovery.
+///
+/// This is shared with CLI diagnostics so build-time and diagnostic input
+/// acceptance stay synchronized.
+#[doc(hidden)]
+pub fn validate_sparse_catalog_inputs(
     layout: &ResolvedI18nLayout,
     domain: &FluentDomain,
 ) -> Result<(), String> {

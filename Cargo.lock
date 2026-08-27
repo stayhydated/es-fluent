@@ -5007,6 +5007,7 @@ dependencies = [
  "colored",
  "crossbeam-channel",
  "crossterm",
+ "es-fluent-build",
  "es-fluent-generate",
  "es-fluent-runner",
  "es-fluent-shared",

@@ -612,6 +612,7 @@ fn fallback_catalog_inputs(layout: &ResolvedI18nLayout, package: &str) -> Result
             }
             fallback_paths
         } else {
+            es_fluent_build::validate_sparse_catalog_inputs(layout, &domain)?;
             let plans = ResourcePlan::sparse_from_assets(domain.as_str(), &layout.assets_dir)
                 .map_err(|error| error.to_string())?;
             let Some((_, resources)) = plans
@@ -948,7 +949,32 @@ manager = { workspace = true, features = ["ssr"] }
 
         let error = fallback_catalog_inputs(&layout, "test-app")
             .expect_err("symlinked fallback resources should fail doctor validation");
-        assert!(error.contains("catalog resource paths must not contain symlinks"));
+        assert!(error.contains("Fluent resource must be a real file, not a symlink"));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn fallback_catalog_inputs_reject_symlinked_non_fallback_locale() {
+        let temp = tempfile::tempdir().expect("tempdir");
+        let outside = tempfile::tempdir().expect("outside tempdir");
+        fs::create_dir_all(temp.path().join("i18n/en")).expect("create fallback locale");
+        fs::create_dir_all(outside.path().join("fr")).expect("create external locale");
+        fs::write(
+            temp.path().join("i18n.toml"),
+            "fallback_language = \"en\"\nassets_dir = \"i18n\"\n",
+        )
+        .expect("write config");
+        fs::write(temp.path().join("i18n/en/test-app.ftl"), "hello = Hello\n")
+            .expect("write fallback resource");
+        std::os::unix::fs::symlink(outside.path().join("fr"), temp.path().join("i18n/fr"))
+            .expect("create non-fallback locale symlink");
+        let layout =
+            ResolvedI18nLayout::from_config_path(temp.path().join("i18n.toml")).expect("layout");
+
+        let error = fallback_catalog_inputs(&layout, "test-app")
+            .expect_err("symlinked non-fallback locales should fail doctor validation");
+        assert!(error.contains("locale asset entries must not be symlinks"));
+        assert!(error.contains("i18n/fr"));
     }
 
     #[test]

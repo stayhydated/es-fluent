@@ -27,6 +27,10 @@ registration, package-local missing-message policy, and fallback catalog inputs.
 A warning means static inspection could not prove the integration and requires
 manual verification.
 
+In `watch`, transient Cargo metadata errors leave the previous build-source
+graph and watches active. Save the corrected manifest to retry discovery in the
+same session.
+
 ## Routine workflow
 
 After changing derived types:

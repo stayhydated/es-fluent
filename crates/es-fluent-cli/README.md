@@ -43,6 +43,10 @@ Add `--output json` for machine-readable configuration, build-script, manager,
 policy, and catalog checks. Warnings identify constructs that static inspection
 cannot prove and require manual verification.
 
+During `watch`, transient Cargo metadata errors are reported while the previous
+build-source graph and watches remain active. Saving a corrected manifest
+retries metadata discovery without restarting the session.
+
 Inspect fallback resources or every locale:
 
 ~~~sh

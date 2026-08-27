@@ -333,6 +333,93 @@ fn watcher_rediscovers_custom_build_target_after_manifest_edit() {
 }
 
 #[test]
+fn watcher_recovers_after_transient_manifest_rediscovery_error() {
+    let temp = tempfile::tempdir().expect("tempdir");
+    let src_dir = temp.path().join("src");
+    let old_dir = temp.path().join("old");
+    let new_dir = temp.path().join("new");
+    fs::create_dir_all(&src_dir).expect("create src");
+    fs::create_dir_all(&old_dir).expect("create old build dir");
+    fs::create_dir_all(&new_dir).expect("create new build dir");
+    fs::write(src_dir.join("lib.rs"), "pub struct Demo;\n").expect("write lib");
+    fs::write(old_dir.join("build.rs"), "fn main() {}\n").expect("write old build target");
+    fs::write(new_dir.join("build.rs"), "fn main() {}\n").expect("write new build target");
+    fs::write(
+        temp.path().join("i18n.toml"),
+        "fallback_language = \"en\"\nassets_dir = \"i18n\"\n",
+    )
+    .expect("write config");
+    fs::write(
+        temp.path().join("Cargo.toml"),
+        "[package]\nname = \"watch-recovery\"\nversion = \"0.1.0\"\nedition = \"2024\"\nbuild = \"old/build.rs\"\n\n[lib]\npath = \"src/lib.rs\"\n",
+    )
+    .expect("write manifest");
+
+    let workspace =
+        crate::utils::discover_workspace_scoped(temp.path(), crate::utils::DiscoveryScope::All)
+            .expect("discover initial workspace");
+    let krate = workspace.crates[0].clone();
+    let mut runtime = super::runtime::WatchRuntime::new(
+        std::slice::from_ref(&krate),
+        &workspace,
+        &FluentParseMode::default(),
+    );
+    let mut app = crate::tui::TuiApp::new(std::slice::from_ref(&krate));
+    let manifest_event = event_with_path(&temp.path().join("Cargo.toml"));
+    let old_target = old_dir
+        .join("build.rs")
+        .canonicalize()
+        .expect("canonical old target");
+
+    fs::write(temp.path().join("Cargo.toml"), "[package\n")
+        .expect("write transiently invalid manifest");
+    super::handle_watch_events(
+        &mut app,
+        &mut runtime,
+        std::slice::from_ref(&manifest_event),
+        None,
+    )
+    .expect("metadata failure should not terminate watch");
+
+    assert!(app.watch_error().is_some_and(|error| {
+        error.contains("failed to rediscover Cargo metadata")
+            && error.contains("retaining previous build-source watches")
+    }));
+    assert_eq!(
+        runtime.affected_crates_for_events(&[event_with_path(&old_target)]),
+        vec!["watch-recovery".to_string()],
+        "failed rediscovery should retain the previous build-source graph"
+    );
+
+    fs::write(
+        temp.path().join("Cargo.toml"),
+        "[package]\nname = \"watch-recovery\"\nversion = \"0.1.0\"\nedition = \"2024\"\nbuild = \"new/build.rs\"\n\n[lib]\npath = \"src/lib.rs\"\n",
+    )
+    .expect("repair manifest");
+    super::handle_watch_events(
+        &mut app,
+        &mut runtime,
+        std::slice::from_ref(&manifest_event),
+        None,
+    )
+    .expect("watch should rediscover metadata after the corrected save");
+
+    let new_target = new_dir
+        .join("build.rs")
+        .canonicalize()
+        .expect("canonical new target");
+    assert_eq!(
+        runtime.affected_crates_for_events(&[event_with_path(&new_target)]),
+        vec!["watch-recovery".to_string()]
+    );
+    assert!(
+        runtime
+            .affected_crates_for_events(&[event_with_path(&old_target)])
+            .is_empty()
+    );
+}
+
+#[test]
 fn watcher_rediscovery_preserves_selected_packages() {
     let temp = tempfile::tempdir().expect("tempdir");
     let app_dir = temp.path().join("app");
