@@ -990,6 +990,10 @@ fn binary_doctor_warns_for_opaque_macro_build_integrations() {
             "fn main() { configure_i18n!(); }\n",
             "opaque statement macro expansion",
         ),
+        (
+            "fn main() { let _configuration = configure_i18n!(); }\n",
+            "opaque expression macro expansion",
+        ),
     ] {
         let temp = fixtures::create_workspace();
         std::fs::write(
@@ -1082,7 +1086,7 @@ fn binary_doctor_does_not_pass_unreachable_build_helper_call() {
 }
 
 #[test]
-fn binary_doctor_warns_for_branch_guarded_and_shadowed_build_helper_calls() {
+fn binary_doctor_warns_for_indeterminate_build_helper_calls() {
     let crates_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
         .parent()
         .expect("workspace crates directory");
@@ -1099,6 +1103,7 @@ fn binary_doctor_warns_for_branch_guarded_and_shadowed_build_helper_calls() {
         "use es_fluent_build::track_i18n_assets;\nfn main() { let track_i18n_assets = || {}; track_i18n_assets(); }\n",
         "mod es_fluent_build { pub fn track_i18n_assets() {} }\nfn main() { es_fluent_build::track_i18n_assets(); }\n",
         "fn main() { let _future = async { es_fluent_build::track_i18n_assets(); }; }\n",
+        "use es_fluent_build::track_i18n_assets;\nfn main() { let f: fn() = track_i18n_assets; f(); }\n",
     ] {
         let temp = fixtures::create_workspace();
         std::fs::write(
@@ -1137,7 +1142,7 @@ fn binary_doctor_warns_for_branch_guarded_and_shadowed_build_helper_calls() {
 }
 
 #[test]
-fn binary_doctor_rejects_build_helper_call_after_nested_return() {
+fn binary_doctor_rejects_build_helper_calls_after_diverging_statements() {
     let temp = fixtures::create_workspace();
     let crates_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
         .parent()
@@ -1153,35 +1158,36 @@ fn binary_doctor_rejects_build_helper_call_after_nested_return() {
         ),
     )
     .expect("write Cargo.toml");
-    std::fs::write(
-        temp.path().join("build.rs"),
+    for source in [
         "fn main() { { return; } es_fluent_build::track_i18n_assets(); }\n",
-    )
-    .expect("write build.rs");
+        "fn main() { loop {} es_fluent_build::track_i18n_assets(); }\n",
+    ] {
+        std::fs::write(temp.path().join("build.rs"), source).expect("write build.rs");
 
-    let output = Command::cargo_bin("cargo-es-fluent")
-        .expect("binary exists")
-        .args([
-            "es-fluent",
-            "doctor",
-            "--path",
-            temp.path().to_str().expect("workspace path"),
-            "--output",
-            "json",
-        ])
-        .output()
-        .expect("run doctor");
+        let output = Command::cargo_bin("cargo-es-fluent")
+            .expect("binary exists")
+            .args([
+                "es-fluent",
+                "doctor",
+                "--path",
+                temp.path().to_str().expect("workspace path"),
+                "--output",
+                "json",
+            ])
+            .output()
+            .expect("run doctor");
 
-    assert!(!output.status.success());
-    let json: Value = serde_json::from_slice(&output.stdout).expect("doctor JSON");
-    assert!(json["checks"].as_array().is_some_and(|checks| {
-        checks
-            .iter()
-            .any(|check| check["category"] == "build_script" && check["status"] == "error")
-            && !checks
+        assert!(!output.status.success());
+        let json: Value = serde_json::from_slice(&output.stdout).expect("doctor JSON");
+        assert!(json["checks"].as_array().is_some_and(|checks| {
+            checks
                 .iter()
-                .any(|check| check["category"] == "build_script" && check["status"] == "pass")
-    }));
+                .any(|check| check["category"] == "build_script" && check["status"] == "error")
+                && !checks
+                    .iter()
+                    .any(|check| check["category"] == "build_script" && check["status"] == "pass")
+        }));
+    }
 }
 
 #[cfg(unix)]

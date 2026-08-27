@@ -823,21 +823,49 @@ impl<'ast> syn::visit::Visit<'ast> for EvidenceVisitor<'_> {
     }
 
     fn visit_expr_call(&mut self, call: &'ast syn::ExprCall) {
-        if let (Some(SourceTarget::Call(target)), syn::Expr::Path(function)) =
-            (self.target, &*call.func)
-            && function
+        let direct_target_call =
+            if let (Some(SourceTarget::Call(target)), syn::Expr::Path(function)) =
+                (self.target, &*call.func)
+                && function
+                    .path
+                    .segments
+                    .last()
+                    .is_some_and(|segment| segment.ident == target)
+            {
+                self.record(
+                    &function.path,
+                    function.path.span(),
+                    self.conditional_depth > 0 || has_conditional_attr(&call.attrs),
+                );
+                true
+            } else {
+                false
+            };
+
+        if direct_target_call {
+            for argument in &call.args {
+                self.visit_expr(argument);
+            }
+        } else {
+            syn::visit::visit_expr_call(self, call);
+        }
+    }
+
+    fn visit_expr_path(&mut self, expression: &'ast syn::ExprPath) {
+        if let Some(SourceTarget::Call(target)) = self.target
+            && expression
                 .path
                 .segments
                 .last()
                 .is_some_and(|segment| segment.ident == target)
         {
-            self.record(
-                &function.path,
-                function.path.span(),
-                self.conditional_depth > 0 || has_conditional_attr(&call.attrs),
-            );
+            self.indeterminate_reasons.push(format!(
+                "opaque reference to `{target}` at {}:{}",
+                self.current_file.display(),
+                expression.path.span().start().line
+            ));
         }
-        syn::visit::visit_expr_call(self, call);
+        syn::visit::visit_expr_path(self, expression);
     }
 
     fn visit_macro(&mut self, invocation: &'ast syn::Macro) {
@@ -1027,6 +1055,13 @@ impl<'ast> syn::visit::Visit<'ast> for EvidenceVisitor<'_> {
 
     fn visit_expr_macro(&mut self, expression: &'ast syn::ExprMacro) {
         self.visit_with_attributes(&expression.attrs, |visitor| {
+            if !expression.mac.path.is_ident("include") {
+                visitor.indeterminate_reasons.push(format!(
+                    "opaque expression macro expansion at {}:{}",
+                    visitor.current_file.display(),
+                    expression.mac.path.span().start().line
+                ));
+            }
             syn::visit::visit_expr_macro(visitor, expression);
         });
     }
@@ -1203,9 +1238,67 @@ fn expression_unconditionally_terminates(expression: &syn::Expr) -> bool {
             .iter()
             .any(statement_unconditionally_terminates),
         syn::Expr::Group(group) => expression_unconditionally_terminates(&group.expr),
+        syn::Expr::Loop(expression) => !loop_can_reach_following(expression),
         syn::Expr::Paren(paren) => expression_unconditionally_terminates(&paren.expr),
         _ => false,
     }
+}
+
+fn loop_can_reach_following(expression: &syn::ExprLoop) -> bool {
+    let mut visitor = LoopExitVisitor {
+        loop_label: expression
+            .label
+            .as_ref()
+            .map(|label| label.name.ident.to_string()),
+        nested_loop_depth: 0,
+        found: false,
+    };
+    visitor.visit_block(&expression.body);
+    visitor.found
+}
+
+struct LoopExitVisitor {
+    loop_label: Option<String>,
+    nested_loop_depth: usize,
+    found: bool,
+}
+
+impl<'ast> syn::visit::Visit<'ast> for LoopExitVisitor {
+    fn visit_expr_break(&mut self, expression: &'ast syn::ExprBreak) {
+        let exits_loop = expression
+            .label
+            .as_ref()
+            .map_or(self.nested_loop_depth == 0, |label| {
+                self.loop_label
+                    .as_deref()
+                    .is_some_and(|loop_label| label.ident == loop_label)
+            });
+        self.found |= exits_loop;
+    }
+
+    fn visit_expr_loop(&mut self, expression: &'ast syn::ExprLoop) {
+        self.nested_loop_depth += 1;
+        syn::visit::visit_expr_loop(self, expression);
+        self.nested_loop_depth -= 1;
+    }
+
+    fn visit_expr_while(&mut self, expression: &'ast syn::ExprWhile) {
+        self.nested_loop_depth += 1;
+        syn::visit::visit_expr_while(self, expression);
+        self.nested_loop_depth -= 1;
+    }
+
+    fn visit_expr_for_loop(&mut self, expression: &'ast syn::ExprForLoop) {
+        self.nested_loop_depth += 1;
+        syn::visit::visit_expr_for_loop(self, expression);
+        self.nested_loop_depth -= 1;
+    }
+
+    fn visit_item_fn(&mut self, _function: &'ast syn::ItemFn) {}
+
+    fn visit_expr_closure(&mut self, _closure: &'ast syn::ExprClosure) {}
+
+    fn visit_expr_async(&mut self, _expression: &'ast syn::ExprAsync) {}
 }
 
 fn item_shadows_target(item: &syn::Item, target: Option<SourceTarget>) -> bool {
@@ -1684,6 +1777,49 @@ mod tests {
     }
 
     #[test]
+    fn build_helper_calls_after_diverging_loops_do_not_pass() {
+        assert_eq!(
+            inspect_fixture(
+                &[(
+                    "build.rs",
+                    "fn main() { loop {} es_fluent_build::track_i18n_assets(); }"
+                )],
+                "build.rs",
+                SourceTarget::Call("track_i18n_assets")
+            ),
+            InspectionOutcome::NotFound
+        );
+
+        assert!(matches!(
+            inspect_fixture(
+                &[(
+                    "build.rs",
+                    "fn setup() { es_fluent_build::track_i18n_assets(); } fn main() { loop { continue; } setup(); }"
+                )],
+                "build.rs",
+                SourceTarget::Call("track_i18n_assets")
+            ),
+            InspectionOutcome::Indeterminate(reason)
+                if reason.contains("could not be proven reachable")
+        ));
+    }
+
+    #[test]
+    fn build_helper_calls_after_loops_with_breaks_are_found() {
+        assert!(matches!(
+            inspect_fixture(
+                &[(
+                    "build.rs",
+                    "fn main() { loop { break; } es_fluent_build::track_i18n_assets(); }"
+                )],
+                "build.rs",
+                SourceTarget::Call("track_i18n_assets")
+            ),
+            InspectionOutcome::Found(_)
+        ));
+    }
+
+    #[test]
     fn local_module_shadowing_build_dependency_is_indeterminate() {
         for source in [
             "mod es_fluent_build { pub fn track_i18n_assets() {} } fn main() { es_fluent_build::track_i18n_assets(); }",
@@ -1823,6 +1959,40 @@ mod tests {
             ),
             InspectionOutcome::Indeterminate(reason)
                 if reason.contains("opaque statement macro expansion")
+        ));
+    }
+
+    #[test]
+    fn opaque_helper_references_are_indeterminate() {
+        for source in [
+            "use es_fluent_build::track_i18n_assets; fn main() { let f: fn() = track_i18n_assets; f(); }",
+            "fn main() { let f: fn() = es_fluent_build::track_i18n_assets; f(); }",
+        ] {
+            assert!(matches!(
+                inspect_fixture(
+                    &[("build.rs", source)],
+                    "build.rs",
+                    SourceTarget::Call("track_i18n_assets")
+                ),
+                InspectionOutcome::Indeterminate(reason)
+                    if reason.contains("opaque reference to `track_i18n_assets`")
+            ));
+        }
+    }
+
+    #[test]
+    fn opaque_expression_macro_expansions_are_indeterminate() {
+        assert!(matches!(
+            inspect_fixture(
+                &[(
+                    "build.rs",
+                    "fn main() { let _configuration = configure_i18n!(); }"
+                )],
+                "build.rs",
+                SourceTarget::Call("track_i18n_assets")
+            ),
+            InspectionOutcome::Indeterminate(reason)
+                if reason.contains("opaque expression macro expansion")
         ));
     }
 

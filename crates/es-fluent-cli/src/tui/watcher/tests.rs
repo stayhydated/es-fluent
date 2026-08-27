@@ -553,6 +553,16 @@ fn watcher_conservatively_maps_indeterminate_build_graph_inputs() {
         super::events::process_file_events(&[event_with_path(&support)], &path_to_crate),
         vec!["watch-indeterminate".to_string()]
     );
+    for generated in [
+        temp.path().join("target/debug/build/generated.rs"),
+        temp.path().join(".es-fluent/runner-output.rs"),
+    ] {
+        assert!(
+            !path_to_crate.should_refresh_build_sources(&[event_with_path(&generated)]),
+            "generated output should not refresh an indeterminate build graph: {}",
+            generated.display()
+        );
+    }
     assert_eq!(
         super::generation::compute_watch_inputs_hash(
             temp.path(),

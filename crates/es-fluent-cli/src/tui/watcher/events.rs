@@ -263,10 +263,9 @@ impl PathToCrateMap {
     fn is_build_source_event(&self, path: &Path) -> bool {
         self.match_build_sources(path).next().is_some()
             || self.match_missing_default_build_target(path).is_some()
-            || self
-                .build_source_dirs
-                .iter()
-                .any(|(directory, _)| path.starts_with(directory))
+            || self.build_source_dirs.iter().any(|(directory, _)| {
+                path.starts_with(directory) && !self.is_generated_build_path(path)
+            })
     }
 
     fn match_src_path(&self, path: &Path) -> Option<&str> {

@@ -510,6 +510,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::collections::HashMap;
     use std::sync::{Mutex, RwLock, mpsc};
     use std::time::Duration;
 
@@ -722,6 +723,31 @@ mod tests {
                 None,
             )
         }
+    }
+
+    struct MapLocalizer(HashMap<StaticFluentMessageKey, &'static str>);
+
+    impl FluentLocalizer for MapLocalizer {
+        fn localize<'a>(
+            &self,
+            key: StaticFluentMessageKey,
+            _args: Option<&FluentArgs<'a>>,
+        ) -> Option<String> {
+            self.0.get(&key).map(|value| (*value).to_string())
+        }
+    }
+
+    #[test]
+    fn fallback_message_key_matches_custom_localizer_map_entry() {
+        let localizer = MapLocalizer(HashMap::from([(
+            static_key("missing-domain", "fallback-id"),
+            "Translated fallback",
+        )]));
+
+        assert_eq!(
+            localizer.localize_message(&FallbackMessage),
+            "Translated fallback"
+        );
     }
 
     struct CallbackOnlyMessage;
