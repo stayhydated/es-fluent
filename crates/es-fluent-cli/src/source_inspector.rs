@@ -112,6 +112,7 @@ struct ParsedSource {
 #[derive(Debug, Default)]
 struct ReachabilityAnalysis {
     reachable_functions: HashSet<FunctionLocation>,
+    execution_uncertain_functions: HashSet<FunctionLocation>,
     indeterminate_reasons: Vec<String>,
 }
 
@@ -120,7 +121,13 @@ struct FunctionDefinition {
     location: FunctionLocation,
     name: String,
     module_path: Vec<String>,
-    calls: Vec<Vec<String>>,
+    calls: Vec<FunctionCall>,
+}
+
+#[derive(Debug)]
+struct FunctionCall {
+    path: Vec<String>,
+    execution_uncertain: bool,
 }
 
 pub(crate) fn inspect(
@@ -285,6 +292,10 @@ fn inspect_source_graph(
             .indeterminate_reasons
             .extend(analysis.indeterminate_reasons);
         for evidence in &mut graph.evidences {
+            evidence.execution_uncertain |= evidence
+                .function
+                .as_ref()
+                .is_some_and(|function| analysis.execution_uncertain_functions.contains(function));
             evidence.reachable = evidence
                 .function
                 .as_ref()
@@ -424,6 +435,7 @@ fn analyze_reachability(sources: &[ParsedSource], entry_path: &Path) -> Reachabi
     if entry_points.is_empty() {
         return ReachabilityAnalysis {
             reachable_functions: HashSet::new(),
+            execution_uncertain_functions: HashSet::new(),
             indeterminate_reasons: vec![format!(
                 "could not identify `fn main` in custom-build target {}",
                 entry_path.display()
@@ -441,25 +453,40 @@ fn analyze_reachability(sources: &[ParsedSource], entry_path: &Path) -> Reachabi
             by_name
         },
     );
-    let mut reachable_functions = HashSet::new();
-    let mut pending = VecDeque::from(entry_points);
+    let mut definitely_reachable = HashSet::new();
+    let mut uncertainly_reachable = HashSet::new();
+    let mut pending = entry_points
+        .into_iter()
+        .map(|index| (index, false))
+        .collect::<VecDeque<_>>();
     let mut indeterminate_reasons = Vec::new();
-    while let Some(index) = pending.pop_front() {
+    while let Some((index, execution_uncertain)) = pending.pop_front() {
         let definition = &definitions[index];
-        if !reachable_functions.insert(definition.location.clone()) {
-            continue;
-        }
-        for call in &definition.calls {
-            if call.is_empty() {
+        if execution_uncertain {
+            if definitely_reachable.contains(&index) || !uncertainly_reachable.insert(index) {
                 continue;
             }
-            let candidates = resolve_local_functions(&definitions, &by_name, definition, call);
+        } else {
+            if !definitely_reachable.insert(index) {
+                continue;
+            }
+            uncertainly_reachable.remove(&index);
+        }
+        for call in &definition.calls {
+            if call.path.is_empty() {
+                continue;
+            }
+            let candidates =
+                resolve_local_functions(&definitions, &by_name, definition, &call.path);
             if candidates.len() == 1 {
-                pending.push_back(candidates[0]);
+                pending.push_back((
+                    candidates[0],
+                    execution_uncertain || call.execution_uncertain,
+                ));
             } else if candidates.len() > 1 {
                 indeterminate_reasons.push(format!(
                     "could not resolve local function call `{}` from {}:{}",
-                    call.join("::"),
+                    call.path.join("::"),
                     definition.location.path.display(),
                     definition.location.line
                 ));
@@ -467,8 +494,19 @@ fn analyze_reachability(sources: &[ParsedSource], entry_path: &Path) -> Reachabi
         }
     }
 
+    let reachable_functions = definitely_reachable
+        .iter()
+        .chain(&uncertainly_reachable)
+        .map(|index| definitions[*index].location.clone())
+        .collect();
+    let execution_uncertain_functions = uncertainly_reachable
+        .iter()
+        .map(|index| definitions[*index].location.clone())
+        .collect();
+
     ReachabilityAnalysis {
         reachable_functions,
+        execution_uncertain_functions,
         indeterminate_reasons,
     }
 }
@@ -504,7 +542,10 @@ fn add_function_definition(
     definitions: &mut Vec<FunctionDefinition>,
 ) {
     let mut calls = Vec::new();
-    let mut visitor = FunctionCallVisitor { calls: &mut calls };
+    let mut visitor = FunctionCallVisitor {
+        calls: &mut calls,
+        execution_uncertain_depth: 0,
+    };
     visitor.visit_block(&function.block);
     definitions.push(FunctionDefinition {
         location: FunctionLocation {
@@ -519,22 +560,89 @@ fn add_function_definition(
 }
 
 struct FunctionCallVisitor<'a> {
-    calls: &'a mut Vec<Vec<String>>,
+    calls: &'a mut Vec<FunctionCall>,
+    execution_uncertain_depth: usize,
+}
+
+impl FunctionCallVisitor<'_> {
+    fn visit_execution_uncertain(&mut self, visit: impl FnOnce(&mut Self)) {
+        self.execution_uncertain_depth += 1;
+        visit(self);
+        self.execution_uncertain_depth -= 1;
+    }
 }
 
 impl<'ast> syn::visit::Visit<'ast> for FunctionCallVisitor<'_> {
     fn visit_expr_call(&mut self, call: &'ast syn::ExprCall) {
         if let syn::Expr::Path(function) = &*call.func {
-            self.calls.push(
-                function
+            self.calls.push(FunctionCall {
+                path: function
                     .path
                     .segments
                     .iter()
                     .map(|segment| segment.ident.to_string())
                     .collect(),
-            );
+                execution_uncertain: self.execution_uncertain_depth > 0
+                    || has_conditional_attr(&call.attrs),
+            });
         }
         syn::visit::visit_expr_call(self, call);
+    }
+
+    fn visit_expr_if(&mut self, expression: &'ast syn::ExprIf) {
+        self.visit_expr(&expression.cond);
+        self.visit_execution_uncertain(|visitor| {
+            visitor.visit_block(&expression.then_branch);
+        });
+        if let Some((_, else_branch)) = &expression.else_branch {
+            self.visit_execution_uncertain(|visitor| {
+                visitor.visit_expr(else_branch);
+            });
+        }
+    }
+
+    fn visit_expr_match(&mut self, expression: &'ast syn::ExprMatch) {
+        self.visit_expr(&expression.expr);
+        for arm in &expression.arms {
+            self.visit_execution_uncertain(|visitor| {
+                visitor.visit_pat(&arm.pat);
+                visitor.visit_expr(&arm.body);
+            });
+        }
+    }
+
+    fn visit_expr_while(&mut self, expression: &'ast syn::ExprWhile) {
+        self.visit_expr(&expression.cond);
+        self.visit_execution_uncertain(|visitor| {
+            visitor.visit_block(&expression.body);
+        });
+    }
+
+    fn visit_expr_for_loop(&mut self, expression: &'ast syn::ExprForLoop) {
+        self.visit_expr(&expression.expr);
+        self.visit_execution_uncertain(|visitor| {
+            visitor.visit_block(&expression.body);
+        });
+    }
+
+    fn visit_expr_binary(&mut self, expression: &'ast syn::ExprBinary) {
+        self.visit_expr(&expression.left);
+        if matches!(expression.op, syn::BinOp::And(_) | syn::BinOp::Or(_)) {
+            self.visit_execution_uncertain(|visitor| {
+                visitor.visit_expr(&expression.right);
+            });
+        } else {
+            self.visit_expr(&expression.right);
+        }
+    }
+
+    fn visit_block(&mut self, block: &'ast syn::Block) {
+        for statement in &block.stmts {
+            self.visit_stmt(statement);
+            if statement_unconditionally_terminates(statement) {
+                break;
+            }
+        }
     }
 
     fn visit_item_fn(&mut self, _function: &'ast syn::ItemFn) {}
@@ -855,7 +963,22 @@ impl<'ast> syn::visit::Visit<'ast> for EvidenceVisitor<'_> {
     fn visit_block(&mut self, block: &'ast syn::Block) {
         self.scopes
             .push(imports_for_statements(&block.stmts, self.target));
-        syn::visit::visit_block(self, block);
+        for statement in &block.stmts {
+            self.visit_stmt(statement);
+            if matches!(self.target, Some(SourceTarget::Call(_)))
+                && statement_unconditionally_terminates(statement)
+            {
+                break;
+            }
+            if let syn::Stmt::Local(local) = statement
+                && local_shadows_target(&local.pat, self.target)
+            {
+                self.scopes
+                    .last_mut()
+                    .expect("block scope was just pushed")
+                    .shadowed = true;
+            }
+        }
         self.scopes.pop();
     }
 
@@ -941,6 +1064,40 @@ fn imports_for_statements(
             }
             found
         })
+}
+
+fn local_shadows_target(pattern: &syn::Pat, target: Option<SourceTarget>) -> bool {
+    let Some(SourceTarget::Call(target)) = target else {
+        return false;
+    };
+    let mut visitor = PatternBindingVisitor {
+        target,
+        found: false,
+    };
+    visitor.visit_pat(pattern);
+    visitor.found
+}
+
+struct PatternBindingVisitor<'a> {
+    target: &'a str,
+    found: bool,
+}
+
+impl<'ast> syn::visit::Visit<'ast> for PatternBindingVisitor<'_> {
+    fn visit_pat_ident(&mut self, pattern: &'ast syn::PatIdent) {
+        self.found |= pattern.ident == self.target;
+        syn::visit::visit_pat_ident(self, pattern);
+    }
+}
+
+fn statement_unconditionally_terminates(statement: &syn::Stmt) -> bool {
+    matches!(
+        statement,
+        syn::Stmt::Expr(
+            syn::Expr::Break(_) | syn::Expr::Continue(_) | syn::Expr::Return(_),
+            _
+        )
+    )
 }
 
 fn item_shadows_target(item: &syn::Item, target: Option<SourceTarget>) -> bool {
@@ -1299,6 +1456,34 @@ mod tests {
     }
 
     #[test]
+    fn conditionally_reached_build_helper_functions_are_indeterminate() {
+        assert!(matches!(
+            inspect_fixture(
+                &[(
+                    "build.rs",
+                    "fn setup() { es_fluent_build::track_i18n_assets(); } fn main() { if false { setup(); } }"
+                )],
+                "build.rs",
+                SourceTarget::Call("track_i18n_assets")
+            ),
+            InspectionOutcome::Indeterminate(reason)
+                if reason.contains("under control flow that could not be proven to execute")
+        ));
+
+        assert!(matches!(
+            inspect_fixture(
+                &[(
+                    "build.rs",
+                    "fn setup() { es_fluent_build::track_i18n_assets(); } fn main() { if false { setup(); } setup(); }"
+                )],
+                "build.rs",
+                SourceTarget::Call("track_i18n_assets")
+            ),
+            InspectionOutcome::Found(_)
+        ));
+    }
+
+    #[test]
     fn block_local_function_shadowing_build_helper_import_is_indeterminate() {
         assert!(matches!(
             inspect_fixture(
@@ -1312,6 +1497,49 @@ mod tests {
             InspectionOutcome::Indeterminate(reason)
                 if reason.contains("could not be resolved to the expected es-fluent dependency")
         ));
+    }
+
+    #[test]
+    fn local_binding_shadowing_build_helper_import_is_indeterminate() {
+        assert!(matches!(
+            inspect_fixture(
+                &[(
+                    "build.rs",
+                    "use es_fluent_build::track_i18n_assets; fn main() { let track_i18n_assets = || {}; track_i18n_assets(); }"
+                )],
+                "build.rs",
+                SourceTarget::Call("track_i18n_assets")
+            ),
+            InspectionOutcome::Indeterminate(reason)
+                if reason.contains("could not be resolved to the expected es-fluent dependency")
+        ));
+
+        assert!(matches!(
+            inspect_fixture(
+                &[(
+                    "build.rs",
+                    "use es_fluent_build::track_i18n_assets; fn main() { let track_i18n_assets = { track_i18n_assets(); || {} }; }"
+                )],
+                "build.rs",
+                SourceTarget::Call("track_i18n_assets")
+            ),
+            InspectionOutcome::Found(_)
+        ));
+    }
+
+    #[test]
+    fn build_helper_calls_after_return_are_not_found() {
+        assert_eq!(
+            inspect_fixture(
+                &[(
+                    "build.rs",
+                    "fn main() { return; es_fluent_build::track_i18n_assets(); }"
+                )],
+                "build.rs",
+                SourceTarget::Call("track_i18n_assets")
+            ),
+            InspectionOutcome::NotFound
+        );
     }
 
     #[test]

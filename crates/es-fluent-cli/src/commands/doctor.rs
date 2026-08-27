@@ -592,21 +592,25 @@ fn fallback_catalog_inputs(layout: &ResolvedI18nLayout, package: &str) -> Result
             // assets intentionally share the crate root with ordinary Cargo
             // directories, so use the CLI's package-owned resource discovery
             // after the config layer has filtered locale candidates.
-            layout
+            let locales = layout
                 .available_locale_names()
                 .map_err(|error| error.to_string())?;
-            let resources = crate::ftl::discover_domain_ftl_files_in_locale_dir(
-                &layout.output_dir,
-                &[domain.as_str().to_string()],
-            )
-            .map_err(|error| error.to_string())?;
-            for resource in &resources {
-                validate_discovered_namespace(&resource.relative_path, &domain)?;
+            let domain_names = [domain.as_str().to_string()];
+            let mut fallback_paths = Vec::new();
+            for locale in locales {
+                let resources = crate::ftl::discover_domain_ftl_files_in_locale_dir(
+                    &layout.assets_dir.join(&locale),
+                    &domain_names,
+                )
+                .map_err(|error| error.to_string())?;
+                for resource in &resources {
+                    validate_discovered_namespace(&resource.relative_path, &domain)?;
+                }
+                if locale == layout.fallback_language() {
+                    fallback_paths.extend(resources.into_iter().map(|resource| resource.abs_path));
+                }
             }
-            resources
-                .into_iter()
-                .map(|resource| resource.abs_path)
-                .collect::<Vec<_>>()
+            fallback_paths
         } else {
             let plans = ResourcePlan::sparse_from_assets(domain.as_str(), &layout.assets_dir)
                 .map_err(|error| error.to_string())?;
@@ -665,7 +669,7 @@ fn validate_discovered_namespace(
         .join("/");
     ResolvedNamespace::new(namespace.clone()).map_err(|error| {
         format!(
-            "discovered invalid namespace '{namespace}' in fallback resource {} for domain '{}': {error}",
+            "discovered invalid namespace '{namespace}' in locale resource {} for domain '{}': {error}",
             locale_relative_path.display(),
             domain.as_str()
         )
@@ -897,16 +901,22 @@ manager = { workspace = true, features = ["ssr"] }
     }
 
     #[test]
-    fn fallback_catalog_inputs_reject_invalid_namespace_in_crate_root_assets() {
+    fn fallback_catalog_inputs_reject_invalid_namespace_in_non_fallback_root_locale() {
         let temp = tempfile::tempdir().expect("tempdir");
-        fs::create_dir_all(temp.path().join("en/test-app")).expect("create namespace dir");
+        fs::create_dir_all(temp.path().join("en")).expect("create fallback locale");
+        fs::create_dir_all(temp.path().join("fr/test-app")).expect("create namespace dir");
         fs::write(
             temp.path().join("i18n.toml"),
             "fallback_language = \"en\"\nassets_dir = \".\"\n",
         )
         .expect("write config");
-        fs::write(temp.path().join("en/test-app/ bad .ftl"), "hello = Hello\n")
+        fs::write(temp.path().join("en/test-app.ftl"), "hello = Hello\n")
             .expect("write fallback resource");
+        fs::write(
+            temp.path().join("fr/test-app/ bad .ftl"),
+            "hello = Bonjour\n",
+        )
+        .expect("write translated resource");
         let layout =
             ResolvedI18nLayout::from_config_path(temp.path().join("i18n.toml")).expect("layout");
 
