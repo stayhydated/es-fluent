@@ -98,6 +98,7 @@ fn crate_inputs_hash(krate: &CrateInfo) -> String {
         Some(&krate.i18n_config_path),
         krate.custom_build_target_path.as_deref(),
     )
+    .expect("test fixture has a determinate source graph")
 }
 
 fn workspace_crate_hashes(workspace: &WorkspaceInfo) -> indexmap::IndexMap<PackageName, String> {
@@ -684,6 +685,36 @@ fn monolithic_runner_staleness_detects_build_script_changes() {
     assert!(
         runner.is_stale(),
         "build script change should mark runner stale"
+    );
+}
+
+#[test]
+fn monolithic_runner_is_always_stale_for_indeterminate_build_graph() {
+    let (_temp, mut workspace) = create_workspace_fixture("indeterminate-build", true);
+    let build_script = workspace.crates[0].manifest_dir.join("build.rs");
+    crate::test_fixtures::write_file(&build_script, "fn main() {}\n");
+    workspace.crates[0].custom_build_target_path = Some(
+        crate::core::CustomBuildTargetPath::from_discovered(build_script.clone()),
+    );
+    let runner = MonolithicRunner::new(&workspace);
+    install_cached_runner(&runner, &workspace, &FakeRunnerBehavior::stdout("ok\n"));
+    assert!(
+        !runner.is_stale(),
+        "determinate build graph should be cached"
+    );
+
+    crate::test_fixtures::write_file(
+        &build_script,
+        "include!(concat!(env!(\"CARGO_MANIFEST_DIR\"), \"/support.rs\"));\nfn main() {}\n",
+    );
+    crate::test_fixtures::write_file(
+        &workspace.crates[0].manifest_dir.join("support.rs"),
+        "pub fn configure() {}\n",
+    );
+
+    assert!(
+        runner.is_stale(),
+        "indeterminate build graph must not reuse runner inventory"
     );
 }
 

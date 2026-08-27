@@ -188,6 +188,7 @@ fn watcher_refreshes_custom_build_graph_and_directories_after_target_edit() {
     let build_target = build_target.canonicalize().expect("canonical build target");
     let update = runtime
         .refresh_build_sources_if_needed(&[event_with_path(&build_target)])
+        .expect("refresh build source graph")
         .expect("build target edits should refresh the source graph");
     assert_eq!(update.added, vec![support_dir]);
     assert!(update.removed.is_empty());
@@ -200,7 +201,120 @@ fn watcher_refreshes_custom_build_graph_and_directories_after_target_edit() {
 }
 
 #[test]
-fn watcher_classifies_deleted_reachable_helper_before_refreshing_graph() {
+fn watcher_rediscovers_custom_build_target_after_manifest_edit() {
+    let temp = tempfile::tempdir().expect("tempdir");
+    let src_dir = temp.path().join("src");
+    let old_dir = temp.path().join("old");
+    let new_dir = temp.path().join("new");
+    fs::create_dir_all(&src_dir).expect("create src");
+    fs::create_dir_all(&old_dir).expect("create old build dir");
+    fs::create_dir_all(&new_dir).expect("create new build dir");
+    fs::write(src_dir.join("lib.rs"), "pub struct Demo;\n").expect("write lib");
+    fs::write(old_dir.join("build.rs"), "fn main() {}\n").expect("write old build target");
+    fs::write(new_dir.join("build.rs"), "fn main() {}\n").expect("write new build target");
+    fs::write(
+        temp.path().join("i18n.toml"),
+        "fallback_language = \"en\"\nassets_dir = \"i18n\"\n",
+    )
+    .expect("write config");
+    fs::write(
+        temp.path().join("Cargo.toml"),
+        "[package]\nname = \"watch-target\"\nversion = \"0.1.0\"\nedition = \"2024\"\nbuild = \"old/build.rs\"\n\n[lib]\npath = \"src/lib.rs\"\n",
+    )
+    .expect("write manifest");
+
+    let workspace =
+        crate::utils::discover_workspace_scoped(temp.path(), crate::utils::DiscoveryScope::All)
+            .expect("discover initial workspace");
+    let krate = workspace.crates[0].clone();
+    let mut runtime = super::runtime::WatchRuntime::new(
+        std::slice::from_ref(&krate),
+        &workspace,
+        &FluentParseMode::default(),
+    );
+
+    fs::write(
+        temp.path().join("Cargo.toml"),
+        "[package]\nname = \"watch-target\"\nversion = \"0.1.0\"\nedition = \"2024\"\nbuild = \"new/build.rs\"\n\n[lib]\npath = \"src/lib.rs\"\n",
+    )
+    .expect("select new build target");
+    let update = runtime
+        .refresh_build_sources_if_needed(&[event_with_path(&temp.path().join("Cargo.toml"))])
+        .expect("rediscover Cargo metadata")
+        .expect("manifest edit should refresh build sources");
+    assert_eq!(
+        update.added,
+        vec![new_dir.canonicalize().expect("canonical new build dir")]
+    );
+    assert_eq!(
+        update.removed,
+        vec![old_dir.canonicalize().expect("canonical old build dir")]
+    );
+
+    let new_target = new_dir
+        .join("build.rs")
+        .canonicalize()
+        .expect("canonical new target");
+    assert_eq!(
+        runtime.affected_crates_for_events(&[event_with_path(&new_target)]),
+        vec!["watch-target".to_string()]
+    );
+    let old_target = old_dir
+        .join("build.rs")
+        .canonicalize()
+        .expect("canonical old target");
+    assert!(
+        runtime
+            .affected_crates_for_events(&[event_with_path(&old_target)])
+            .is_empty()
+    );
+}
+
+#[test]
+fn watcher_conservatively_maps_indeterminate_build_graph_inputs() {
+    let temp = tempfile::tempdir().expect("tempdir");
+    let src_dir = temp.path().join("src");
+    fs::create_dir_all(&src_dir).expect("create src");
+    fs::write(src_dir.join("lib.rs"), "pub struct Demo;\n").expect("write lib");
+    let build_target = temp.path().join("build.rs");
+    fs::write(
+        &build_target,
+        "include!(concat!(env!(\"CARGO_MANIFEST_DIR\"), \"/support.rs\"));\nfn main() {}\n",
+    )
+    .expect("write build target");
+    let support = temp.path().join("support.rs");
+    fs::write(&support, "pub fn configure() {}\n").expect("write support");
+    let mut krate = test_crate("watch-indeterminate", true);
+    krate.manifest_dir = crate::core::ManifestDir::from_discovered(temp.path().to_path_buf());
+    krate.src_dir = crate::core::SourceDir::from_discovered(src_dir);
+    krate.custom_build_target_path = Some(crate::core::CustomBuildTargetPath::from_discovered(
+        build_target,
+    ));
+    let path_to_crate = super::events::build_path_to_crate(&[&krate], temp.path());
+
+    assert!(
+        path_to_crate
+            .build_source_watch_dirs()
+            .contains(temp.path()),
+        "an indeterminate graph should watch the manifest directory recursively"
+    );
+    assert_eq!(
+        super::events::process_file_events(&[event_with_path(&support)], &path_to_crate),
+        vec!["watch-indeterminate".to_string()]
+    );
+    assert_eq!(
+        super::generation::compute_watch_inputs_hash(
+            temp.path(),
+            &krate.src_dir,
+            &krate.i18n_config_path,
+            krate.custom_build_target_path.as_deref(),
+        ),
+        None
+    );
+}
+
+#[test]
+fn watcher_classifies_deleted_helper_and_keeps_indeterminate_graph_conservative() {
     let temp = tempfile::tempdir().expect("tempdir");
     let src_dir = temp.path().join("src");
     fs::create_dir_all(&src_dir).expect("create src");
@@ -266,11 +380,10 @@ fn watcher_classifies_deleted_reachable_helper_before_refreshing_graph() {
         runtime.observed_hash("watch-crate"),
         Some(initial_hash.as_str())
     );
-    assert!(
-        runtime
-            .affected_crates_for_events(std::slice::from_ref(&helper_event))
-            .is_empty(),
-        "the deleted helper is absent from the refreshed graph; the old graph must classify its event first"
+    assert_eq!(
+        runtime.affected_crates_for_events(std::slice::from_ref(&helper_event)),
+        vec!["watch-crate".to_string()],
+        "an unresolved build graph should continue mapping possible build inputs conservatively"
     );
     runtime
         .finish_pending_generations(&mut app)
@@ -563,7 +676,8 @@ fn create_valid_workspace_with_fake_runner_behavior(
         &src_dir,
         Some(&i18n_toml),
         krate.custom_build_target_path.as_deref(),
-    );
+    )
+    .expect("test fixture has a determinate source graph");
     let mut crate_hashes = indexmap::IndexMap::new();
     crate_hashes.insert(krate.name.clone(), hash);
     let temp_store = es_fluent_runner::RunnerMetadataStore::temp_for_workspace(temp.path());
@@ -1079,7 +1193,8 @@ fn watch_all_links_only_watched_crates() {
             &watched_crate.src_dir,
             Some(&watched_crate.i18n_config_path),
             watched_crate.custom_build_target_path.as_deref(),
-        ),
+        )
+        .expect("test fixture has a determinate source graph"),
     );
     crate::test_fixtures::install_fake_runner_with_cache(
         &binary_path,

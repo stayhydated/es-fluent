@@ -126,6 +126,13 @@ pub(crate) fn inspect(
 ) -> InspectionOutcome {
     let graph = inspect_source_graph(entry_path, allowed_root, Some(target));
     if let Some(evidence) = graph.evidence {
+        if evidence.execution_uncertain {
+            return InspectionOutcome::Indeterminate(format!(
+                "the matching invocation at {}:{} is under control flow that could not be proven to execute",
+                evidence.location.path.display(),
+                evidence.location.line
+            ));
+        }
         if !evidence.reachable {
             return InspectionOutcome::Indeterminate(format!(
                 "the matching invocation at {}:{} could not be proven reachable from `main`",
@@ -586,12 +593,14 @@ struct IncludeSource {
 struct ImportResolution {
     verified: bool,
     uncertain: bool,
+    shadowed: bool,
 }
 
 impl ImportResolution {
     fn merge(&mut self, other: Self) {
         self.verified |= other.verified;
         self.uncertain |= other.uncertain;
+        self.shadowed |= other.shadowed;
     }
 }
 
@@ -627,7 +636,19 @@ impl<'a> EvidenceVisitor<'a> {
             self.target
                 .is_some_and(|target| target.is_expected_path(path))
         } else {
-            self.scopes.iter().rev().any(|scope| scope.verified)
+            self.scopes
+                .iter()
+                .rev()
+                .find_map(|scope| {
+                    if scope.shadowed || scope.uncertain {
+                        Some(false)
+                    } else if scope.verified {
+                        Some(true)
+                    } else {
+                        None
+                    }
+                })
+                .unwrap_or(false)
         };
         let evidence = MatchedEvidence {
             location: SourceEvidence {
@@ -652,6 +673,12 @@ impl<'a> EvidenceVisitor<'a> {
         self.conditional_depth += usize::from(conditional);
         visit(self);
         self.conditional_depth -= usize::from(conditional);
+    }
+
+    fn visit_execution_uncertain(&mut self, visit: impl FnOnce(&mut Self)) {
+        self.execution_uncertain_depth += 1;
+        visit(self);
+        self.execution_uncertain_depth -= 1;
     }
 }
 
@@ -727,9 +754,66 @@ impl<'ast> syn::visit::Visit<'ast> for EvidenceVisitor<'_> {
     }
 
     fn visit_expr_closure(&mut self, closure: &'ast syn::ExprClosure) {
-        self.execution_uncertain_depth += 1;
-        syn::visit::visit_expr_closure(self, closure);
-        self.execution_uncertain_depth -= 1;
+        self.visit_execution_uncertain(|visitor| {
+            syn::visit::visit_expr_closure(visitor, closure);
+        });
+    }
+
+    fn visit_expr_if(&mut self, expression: &'ast syn::ExprIf) {
+        self.visit_with_attributes(&expression.attrs, |visitor| {
+            visitor.visit_expr(&expression.cond);
+            visitor.visit_execution_uncertain(|visitor| {
+                visitor.visit_block(&expression.then_branch);
+            });
+            if let Some((_, else_branch)) = &expression.else_branch {
+                visitor.visit_execution_uncertain(|visitor| {
+                    visitor.visit_expr(else_branch);
+                });
+            }
+        });
+    }
+
+    fn visit_expr_match(&mut self, expression: &'ast syn::ExprMatch) {
+        self.visit_with_attributes(&expression.attrs, |visitor| {
+            visitor.visit_expr(&expression.expr);
+            for arm in &expression.arms {
+                visitor.visit_execution_uncertain(|visitor| {
+                    visitor.visit_pat(&arm.pat);
+                    visitor.visit_expr(&arm.body);
+                });
+            }
+        });
+    }
+
+    fn visit_expr_while(&mut self, expression: &'ast syn::ExprWhile) {
+        self.visit_with_attributes(&expression.attrs, |visitor| {
+            visitor.visit_expr(&expression.cond);
+            visitor.visit_execution_uncertain(|visitor| {
+                visitor.visit_block(&expression.body);
+            });
+        });
+    }
+
+    fn visit_expr_for_loop(&mut self, expression: &'ast syn::ExprForLoop) {
+        self.visit_with_attributes(&expression.attrs, |visitor| {
+            visitor.visit_expr(&expression.expr);
+            visitor.visit_execution_uncertain(|visitor| {
+                visitor.visit_block(&expression.body);
+            });
+        });
+    }
+
+    fn visit_expr_binary(&mut self, expression: &'ast syn::ExprBinary) {
+        self.visit_with_attributes(&expression.attrs, |visitor| {
+            visitor.visit_expr(&expression.left);
+            if matches!(expression.op, syn::BinOp::And(_) | syn::BinOp::Or(_)) {
+                visitor.visit_execution_uncertain(|visitor| {
+                    visitor.visit_expr(&expression.right);
+                });
+            } else {
+                visitor.visit_expr(&expression.right);
+            }
+        });
     }
 
     fn visit_item_mod(&mut self, module: &'ast syn::ItemMod) {
@@ -802,8 +886,10 @@ fn imports_for_items(items: &[syn::Item], target: Option<SourceTarget>) -> Impor
     items
         .iter()
         .fold(ImportResolution::default(), |mut found, item| {
-            if let syn::Item::Use(item) = item {
-                found.merge(import_resolution(item, target));
+            match item {
+                syn::Item::Use(item) => found.merge(import_resolution(item, target)),
+                item if item_shadows_target(item, target) => found.shadowed = true,
+                _ => {},
             }
             found
         })
@@ -816,11 +902,31 @@ fn imports_for_statements(
     statements
         .iter()
         .fold(ImportResolution::default(), |mut found, statement| {
-            if let syn::Stmt::Item(syn::Item::Use(item)) = statement {
-                found.merge(import_resolution(item, target));
+            if let syn::Stmt::Item(item) = statement {
+                match item {
+                    syn::Item::Use(item) => found.merge(import_resolution(item, target)),
+                    item if item_shadows_target(item, target) => found.shadowed = true,
+                    _ => {},
+                }
             }
             found
         })
+}
+
+fn item_shadows_target(item: &syn::Item, target: Option<SourceTarget>) -> bool {
+    let Some(SourceTarget::Call(target)) = target else {
+        return false;
+    };
+    let ident = match item {
+        syn::Item::Const(item) => Some(&item.ident),
+        syn::Item::Enum(item) => Some(&item.ident),
+        syn::Item::Fn(item) => Some(&item.sig.ident),
+        syn::Item::Static(item) => Some(&item.ident),
+        syn::Item::Struct(item) => Some(&item.ident),
+        syn::Item::Union(item) => Some(&item.ident),
+        _ => None,
+    };
+    ident.is_some_and(|ident| ident == target)
 }
 
 fn import_resolution(item: &syn::ItemUse, target: Option<SourceTarget>) -> ImportResolution {
@@ -1078,6 +1184,42 @@ mod tests {
             ),
             InspectionOutcome::Indeterminate(reason)
                 if reason.contains("could not be proven reachable")
+        ));
+    }
+
+    #[test]
+    fn branch_guarded_build_helper_calls_are_indeterminate() {
+        for source in [
+            "fn main() { if false { es_fluent_build::track_i18n_assets(); } }",
+            "fn main() { match false { true => es_fluent_build::track_i18n_assets(), false => {} } }",
+            "fn main() { while false { es_fluent_build::track_i18n_assets(); } }",
+            "fn main() { false && { es_fluent_build::track_i18n_assets(); true }; }",
+        ] {
+            assert!(matches!(
+                inspect_fixture(
+                    &[("build.rs", source)],
+                    "build.rs",
+                    SourceTarget::Call("track_i18n_assets")
+                ),
+                InspectionOutcome::Indeterminate(reason)
+                    if reason.contains("under control flow that could not be proven to execute")
+            ));
+        }
+    }
+
+    #[test]
+    fn block_local_function_shadowing_build_helper_import_is_indeterminate() {
+        assert!(matches!(
+            inspect_fixture(
+                &[(
+                    "build.rs",
+                    "use es_fluent_build::track_i18n_assets; fn main() { fn track_i18n_assets() {} track_i18n_assets(); }"
+                )],
+                "build.rs",
+                SourceTarget::Call("track_i18n_assets")
+            ),
+            InspectionOutcome::Indeterminate(reason)
+                if reason.contains("could not be resolved to the expected es-fluent dependency")
         ));
     }
 

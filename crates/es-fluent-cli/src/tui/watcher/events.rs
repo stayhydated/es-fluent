@@ -69,6 +69,10 @@ fn build_source_entries(
             crate::source_inspector::reachable_source_graph(build_target, &krate.manifest_dir);
         let crate_name = krate.name.to_string();
 
+        if !graph.indeterminate_reasons.is_empty() {
+            build_source_dirs.push((krate.manifest_dir.to_path_buf(), crate_name.clone()));
+        }
+
         build_sources.extend(
             graph
                 .paths
@@ -132,6 +136,10 @@ pub(super) fn process_file_events(
             }
 
             if path.extension().is_some_and(|ext| ext == "rs") {
+                if let Some(crate_name) = path_to_crate.match_build_source_dir(path) {
+                    affected.insert(crate_name.to_string(), ());
+                    continue;
+                }
                 if let Some(crate_name) = path_to_crate.match_src_path(path) {
                     affected.insert(crate_name.to_string(), ());
                 }
@@ -168,8 +176,15 @@ impl PathToCrateMap {
             event
                 .paths
                 .iter()
-                .any(|path| self.is_build_source_event(path))
+                .any(|path| self.is_build_source_event(path) || self.is_manifest_event(path))
         })
+    }
+
+    pub(super) fn has_manifest_event(&self, events: &[DebouncedEvent]) -> bool {
+        events
+            .iter()
+            .flat_map(|event| &event.paths)
+            .any(|path| self.is_manifest_event(path))
     }
 
     fn is_workspace_root_path(&self, path: &Path) -> bool {
@@ -192,6 +207,27 @@ impl PathToCrateMap {
             .iter()
             .find(|(source, _)| source == path)
             .map(|(_, crate_name)| crate_name.as_str())
+    }
+
+    fn match_build_source_dir(&self, path: &Path) -> Option<&str> {
+        self.build_source_dirs
+            .iter()
+            .find(|(directory, _)| {
+                path.starts_with(directory) && !self.is_generated_build_path(path)
+            })
+            .map(|(_, crate_name)| crate_name.as_str())
+    }
+
+    fn is_manifest_event(&self, path: &Path) -> bool {
+        path.file_name().is_some_and(|name| name == "Cargo.toml")
+            && (self.is_workspace_root_path(path) || self.match_manifest_path(path).is_some())
+    }
+
+    fn is_generated_build_path(&self, path: &Path) -> bool {
+        self.manifest_dirs.iter().any(|(manifest_dir, _)| {
+            path.starts_with(manifest_dir.join("target"))
+                || path.starts_with(manifest_dir.join(".es-fluent"))
+        })
     }
 
     fn is_build_source_event(&self, path: &Path) -> bool {

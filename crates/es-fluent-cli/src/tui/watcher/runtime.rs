@@ -15,35 +15,41 @@ pub(super) struct BuildSourceWatchUpdate {
     pub(super) removed: Vec<PathBuf>,
 }
 
-pub(super) struct WatchRuntime<'a> {
+pub(super) struct WatchRuntime {
     workspace: Arc<WorkspaceInfo>,
     mode: FluentParseMode,
-    valid_crates: Vec<&'a CrateInfo>,
-    crates_by_name: HashMap<String, &'a CrateInfo>,
+    valid_crates: Vec<CrateInfo>,
+    crates_by_name: HashMap<String, CrateInfo>,
     path_to_crate: PathToCrateMap,
     custom_build_dirs: BTreeSet<PathBuf>,
-    observed_hashes: HashMap<String, String>,
-    active_generation_hashes: HashMap<String, String>,
+    observed_hashes: HashMap<String, Option<String>>,
+    active_generation_hashes: HashMap<String, Option<String>>,
     dirty_generating_crates: HashSet<String>,
     generation_handles: HashMap<String, JoinHandle<()>>,
     result_tx: Sender<GenerateResult>,
     result_rx: Receiver<GenerateResult>,
 }
 
-impl<'a> WatchRuntime<'a> {
+impl WatchRuntime {
     pub(super) fn new(
-        crates: &'a [CrateInfo],
+        crates: &[CrateInfo],
         workspace: &WorkspaceInfo,
         mode: &FluentParseMode,
     ) -> Self {
-        let valid_crates: Vec<_> = crates.iter().filter(|krate| krate.has_lib_rs).collect();
-        let path_to_crate = super::events::build_path_to_crate(&valid_crates, &workspace.root_dir);
+        let valid_crates = crates
+            .iter()
+            .filter(|krate| krate.has_lib_rs)
+            .cloned()
+            .collect::<Vec<_>>();
+        let valid_crate_refs = valid_crates.iter().collect::<Vec<_>>();
+        let path_to_crate =
+            super::events::build_path_to_crate(&valid_crate_refs, &workspace.root_dir);
         let custom_build_dirs = path_to_crate.build_source_watch_dirs();
         let mut crates_by_name = HashMap::new();
         let mut observed_hashes = HashMap::new();
 
         for krate in &valid_crates {
-            crates_by_name.insert(krate.name.to_string(), *krate);
+            crates_by_name.insert(krate.name.to_string(), krate.clone());
             observed_hashes.insert(
                 krate.name.to_string(),
                 super::generation::compute_watch_inputs_hash(
@@ -56,10 +62,7 @@ impl<'a> WatchRuntime<'a> {
         }
 
         let (result_tx, result_rx) = crossbeam_channel::unbounded();
-        let runner_crates = valid_crates
-            .iter()
-            .map(|krate| (*krate).clone())
-            .collect::<Vec<_>>();
+        let runner_crates = valid_crates.to_vec();
 
         Self {
             workspace: Arc::new(super::workspace_for_crates(workspace, &runner_crates)),
@@ -77,20 +80,34 @@ impl<'a> WatchRuntime<'a> {
         }
     }
 
-    pub(super) fn valid_crates(&self) -> &[&'a CrateInfo] {
-        &self.valid_crates
+    pub(super) fn valid_crates(&self) -> Vec<&CrateInfo> {
+        self.valid_crates.iter().collect()
     }
 
     pub(super) fn refresh_build_sources_if_needed(
         &mut self,
         events: &[DebouncedEvent],
-    ) -> Option<BuildSourceWatchUpdate> {
+    ) -> anyhow::Result<Option<BuildSourceWatchUpdate>> {
         if !self.path_to_crate.should_refresh_build_sources(events) {
-            return None;
+            return Ok(None);
         }
 
-        self.path_to_crate.refresh_build_sources(&self.valid_crates);
-        let refreshed_dirs = self.path_to_crate.build_source_watch_dirs();
+        if self.path_to_crate.has_manifest_event(events) {
+            self.rediscover_custom_build_targets()?;
+        }
+        let valid_crate_refs = self.valid_crates.iter().collect::<Vec<_>>();
+        self.path_to_crate.refresh_build_sources(&valid_crate_refs);
+        let mut refreshed_dirs = self.path_to_crate.build_source_watch_dirs();
+        refreshed_dirs.extend(
+            self.custom_build_dirs
+                .iter()
+                .filter(|directory| {
+                    self.valid_crates
+                        .iter()
+                        .any(|krate| krate.manifest_dir.as_path() == directory.as_path())
+                })
+                .cloned(),
+        );
         let removed = self
             .custom_build_dirs
             .difference(&refreshed_dirs)
@@ -109,17 +126,18 @@ impl<'a> WatchRuntime<'a> {
             removed: removed.into_iter().collect(),
         };
         self.custom_build_dirs = refreshed_dirs;
-        Some(update)
+        Ok(Some(update))
     }
 
-    #[cfg(test)]
     pub(super) fn affected_crates_for_events(&self, events: &[DebouncedEvent]) -> Vec<String> {
         super::events::process_file_events(events, &self.path_to_crate)
     }
 
     #[cfg(test)]
     pub(super) fn observed_hash(&self, crate_name: &str) -> Option<&str> {
-        self.observed_hashes.get(crate_name).map(String::as_str)
+        self.observed_hashes
+            .get(crate_name)
+            .and_then(Option::as_deref)
     }
 
     pub(super) fn spawn_initial_generations(&mut self, app: &mut TuiApp<'_>) -> bool {
@@ -128,7 +146,7 @@ impl<'a> WatchRuntime<'a> {
         }
 
         for krate in self.valid_crates.clone() {
-            self.start_generation(app, krate, false);
+            self.start_generation(app, &krate, false);
         }
 
         true
@@ -187,9 +205,13 @@ impl<'a> WatchRuntime<'a> {
         Ok(())
     }
 
-    pub(super) fn handle_file_events(&mut self, app: &mut TuiApp<'_>, events: &[DebouncedEvent]) {
-        for crate_name in super::events::process_file_events(events, &self.path_to_crate) {
-            let Some(krate) = self.crates_by_name.get(&crate_name).copied() else {
+    pub(super) fn handle_affected_crates(
+        &mut self,
+        app: &mut TuiApp<'_>,
+        crate_names: impl IntoIterator<Item = String>,
+    ) {
+        for crate_name in crate_names {
+            let Some(krate) = self.crates_by_name.get(&crate_name).cloned() else {
                 continue;
             };
 
@@ -209,7 +231,7 @@ impl<'a> WatchRuntime<'a> {
                 continue;
             }
 
-            self.start_generation(app, krate, true);
+            self.start_generation(app, &krate, true);
         }
     }
 
@@ -243,13 +265,13 @@ impl<'a> WatchRuntime<'a> {
         let rerun_needed = self.finish_generation(crate_name.as_str());
         app.update(Message::GenerationComplete { result });
 
-        if rerun_needed && let Some(krate) = self.crates_by_name.get(crate_name.as_str()).copied() {
-            self.start_generation(app, krate, false);
+        if rerun_needed && let Some(krate) = self.crates_by_name.get(crate_name.as_str()).cloned() {
+            self.start_generation(app, &krate, false);
         }
     }
 
-    fn observe_hash(&mut self, crate_name: &str, new_hash: String) -> bool {
-        if self.observed_hashes.get(crate_name) == Some(&new_hash) {
+    fn observe_hash(&mut self, crate_name: &str, new_hash: Option<String>) -> bool {
+        if new_hash.is_some() && self.observed_hashes.get(crate_name) == Some(&new_hash) {
             return false;
         }
 
@@ -259,7 +281,7 @@ impl<'a> WatchRuntime<'a> {
         if self
             .active_generation_hashes
             .get(crate_name)
-            .is_some_and(|active_hash| active_hash != &new_hash)
+            .is_some_and(|active_hash| new_hash.is_none() || active_hash != &new_hash)
         {
             self.dirty_generating_crates.insert(crate_name.to_string());
         }
@@ -287,6 +309,34 @@ impl<'a> WatchRuntime<'a> {
             _ => false,
         }
     }
+
+    fn rediscover_custom_build_targets(&mut self) -> anyhow::Result<()> {
+        let discovered = crate::utils::discover_workspace_scoped(
+            &self.workspace.root_dir,
+            crate::utils::DiscoveryScope::All,
+        )?;
+        for krate in &mut self.valid_crates {
+            if let Some(refreshed) = discovered
+                .crates
+                .iter()
+                .find(|candidate| candidate.name == krate.name)
+            {
+                krate.custom_build_target_path = refreshed.custom_build_target_path.clone();
+            }
+        }
+        self.crates_by_name = self
+            .valid_crates
+            .iter()
+            .cloned()
+            .map(|krate| (krate.name.to_string(), krate))
+            .collect();
+        self.workspace = Arc::new(WorkspaceInfo {
+            root_dir: self.workspace.root_dir.clone(),
+            target_dir: discovered.target_dir,
+            crates: self.valid_crates.clone(),
+        });
+        Ok(())
+    }
 }
 
 #[cfg(test)]
@@ -313,7 +363,7 @@ mod tests {
         }
     }
 
-    fn test_runtime<'a>(krate: &'a CrateInfo) -> WatchRuntime<'a> {
+    fn test_runtime(krate: &CrateInfo) -> WatchRuntime {
         let workspace = WorkspaceInfo {
             root_dir: PathBuf::from("/tmp/test"),
             target_dir: PathBuf::from("/tmp/test/target"),
@@ -333,15 +383,15 @@ mod tests {
         let mut runtime = test_runtime(&krate);
         runtime
             .observed_hashes
-            .insert(krate.name.to_string(), "hash-a".to_string());
+            .insert(krate.name.to_string(), Some("hash-a".to_string()));
 
         runtime.begin_generation(krate.name.as_str());
         assert_eq!(
             runtime.active_generation_hashes.get(krate.name.as_str()),
-            Some(&"hash-a".to_string())
+            Some(&Some("hash-a".to_string()))
         );
 
-        assert!(runtime.observe_hash(krate.name.as_str(), "hash-b".to_string()));
+        assert!(runtime.observe_hash(krate.name.as_str(), Some("hash-b".to_string())));
         assert!(
             runtime
                 .dirty_generating_crates
@@ -355,10 +405,10 @@ mod tests {
         let mut runtime = test_runtime(&krate);
         runtime
             .observed_hashes
-            .insert(krate.name.to_string(), "hash-a".to_string());
+            .insert(krate.name.to_string(), Some("hash-a".to_string()));
 
         runtime.begin_generation(krate.name.as_str());
-        runtime.observe_hash(krate.name.as_str(), "hash-b".to_string());
+        runtime.observe_hash(krate.name.as_str(), Some("hash-b".to_string()));
 
         assert!(runtime.finish_generation(krate.name.as_str()));
         assert!(

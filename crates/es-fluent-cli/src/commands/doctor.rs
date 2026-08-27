@@ -4,6 +4,7 @@ use crate::source_inspector::{InspectionOutcome, SourceTarget};
 use anstream::println;
 use clap::Args;
 use es_fluent_shared::fluent::FluentDomain;
+use es_fluent_shared::namespace::ResolvedNamespace;
 use es_fluent_shared::resource::{FallbackCatalog, ResourcePlan};
 use es_fluent_toml::ResolvedI18nLayout;
 use serde::Serialize;
@@ -434,7 +435,7 @@ fn diagnose_crate(krate: &CrateInfo, workspace_root: &Path) -> Vec<DoctorCheck> 
             &package,
             "catalog",
             error,
-            "fix fallback FTL syntax or duplicate message/term IDs, then rerun doctor",
+            "fix fallback FTL namespace paths, syntax, or duplicate message/term IDs, then rerun doctor",
         ),
     }
 
@@ -594,14 +595,18 @@ fn fallback_catalog_inputs(layout: &ResolvedI18nLayout, package: &str) -> Result
             layout
                 .available_locale_names()
                 .map_err(|error| error.to_string())?;
-            crate::ftl::discover_domain_ftl_files_in_locale_dir(
+            let resources = crate::ftl::discover_domain_ftl_files_in_locale_dir(
                 &layout.output_dir,
                 &[domain.as_str().to_string()],
             )
-            .map_err(|error| error.to_string())?
-            .into_iter()
-            .map(|resource| resource.abs_path)
-            .collect::<Vec<_>>()
+            .map_err(|error| error.to_string())?;
+            for resource in &resources {
+                validate_discovered_namespace(&resource.relative_path, &domain)?;
+            }
+            resources
+                .into_iter()
+                .map(|resource| resource.abs_path)
+                .collect::<Vec<_>>()
         } else {
             let plans = ResourcePlan::sparse_from_assets(domain.as_str(), &layout.assets_dir)
                 .map_err(|error| error.to_string())?;
@@ -636,6 +641,36 @@ fn fallback_catalog_inputs(layout: &ResolvedI18nLayout, package: &str) -> Result
     }
 
     Ok(resource_count)
+}
+
+fn validate_discovered_namespace(
+    locale_relative_path: &Path,
+    domain: &FluentDomain,
+) -> Result<(), String> {
+    let Ok(namespaced_path) = locale_relative_path.strip_prefix(domain.as_str()) else {
+        return Ok(());
+    };
+    let namespace_path = namespaced_path.with_extension("");
+    let namespace = namespace_path
+        .components()
+        .map(|component| {
+            component.as_os_str().to_str().ok_or_else(|| {
+                format!(
+                    "namespace path {} contains non-UTF-8 components",
+                    namespace_path.display()
+                )
+            })
+        })
+        .collect::<Result<Vec<_>, _>>()?
+        .join("/");
+    ResolvedNamespace::new(namespace.clone()).map_err(|error| {
+        format!(
+            "discovered invalid namespace '{namespace}' in fallback resource {} for domain '{}': {error}",
+            locale_relative_path.display(),
+            domain.as_str()
+        )
+    })?;
+    Ok(())
 }
 
 fn assets_dir_is_manifest_root(layout: &ResolvedI18nLayout) -> bool {
@@ -859,5 +894,25 @@ manager = { workspace = true, features = ["ssr"] }
             fallback_catalog_inputs(&layout, "test-app").expect("catalog"),
             1
         );
+    }
+
+    #[test]
+    fn fallback_catalog_inputs_reject_invalid_namespace_in_crate_root_assets() {
+        let temp = tempfile::tempdir().expect("tempdir");
+        fs::create_dir_all(temp.path().join("en/test-app")).expect("create namespace dir");
+        fs::write(
+            temp.path().join("i18n.toml"),
+            "fallback_language = \"en\"\nassets_dir = \".\"\n",
+        )
+        .expect("write config");
+        fs::write(temp.path().join("en/test-app/ bad .ftl"), "hello = Hello\n")
+            .expect("write fallback resource");
+        let layout =
+            ResolvedI18nLayout::from_config_path(temp.path().join("i18n.toml")).expect("layout");
+
+        let error = fallback_catalog_inputs(&layout, "test-app")
+            .expect_err("invalid namespace should fail doctor catalog validation");
+        assert!(error.contains("discovered invalid namespace ' bad '"));
+        assert!(error.contains("leading or trailing whitespace"));
     }
 }

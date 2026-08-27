@@ -67,7 +67,7 @@ pub fn resolve_crate_path(package_name: &str, fallback_crate_ident: &str) -> Tok
 #[derive(Clone, Debug)]
 enum FallbackCatalog {
     Unconfigured,
-    InventoryRunner,
+    CoverageExempt,
     ConfigurationError {
         package: String,
         path: String,
@@ -134,7 +134,7 @@ impl FallbackValidation {
         source_name: &str,
     ) -> Option<String> {
         match &self.catalog {
-            FallbackCatalog::Unconfigured | FallbackCatalog::InventoryRunner => None,
+            FallbackCatalog::Unconfigured | FallbackCatalog::CoverageExempt => None,
             FallbackCatalog::ConfigurationError {
                 package,
                 path,
@@ -208,10 +208,12 @@ pub fn fallback_validation() -> FallbackValidation {
             },
         };
     }
-    if std::env::var_os(INVENTORY_RUNNER_ENV).is_some() {
+    if std::env::var_os(INVENTORY_RUNNER_ENV).is_some()
+        || std::env::var_os("UNSTABLE_RUSTDOC_TEST_PATH").is_some()
+    {
         return FallbackValidation {
             policy,
-            catalog: FallbackCatalog::InventoryRunner,
+            catalog: FallbackCatalog::CoverageExempt,
         };
     }
 
@@ -335,5 +337,39 @@ pub fn core_error_to_compile_error(error: EsFluentCoreError) -> TokenStream {
     match error.span() {
         Some(span) => quote_spanned! { span=> compile_error!(#message); },
         None => quote! { compile_error!(#message); },
+    }
+}
+
+#[cfg(test)]
+#[serial_test::serial(manifest)]
+mod tests {
+    use super::*;
+    use std::ffi::OsStr;
+
+    #[test]
+    fn rustdoc_synthetic_crate_bypasses_strict_fallback_coverage() {
+        let temp = tempfile::tempdir().expect("tempdir");
+        std::fs::write(
+            temp.path().join("i18n.toml"),
+            "fallback_language = \"en\"\nassets_dir = \"i18n\"\n",
+        )
+        .expect("write config");
+        let id = FluentMessageId::try_new("doctest_only").expect("valid message id");
+
+        temp_env::with_vars(
+            [
+                ("CARGO_MANIFEST_DIR", Some(temp.path().as_os_str())),
+                ("CARGO_PKG_NAME", Some(OsStr::new("test-package"))),
+                (INVENTORY_RUNNER_ENV, None),
+                (FALLBACK_CATALOG_ENV, None),
+                ("UNSTABLE_RUSTDOC_TEST_PATH", Some(OsStr::new("doctest.rs"))),
+            ],
+            || {
+                assert_eq!(
+                    fallback_validation().diagnostic(None, &id, "DoctestOnly"),
+                    None
+                );
+            },
+        );
     }
 }

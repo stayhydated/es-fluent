@@ -11,7 +11,7 @@ pub(super) fn compute_watch_inputs_hash(
     src_dir: &Path,
     i18n_config_path: &Path,
     custom_build_target_path: Option<&Path>,
-) -> String {
+) -> Option<String> {
     crate::generation::cache::compute_crate_inputs_hash(
         manifest_dir,
         src_dir,

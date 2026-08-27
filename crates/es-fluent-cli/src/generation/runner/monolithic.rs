@@ -57,12 +57,14 @@ impl<'a> MonolithicRunner<'a> {
         let mut current_hashes = indexmap::IndexMap::new();
         for krate in &self.workspace.crates {
             if krate.src_dir.exists() {
-                let hash = crate::generation::cache::compute_crate_inputs_hash(
+                let Some(hash) = crate::generation::cache::compute_crate_inputs_hash(
                     &krate.manifest_dir,
                     &krate.src_dir,
                     Some(&krate.i18n_config_path),
                     krate.custom_build_target_path.as_deref(),
-                );
+                ) else {
+                    return true;
+                };
                 current_hashes.insert(krate.name.clone(), hash);
             }
         }
@@ -440,12 +442,14 @@ fn write_runner_cache(runner: &MonolithicRunner<'_>) {
         let mut crate_hashes = indexmap::IndexMap::new();
         for krate in &runner.workspace.crates {
             if krate.src_dir.exists() {
-                let hash = crate::generation::cache::compute_crate_inputs_hash(
+                let Some(hash) = crate::generation::cache::compute_crate_inputs_hash(
                     &krate.manifest_dir,
                     &krate.src_dir,
                     Some(&krate.i18n_config_path),
                     krate.custom_build_target_path.as_deref(),
-                );
+                ) else {
+                    return;
+                };
                 crate_hashes.insert(krate.name.clone(), hash);
             }
         }

@@ -68,8 +68,9 @@ fn hash_reachable_build_sources(
     hasher: &mut blake3::Hasher,
     manifest_dir: &Path,
     build_target_path: &Path,
-) {
+) -> bool {
     let graph = crate::source_inspector::reachable_source_graph(build_target_path, manifest_dir);
+    let cacheable = graph.indeterminate_reasons.is_empty();
     for path in graph.paths {
         let label = path
             .strip_prefix(manifest_dir)
@@ -77,6 +78,7 @@ fn hash_reachable_build_sources(
             .to_slash_lossy();
         hash_optional_file(hasher, &format!("custom-build:{label}"), &path);
     }
+    cacheable
 }
 
 /// Cache of cargo metadata results.
@@ -134,12 +136,15 @@ impl MetadataCache {
 /// - `i18n.toml` when present
 /// - crate-local `Cargo.toml`
 /// - the Cargo-selected custom-build target and its reachable local modules
+///
+/// Returns `None` when the selected custom-build source graph cannot be determined
+/// statically, so callers can avoid reusing a potentially stale fingerprint.
 pub fn compute_crate_inputs_hash(
     manifest_dir: &Path,
     src_dir: &Path,
     i18n_toml_path: Option<&Path>,
     custom_build_target_path: Option<&Path>,
-) -> String {
+) -> Option<String> {
     use blake3::Hasher;
 
     let mut hasher = Hasher::new();
@@ -157,11 +162,13 @@ pub fn compute_crate_inputs_hash(
     }
 
     hash_optional_file(&mut hasher, "Cargo.toml", &manifest_dir.join("Cargo.toml"));
-    if let Some(build_target_path) = custom_build_target_path {
-        hash_reachable_build_sources(&mut hasher, manifest_dir, build_target_path);
+    if custom_build_target_path.is_some_and(|build_target_path| {
+        !hash_reachable_build_sources(&mut hasher, manifest_dir, build_target_path)
+    }) {
+        return None;
     }
 
-    hasher.finalize().to_hex().to_string()
+    Some(hasher.finalize().to_hex().to_string())
 }
 
 /// Compute blake3 hash of workspace-level inputs that affect the monolithic runner crate.
@@ -388,6 +395,30 @@ mod tests {
         .unwrap();
         let third = compute_crate_inputs_hash(temp_dir.path(), &src_dir, None, Some(&build_target));
         assert_eq!(second, third);
+    }
+
+    #[test]
+    fn test_compute_crate_inputs_hash_is_uncacheable_for_indeterminate_build_graph() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let src_dir = temp_dir.path().join("src");
+        fs::create_dir_all(&src_dir).unwrap();
+        fs::write(src_dir.join("lib.rs"), "pub struct App;\n").unwrap();
+        let build_target = temp_dir.path().join("build.rs");
+        fs::write(
+            &build_target,
+            "include!(concat!(env!(\"CARGO_MANIFEST_DIR\"), \"/support.rs\"));\nfn main() {}\n",
+        )
+        .unwrap();
+        fs::write(
+            temp_dir.path().join("support.rs"),
+            "pub fn configure() {}\n",
+        )
+        .unwrap();
+
+        assert_eq!(
+            compute_crate_inputs_hash(temp_dir.path(), &src_dir, None, Some(&build_target)),
+            None
+        );
     }
 
     #[test]

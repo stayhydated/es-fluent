@@ -1100,7 +1100,8 @@ mod tests {
                 &krate.src_dir,
                 Some(&krate.i18n_config_path),
                 krate.custom_build_target_path.as_deref(),
-            ),
+            )
+            .expect("test fixture has a determinate source graph"),
         );
         crate::test_fixtures::install_fake_runner_with_cache(
             &binary_path,
@@ -1238,7 +1239,8 @@ mod tests {
                         &krate.src_dir,
                         Some(&krate.i18n_config_path),
                         krate.custom_build_target_path.as_deref(),
-                    ),
+                    )
+                    .expect("test fixture has a determinate source graph"),
                 )
             })
             .collect();

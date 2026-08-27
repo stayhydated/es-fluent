@@ -98,8 +98,8 @@ fn run_watch_loop_with_poll<B: Backend>(
 ) -> Result<()> {
     let mut app = TuiApp::new(crates);
     let mut runtime = WatchRuntime::new(crates, workspace, mode);
-    let (mut debouncer, file_rx) =
-        configure_file_watcher(runtime.valid_crates(), &workspace.root_dir)?;
+    let valid_crates = runtime.valid_crates();
+    let (mut debouncer, file_rx) = configure_file_watcher(&valid_crates, &workspace.root_dir)?;
     run_watch_loop_with_runtime(
         terminal,
         &mut app,
@@ -137,7 +137,7 @@ fn run_watch_loop_with_file_rx<B: Backend>(
 fn run_watch_loop_with_runtime<B: Backend>(
     terminal: &mut Terminal<B>,
     app: &mut TuiApp,
-    runtime: &mut WatchRuntime<'_>,
+    runtime: &mut WatchRuntime,
     file_rx: Receiver<DebounceEventResult>,
     mut debouncer: Option<&mut FileDebouncer>,
     poll_quit: fn(Duration) -> std::io::Result<bool>,
@@ -200,17 +200,20 @@ fn run_watch_loop_with_runtime<B: Backend>(
 
 fn handle_watch_events(
     app: &mut TuiApp,
-    runtime: &mut WatchRuntime<'_>,
+    runtime: &mut WatchRuntime,
     events: &[notify_debouncer_full::DebouncedEvent],
     debouncer: Option<&mut FileDebouncer>,
 ) -> Result<()> {
-    runtime.handle_file_events(app, events);
-    if let Some(update) = runtime.refresh_build_sources_if_needed(events) {
+    let mut affected_crates = runtime.affected_crates_for_events(events);
+    if let Some(update) = runtime.refresh_build_sources_if_needed(events)? {
         if let Some(debouncer) = debouncer {
             update_custom_build_watches(debouncer, update)?;
         }
-        runtime.handle_file_events(app, events);
+        affected_crates.extend(runtime.affected_crates_for_events(events));
     }
+    affected_crates.sort();
+    affected_crates.dedup();
+    runtime.handle_affected_crates(app, affected_crates);
     Ok(())
 }
 
@@ -228,18 +231,32 @@ fn configure_file_watcher(
         .with_context(|| format!("Failed to watch {}", workspace_root.display()))?;
 
     let path_to_crate = events::build_path_to_crate(valid_crates, workspace_root);
+    let custom_build_dirs = path_to_crate.build_source_watch_dirs();
     for krate in valid_crates {
         debouncer
             .watch(&krate.src_dir, RecursiveMode::Recursive)
             .with_context(|| format!("Failed to watch {}", krate.src_dir.display()))?;
 
         debouncer
-            .watch(&krate.manifest_dir, RecursiveMode::NonRecursive)
+            .watch(
+                &krate.manifest_dir,
+                if custom_build_dirs.contains(krate.manifest_dir.as_path()) {
+                    RecursiveMode::Recursive
+                } else {
+                    RecursiveMode::NonRecursive
+                },
+            )
             .with_context(|| format!("Failed to watch {}", krate.manifest_dir.display()))?;
     }
-    for directory in path_to_crate.build_source_watch_dirs() {
+    for directory in custom_build_dirs {
+        if valid_crates
+            .iter()
+            .any(|krate| krate.manifest_dir.as_path() == directory)
+        {
+            continue;
+        }
         debouncer
-            .watch(&directory, RecursiveMode::NonRecursive)
+            .watch(&directory, RecursiveMode::Recursive)
             .with_context(|| format!("Failed to watch {}", directory.display()))?;
     }
 
@@ -269,7 +286,7 @@ fn update_custom_build_watches(
         .collect::<BTreeSet<_>>();
     for directory in directories_to_watch {
         debouncer
-            .watch(&directory, RecursiveMode::NonRecursive)
+            .watch(&directory, RecursiveMode::Recursive)
             .with_context(|| format!("Failed to watch {}", directory.display()))?;
     }
     Ok(())
