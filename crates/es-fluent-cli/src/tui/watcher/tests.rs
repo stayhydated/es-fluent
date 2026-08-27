@@ -138,6 +138,146 @@ fn process_file_events_matches_custom_build_target_and_reachable_module() {
 }
 
 #[test]
+fn watcher_refreshes_custom_build_graph_and_directories_after_target_edit() {
+    let temp = tempfile::tempdir().expect("tempdir");
+    let src_dir = temp.path().join("src");
+    fs::create_dir_all(&src_dir).expect("create src");
+    fs::write(src_dir.join("lib.rs"), "pub struct Demo;\n").expect("write lib");
+
+    let build_target = temp.path().join("build.rs");
+    fs::write(&build_target, "fn main() {}\n").expect("write build target");
+    let i18n_toml = temp.path().join("i18n.toml");
+    crate::test_fixtures::toml_helpers::write_toml(&i18n_toml, &i18n_config("en", None, None));
+
+    let krate = CrateInfo {
+        name: es_fluent_runner::PackageName::try_new("watch-crate").expect("valid package name"),
+        manifest_dir: crate::core::ManifestDir::from_discovered(temp.path().to_path_buf()),
+        src_dir: crate::core::SourceDir::from_discovered(src_dir),
+        library_target_path: None,
+        custom_build_target_path: Some(crate::core::CustomBuildTargetPath::from_discovered(
+            build_target.clone(),
+        )),
+        i18n_config_path: crate::core::DiscoveredI18nConfigPath::from_discovered(i18n_toml),
+        ftl_output_dir: crate::core::DiscoveredFtlOutputDir::from_discovered(
+            temp.path().join("i18n/en"),
+        ),
+        has_lib_rs: true,
+        fluent_features: Vec::new(),
+    };
+    let workspace = WorkspaceInfo {
+        root_dir: temp.path().to_path_buf(),
+        target_dir: temp.path().join("target"),
+        crates: vec![krate.clone()],
+    };
+    let mut runtime = super::runtime::WatchRuntime::new(
+        std::slice::from_ref(&krate),
+        &workspace,
+        &FluentParseMode::default(),
+    );
+
+    let support_dir = temp.path().join("support");
+    let helper = support_dir.join("helper.rs");
+    fs::create_dir_all(&support_dir).expect("create support directory");
+    fs::write(
+        &build_target,
+        "#[path = \"support/helper.rs\"] mod helper; fn main() { helper::run(); }\n",
+    )
+    .expect("add reachable helper");
+    fs::write(&helper, "pub fn run() {}\n").expect("write helper");
+
+    let build_target = build_target.canonicalize().expect("canonical build target");
+    let update = runtime
+        .refresh_build_sources_if_needed(&[event_with_path(&build_target)])
+        .expect("build target edits should refresh the source graph");
+    assert_eq!(update.added, vec![support_dir]);
+    assert!(update.removed.is_empty());
+
+    let helper = helper.canonicalize().expect("canonical helper");
+    assert_eq!(
+        runtime.affected_crates_for_events(&[event_with_path(&helper)]),
+        vec!["watch-crate".to_string()]
+    );
+}
+
+#[test]
+fn watcher_classifies_deleted_reachable_helper_before_refreshing_graph() {
+    let temp = tempfile::tempdir().expect("tempdir");
+    let src_dir = temp.path().join("src");
+    fs::create_dir_all(&src_dir).expect("create src");
+    fs::write(src_dir.join("lib.rs"), "pub struct Demo;\n").expect("write lib");
+
+    let support_dir = temp.path().join("support");
+    fs::create_dir_all(&support_dir).expect("create support directory");
+    let build_target = support_dir.join("i18n.rs");
+    let helper = support_dir.join("helper.rs");
+    fs::write(&build_target, "mod helper; fn main() { helper::run(); }\n")
+        .expect("write build target");
+    fs::write(&helper, "pub fn run() {}\n").expect("write helper");
+
+    let i18n_toml = temp.path().join("i18n.toml");
+    crate::test_fixtures::toml_helpers::write_toml(&i18n_toml, &i18n_config("en", None, None));
+    let krate = CrateInfo {
+        name: es_fluent_runner::PackageName::try_new("watch-crate").expect("valid package name"),
+        manifest_dir: crate::core::ManifestDir::from_discovered(temp.path().to_path_buf()),
+        src_dir: crate::core::SourceDir::from_discovered(src_dir),
+        library_target_path: None,
+        custom_build_target_path: Some(crate::core::CustomBuildTargetPath::from_discovered(
+            build_target,
+        )),
+        i18n_config_path: crate::core::DiscoveredI18nConfigPath::from_discovered(i18n_toml),
+        ftl_output_dir: crate::core::DiscoveredFtlOutputDir::from_discovered(
+            temp.path().join("i18n/en"),
+        ),
+        has_lib_rs: true,
+        fluent_features: Vec::new(),
+    };
+    let workspace = WorkspaceInfo {
+        root_dir: temp.path().to_path_buf(),
+        target_dir: temp.path().join("target"),
+        crates: vec![krate.clone()],
+    };
+    let mut runtime = super::runtime::WatchRuntime::new(
+        std::slice::from_ref(&krate),
+        &workspace,
+        &FluentParseMode::default(),
+    );
+    let helper = helper.canonicalize().expect("canonical helper");
+    let helper_event = event_with_path(&helper);
+    let initial_hash = runtime
+        .observed_hash("watch-crate")
+        .expect("watch hash")
+        .to_string();
+
+    assert_eq!(
+        runtime.affected_crates_for_events(std::slice::from_ref(&helper_event)),
+        vec!["watch-crate".to_string()]
+    );
+    fs::remove_file(&helper).expect("remove helper");
+
+    let mut app = crate::tui::TuiApp::new(std::slice::from_ref(&krate));
+    super::handle_watch_events(
+        &mut app,
+        &mut runtime,
+        std::slice::from_ref(&helper_event),
+        None,
+    )
+    .expect("deleting a reachable helper should refresh the source graph");
+    assert_ne!(
+        runtime.observed_hash("watch-crate"),
+        Some(initial_hash.as_str())
+    );
+    assert!(
+        runtime
+            .affected_crates_for_events(std::slice::from_ref(&helper_event))
+            .is_empty(),
+        "the deleted helper is absent from the refreshed graph; the old graph must classify its event first"
+    );
+    runtime
+        .finish_pending_generations(&mut app)
+        .expect("join generation triggered by the deleted helper");
+}
+
+#[test]
 fn process_file_events_ignores_cargo_target_for_root_source_crates() {
     let root_source_crate = CrateInfo {
         name: es_fluent_runner::PackageName::try_new("root-source").expect("valid package name"),
@@ -654,6 +794,21 @@ fn configure_file_watcher_reports_invalid_manifest_watch_root() {
     let err = super::configure_file_watcher(&[&krate], temp.path())
         .expect_err("missing manifest watch root should fail watcher setup");
     assert!(err.to_string().contains("Failed to watch"));
+}
+
+#[test]
+fn update_custom_build_watches_tolerates_an_already_removed_watch() {
+    let (file_tx, _file_rx) = crossbeam_channel::unbounded();
+    let mut debouncer =
+        notify_debouncer_full::new_debouncer(Duration::from_millis(10), None, file_tx)
+            .expect("create debouncer");
+    let update = super::runtime::BuildSourceWatchUpdate {
+        removed: vec![PathBuf::from("/missing/es-fluent-build-watch")],
+        ..Default::default()
+    };
+
+    super::update_custom_build_watches(&mut debouncer, update)
+        .expect("an OS-removed watch should not stop watch mode");
 }
 
 #[test]

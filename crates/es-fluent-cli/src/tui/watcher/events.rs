@@ -1,7 +1,7 @@
 use crate::core::CrateInfo;
 use indexmap::IndexMap;
 use notify_debouncer_full::DebouncedEvent;
-use std::collections::HashMap;
+use std::collections::{BTreeSet, HashMap};
 use std::path::{Path, PathBuf};
 
 pub(super) struct PathToCrateMap {
@@ -10,6 +10,7 @@ pub(super) struct PathToCrateMap {
     manifest_dirs: Vec<(PathBuf, String)>,
     src_dirs: Vec<SourceDirMatch>,
     build_sources: Vec<(PathBuf, String)>,
+    build_source_dirs: Vec<(PathBuf, String)>,
     i18n_configs: IndexMap<PathBuf, String>,
 }
 
@@ -25,6 +26,8 @@ pub(super) fn build_path_to_crate(
     valid_crates: &[&CrateInfo],
     workspace_root: &Path,
 ) -> PathToCrateMap {
+    let (build_sources, build_source_dirs) = build_source_entries(valid_crates);
+
     PathToCrateMap {
         workspace_root: workspace_root.to_path_buf(),
         workspace_crates: valid_crates
@@ -43,26 +46,49 @@ pub(super) fn build_path_to_crate(
                 crate_name: krate.name.to_string(),
             })
             .collect(),
-        build_sources: valid_crates
-            .iter()
-            .flat_map(|krate| {
-                krate
-                    .custom_build_target_path
-                    .as_ref()
-                    .map(|path| {
-                        crate::source_inspector::reachable_source_graph(path, &krate.manifest_dir)
-                            .paths
-                    })
-                    .unwrap_or_default()
-                    .into_iter()
-                    .map(|path| (path, krate.name.to_string()))
-            })
-            .collect(),
+        build_sources,
+        build_source_dirs,
         i18n_configs: valid_crates
             .iter()
             .map(|krate| (krate.i18n_config_path.to_path_buf(), krate.name.to_string()))
             .collect(),
     }
+}
+
+fn build_source_entries(
+    valid_crates: &[&CrateInfo],
+) -> (Vec<(PathBuf, String)>, Vec<(PathBuf, String)>) {
+    let mut build_sources = Vec::new();
+    let mut build_source_dirs = Vec::new();
+
+    for krate in valid_crates {
+        let Some(build_target) = &krate.custom_build_target_path else {
+            continue;
+        };
+        let graph =
+            crate::source_inspector::reachable_source_graph(build_target, &krate.manifest_dir);
+        let crate_name = krate.name.to_string();
+
+        build_sources.extend(
+            graph
+                .paths
+                .iter()
+                .cloned()
+                .map(|path| (path, crate_name.clone())),
+        );
+        build_source_dirs.extend(graph.paths.into_iter().filter_map(|source| {
+            if source.starts_with(&krate.src_dir)
+                || source.parent() == Some(krate.manifest_dir.as_path())
+            {
+                return None;
+            }
+            source
+                .parent()
+                .map(|parent| (parent.to_path_buf(), crate_name.clone()))
+        }));
+    }
+
+    (build_sources, build_source_dirs)
 }
 
 /// Process file events and return the set of affected crate names.
@@ -124,6 +150,28 @@ pub(super) fn process_file_events(
 }
 
 impl PathToCrateMap {
+    pub(super) fn refresh_build_sources(&mut self, valid_crates: &[&CrateInfo]) {
+        let (build_sources, build_source_dirs) = build_source_entries(valid_crates);
+        self.build_sources = build_sources;
+        self.build_source_dirs = build_source_dirs;
+    }
+
+    pub(super) fn build_source_watch_dirs(&self) -> BTreeSet<PathBuf> {
+        self.build_source_dirs
+            .iter()
+            .map(|(directory, _)| directory.clone())
+            .collect()
+    }
+
+    pub(super) fn should_refresh_build_sources(&self, events: &[DebouncedEvent]) -> bool {
+        events.iter().any(|event| {
+            event
+                .paths
+                .iter()
+                .any(|path| self.is_build_source_event(path))
+        })
+    }
+
     fn is_workspace_root_path(&self, path: &Path) -> bool {
         path.parent() == Some(self.workspace_root.as_path())
     }
@@ -144,6 +192,14 @@ impl PathToCrateMap {
             .iter()
             .find(|(source, _)| source == path)
             .map(|(_, crate_name)| crate_name.as_str())
+    }
+
+    fn is_build_source_event(&self, path: &Path) -> bool {
+        self.match_build_source(path).is_some()
+            || self
+                .build_source_dirs
+                .iter()
+                .any(|(directory, _)| path.starts_with(directory))
     }
 
     fn match_src_path(&self, path: &Path) -> Option<&str> {

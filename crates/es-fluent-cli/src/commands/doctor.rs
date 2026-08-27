@@ -101,7 +101,14 @@ struct DependencySpec {
 #[derive(Debug, Default)]
 struct ManifestSummary {
     build_helper: bool,
+    conditional_build_helpers: Vec<ConditionalDependency>,
     managers: Vec<DependencySpec>,
+}
+
+#[derive(Clone, Debug)]
+struct ConditionalDependency {
+    target: String,
+    package: String,
 }
 
 pub fn run_doctor(args: DoctorArgs) -> Result<(), CliError> {
@@ -232,6 +239,22 @@ fn diagnose_crate(krate: &CrateInfo, workspace_root: &Path) -> Vec<DoctorCheck> 
             &package,
             "build_dependency",
             "es-fluent-build is declared under build-dependencies",
+        );
+    } else if !manifest.conditional_build_helpers.is_empty() {
+        let targets = manifest
+            .conditional_build_helpers
+            .iter()
+            .map(|dependency| format!("`{}`", dependency.target))
+            .collect::<Vec<_>>()
+            .join(", ");
+        warn(
+            &mut checks,
+            &package,
+            "build_dependency",
+            format!(
+                "es-fluent-build is declared only under target-specific build-dependencies whose active state could not be proven: {targets}"
+            ),
+            "declare es-fluent-build under [build-dependencies] or verify the active Cargo target and target condition",
         );
     } else {
         fail(
@@ -431,9 +454,10 @@ fn manifest_summary(path: &Path, workspace_root: &Path) -> Result<ManifestSummar
         .and_then(|manifest| manifest.get("workspace"))
         .and_then(|workspace| workspace.get("dependencies"))
         .and_then(toml::Value::as_table);
-    let normal_dependencies = dependency_specs(&manifest, "dependencies", workspace_dependencies);
-    let build_dependencies =
-        dependency_specs(&manifest, "build-dependencies", workspace_dependencies);
+    let normal_dependencies =
+        dependency_specs_for_target(&manifest, "dependencies", workspace_dependencies).0;
+    let (build_dependencies, conditional_build_helpers) =
+        dependency_specs_for_target(&manifest, "build-dependencies", workspace_dependencies);
     let managers = normal_dependencies
         .iter()
         .filter(|dependency| {
@@ -450,23 +474,53 @@ fn manifest_summary(path: &Path, workspace_root: &Path) -> Result<ManifestSummar
         build_helper: build_dependencies
             .iter()
             .any(|dependency| dependency.package == "es-fluent-build"),
+        conditional_build_helpers: conditional_build_helpers
+            .into_iter()
+            .filter(|dependency| dependency.package == "es-fluent-build")
+            .collect(),
         managers,
     })
 }
 
+#[cfg(test)]
 fn dependency_specs(
     manifest: &toml::Value,
     table_name: &str,
     workspace_dependencies: Option<&toml::Table>,
 ) -> Vec<DependencySpec> {
+    dependency_specs_for_target(manifest, table_name, workspace_dependencies).0
+}
+
+fn dependency_specs_for_target(
+    manifest: &toml::Value,
+    table_name: &str,
+    workspace_dependencies: Option<&toml::Table>,
+) -> (Vec<DependencySpec>, Vec<ConditionalDependency>) {
     let mut specs = Vec::new();
+    let mut conditional = Vec::new();
     collect_dependency_table(manifest.get(table_name), workspace_dependencies, &mut specs);
     if let Some(targets) = manifest.get("target").and_then(toml::Value::as_table) {
-        for target in targets.values() {
-            collect_dependency_table(target.get(table_name), workspace_dependencies, &mut specs);
+        for (target_name, target) in targets {
+            let mut target_specs = Vec::new();
+            collect_dependency_table(
+                target.get(table_name),
+                workspace_dependencies,
+                &mut target_specs,
+            );
+            if target_specs.is_empty() {
+                continue;
+            }
+            conditional.extend(
+                target_specs
+                    .into_iter()
+                    .map(|dependency| ConditionalDependency {
+                        target: target_name.clone(),
+                        package: dependency.package,
+                    }),
+            );
         }
     }
-    specs
+    (specs, conditional)
 }
 
 fn collect_dependency_table(
@@ -532,19 +586,43 @@ fn fallback_catalog_inputs(layout: &ResolvedI18nLayout, package: &str) -> Result
     let mut resource_count = 0;
 
     for domain in domains {
-        let plans = ResourcePlan::sparse_from_assets(domain.as_str(), &layout.assets_dir)
-            .map_err(|error| error.to_string())?;
-        let Some((_, resources)) = plans
-            .resource_specs_by_language()
-            .iter()
-            .find(|(language, _)| language == &layout.config.fallback_language)
-        else {
-            continue;
+        let paths = if assets_dir_is_manifest_root(layout) {
+            // `sparse_from_assets` treats every directory as a locale. Root
+            // assets intentionally share the crate root with ordinary Cargo
+            // directories, so use the CLI's package-owned resource discovery
+            // after the config layer has filtered locale candidates.
+            layout
+                .available_locale_names()
+                .map_err(|error| error.to_string())?;
+            crate::ftl::discover_domain_ftl_files_in_locale_dir(
+                &layout.output_dir,
+                &[domain.as_str().to_string()],
+            )
+            .map_err(|error| error.to_string())?
+            .into_iter()
+            .map(|resource| resource.abs_path)
+            .collect::<Vec<_>>()
+        } else {
+            let plans = ResourcePlan::sparse_from_assets(domain.as_str(), &layout.assets_dir)
+                .map_err(|error| error.to_string())?;
+            let Some((_, resources)) = plans
+                .resource_specs_by_language()
+                .iter()
+                .find(|(language, _)| language == &layout.config.fallback_language)
+            else {
+                continue;
+            };
+            resources
+                .iter()
+                .map(|resource| {
+                    layout
+                        .output_dir
+                        .join(resource.locale_relative_path.as_str())
+                })
+                .collect::<Vec<_>>()
         };
-        for resource in resources {
-            let path = layout
-                .output_dir
-                .join(resource.locale_relative_path.as_str());
+
+        for path in paths {
             let source = std::fs::read_to_string(&path)
                 .map_err(|error| format!("failed to read {}: {error}", path.display()))?;
             catalog.insert_source(&domain, source).map_err(|error| {
@@ -558,6 +636,16 @@ fn fallback_catalog_inputs(layout: &ResolvedI18nLayout, package: &str) -> Result
     }
 
     Ok(resource_count)
+}
+
+fn assets_dir_is_manifest_root(layout: &ResolvedI18nLayout) -> bool {
+    match (
+        layout.manifest_dir.canonicalize(),
+        layout.assets_dir.canonicalize(),
+    ) {
+        (Ok(manifest_dir), Ok(assets_dir)) => manifest_dir == assets_dir,
+        _ => false,
+    }
 }
 
 fn render_report(report: &DoctorReport, output: OutputFormat) -> Result<(), CliError> {
@@ -653,6 +741,7 @@ fn relative_message(message: &str, root: &Path) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::fs;
 
     #[test]
     fn dependency_specs_support_aliases_and_manager_features() {
@@ -726,5 +815,49 @@ manager = { workspace = true, features = ["ssr"] }
         let report = DoctorReport::new(0, vec!["missing config".to_string()], Vec::new());
         assert!(!report.healthy);
         assert_eq!(report.error_count, 1);
+    }
+
+    #[test]
+    fn fallback_catalog_inputs_ignore_crate_root_project_directories() {
+        let temp = tempfile::tempdir().expect("tempdir");
+        fs::create_dir_all(temp.path().join("en")).expect("create locale");
+        fs::create_dir_all(temp.path().join("src")).expect("create src");
+        fs::create_dir_all(temp.path().join("target")).expect("create target");
+        fs::write(
+            temp.path().join("i18n.toml"),
+            "fallback_language = \"en\"\nassets_dir = \".\"\n",
+        )
+        .expect("write config");
+        fs::write(temp.path().join("en/test-app.ftl"), "hello = Hello\n")
+            .expect("write fallback resource");
+        let layout =
+            ResolvedI18nLayout::from_config_path(temp.path().join("i18n.toml")).expect("layout");
+
+        assert_eq!(
+            fallback_catalog_inputs(&layout, "test-app").expect("catalog"),
+            1
+        );
+    }
+
+    #[test]
+    fn fallback_catalog_inputs_recognize_normalized_crate_root_assets() {
+        let temp = tempfile::tempdir().expect("tempdir");
+        fs::create_dir(temp.path().join("locale")).expect("create normalized path component");
+        fs::create_dir(temp.path().join("en")).expect("create locale");
+        fs::create_dir(temp.path().join("src")).expect("create src");
+        fs::write(
+            temp.path().join("i18n.toml"),
+            "fallback_language = \"en\"\nassets_dir = \"locale/..\"\n",
+        )
+        .expect("write config");
+        fs::write(temp.path().join("en/test-app.ftl"), "hello = Hello\n")
+            .expect("write fallback resource");
+        let layout =
+            ResolvedI18nLayout::from_config_path(temp.path().join("i18n.toml")).expect("layout");
+
+        assert_eq!(
+            fallback_catalog_inputs(&layout, "test-app").expect("catalog"),
+            1
+        );
     }
 }

@@ -1,5 +1,5 @@
 use proc_macro2::Span;
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet, VecDeque};
 use std::path::{Path, PathBuf};
 use syn::spanned::Spanned as _;
 use syn::visit::Visit as _;
@@ -62,6 +62,8 @@ pub(crate) struct SourceGraph {
     pub(crate) paths: Vec<PathBuf>,
     pub(crate) indeterminate_reasons: Vec<String>,
     evidence: Option<MatchedEvidence>,
+    sources: Vec<ParsedSource>,
+    evidences: Vec<MatchedEvidence>,
 }
 
 #[derive(Debug)]
@@ -69,20 +71,52 @@ struct MatchedEvidence {
     location: SourceEvidence,
     verified: bool,
     conditional: bool,
+    function: Option<FunctionLocation>,
+    execution_uncertain: bool,
+    reachable: bool,
 }
 
 fn evidence_rank(evidence: &MatchedEvidence) -> (bool, bool, bool) {
     (
+        evidence.reachable,
         evidence.verified && !evidence.conditional,
         evidence.verified,
-        !evidence.conditional,
     )
 }
 
 struct PendingSource {
     path: PathBuf,
     module_dir: PathBuf,
+    module_path: Vec<String>,
     conditional: bool,
+}
+
+#[derive(Clone, Debug, Eq, Hash, PartialEq)]
+struct FunctionLocation {
+    path: PathBuf,
+    line: usize,
+    column: usize,
+}
+
+#[derive(Debug)]
+struct ParsedSource {
+    path: PathBuf,
+    module_path: Vec<String>,
+    file: syn::File,
+}
+
+#[derive(Debug, Default)]
+struct ReachabilityAnalysis {
+    reachable_functions: HashSet<FunctionLocation>,
+    indeterminate_reasons: Vec<String>,
+}
+
+#[derive(Debug)]
+struct FunctionDefinition {
+    location: FunctionLocation,
+    name: String,
+    module_path: Vec<String>,
+    calls: Vec<Vec<String>>,
 }
 
 pub(crate) fn inspect(
@@ -92,6 +126,13 @@ pub(crate) fn inspect(
 ) -> InspectionOutcome {
     let graph = inspect_source_graph(entry_path, allowed_root, Some(target));
     if let Some(evidence) = graph.evidence {
+        if !evidence.reachable {
+            return InspectionOutcome::Indeterminate(format!(
+                "the matching invocation at {}:{} could not be proven reachable from `main`",
+                evidence.location.path.display(),
+                evidence.location.line
+            ));
+        }
         if evidence.conditional {
             return InspectionOutcome::Indeterminate(format!(
                 "the matching invocation at {}:{} is conditionally compiled",
@@ -131,6 +172,7 @@ fn inspect_source_graph(
     let mut pending = vec![PendingSource {
         path: entry_path.to_path_buf(),
         module_dir,
+        module_path: Vec::new(),
         conditional: false,
     }];
     let mut visited = HashSet::new();
@@ -179,16 +221,16 @@ fn inspect_source_graph(
             },
         };
 
+        graph.sources.push(ParsedSource {
+            path: canonical.clone(),
+            module_path: source.module_path.clone(),
+            file,
+        });
+        let file = &graph.sources.last().expect("just-pushed source").file;
+
         let mut visitor = EvidenceVisitor::new(target, &canonical, source.conditional);
-        visitor.visit_file(&file);
-        if let Some(evidence) = visitor.evidence
-            && graph
-                .evidence
-                .as_ref()
-                .is_none_or(|current| evidence_rank(&evidence) > evidence_rank(current))
-        {
-            graph.evidence = Some(evidence);
-        }
+        visitor.visit_file(file);
+        graph.evidences.extend(visitor.evidences);
         graph
             .indeterminate_reasons
             .extend(visitor.indeterminate_reasons);
@@ -197,6 +239,7 @@ fn inspect_source_graph(
             &file.items,
             &canonical,
             &source.module_dir,
+            &source.module_path,
             source.conditional,
             &mut pending,
             &mut graph.indeterminate_reasons,
@@ -213,6 +256,7 @@ fn inspect_source_graph(
                 Some(path) => pending.push(PendingSource {
                     path: parent.join(path),
                     module_dir: source.module_dir.clone(),
+                    module_path: source.module_path.clone(),
                     conditional: include.conditional,
                 }),
                 None => graph.indeterminate_reasons.push(format!(
@@ -223,6 +267,27 @@ fn inspect_source_graph(
             }
         }
     }
+
+    if matches!(target, Some(SourceTarget::Call(_))) {
+        let analysis = analyze_reachability(&graph.sources, entry_path);
+        graph
+            .indeterminate_reasons
+            .extend(analysis.indeterminate_reasons);
+        for evidence in &mut graph.evidences {
+            evidence.reachable = evidence
+                .function
+                .as_ref()
+                .is_some_and(|function| analysis.reachable_functions.contains(function))
+                && !evidence.execution_uncertain;
+        }
+    } else {
+        for evidence in &mut graph.evidences {
+            evidence.reachable = true;
+        }
+    }
+    graph.evidence = std::mem::take(&mut graph.evidences)
+        .into_iter()
+        .max_by(|left, right| evidence_rank(left).cmp(&evidence_rank(right)));
 
     graph.paths.sort();
     graph.paths.dedup();
@@ -235,6 +300,7 @@ fn collect_pending_modules(
     items: &[syn::Item],
     current_file: &Path,
     module_dir: &Path,
+    module_path: &[String],
     inherited_conditional: bool,
     pending: &mut Vec<PendingSource>,
     reasons: &mut Vec<String>,
@@ -245,11 +311,14 @@ fn collect_pending_modules(
         };
         let conditional = inherited_conditional || has_conditional_attr(&module.attrs);
         let child_module_dir = module_dir.join(module.ident.to_string());
+        let mut child_module_path = module_path.to_vec();
+        child_module_path.push(module.ident.to_string());
         if let Some((_, items)) = &module.content {
             collect_pending_modules(
                 items,
                 current_file,
                 &child_module_dir,
+                &child_module_path,
                 conditional,
                 pending,
                 reasons,
@@ -317,9 +386,188 @@ fn collect_pending_modules(
         pending.push(PendingSource {
             path,
             module_dir: next_module_dir,
+            module_path: child_module_path,
             conditional,
         });
     }
+}
+
+fn analyze_reachability(sources: &[ParsedSource], entry_path: &Path) -> ReachabilityAnalysis {
+    let mut definitions = Vec::new();
+    for source in sources {
+        collect_function_definitions(
+            &source.file.items,
+            &source.path,
+            &source.module_path,
+            &mut definitions,
+        );
+    }
+
+    let entry_path = std::fs::canonicalize(entry_path).unwrap_or_else(|_| entry_path.to_path_buf());
+    let entry_points = definitions
+        .iter()
+        .enumerate()
+        .filter(|(_, definition)| definition.name == "main" && definition.module_path.is_empty())
+        .map(|(index, _)| index)
+        .collect::<Vec<_>>();
+    if entry_points.is_empty() {
+        return ReachabilityAnalysis {
+            reachable_functions: HashSet::new(),
+            indeterminate_reasons: vec![format!(
+                "could not identify `fn main` in custom-build target {}",
+                entry_path.display()
+            )],
+        };
+    }
+
+    let by_name = definitions.iter().enumerate().fold(
+        HashMap::<String, Vec<usize>>::new(),
+        |mut by_name, (index, definition)| {
+            by_name
+                .entry(definition.name.clone())
+                .or_default()
+                .push(index);
+            by_name
+        },
+    );
+    let mut reachable_functions = HashSet::new();
+    let mut pending = VecDeque::from(entry_points);
+    let mut indeterminate_reasons = Vec::new();
+    while let Some(index) = pending.pop_front() {
+        let definition = &definitions[index];
+        if !reachable_functions.insert(definition.location.clone()) {
+            continue;
+        }
+        for call in &definition.calls {
+            if call.is_empty() {
+                continue;
+            }
+            let candidates = resolve_local_functions(&definitions, &by_name, definition, call);
+            if candidates.len() == 1 {
+                pending.push_back(candidates[0]);
+            } else if candidates.len() > 1 {
+                indeterminate_reasons.push(format!(
+                    "could not resolve local function call `{}` from {}:{}",
+                    call.join("::"),
+                    definition.location.path.display(),
+                    definition.location.line
+                ));
+            }
+        }
+    }
+
+    ReachabilityAnalysis {
+        reachable_functions,
+        indeterminate_reasons,
+    }
+}
+
+fn collect_function_definitions(
+    items: &[syn::Item],
+    path: &Path,
+    module_path: &[String],
+    definitions: &mut Vec<FunctionDefinition>,
+) {
+    for item in items {
+        match item {
+            syn::Item::Fn(function) => {
+                add_function_definition(function, path, module_path, definitions);
+            },
+            syn::Item::Mod(module) => {
+                let Some((_, items)) = &module.content else {
+                    continue;
+                };
+                let mut nested_module_path = module_path.to_vec();
+                nested_module_path.push(module.ident.to_string());
+                collect_function_definitions(items, path, &nested_module_path, definitions);
+            },
+            _ => {},
+        }
+    }
+}
+
+fn add_function_definition(
+    function: &syn::ItemFn,
+    path: &Path,
+    module_path: &[String],
+    definitions: &mut Vec<FunctionDefinition>,
+) {
+    let mut calls = Vec::new();
+    let mut visitor = FunctionCallVisitor { calls: &mut calls };
+    visitor.visit_block(&function.block);
+    definitions.push(FunctionDefinition {
+        location: FunctionLocation {
+            path: path.to_path_buf(),
+            line: function.sig.ident.span().start().line,
+            column: function.sig.ident.span().start().column,
+        },
+        name: function.sig.ident.to_string(),
+        module_path: module_path.to_vec(),
+        calls,
+    });
+}
+
+struct FunctionCallVisitor<'a> {
+    calls: &'a mut Vec<Vec<String>>,
+}
+
+impl<'ast> syn::visit::Visit<'ast> for FunctionCallVisitor<'_> {
+    fn visit_expr_call(&mut self, call: &'ast syn::ExprCall) {
+        if let syn::Expr::Path(function) = &*call.func {
+            self.calls.push(
+                function
+                    .path
+                    .segments
+                    .iter()
+                    .map(|segment| segment.ident.to_string())
+                    .collect(),
+            );
+        }
+        syn::visit::visit_expr_call(self, call);
+    }
+
+    fn visit_item_fn(&mut self, _function: &'ast syn::ItemFn) {}
+
+    fn visit_expr_closure(&mut self, _closure: &'ast syn::ExprClosure) {}
+}
+
+fn resolve_local_functions(
+    definitions: &[FunctionDefinition],
+    by_name: &HashMap<String, Vec<usize>>,
+    caller: &FunctionDefinition,
+    call: &[String],
+) -> Vec<usize> {
+    let Some(name) = call.last() else {
+        return Vec::new();
+    };
+    let Some(candidates) = by_name.get(name) else {
+        return Vec::new();
+    };
+
+    let mut module_path = caller.module_path.clone();
+    let mut relative = call;
+    if call.first().is_some_and(|segment| segment == "crate") {
+        module_path.clear();
+        relative = &call[1..];
+    } else if call.first().is_some_and(|segment| segment == "self") {
+        relative = &call[1..];
+    } else if call.first().is_some_and(|segment| segment == "super") {
+        module_path.pop();
+        relative = &call[1..];
+    }
+    if relative.len() > 1 {
+        module_path.extend(relative[..relative.len() - 1].iter().cloned());
+    }
+
+    let qualified = candidates
+        .iter()
+        .copied()
+        .filter(|index| definitions[*index].module_path == module_path)
+        .collect::<Vec<_>>();
+    if !qualified.is_empty() {
+        return qualified;
+    }
+    Vec::new()
 }
 
 fn has_conditional_attr(attributes: &[syn::Attribute]) -> bool {
@@ -351,7 +599,9 @@ struct EvidenceVisitor<'a> {
     target: Option<SourceTarget>,
     current_file: &'a Path,
     conditional_depth: usize,
-    evidence: Option<MatchedEvidence>,
+    current_function: Option<FunctionLocation>,
+    execution_uncertain_depth: usize,
+    evidences: Vec<MatchedEvidence>,
     includes: Vec<IncludeSource>,
     scopes: Vec<ImportResolution>,
     indeterminate_reasons: Vec<String>,
@@ -363,7 +613,9 @@ impl<'a> EvidenceVisitor<'a> {
             target,
             current_file,
             conditional_depth: usize::from(conditional),
-            evidence: None,
+            current_function: None,
+            execution_uncertain_depth: 0,
+            evidences: Vec::new(),
             includes: Vec::new(),
             scopes: Vec::new(),
             indeterminate_reasons: Vec::new(),
@@ -384,14 +636,11 @@ impl<'a> EvidenceVisitor<'a> {
             },
             verified,
             conditional,
+            function: self.current_function.clone(),
+            execution_uncertain: self.execution_uncertain_depth > 0,
+            reachable: false,
         };
-        if self
-            .evidence
-            .as_ref()
-            .is_none_or(|current| evidence_rank(&evidence) > evidence_rank(current))
-        {
-            self.evidence = Some(evidence);
-        }
+        self.evidences.push(evidence);
     }
 
     fn visit_with_attributes(
@@ -463,9 +712,24 @@ impl<'ast> syn::visit::Visit<'ast> for EvidenceVisitor<'_> {
     }
 
     fn visit_item_fn(&mut self, function: &'ast syn::ItemFn) {
+        let previous_function = self.current_function.replace(FunctionLocation {
+            path: self.current_file.to_path_buf(),
+            line: function.sig.ident.span().start().line,
+            column: function.sig.ident.span().start().column,
+        });
+        let previous_execution_uncertain = self.execution_uncertain_depth;
+        self.execution_uncertain_depth = 0;
         self.visit_with_attributes(&function.attrs, |visitor| {
             syn::visit::visit_item_fn(visitor, function);
         });
+        self.current_function = previous_function;
+        self.execution_uncertain_depth = previous_execution_uncertain;
+    }
+
+    fn visit_expr_closure(&mut self, closure: &'ast syn::ExprClosure) {
+        self.execution_uncertain_depth += 1;
+        syn::visit::visit_expr_closure(self, closure);
+        self.execution_uncertain_depth -= 1;
     }
 
     fn visit_item_mod(&mut self, module: &'ast syn::ItemMod) {
@@ -772,6 +1036,49 @@ mod tests {
             ),
             InspectionOutcome::NotFound
         );
+    }
+
+    #[test]
+    fn build_helper_calls_must_be_reachable_from_main() {
+        for source in [
+            "fn unused() { es_fluent_build::track_i18n_assets(); } fn main() {}",
+            "fn unused() { fn main() { es_fluent_build::track_i18n_assets(); } } fn main() {}",
+        ] {
+            assert!(matches!(
+                inspect_fixture(
+                    &[("build.rs", source)],
+                    "build.rs",
+                    SourceTarget::Call("track_i18n_assets")
+                ),
+                InspectionOutcome::Indeterminate(reason)
+                    if reason.contains("could not be proven reachable")
+            ));
+        }
+
+        assert!(matches!(
+            inspect_fixture(
+                &[(
+                    "build.rs",
+                    "fn configure() { es_fluent_build::track_i18n_assets(); } fn main() { configure(); }"
+                )],
+                "build.rs",
+                SourceTarget::Call("track_i18n_assets")
+            ),
+            InspectionOutcome::Found(_)
+        ));
+
+        assert!(matches!(
+            inspect_fixture(
+                &[(
+                    "build.rs",
+                    "mod helper { pub fn configure() { es_fluent_build::track_i18n_assets(); } } fn configure() {} fn main() { configure(); }"
+                )],
+                "build.rs",
+                SourceTarget::Call("track_i18n_assets")
+            ),
+            InspectionOutcome::Indeterminate(reason)
+                if reason.contains("could not be proven reachable")
+        ));
     }
 
     #[test]

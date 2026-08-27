@@ -758,6 +758,63 @@ fn binary_doctor_follows_custom_build_and_library_target_graphs() {
 }
 
 #[test]
+fn binary_doctor_does_not_pass_inactive_target_build_dependency() {
+    let temp = fixtures::create_workspace();
+    let crates_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .expect("workspace crates directory");
+    let build_path = crates_dir
+        .join("es-fluent-build")
+        .to_string_lossy()
+        .replace('\\', "/");
+    std::fs::write(
+        temp.path().join("Cargo.toml"),
+        format!(
+            "[package]\nname = \"test-app\"\nversion = \"0.1.0\"\nedition = \"2024\"\n\n[target.'cfg(target_os = \"none\")'.build-dependencies]\nes-fluent-build = {{ path = \"{build_path}\" }}\n"
+        ),
+    )
+    .expect("write Cargo.toml");
+    std::fs::write(
+        temp.path().join("build.rs"),
+        "fn main() { es_fluent_build::track_i18n_assets(); }\n",
+    )
+    .expect("write build.rs");
+
+    let output = Command::cargo_bin("cargo-es-fluent")
+        .expect("binary exists")
+        .args([
+            "es-fluent",
+            "doctor",
+            "--path",
+            temp.path().to_str().expect("workspace path"),
+            "--output",
+            "json",
+        ])
+        .output()
+        .expect("run doctor");
+
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let json: Value = serde_json::from_slice(&output.stdout).expect("doctor JSON");
+    let checks = json["checks"].as_array().expect("checks");
+    assert!(checks.iter().any(|check| {
+        check["category"] == "build_dependency"
+            && check["status"] == "warning"
+            && check["message"]
+                .as_str()
+                .is_some_and(|message| message.contains("target_os = \"none\""))
+    }));
+    assert!(
+        !checks
+            .iter()
+            .any(|check| { check["category"] == "build_dependency" && check["status"] == "pass" })
+    );
+}
+
+#[test]
 fn binary_doctor_rejects_disabled_build_target_even_with_root_build_rs() {
     let temp = fixtures::create_workspace();
     let crates_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
@@ -913,6 +970,57 @@ fn binary_doctor_warns_when_static_inspection_is_indeterminate() {
         !String::from_utf8_lossy(&output.stdout).contains(temp.path().to_string_lossy().as_ref()),
         "doctor JSON should keep warning paths workspace-relative"
     );
+}
+
+#[test]
+fn binary_doctor_does_not_pass_unreachable_build_helper_call() {
+    let temp = fixtures::create_workspace();
+    let crates_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .expect("workspace crates directory");
+    let build_path = crates_dir
+        .join("es-fluent-build")
+        .to_string_lossy()
+        .replace('\\', "/");
+    std::fs::write(
+        temp.path().join("Cargo.toml"),
+        format!(
+            "[package]\nname = \"test-app\"\nversion = \"0.1.0\"\nedition = \"2024\"\n\n[build-dependencies]\nes-fluent-build = {{ path = \"{build_path}\" }}\n"
+        ),
+    )
+    .expect("write Cargo.toml");
+    std::fs::write(
+        temp.path().join("build.rs"),
+        "fn unused() { es_fluent_build::track_i18n_assets(); }\nfn main() {}\n",
+    )
+    .expect("write build.rs");
+
+    let output = Command::cargo_bin("cargo-es-fluent")
+        .expect("binary exists")
+        .args([
+            "es-fluent",
+            "doctor",
+            "--path",
+            temp.path().to_str().expect("workspace path"),
+            "--output",
+            "json",
+        ])
+        .output()
+        .expect("run doctor");
+
+    assert!(output.status.success());
+    let json: Value = serde_json::from_slice(&output.stdout).expect("doctor JSON");
+    assert!(json["checks"].as_array().is_some_and(|checks| {
+        checks.iter().any(|check| {
+            check["category"] == "build_script"
+                && check["status"] == "warning"
+                && check["message"]
+                    .as_str()
+                    .is_some_and(|message| message.contains("could not be proven reachable"))
+        }) && !checks
+            .iter()
+            .any(|check| check["category"] == "build_script" && check["status"] == "pass")
+    }));
 }
 
 #[test]

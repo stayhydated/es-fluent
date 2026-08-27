@@ -35,6 +35,7 @@ pub fn track_i18n_assets() {
     let catalog_path = out_dir.join(FALLBACK_CATALOG_FILE_NAME);
     println!("cargo:rerun-if-changed={}", layout.config_path.display());
     println!("cargo:rerun-if-changed={}", layout.assets_dir.display());
+    println!("cargo:rerun-if-env-changed={INVENTORY_RUNNER_ENV}");
     println!(
         "cargo:rustc-env={FALLBACK_CATALOG_ENV}={}",
         catalog_path.display()
@@ -64,21 +65,32 @@ fn write_fallback_catalog(
     domains.extend(layout.config.domains.iter().cloned());
 
     let mut catalog = FallbackCatalog::default();
+    let crate_root_assets = assets_dir_is_manifest_root(layout);
     for domain in domains {
-        let plans = ResourcePlan::sparse_from_assets(domain.as_str(), &layout.assets_dir)
-            .map_err(|error| error.to_string())?;
-        let Some((_, resources)) = plans
-            .resource_specs_by_language()
-            .iter()
-            .find(|(language, _)| language == &layout.config.fallback_language)
-        else {
-            continue;
+        let paths = if crate_root_assets {
+            fallback_root_resource_paths(layout, &domain)?
+        } else {
+            let plans = ResourcePlan::sparse_from_assets(domain.as_str(), &layout.assets_dir)
+                .map_err(|error| error.to_string())?;
+            let Some((_, resources)) = plans
+                .resource_specs_by_language()
+                .iter()
+                .find(|(language, _)| language == &layout.config.fallback_language)
+            else {
+                continue;
+            };
+
+            resources
+                .iter()
+                .map(|resource| {
+                    layout
+                        .output_dir
+                        .join(resource.locale_relative_path.as_str())
+                })
+                .collect()
         };
 
-        for resource in resources {
-            let path = layout
-                .output_dir
-                .join(resource.locale_relative_path.as_str());
+        for path in paths {
             let source = std::fs::read_to_string(&path)
                 .map_err(|error| format!("failed to read {}: {error}", path.display()))?;
             catalog.insert_source(&domain, source).map_err(|error| {
@@ -93,6 +105,119 @@ fn write_fallback_catalog(
     let path = out_dir.join(FALLBACK_CATALOG_FILE_NAME);
     std::fs::write(&path, catalog.encode())
         .map_err(|error| format!("failed to write {}: {error}", path.display()))
+}
+
+fn assets_dir_is_manifest_root(layout: &ResolvedI18nLayout) -> bool {
+    match (
+        layout.manifest_dir.canonicalize(),
+        layout.assets_dir.canonicalize(),
+    ) {
+        (Ok(manifest_dir), Ok(assets_dir)) => manifest_dir == assets_dir,
+        _ => false,
+    }
+}
+
+fn fallback_root_resource_paths(
+    layout: &ResolvedI18nLayout,
+    domain: &FluentDomain,
+) -> Result<Vec<PathBuf>, String> {
+    let locales = layout
+        .available_locale_names()
+        .map_err(|error| error.to_string())?;
+    let mut fallback_paths = Vec::new();
+
+    for locale in locales {
+        let locale_dir = layout.assets_dir.join(&locale);
+        let base_path = locale_dir.join(format!("{}.ftl", domain.as_str()));
+        if base_path.exists() && locale == layout.fallback_language {
+            fallback_paths.push(base_path);
+        }
+
+        let namespace_root = locale_dir.join(domain.as_str());
+        if !namespace_root.is_dir() {
+            continue;
+        }
+
+        let namespace_paths = discover_namespace_paths(domain, &namespace_root)?;
+        if locale == layout.fallback_language {
+            fallback_paths.extend(namespace_paths);
+        }
+    }
+
+    Ok(fallback_paths)
+}
+
+fn discover_namespace_paths(
+    domain: &FluentDomain,
+    namespace_root: &Path,
+) -> Result<Vec<PathBuf>, String> {
+    let mut paths = Vec::new();
+    let mut pending = vec![namespace_root.to_path_buf()];
+
+    while let Some(current_dir) = pending.pop() {
+        let entries = std::fs::read_dir(&current_dir)
+            .map_err(|error| format!("failed to read {}: {error}", current_dir.display()))?;
+
+        for entry in entries {
+            let path = entry
+                .map_err(|error| {
+                    format!(
+                        "failed to read directory entry in {}: {error}",
+                        current_dir.display()
+                    )
+                })?
+                .path();
+
+            if path.is_dir() {
+                pending.push(path);
+                continue;
+            }
+
+            if !path.is_file() {
+                continue;
+            }
+
+            if path.extension().and_then(|extension| extension.to_str()) != Some("ftl") {
+                continue;
+            }
+
+            let relative_path = path.strip_prefix(namespace_root).map_err(|error| {
+                format!(
+                    "failed to derive namespace for asset {} relative to {}: {error}",
+                    path.display(),
+                    namespace_root.display()
+                )
+            })?;
+            let relative_without_extension = relative_path.with_extension("");
+            let mut components = Vec::new();
+            for component in relative_without_extension.components() {
+                let component = component.as_os_str().to_str().ok_or_else(|| {
+                    format!(
+                        "namespace path {} contains non-UTF-8 components",
+                        relative_without_extension.display()
+                    )
+                })?;
+                components.push(component);
+            }
+
+            if components.is_empty() {
+                continue;
+            }
+
+            let namespace = components.join("/");
+            es_fluent_shared::namespace::ResolvedNamespace::new(namespace.clone()).map_err(
+                |error| {
+                    format!(
+                        "discovered invalid namespace '{namespace}' in assets for crate '{}': {error}",
+                        domain.as_str()
+                    )
+                },
+            )?;
+            paths.push(path);
+        }
+    }
+
+    Ok(paths)
 }
 
 #[cfg(test)]
@@ -163,6 +288,145 @@ mod tests {
             )
             .expect("read catalog"),
             b""
+        );
+    }
+
+    #[test]
+    fn crate_root_assets_ignore_project_directories_when_building_catalog() {
+        let temp = tempfile::tempdir().expect("tempdir");
+        let locale_dir = temp.path().join("en");
+        fs::create_dir_all(locale_dir.join("test-package")).expect("create namespace dir");
+        fs::create_dir(temp.path().join("src")).expect("create src dir");
+        fs::create_dir(temp.path().join("target")).expect("create target dir");
+        fs::write(
+            temp.path().join("i18n.toml"),
+            "fallback_language = \"en\"\nassets_dir = \".\"\n",
+        )
+        .expect("write config");
+        fs::write(
+            locale_dir.join("test-package.ftl"),
+            "hello = Hello from the crate root\n",
+        )
+        .expect("write fallback resource");
+        fs::write(locale_dir.join("test-package/ui.ftl"), "title = Root UI\n")
+            .expect("write fallback namespace resource");
+
+        with_manifest_env(Some(temp.path()), track_i18n_assets);
+
+        let catalog = fs::read(
+            temp.path()
+                .join("build-output")
+                .join(FALLBACK_CATALOG_FILE_NAME),
+        )
+        .expect("read catalog");
+        assert!(
+            catalog
+                .windows(b"test-package\thello\n".len())
+                .any(|window| { window == b"test-package\thello\n" })
+        );
+        assert!(
+            catalog
+                .windows(b"test-package\ttitle\n".len())
+                .any(|window| { window == b"test-package\ttitle\n" })
+        );
+    }
+
+    #[test]
+    fn normalized_crate_root_assets_ignore_project_directories_when_building_catalog() {
+        let temp = tempfile::tempdir().expect("tempdir");
+        let locale_dir = temp.path().join("en");
+        fs::create_dir(temp.path().join("locale")).expect("create normalized path component");
+        fs::create_dir(temp.path().join("src")).expect("create src dir");
+        fs::create_dir(temp.path().join("target")).expect("create target dir");
+        fs::create_dir_all(&locale_dir).expect("create locale dir");
+        fs::write(
+            temp.path().join("i18n.toml"),
+            "fallback_language = \"en\"\nassets_dir = \"locale/..\"\n",
+        )
+        .expect("write config");
+        fs::write(locale_dir.join("test-package.ftl"), "hello = Hello\n")
+            .expect("write fallback resource");
+
+        with_manifest_env(Some(temp.path()), track_i18n_assets);
+
+        let catalog = fs::read(
+            temp.path()
+                .join("build-output")
+                .join(FALLBACK_CATALOG_FILE_NAME),
+        )
+        .expect("read catalog");
+        assert!(
+            catalog
+                .windows(b"test-package\thello\n".len())
+                .any(|window| { window == b"test-package\thello\n" })
+        );
+    }
+
+    #[test]
+    fn inventory_mode_change_rebuilds_strict_catalog() {
+        let temp = tempfile::tempdir().expect("tempdir");
+        let crate_dir = temp.path().join("inventory-cache");
+        let locale_dir = crate_dir.join("i18n/en");
+        let target_dir = temp.path().join("target");
+        let workspace_crates = Path::new(env!("CARGO_MANIFEST_DIR"))
+            .parent()
+            .expect("workspace crates directory");
+
+        fs::create_dir_all(crate_dir.join("src")).expect("create src dir");
+        fs::create_dir_all(&locale_dir).expect("create locale dir");
+        fs::write(
+            crate_dir.join("Cargo.toml"),
+            format!(
+                r#"[package]
+name = "inventory-cache"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+es-fluent = {{ path = "{}" }}
+
+[build-dependencies]
+es-fluent-build = {{ path = "{}" }}
+"#,
+                toml_path(&workspace_crates.join("es-fluent")),
+                toml_path(Path::new(env!("CARGO_MANIFEST_DIR"))),
+            ),
+        )
+        .expect("write Cargo.toml");
+        fs::write(crate_dir.join("build.rs"), BUILD_TRACK_I18N_SOURCE).expect("write build script");
+        fs::write(
+            crate_dir.join("src/lib.rs"),
+            "#[derive(es_fluent::EsFluent)]\npub struct MissingValue;\n",
+        )
+        .expect("write lib.rs");
+        fs::write(
+            crate_dir.join("i18n.toml"),
+            "fallback_language = \"en\"\nassets_dir = \"i18n\"\n",
+        )
+        .expect("write config");
+        fs::write(
+            locale_dir.join("inventory-cache.ftl"),
+            "present = Present\n",
+        )
+        .expect("write fallback resource");
+
+        let inventory = cargo_check_output_with_inventory(&crate_dir, &target_dir, true);
+        assert!(
+            inventory.status.success(),
+            "inventory build should succeed: {}",
+            String::from_utf8_lossy(&inventory.stderr)
+        );
+
+        let application = cargo_check_output_with_inventory(&crate_dir, &target_dir, false);
+        assert!(
+            !application.status.success(),
+            "application build should re-run strict catalog validation"
+        );
+        assert!(
+            String::from_utf8_lossy(&application.stderr)
+                .contains("missing fallback Fluent message `missing_value`"),
+            "strict validation should report the missing key: {}",
+            String::from_utf8_lossy(&application.stderr)
         );
     }
 
@@ -613,6 +877,24 @@ mod tests {
             .args(args)
             .current_dir(crate_dir)
             .env("CARGO_TARGET_DIR", target_dir);
+        command.output().expect("run cargo check")
+    }
+
+    fn cargo_check_output_with_inventory(
+        crate_dir: &Path,
+        target_dir: &Path,
+        inventory: bool,
+    ) -> std::process::Output {
+        let mut command = Command::new("cargo");
+        command
+            .arg("check")
+            .arg("--quiet")
+            .current_dir(crate_dir)
+            .env("CARGO_TARGET_DIR", target_dir)
+            .env("RUSTFLAGS", "-A warnings");
+        if inventory {
+            command.env(INVENTORY_RUNNER_ENV, "1");
+        }
         command.output().expect("run cargo check")
     }
 

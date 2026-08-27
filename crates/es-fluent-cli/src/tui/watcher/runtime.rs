@@ -3,9 +3,17 @@ use crate::core::{CrateInfo, CrateState, FluentParseMode, GenerateResult, Worksp
 use crate::tui::{Message, TuiApp};
 use crossbeam_channel::{Receiver, Sender};
 use notify_debouncer_full::DebouncedEvent;
-use std::collections::{HashMap, HashSet};
+use std::collections::{BTreeSet, HashMap, HashSet};
+use std::path::PathBuf;
 use std::sync::Arc;
 use std::thread::JoinHandle;
+
+#[derive(Debug, Default, Eq, PartialEq)]
+pub(super) struct BuildSourceWatchUpdate {
+    pub(super) added: Vec<PathBuf>,
+    pub(super) rearmed: Vec<PathBuf>,
+    pub(super) removed: Vec<PathBuf>,
+}
 
 pub(super) struct WatchRuntime<'a> {
     workspace: Arc<WorkspaceInfo>,
@@ -13,6 +21,7 @@ pub(super) struct WatchRuntime<'a> {
     valid_crates: Vec<&'a CrateInfo>,
     crates_by_name: HashMap<String, &'a CrateInfo>,
     path_to_crate: PathToCrateMap,
+    custom_build_dirs: BTreeSet<PathBuf>,
     observed_hashes: HashMap<String, String>,
     active_generation_hashes: HashMap<String, String>,
     dirty_generating_crates: HashSet<String>,
@@ -29,6 +38,7 @@ impl<'a> WatchRuntime<'a> {
     ) -> Self {
         let valid_crates: Vec<_> = crates.iter().filter(|krate| krate.has_lib_rs).collect();
         let path_to_crate = super::events::build_path_to_crate(&valid_crates, &workspace.root_dir);
+        let custom_build_dirs = path_to_crate.build_source_watch_dirs();
         let mut crates_by_name = HashMap::new();
         let mut observed_hashes = HashMap::new();
 
@@ -57,6 +67,7 @@ impl<'a> WatchRuntime<'a> {
             valid_crates,
             crates_by_name,
             path_to_crate,
+            custom_build_dirs,
             observed_hashes,
             active_generation_hashes: HashMap::new(),
             dirty_generating_crates: HashSet::new(),
@@ -68,6 +79,47 @@ impl<'a> WatchRuntime<'a> {
 
     pub(super) fn valid_crates(&self) -> &[&'a CrateInfo] {
         &self.valid_crates
+    }
+
+    pub(super) fn refresh_build_sources_if_needed(
+        &mut self,
+        events: &[DebouncedEvent],
+    ) -> Option<BuildSourceWatchUpdate> {
+        if !self.path_to_crate.should_refresh_build_sources(events) {
+            return None;
+        }
+
+        self.path_to_crate.refresh_build_sources(&self.valid_crates);
+        let refreshed_dirs = self.path_to_crate.build_source_watch_dirs();
+        let removed = self
+            .custom_build_dirs
+            .difference(&refreshed_dirs)
+            .cloned()
+            .collect::<BTreeSet<_>>();
+        let update = BuildSourceWatchUpdate {
+            added: refreshed_dirs
+                .difference(&self.custom_build_dirs)
+                .cloned()
+                .collect(),
+            rearmed: refreshed_dirs
+                .iter()
+                .filter(|directory| removed.iter().any(|removed| directory.starts_with(removed)))
+                .cloned()
+                .collect(),
+            removed: removed.into_iter().collect(),
+        };
+        self.custom_build_dirs = refreshed_dirs;
+        Some(update)
+    }
+
+    #[cfg(test)]
+    pub(super) fn affected_crates_for_events(&self, events: &[DebouncedEvent]) -> Vec<String> {
+        super::events::process_file_events(events, &self.path_to_crate)
+    }
+
+    #[cfg(test)]
+    pub(super) fn observed_hash(&self, crate_name: &str) -> Option<&str> {
+        self.observed_hashes.get(crate_name).map(String::as_str)
     }
 
     pub(super) fn spawn_initial_generations(&mut self, app: &mut TuiApp<'_>) -> bool {
