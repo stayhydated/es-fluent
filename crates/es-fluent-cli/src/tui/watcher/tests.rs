@@ -529,11 +529,10 @@ fn watcher_conservatively_maps_indeterminate_build_graph_inputs() {
     let build_target = temp.path().join("build.rs");
     fs::write(
         &build_target,
-        "macro_rules! load_config { () => { include!(\"support/config.rs\"); }; } load_config!(); fn main() {}\n",
+        "include!(concat!(env!(\"CARGO_MANIFEST_DIR\"), \"/helper.inc\")); fn main() {}\n",
     )
     .expect("write build target");
-    fs::create_dir_all(temp.path().join("support")).expect("create support directory");
-    let support = temp.path().join("support/config.rs");
+    let support = temp.path().join("helper.inc");
     fs::write(&support, "pub fn configure() {}\n").expect("write support");
     let mut krate = test_crate("watch-indeterminate", true);
     krate.manifest_dir = crate::core::ManifestDir::from_discovered(temp.path().to_path_buf());
@@ -552,6 +551,10 @@ fn watcher_conservatively_maps_indeterminate_build_graph_inputs() {
     assert_eq!(
         super::events::process_file_events(&[event_with_path(&support)], &path_to_crate),
         vec!["watch-indeterminate".to_string()]
+    );
+    assert!(
+        path_to_crate.should_refresh_build_sources(&[event_with_path(&support)]),
+        "a conservative non-Rust build input should refresh the source graph"
     );
     for generated in [
         temp.path().join("target/debug/build/generated.rs"),

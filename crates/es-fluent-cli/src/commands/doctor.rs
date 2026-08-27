@@ -94,6 +94,7 @@ impl DoctorReport {
 
 #[derive(Clone, Debug, Default)]
 struct DependencySpec {
+    alias: String,
     package: String,
     features: Vec<String>,
     optional: bool,
@@ -376,10 +377,15 @@ fn diagnose_crate(krate: &CrateInfo, workspace_root: &Path) -> Vec<DoctorCheck> 
     );
 
     if let Some(library_target) = &krate.library_target_path {
+        let manager_roots = manifest
+            .managers
+            .iter()
+            .map(|dependency| dependency.alias.replace('-', "_"))
+            .collect::<Vec<_>>();
         match crate::source_inspector::inspect(
             library_target,
             &krate.manifest_dir,
-            SourceTarget::Macro("define_i18n_module"),
+            SourceTarget::Macro("define_i18n_module", Some(&manager_roots)),
         ) {
             InspectionOutcome::Found(evidence) => pass(
                 &mut checks,
@@ -559,6 +565,7 @@ fn collect_dependency_table(
             .and_then(toml::Value::as_bool)
             .unwrap_or(false);
         specs.push(DependencySpec {
+            alias: alias.clone(),
             package,
             features,
             optional,
@@ -828,17 +835,18 @@ build-i18n = { package = "es-fluent-build", version = "0.1" }
         let build = dependency_specs(&manifest, "build-dependencies", None);
 
         assert!(normal.iter().any(|dependency| {
-            dependency.package == "es-fluent" && dependency.features.is_empty()
+            dependency.alias == "i18n"
+                && dependency.package == "es-fluent"
+                && dependency.features.is_empty()
         }));
         assert!(normal.iter().any(|dependency| {
-            dependency.package == "es-fluent-manager-dioxus"
+            dependency.alias == "manager"
+                && dependency.package == "es-fluent-manager-dioxus"
                 && dependency.features == ["client".to_string()]
         }));
-        assert!(
-            build
-                .iter()
-                .any(|dependency| dependency.package == "es-fluent-build")
-        );
+        assert!(build.iter().any(|dependency| {
+            dependency.alias == "build-i18n" && dependency.package == "es-fluent-build"
+        }));
     }
 
     #[test]

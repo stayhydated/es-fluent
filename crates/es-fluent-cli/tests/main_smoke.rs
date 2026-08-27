@@ -608,6 +608,109 @@ fn binary_doctor_accepts_complete_embedded_setup() {
 }
 
 #[test]
+fn binary_doctor_accepts_manager_registration_through_dependency_alias() {
+    let temp = fixtures::create_workspace();
+    let crates_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .expect("workspace crates directory");
+    let manager_path = crates_dir
+        .join("es-fluent-manager-embedded")
+        .to_string_lossy()
+        .replace('\\', "/");
+    let build_path = crates_dir
+        .join("es-fluent-build")
+        .to_string_lossy()
+        .replace('\\', "/");
+    std::fs::write(
+        temp.path().join("Cargo.toml"),
+        format!(
+            "[package]\nname = \"test-app\"\nversion = \"0.1.0\"\nedition = \"2024\"\n\n[dependencies]\nmanager = {{ package = \"es-fluent-manager-embedded\", path = \"{manager_path}\" }}\n\n[build-dependencies]\nes-fluent-build = {{ path = \"{build_path}\" }}\n"
+        ),
+    )
+    .expect("write Cargo.toml");
+    std::fs::write(
+        temp.path().join("build.rs"),
+        "fn main() { es_fluent_build::track_i18n_assets(); }\n",
+    )
+    .expect("write build.rs");
+    std::fs::write(
+        temp.path().join("src/lib.rs"),
+        "manager::define_i18n_module!();\n",
+    )
+    .expect("write lib.rs");
+
+    Command::cargo_bin("cargo-es-fluent")
+        .expect("binary exists")
+        .args([
+            "es-fluent",
+            "doctor",
+            "--path",
+            temp.path().to_str().expect("workspace path"),
+        ])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Summary: 0 error(s)"));
+}
+
+#[test]
+fn binary_doctor_rejects_registration_from_an_undeclared_manager() {
+    let temp = fixtures::create_workspace();
+    let crates_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .expect("workspace crates directory");
+    let manager_path = crates_dir
+        .join("es-fluent-manager-embedded")
+        .to_string_lossy()
+        .replace('\\', "/");
+    let build_path = crates_dir
+        .join("es-fluent-build")
+        .to_string_lossy()
+        .replace('\\', "/");
+    std::fs::write(
+        temp.path().join("Cargo.toml"),
+        format!(
+            "[package]\nname = \"test-app\"\nversion = \"0.1.0\"\nedition = \"2024\"\n\n[dependencies]\nes-fluent-manager-embedded = {{ path = \"{manager_path}\" }}\n\n[build-dependencies]\nes-fluent-build = {{ path = \"{build_path}\" }}\n"
+        ),
+    )
+    .expect("write Cargo.toml");
+    std::fs::write(
+        temp.path().join("build.rs"),
+        "fn main() { es_fluent_build::track_i18n_assets(); }\n",
+    )
+    .expect("write build.rs");
+    std::fs::write(
+        temp.path().join("src/lib.rs"),
+        "es_fluent_manager_bevy::define_i18n_module!();\n",
+    )
+    .expect("write lib.rs");
+
+    let output = Command::cargo_bin("cargo-es-fluent")
+        .expect("binary exists")
+        .args([
+            "es-fluent",
+            "doctor",
+            "--path",
+            temp.path().to_str().expect("workspace path"),
+            "--output",
+            "json",
+        ])
+        .output()
+        .expect("run doctor");
+
+    assert!(!output.status.success());
+    let json: Value = serde_json::from_slice(&output.stdout).expect("doctor JSON");
+    assert_eq!(json["healthy"], false);
+    assert!(json["checks"].as_array().is_some_and(|checks| {
+        checks
+            .iter()
+            .any(|check| check["category"] == "manager_registration" && check["status"] == "error")
+            && !checks.iter().any(|check| {
+                check["category"] == "manager_registration" && check["status"] == "pass"
+            })
+    }));
+}
+
+#[test]
 fn binary_doctor_reports_package_local_policies_in_mixed_workspace() {
     let temp = tempfile::tempdir().expect("tempdir");
     std::fs::write(
@@ -1104,6 +1207,7 @@ fn binary_doctor_warns_for_indeterminate_build_helper_calls() {
         "mod es_fluent_build { pub fn track_i18n_assets() {} }\nfn main() { es_fluent_build::track_i18n_assets(); }\n",
         "fn main() { let _future = async { es_fluent_build::track_i18n_assets(); }; }\n",
         "use es_fluent_build::track_i18n_assets;\nfn main() { let f: fn() = track_i18n_assets; f(); }\n",
+        "fn main() { panic!(\"stop\"); es_fluent_build::track_i18n_assets(); }\n",
     ] {
         let temp = fixtures::create_workspace();
         std::fs::write(

@@ -4,16 +4,22 @@ use std::path::{Path, PathBuf};
 use syn::spanned::Spanned as _;
 use syn::visit::Visit as _;
 
+const MANAGER_CRATE_ROOTS: &[&str] = &[
+    "es_fluent_manager_embedded",
+    "es_fluent_manager_dioxus",
+    "es_fluent_manager_bevy",
+];
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub(crate) enum SourceTarget {
+pub(crate) enum SourceTarget<'a> {
     Call(&'static str),
-    Macro(&'static str),
+    Macro(&'static str, Option<&'a [String]>),
 }
 
-impl SourceTarget {
+impl SourceTarget<'_> {
     fn name(self) -> &'static str {
         match self {
-            Self::Call(name) | Self::Macro(name) => name,
+            Self::Call(name) | Self::Macro(name, _) => name,
         }
     }
 
@@ -38,13 +44,17 @@ impl SourceTarget {
     fn is_expected_root(self, root: &str) -> bool {
         match self {
             Self::Call(_) => root == "es_fluent_build",
-            Self::Macro(_) => matches!(
-                root,
-                "es_fluent_manager_embedded"
-                    | "es_fluent_manager_dioxus"
-                    | "es_fluent_manager_bevy"
+            Self::Macro(_, roots) => roots.map_or_else(
+                || MANAGER_CRATE_ROOTS.contains(&root),
+                |roots| roots.iter().any(|expected| expected == root),
             ),
         }
+    }
+
+    fn is_unexpected_manager_root(self, root: &str) -> bool {
+        matches!(self, Self::Macro(_, Some(_)))
+            && MANAGER_CRATE_ROOTS.contains(&root)
+            && !self.is_expected_root(root)
     }
 }
 
@@ -78,10 +88,12 @@ struct MatchedEvidence {
     function: Option<FunctionLocation>,
     execution_uncertain: bool,
     reachable: bool,
+    unexpected_manager_root: bool,
 }
 
-fn evidence_rank(evidence: &MatchedEvidence) -> (bool, bool, bool) {
+fn evidence_rank(evidence: &MatchedEvidence) -> (bool, bool, bool, bool) {
     (
+        evidence.unexpected_manager_root,
         evidence.reachable,
         evidence.verified && !evidence.conditional,
         evidence.verified,
@@ -133,7 +145,7 @@ struct FunctionCall {
 pub(crate) fn inspect(
     entry_path: &Path,
     allowed_root: &Path,
-    target: SourceTarget,
+    target: SourceTarget<'_>,
 ) -> InspectionOutcome {
     let graph = inspect_source_graph(entry_path, allowed_root, Some(target));
     if let Some(evidence) = graph.evidence {
@@ -159,6 +171,9 @@ pub(crate) fn inspect(
             ));
         }
         if !evidence.verified {
+            if evidence.unexpected_manager_root {
+                return InspectionOutcome::NotFound;
+            }
             return InspectionOutcome::Indeterminate(format!(
                 "the `{}` invocation could not be resolved to the expected es-fluent dependency",
                 target.name()
@@ -180,7 +195,7 @@ pub(crate) fn reachable_source_graph(entry_path: &Path, allowed_root: &Path) -> 
 fn inspect_source_graph(
     entry_path: &Path,
     allowed_root: &Path,
-    target: Option<SourceTarget>,
+    target: Option<SourceTarget<'_>>,
 ) -> SourceGraph {
     let root = std::fs::canonicalize(allowed_root).unwrap_or_else(|_| allowed_root.to_path_buf());
     let module_dir = entry_path
@@ -715,6 +730,7 @@ struct ImportResolution {
     uncertain: bool,
     shadowed: bool,
     expected_root_shadowed: bool,
+    unexpected_manager_root: bool,
 }
 
 impl ImportResolution {
@@ -723,11 +739,12 @@ impl ImportResolution {
         self.uncertain |= other.uncertain;
         self.shadowed |= other.shadowed;
         self.expected_root_shadowed |= other.expected_root_shadowed;
+        self.unexpected_manager_root |= other.unexpected_manager_root;
     }
 }
 
 struct EvidenceVisitor<'a> {
-    target: Option<SourceTarget>,
+    target: Option<SourceTarget<'a>>,
     current_file: &'a Path,
     conditional_depth: usize,
     current_function: Option<FunctionLocation>,
@@ -739,7 +756,7 @@ struct EvidenceVisitor<'a> {
 }
 
 impl<'a> EvidenceVisitor<'a> {
-    fn new(target: Option<SourceTarget>, current_file: &'a Path, conditional: bool) -> Self {
+    fn new(target: Option<SourceTarget<'a>>, current_file: &'a Path, conditional: bool) -> Self {
         Self {
             target,
             current_file,
@@ -754,8 +771,8 @@ impl<'a> EvidenceVisitor<'a> {
     }
 
     fn record(&mut self, path: &syn::Path, span: Span, conditional: bool) {
-        let verified = if path.segments.len() > 1 {
-            self.target.is_some_and(|target| {
+        let (verified, unexpected_manager_root) = if path.segments.len() > 1 {
+            let verified = self.target.is_some_and(|target| {
                 target.is_expected_path(path)
                     && (path.leading_colon.is_some()
                         || !self
@@ -763,21 +780,29 @@ impl<'a> EvidenceVisitor<'a> {
                             .iter()
                             .rev()
                             .any(|scope| scope.expected_root_shadowed))
-            })
+            });
+            let unexpected_manager_root = self.target.is_some_and(|target| {
+                path.segments.first().is_some_and(|segment| {
+                    target.is_unexpected_manager_root(&segment.ident.to_string())
+                })
+            });
+            (verified, unexpected_manager_root)
         } else {
             self.scopes
                 .iter()
                 .rev()
                 .find_map(|scope| {
                     if scope.shadowed || scope.uncertain {
-                        Some(false)
+                        Some((false, false))
                     } else if scope.verified {
-                        Some(true)
+                        Some((true, false))
+                    } else if scope.unexpected_manager_root {
+                        Some((false, true))
                     } else {
                         None
                     }
                 })
-                .unwrap_or(false)
+                .unwrap_or((false, false))
         };
         let evidence = MatchedEvidence {
             location: SourceEvidence {
@@ -789,6 +814,7 @@ impl<'a> EvidenceVisitor<'a> {
             function: self.current_function.clone(),
             execution_uncertain: self.execution_uncertain_depth > 0,
             reachable: false,
+            unexpected_manager_root,
         };
         self.evidences.push(evidence);
     }
@@ -879,12 +905,12 @@ impl<'ast> syn::visit::Visit<'ast> for EvidenceVisitor<'_> {
                 conditional: self.conditional_depth > 0,
             });
         }
-        if let Some(SourceTarget::Macro(target)) = self.target
+        if let Some(target @ SourceTarget::Macro(_, _)) = self.target
             && invocation
                 .path
                 .segments
                 .last()
-                .is_some_and(|segment| segment.ident == target)
+                .is_some_and(|segment| segment.ident == target.name())
         {
             self.record(
                 &invocation.path,
@@ -1093,7 +1119,7 @@ impl<'ast> syn::visit::Visit<'ast> for EvidenceVisitor<'_> {
     }
 }
 
-fn imports_for_items(items: &[syn::Item], target: Option<SourceTarget>) -> ImportResolution {
+fn imports_for_items(items: &[syn::Item], target: Option<SourceTarget<'_>>) -> ImportResolution {
     items
         .iter()
         .fold(ImportResolution::default(), |mut found, item| {
@@ -1109,7 +1135,7 @@ fn imports_for_items(items: &[syn::Item], target: Option<SourceTarget>) -> Impor
 
 fn imports_for_statements(
     statements: &[syn::Stmt],
-    target: Option<SourceTarget>,
+    target: Option<SourceTarget<'_>>,
 ) -> ImportResolution {
     statements
         .iter()
@@ -1126,7 +1152,7 @@ fn imports_for_statements(
         })
 }
 
-fn local_shadows_target(pattern: &syn::Pat, target: Option<SourceTarget>) -> bool {
+fn local_shadows_target(pattern: &syn::Pat, target: Option<SourceTarget<'_>>) -> bool {
     let Some(SourceTarget::Call(target)) = target else {
         return false;
     };
@@ -1172,6 +1198,12 @@ struct FollowingStatementExitVisitor {
 }
 
 impl<'ast> syn::visit::Visit<'ast> for FollowingStatementExitVisitor {
+    fn visit_macro(&mut self, invocation: &'ast syn::Macro) {
+        if !invocation.path.is_ident("include") {
+            self.found = true;
+        }
+    }
+
     fn visit_expr_return(&mut self, expression: &'ast syn::ExprReturn) {
         self.found = true;
         syn::visit::visit_expr_return(self, expression);
@@ -1222,7 +1254,7 @@ impl<'ast> syn::visit::Visit<'ast> for FollowingStatementExitVisitor {
         self.nested_loop_depth -= 1;
     }
 
-    fn visit_item_fn(&mut self, _function: &'ast syn::ItemFn) {}
+    fn visit_item(&mut self, _item: &'ast syn::Item) {}
 
     fn visit_expr_closure(&mut self, _closure: &'ast syn::ExprClosure) {}
 
@@ -1301,7 +1333,7 @@ impl<'ast> syn::visit::Visit<'ast> for LoopExitVisitor {
     fn visit_expr_async(&mut self, _expression: &'ast syn::ExprAsync) {}
 }
 
-fn item_shadows_target(item: &syn::Item, target: Option<SourceTarget>) -> bool {
+fn item_shadows_target(item: &syn::Item, target: Option<SourceTarget<'_>>) -> bool {
     let Some(SourceTarget::Call(target)) = target else {
         return false;
     };
@@ -1317,7 +1349,7 @@ fn item_shadows_target(item: &syn::Item, target: Option<SourceTarget>) -> bool {
     ident.is_some_and(|ident| ident == target)
 }
 
-fn item_shadows_expected_root(item: &syn::Item, target: Option<SourceTarget>) -> bool {
+fn item_shadows_expected_root(item: &syn::Item, target: Option<SourceTarget<'_>>) -> bool {
     let Some(target) = target else {
         return false;
     };
@@ -1342,7 +1374,7 @@ fn item_shadows_expected_root(item: &syn::Item, target: Option<SourceTarget>) ->
     ident.is_some_and(|ident| target.is_expected_root(&ident.to_string()))
 }
 
-fn import_resolution(item: &syn::ItemUse, target: Option<SourceTarget>) -> ImportResolution {
+fn import_resolution(item: &syn::ItemUse, target: Option<SourceTarget<'_>>) -> ImportResolution {
     let Some(target) = target else {
         return ImportResolution::default();
     };
@@ -1358,7 +1390,7 @@ fn import_resolution(item: &syn::ItemUse, target: Option<SourceTarget>) -> Impor
 fn inspect_use_tree(
     tree: &syn::UseTree,
     prefix: &mut Vec<syn::Ident>,
-    target: SourceTarget,
+    target: SourceTarget<'_>,
     resolution: &mut ImportResolution,
 ) {
     match tree {
@@ -1387,6 +1419,10 @@ fn inspect_use_tree(
                 };
                 if target.is_expected_path(&path) {
                     resolution.verified = true;
+                } else if path.segments.first().is_some_and(|segment| {
+                    target.is_unexpected_manager_root(&segment.ident.to_string())
+                }) {
+                    resolution.unexpected_manager_root = true;
                 } else {
                     resolution.uncertain = true;
                 }
@@ -1449,7 +1485,7 @@ mod tests {
     fn inspect_fixture(
         files: &[(&str, &str)],
         entry: &str,
-        target: SourceTarget,
+        target: SourceTarget<'_>,
     ) -> InspectionOutcome {
         let temp = tempfile::tempdir().expect("tempdir");
         for (path, source) in files {
@@ -1460,6 +1496,23 @@ mod tests {
             fs::write(path, source).expect("write source");
         }
         inspect(&temp.path().join(entry), temp.path(), target)
+    }
+
+    fn inspect_fixture_with_roots(
+        files: &[(&str, &str)],
+        entry: &str,
+        target: &'static str,
+        expected_roots: &[&str],
+    ) -> InspectionOutcome {
+        let expected_roots = expected_roots
+            .iter()
+            .map(|root| (*root).to_string())
+            .collect::<Vec<_>>();
+        inspect_fixture(
+            files,
+            entry,
+            SourceTarget::Macro(target, Some(&expected_roots)),
+        )
     }
 
     #[test]
@@ -1489,11 +1542,53 @@ mod tests {
                 inspect_fixture(
                     &[("lib.rs", source)],
                     "lib.rs",
-                    SourceTarget::Macro("define_i18n_module")
+                    SourceTarget::Macro("define_i18n_module", None)
                 ),
                 InspectionOutcome::Found(_)
             ));
         }
+    }
+
+    #[test]
+    fn manager_macros_must_match_declared_dependency_roots() {
+        for source in [
+            "es_fluent_manager_bevy::define_i18n_module!();",
+            "use es_fluent_manager_bevy::define_i18n_module; define_i18n_module!();",
+            "es_fluent_manager_embedded::define_i18n_module!(); es_fluent_manager_bevy::define_i18n_module!();",
+        ] {
+            assert_eq!(
+                inspect_fixture_with_roots(
+                    &[("lib.rs", source)],
+                    "lib.rs",
+                    "define_i18n_module",
+                    &["es_fluent_manager_embedded"],
+                ),
+                InspectionOutcome::NotFound
+            );
+        }
+
+        assert_eq!(
+            inspect_fixture_with_roots(
+                &[(
+                    "lib.rs",
+                    "es_fluent_manager_embedded::define_i18n_module!();"
+                )],
+                "lib.rs",
+                "define_i18n_module",
+                &[],
+            ),
+            InspectionOutcome::NotFound
+        );
+
+        assert!(matches!(
+            inspect_fixture_with_roots(
+                &[("lib.rs", "manager::define_i18n_module!();")],
+                "lib.rs",
+                "define_i18n_module",
+                &["manager"],
+            ),
+            InspectionOutcome::Found(_)
+        ));
     }
 
     #[test]
@@ -1516,7 +1611,7 @@ mod tests {
                     "const _: &str = \"define_i18n_module!\"; /* define_i18n_module! */"
                 )],
                 "lib.rs",
-                SourceTarget::Macro("define_i18n_module")
+                SourceTarget::Macro("define_i18n_module", None)
             ),
             InspectionOutcome::NotFound
         );
@@ -1530,7 +1625,7 @@ mod tests {
                 "mod inline { es_fluent_manager_embedded::define_i18n_module!(); }",
             )],
             "lib.rs",
-            SourceTarget::Macro("define_i18n_module"),
+            SourceTarget::Macro("define_i18n_module", None),
         );
         assert!(matches!(outcome, InspectionOutcome::Found(_)));
 
@@ -1543,7 +1638,7 @@ mod tests {
                 ),
             ],
             "lib.rs",
-            SourceTarget::Macro("define_i18n_module"),
+            SourceTarget::Macro("define_i18n_module", None),
         );
         assert!(matches!(outcome, InspectionOutcome::Found(_)));
 
@@ -1556,7 +1651,7 @@ mod tests {
                 ),
             ],
             "lib.rs",
-            SourceTarget::Macro("define_i18n_module"),
+            SourceTarget::Macro("define_i18n_module", None),
         );
         assert!(matches!(outcome, InspectionOutcome::Found(_)));
 
@@ -1586,7 +1681,7 @@ mod tests {
                     ("unused.rs", "define_i18n_module!();")
                 ],
                 "lib.rs",
-                SourceTarget::Macro("define_i18n_module")
+                SourceTarget::Macro("define_i18n_module", None)
             ),
             InspectionOutcome::NotFound
         );
@@ -1886,7 +1981,7 @@ mod tests {
                     "use es_fluent_manager_embedded::define_i18n_module as define; define!();"
                 )],
                 "lib.rs",
-                SourceTarget::Macro("define_i18n_module")
+                SourceTarget::Macro("define_i18n_module", None)
             ),
             InspectionOutcome::Indeterminate(_)
         ));
@@ -1897,7 +1992,7 @@ mod tests {
                     "macro_rules! define_i18n_module { () => {} } define_i18n_module!();"
                 )],
                 "lib.rs",
-                SourceTarget::Macro("define_i18n_module")
+                SourceTarget::Macro("define_i18n_module", None)
             ),
             InspectionOutcome::Indeterminate(_)
         ));
@@ -1908,7 +2003,7 @@ mod tests {
                     "mod imported { use es_fluent_manager_embedded::define_i18n_module; } define_i18n_module!();"
                 )],
                 "lib.rs",
-                SourceTarget::Macro("define_i18n_module")
+                SourceTarget::Macro("define_i18n_module", None)
             ),
             InspectionOutcome::Indeterminate(_)
         ));
@@ -1919,7 +2014,7 @@ mod tests {
                     "fn setup() { #[cfg(feature = \"i18n\")] define_i18n_module!(); }"
                 )],
                 "lib.rs",
-                SourceTarget::Macro("define_i18n_module")
+                SourceTarget::Macro("define_i18n_module", None)
             ),
             InspectionOutcome::Indeterminate(_)
         ));
@@ -1960,6 +2055,24 @@ mod tests {
             InspectionOutcome::Indeterminate(reason)
                 if reason.contains("opaque statement macro expansion")
         ));
+    }
+
+    #[test]
+    fn build_helper_calls_after_opaque_macros_are_indeterminate() {
+        for source in [
+            "fn main() { panic!(\"stop\"); es_fluent_build::track_i18n_assets(); }",
+            "fn main() { configure_i18n!(); es_fluent_build::track_i18n_assets(); }",
+        ] {
+            assert!(matches!(
+                inspect_fixture(
+                    &[("build.rs", source)],
+                    "build.rs",
+                    SourceTarget::Call("track_i18n_assets")
+                ),
+                InspectionOutcome::Indeterminate(reason)
+                    if reason.contains("under control flow that could not be proven to execute")
+            ));
+        }
     }
 
     #[test]

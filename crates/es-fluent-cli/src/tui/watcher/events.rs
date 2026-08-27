@@ -154,15 +154,16 @@ pub(super) fn process_file_events(
                 continue;
             }
 
+            let mut matched_build_source_dir = false;
+            for crate_name in path_to_crate.match_build_source_dirs(path) {
+                affected.insert(crate_name.to_string(), ());
+                matched_build_source_dir = true;
+            }
+            if matched_build_source_dir {
+                continue;
+            }
+
             if path.extension().is_some_and(|ext| ext == "rs") {
-                let mut matched_build_source_dir = false;
-                for crate_name in path_to_crate.match_build_source_dirs(path) {
-                    affected.insert(crate_name.to_string(), ());
-                    matched_build_source_dir = true;
-                }
-                if matched_build_source_dir {
-                    continue;
-                }
                 if let Some(crate_name) = path_to_crate.match_src_path(path) {
                     affected.insert(crate_name.to_string(), ());
                 }
