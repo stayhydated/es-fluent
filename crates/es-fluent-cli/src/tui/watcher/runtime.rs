@@ -92,7 +92,7 @@ impl WatchRuntime {
             return Ok(None);
         }
 
-        if self.path_to_crate.has_manifest_event(events) {
+        if self.path_to_crate.has_rediscovery_event(events) {
             self.rediscover_custom_build_targets()?;
         }
         let valid_crate_refs = self.valid_crates.iter().collect::<Vec<_>>();
@@ -311,9 +311,14 @@ impl WatchRuntime {
     }
 
     fn rediscover_custom_build_targets(&mut self) -> anyhow::Result<()> {
+        let selected_packages = self
+            .valid_crates
+            .iter()
+            .map(|krate| krate.name.to_string())
+            .collect::<Vec<_>>();
         let discovered = crate::utils::discover_workspace_scoped(
             &self.workspace.root_dir,
-            crate::utils::DiscoveryScope::All,
+            crate::utils::DiscoveryScope::Packages(&selected_packages),
         )?;
         for krate in &mut self.valid_crates {
             if let Some(refreshed) = discovered

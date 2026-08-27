@@ -12,6 +12,7 @@ pub(crate) enum DiscoveryScope<'a> {
     #[allow(dead_code)]
     All,
     Package(&'a str),
+    Packages(&'a [String]),
     RequestedPaths {
         lexical: &'a Path,
         canonical: &'a Path,
@@ -55,7 +56,9 @@ pub(crate) fn discover_workspace_scoped(
             &workspace_root,
             &metadata.workspace_packages(),
         ),
-        DiscoveryScope::All | DiscoveryScope::Package(_) => RequestedPathScope::All,
+        DiscoveryScope::All | DiscoveryScope::Package(_) | DiscoveryScope::Packages(_) => {
+            RequestedPathScope::All
+        },
     };
 
     let mut crates = Vec::new();
@@ -67,6 +70,9 @@ pub(crate) fn discover_workspace_scoped(
         let include_package = match scope {
             DiscoveryScope::All => true,
             DiscoveryScope::Package(package_filter) => package.name == package_filter,
+            DiscoveryScope::Packages(package_filters) => package_filters
+                .iter()
+                .any(|package_filter| package.name == package_filter),
             DiscoveryScope::RequestedPaths { .. } => match &path_scope {
                 RequestedPathScope::All => true,
                 RequestedPathScope::None => false,

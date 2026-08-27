@@ -201,6 +201,68 @@ fn watcher_refreshes_custom_build_graph_and_directories_after_target_edit() {
 }
 
 #[test]
+fn watcher_rediscovers_new_default_build_target() {
+    let temp = tempfile::tempdir().expect("tempdir");
+    let src_dir = temp.path().join("src");
+    fs::create_dir_all(&src_dir).expect("create src");
+    fs::write(src_dir.join("lib.rs"), "pub struct Demo;\n").expect("write lib");
+    fs::write(
+        temp.path().join("Cargo.toml"),
+        "[package]\nname = \"watch-default-target\"\nversion = \"0.1.0\"\nedition = \"2024\"\n\n[lib]\npath = \"src/lib.rs\"\n",
+    )
+    .expect("write manifest");
+    fs::write(
+        temp.path().join("i18n.toml"),
+        "fallback_language = \"en\"\nassets_dir = \"i18n\"\n",
+    )
+    .expect("write config");
+
+    let workspace =
+        crate::utils::discover_workspace_scoped(temp.path(), crate::utils::DiscoveryScope::All)
+            .expect("discover workspace without build target");
+    let krate = workspace.crates[0].clone();
+    assert!(krate.custom_build_target_path.is_none());
+    let mut runtime = super::runtime::WatchRuntime::new(
+        std::slice::from_ref(&krate),
+        &workspace,
+        &FluentParseMode::default(),
+    );
+
+    let support_dir = temp.path().join("support");
+    let helper = support_dir.join("helper.rs");
+    fs::create_dir_all(&support_dir).expect("create support directory");
+    fs::write(&helper, "pub fn configure() {}\n").expect("write helper");
+    let build_target = temp.path().join("build.rs");
+    fs::write(
+        &build_target,
+        "#[path = \"support/helper.rs\"] mod helper; fn main() { helper::configure(); }\n",
+    )
+    .expect("create default build target");
+    let event = event_with_path(&build_target);
+
+    assert_eq!(
+        runtime.affected_crates_for_events(std::slice::from_ref(&event)),
+        vec!["watch-default-target".to_string()],
+        "a newly created default build target should map to its package before rediscovery"
+    );
+    let update = runtime
+        .refresh_build_sources_if_needed(std::slice::from_ref(&event))
+        .expect("rediscover default build target")
+        .expect("default build target creation should refresh the source graph");
+    assert_eq!(
+        update.added,
+        vec![support_dir.canonicalize().expect("canonical support dir")]
+    );
+    assert_eq!(
+        runtime.affected_crates_for_events(&[event_with_path(
+            &helper.canonicalize().expect("canonical helper")
+        )]),
+        vec!["watch-default-target".to_string()],
+        "reachable build modules should enter the refreshed source map"
+    );
+}
+
+#[test]
 fn watcher_rediscovers_custom_build_target_after_manifest_edit() {
     let temp = tempfile::tempdir().expect("tempdir");
     let src_dir = temp.path().join("src");
@@ -267,6 +329,59 @@ fn watcher_rediscovers_custom_build_target_after_manifest_edit() {
         runtime
             .affected_crates_for_events(&[event_with_path(&old_target)])
             .is_empty()
+    );
+}
+
+#[test]
+fn watcher_rediscovery_preserves_selected_packages() {
+    let temp = tempfile::tempdir().expect("tempdir");
+    let app_dir = temp.path().join("app");
+    let broken_dir = temp.path().join("broken");
+    for member_dir in [&app_dir, &broken_dir] {
+        fs::create_dir_all(member_dir.join("src")).expect("create member src");
+        fs::write(member_dir.join("src/lib.rs"), "pub struct Demo;\n").expect("write member lib");
+    }
+    fs::write(
+        temp.path().join("Cargo.toml"),
+        "[workspace]\nmembers = [\"app\", \"broken\"]\nresolver = \"3\"\n",
+    )
+    .expect("write workspace manifest");
+    fs::write(
+        app_dir.join("Cargo.toml"),
+        "[package]\nname = \"app\"\nversion = \"0.1.0\"\nedition = \"2024\"\n\n[lib]\npath = \"src/lib.rs\"\n",
+    )
+    .expect("write app manifest");
+    fs::write(
+        broken_dir.join("Cargo.toml"),
+        "[package]\nname = \"broken\"\nversion = \"0.1.0\"\nedition = \"2024\"\n\n[lib]\npath = \"src/lib.rs\"\n",
+    )
+    .expect("write broken manifest");
+    fs::write(
+        app_dir.join("i18n.toml"),
+        "fallback_language = \"en\"\nassets_dir = \"i18n\"\n",
+    )
+    .expect("write app config");
+    fs::write(broken_dir.join("i18n.toml"), "not valid TOML = [\n")
+        .expect("write malformed unselected config");
+
+    let workspace = crate::utils::discover_workspace_scoped(
+        temp.path(),
+        crate::utils::DiscoveryScope::Package("app"),
+    )
+    .expect("discover selected package");
+    let krate = workspace.crates[0].clone();
+    let mut runtime = super::runtime::WatchRuntime::new(
+        std::slice::from_ref(&krate),
+        &workspace,
+        &FluentParseMode::default(),
+    );
+
+    assert!(
+        runtime
+            .refresh_build_sources_if_needed(&[event_with_path(&app_dir.join("Cargo.toml"))])
+            .expect("rediscover only selected packages")
+            .is_some(),
+        "a selected manifest event should refresh build sources"
     );
 }
 

@@ -1078,7 +1078,7 @@ fn binary_doctor_warns_for_branch_guarded_and_shadowed_build_helper_calls() {
 }
 
 #[test]
-fn binary_doctor_rejects_build_helper_call_after_return() {
+fn binary_doctor_rejects_build_helper_call_after_nested_return() {
     let temp = fixtures::create_workspace();
     let crates_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
         .parent()
@@ -1096,7 +1096,7 @@ fn binary_doctor_rejects_build_helper_call_after_return() {
     .expect("write Cargo.toml");
     std::fs::write(
         temp.path().join("build.rs"),
-        "fn main() { return; es_fluent_build::track_i18n_assets(); }\n",
+        "fn main() { { return; } es_fluent_build::track_i18n_assets(); }\n",
     )
     .expect("write build.rs");
 
@@ -1122,6 +1122,47 @@ fn binary_doctor_rejects_build_helper_call_after_return() {
             && !checks
                 .iter()
                 .any(|check| check["category"] == "build_script" && check["status"] == "pass")
+    }));
+}
+
+#[cfg(unix)]
+#[test]
+fn binary_doctor_rejects_symlinked_fallback_resource() {
+    let temp = fixtures::create_workspace();
+    let outside = fixtures::tempdir();
+    let fallback_resource = temp.path().join("i18n/en/test-app.ftl");
+    std::fs::remove_file(&fallback_resource).expect("remove real fallback resource");
+    let outside_resource = outside.path().join("test-app.ftl");
+    std::fs::write(&outside_resource, "hello = Outside\n").expect("write outside resource");
+    std::os::unix::fs::symlink(&outside_resource, &fallback_resource)
+        .expect("create fallback resource symlink");
+
+    let output = Command::cargo_bin("cargo-es-fluent")
+        .expect("binary exists")
+        .args([
+            "es-fluent",
+            "doctor",
+            "--path",
+            temp.path().to_str().expect("workspace path"),
+            "--output",
+            "json",
+        ])
+        .output()
+        .expect("run doctor");
+
+    assert!(!output.status.success());
+    let json: Value = serde_json::from_slice(&output.stdout).expect("doctor JSON");
+    assert_eq!(json["healthy"], false);
+    assert!(json["checks"].as_array().is_some_and(|checks| {
+        checks.iter().any(|check| {
+            check["category"] == "catalog"
+                && check["status"] == "error"
+                && check["message"]
+                    .as_str()
+                    .is_some_and(|message| message.contains("must not contain symlinks"))
+        }) && !checks
+            .iter()
+            .any(|check| check["category"] == "catalog" && check["status"] == "pass")
     }));
 }
 

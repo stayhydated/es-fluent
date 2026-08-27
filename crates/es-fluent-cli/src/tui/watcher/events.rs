@@ -11,6 +11,7 @@ pub(super) struct PathToCrateMap {
     src_dirs: Vec<SourceDirMatch>,
     build_sources: Vec<(PathBuf, String)>,
     build_source_dirs: Vec<(PathBuf, String)>,
+    missing_default_build_targets: Vec<(PathBuf, String)>,
     i18n_configs: IndexMap<PathBuf, String>,
 }
 
@@ -48,11 +49,20 @@ pub(super) fn build_path_to_crate(
             .collect(),
         build_sources,
         build_source_dirs,
+        missing_default_build_targets: missing_default_build_target_entries(valid_crates),
         i18n_configs: valid_crates
             .iter()
             .map(|krate| (krate.i18n_config_path.to_path_buf(), krate.name.to_string()))
             .collect(),
     }
+}
+
+fn missing_default_build_target_entries(valid_crates: &[&CrateInfo]) -> Vec<(PathBuf, String)> {
+    valid_crates
+        .iter()
+        .filter(|krate| krate.custom_build_target_path.is_none())
+        .map(|krate| (krate.manifest_dir.join("build.rs"), krate.name.to_string()))
+        .collect()
 }
 
 fn build_source_entries(
@@ -135,6 +145,11 @@ pub(super) fn process_file_events(
                 continue;
             }
 
+            if let Some(crate_name) = path_to_crate.match_missing_default_build_target(path) {
+                affected.insert(crate_name.to_string(), ());
+                continue;
+            }
+
             if path.extension().is_some_and(|ext| ext == "rs") {
                 if let Some(crate_name) = path_to_crate.match_build_source_dir(path) {
                     affected.insert(crate_name.to_string(), ());
@@ -162,6 +177,7 @@ impl PathToCrateMap {
         let (build_sources, build_source_dirs) = build_source_entries(valid_crates);
         self.build_sources = build_sources;
         self.build_source_dirs = build_source_dirs;
+        self.missing_default_build_targets = missing_default_build_target_entries(valid_crates);
     }
 
     pub(super) fn build_source_watch_dirs(&self) -> BTreeSet<PathBuf> {
@@ -180,11 +196,10 @@ impl PathToCrateMap {
         })
     }
 
-    pub(super) fn has_manifest_event(&self, events: &[DebouncedEvent]) -> bool {
-        events
-            .iter()
-            .flat_map(|event| &event.paths)
-            .any(|path| self.is_manifest_event(path))
+    pub(super) fn has_rediscovery_event(&self, events: &[DebouncedEvent]) -> bool {
+        events.iter().flat_map(|event| &event.paths).any(|path| {
+            self.is_manifest_event(path) || self.match_missing_default_build_target(path).is_some()
+        })
     }
 
     fn is_workspace_root_path(&self, path: &Path) -> bool {
@@ -206,6 +221,13 @@ impl PathToCrateMap {
         self.build_sources
             .iter()
             .find(|(source, _)| source == path)
+            .map(|(_, crate_name)| crate_name.as_str())
+    }
+
+    fn match_missing_default_build_target(&self, path: &Path) -> Option<&str> {
+        self.missing_default_build_targets
+            .iter()
+            .find(|(target, _)| target == path)
             .map(|(_, crate_name)| crate_name.as_str())
     }
 
@@ -232,6 +254,7 @@ impl PathToCrateMap {
 
     fn is_build_source_event(&self, path: &Path) -> bool {
         self.match_build_source(path).is_some()
+            || self.match_missing_default_build_target(path).is_some()
             || self
                 .build_source_dirs
                 .iter()

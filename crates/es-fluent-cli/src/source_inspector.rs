@@ -1091,13 +1091,25 @@ impl<'ast> syn::visit::Visit<'ast> for PatternBindingVisitor<'_> {
 }
 
 fn statement_unconditionally_terminates(statement: &syn::Stmt) -> bool {
-    matches!(
-        statement,
-        syn::Stmt::Expr(
-            syn::Expr::Break(_) | syn::Expr::Continue(_) | syn::Expr::Return(_),
-            _
-        )
-    )
+    let syn::Stmt::Expr(expression, _) = statement else {
+        return false;
+    };
+
+    expression_unconditionally_terminates(expression)
+}
+
+fn expression_unconditionally_terminates(expression: &syn::Expr) -> bool {
+    match expression {
+        syn::Expr::Break(_) | syn::Expr::Continue(_) | syn::Expr::Return(_) => true,
+        syn::Expr::Block(block) => block
+            .block
+            .stmts
+            .iter()
+            .any(statement_unconditionally_terminates),
+        syn::Expr::Group(group) => expression_unconditionally_terminates(&group.expr),
+        syn::Expr::Paren(paren) => expression_unconditionally_terminates(&paren.expr),
+        _ => false,
+    }
 }
 
 fn item_shadows_target(item: &syn::Item, target: Option<SourceTarget>) -> bool {
@@ -1534,6 +1546,21 @@ mod tests {
                 &[(
                     "build.rs",
                     "fn main() { return; es_fluent_build::track_i18n_assets(); }"
+                )],
+                "build.rs",
+                SourceTarget::Call("track_i18n_assets")
+            ),
+            InspectionOutcome::NotFound
+        );
+    }
+
+    #[test]
+    fn build_helper_calls_after_nested_return_are_not_found() {
+        assert_eq!(
+            inspect_fixture(
+                &[(
+                    "build.rs",
+                    "fn main() { { return; } es_fluent_build::track_i18n_assets(); }"
                 )],
                 "build.rs",
                 SourceTarget::Call("track_i18n_assets")
