@@ -70,6 +70,7 @@ fn write_fallback_catalog(
         let paths = if crate_root_assets {
             fallback_root_resource_paths(layout, &domain)?
         } else {
+            validate_sparse_catalog_inputs(layout, &domain)?;
             let plans = ResourcePlan::sparse_from_assets(domain.as_str(), &layout.assets_dir)
                 .map_err(|error| error.to_string())?;
             let Some((_, resources)) = plans
@@ -91,6 +92,7 @@ fn write_fallback_catalog(
         };
 
         for path in paths {
+            validate_catalog_resource_path(&layout.assets_dir, &path)?;
             let source = std::fs::read_to_string(&path)
                 .map_err(|error| format!("failed to read {}: {error}", path.display()))?;
             catalog.insert_source(&domain, source).map_err(|error| {
@@ -117,6 +119,42 @@ fn assets_dir_is_manifest_root(layout: &ResolvedI18nLayout) -> bool {
     }
 }
 
+fn validate_sparse_catalog_inputs(
+    layout: &ResolvedI18nLayout,
+    domain: &FluentDomain,
+) -> Result<(), String> {
+    let entries = std::fs::read_dir(&layout.assets_dir).map_err(|error| {
+        format!(
+            "failed to read locale assets directory {}: {error}",
+            layout.assets_dir.display()
+        )
+    })?;
+
+    for entry in entries {
+        let entry = entry.map_err(|error| {
+            format!(
+                "failed to read directory entry in {}: {error}",
+                layout.assets_dir.display()
+            )
+        })?;
+        let path = entry.path();
+        let metadata = std::fs::symlink_metadata(&path).map_err(|error| {
+            format!("failed to inspect locale asset {}: {error}", path.display())
+        })?;
+        if metadata.file_type().is_symlink() {
+            return Err(format!(
+                "locale asset entries must not be symlinks: {}",
+                path.display()
+            ));
+        }
+        if metadata.is_dir() {
+            catalog_resource_paths_for_locale(domain, &path)?;
+        }
+    }
+
+    Ok(())
+}
+
 fn fallback_root_resource_paths(
     layout: &ResolvedI18nLayout,
     domain: &FluentDomain,
@@ -124,27 +162,105 @@ fn fallback_root_resource_paths(
     let locales = layout
         .available_locale_names()
         .map_err(|error| error.to_string())?;
-    let mut fallback_paths = Vec::new();
 
+    let mut fallback_paths = Vec::new();
     for locale in locales {
         let locale_dir = layout.assets_dir.join(&locale);
-        let base_path = locale_dir.join(format!("{}.ftl", domain.as_str()));
-        if base_path.exists() && locale == layout.fallback_language {
-            fallback_paths.push(base_path);
-        }
-
-        let namespace_root = locale_dir.join(domain.as_str());
-        if !namespace_root.is_dir() {
-            continue;
-        }
-
-        let namespace_paths = discover_namespace_paths(domain, &namespace_root)?;
+        let paths = catalog_resource_paths_for_locale(domain, &locale_dir)?;
         if locale == layout.fallback_language {
-            fallback_paths.extend(namespace_paths);
+            fallback_paths.extend(paths);
         }
     }
 
+    fallback_paths.sort();
     Ok(fallback_paths)
+}
+
+fn catalog_resource_paths_for_locale(
+    domain: &FluentDomain,
+    locale_dir: &Path,
+) -> Result<Vec<PathBuf>, String> {
+    let locale_metadata = std::fs::symlink_metadata(locale_dir).map_err(|error| {
+        format!(
+            "failed to inspect locale directory {}: {error}",
+            locale_dir.display()
+        )
+    })?;
+    if locale_metadata.file_type().is_symlink() {
+        return Err(format!(
+            "locale directory must be a real directory, not a symlink: {}",
+            locale_dir.display()
+        ));
+    }
+
+    let mut paths = Vec::new();
+    let base_path = locale_dir.join(format!("{}.ftl", domain.as_str()));
+    match std::fs::symlink_metadata(&base_path) {
+        Ok(metadata) if metadata.file_type().is_symlink() => {
+            return Err(format!(
+                "Fluent resource must be a real file, not a symlink: {}",
+                base_path.display()
+            ));
+        },
+        Ok(_) => paths.push(base_path),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {},
+        Err(error) => {
+            return Err(format!(
+                "failed to inspect Fluent resource {}: {error}",
+                base_path.display()
+            ));
+        },
+    }
+
+    let namespace_root = locale_dir.join(domain.as_str());
+    match std::fs::symlink_metadata(&namespace_root) {
+        Ok(metadata) if metadata.file_type().is_symlink() => {
+            return Err(format!(
+                "Fluent namespace must be a real directory, not a symlink: {}",
+                namespace_root.display()
+            ));
+        },
+        Ok(metadata) if metadata.is_dir() => {
+            paths.extend(discover_namespace_paths(domain, &namespace_root)?);
+        },
+        Ok(_) => {},
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {},
+        Err(error) => {
+            return Err(format!(
+                "failed to inspect Fluent namespace {}: {error}",
+                namespace_root.display()
+            ));
+        },
+    }
+
+    Ok(paths)
+}
+
+fn validate_catalog_resource_path(assets_dir: &Path, path: &Path) -> Result<(), String> {
+    let relative = path.strip_prefix(assets_dir).map_err(|error| {
+        format!(
+            "failed to validate catalog resource {} relative to {}: {error}",
+            path.display(),
+            assets_dir.display()
+        )
+    })?;
+    let mut current = assets_dir.to_path_buf();
+    for component in relative.components() {
+        current.push(component.as_os_str());
+        let metadata = std::fs::symlink_metadata(&current).map_err(|error| {
+            format!(
+                "failed to inspect catalog resource component {}: {error}",
+                current.display()
+            )
+        })?;
+        if metadata.file_type().is_symlink() {
+            return Err(format!(
+                "catalog resource paths must not contain symlinks: {}",
+                current.display()
+            ));
+        }
+    }
+    Ok(())
 }
 
 fn discover_namespace_paths(
@@ -159,21 +275,33 @@ fn discover_namespace_paths(
             .map_err(|error| format!("failed to read {}: {error}", current_dir.display()))?;
 
         for entry in entries {
-            let path = entry
-                .map_err(|error| {
-                    format!(
-                        "failed to read directory entry in {}: {error}",
-                        current_dir.display()
-                    )
-                })?
-                .path();
+            let entry = entry.map_err(|error| {
+                format!(
+                    "failed to read directory entry in {}: {error}",
+                    current_dir.display()
+                )
+            })?;
+            let path = entry.path();
+            let metadata = std::fs::symlink_metadata(&path).map_err(|error| {
+                format!(
+                    "failed to inspect fallback asset {}: {error}",
+                    path.display()
+                )
+            })?;
 
-            if path.is_dir() {
+            if metadata.file_type().is_symlink() {
+                return Err(format!(
+                    "fallback Fluent namespace entries must not be symlinks: {}",
+                    path.display()
+                ));
+            }
+
+            if metadata.is_dir() {
                 pending.push(path);
                 continue;
             }
 
-            if !path.is_file() {
+            if !metadata.is_file() {
                 continue;
             }
 
@@ -359,6 +487,98 @@ mod tests {
             catalog
                 .windows(b"test-package\thello\n".len())
                 .any(|window| { window == b"test-package\thello\n" })
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn track_i18n_assets_rejects_symlinked_fallback_locale_directory() {
+        let temp = tempfile::tempdir().expect("tempdir");
+        let outside = tempfile::tempdir().expect("outside tempdir");
+        fs::create_dir_all(temp.path().join("i18n")).expect("create assets dir");
+        fs::write(
+            temp.path().join("i18n.toml"),
+            "fallback_language = \"en\"\nassets_dir = \"i18n\"\n",
+        )
+        .expect("write config");
+        fs::write(
+            outside.path().join("test-package.ftl"),
+            "hello = Outside fallback\n",
+        )
+        .expect("write outside fallback resource");
+        std::os::unix::fs::symlink(outside.path(), temp.path().join("i18n/en"))
+            .expect("create fallback locale symlink");
+
+        let panic = with_manifest_env(Some(temp.path()), || {
+            std::panic::catch_unwind(track_i18n_assets)
+        })
+        .expect_err("symlinked fallback locale should be rejected");
+        let message = panic_message(panic.as_ref()).unwrap_or_default();
+        assert!(
+            message.contains("symlink"),
+            "unexpected panic message: {message}"
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn track_i18n_assets_rejects_symlinked_fallback_resource() {
+        let temp = tempfile::tempdir().expect("tempdir");
+        let outside = tempfile::tempdir().expect("outside tempdir");
+        fs::create_dir_all(temp.path().join("i18n/en")).expect("create fallback locale");
+        fs::write(
+            temp.path().join("i18n.toml"),
+            "fallback_language = \"en\"\nassets_dir = \"i18n\"\n",
+        )
+        .expect("write config");
+        let outside_resource = outside.path().join("test-package.ftl");
+        fs::write(&outside_resource, "hello = Outside fallback\n")
+            .expect("write outside fallback resource");
+        std::os::unix::fs::symlink(
+            &outside_resource,
+            temp.path().join("i18n/en/test-package.ftl"),
+        )
+        .expect("create fallback resource symlink");
+
+        let panic = with_manifest_env(Some(temp.path()), || {
+            std::panic::catch_unwind(track_i18n_assets)
+        })
+        .expect_err("symlinked fallback resource should be rejected");
+        let message = panic_message(panic.as_ref()).unwrap_or_default();
+        assert!(
+            message.contains("symlink"),
+            "unexpected panic message: {message}"
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn crate_root_assets_reject_symlinked_namespace_resource() {
+        let temp = tempfile::tempdir().expect("tempdir");
+        let outside = tempfile::tempdir().expect("outside tempdir");
+        fs::create_dir_all(temp.path().join("en/test-package")).expect("create fallback namespace");
+        fs::write(
+            temp.path().join("i18n.toml"),
+            "fallback_language = \"en\"\nassets_dir = \".\"\n",
+        )
+        .expect("write config");
+        let outside_resource = outside.path().join("test-package.ftl");
+        fs::write(&outside_resource, "hello = Outside fallback\n")
+            .expect("write outside fallback resource");
+        std::os::unix::fs::symlink(
+            &outside_resource,
+            temp.path().join("en/test-package/ui.ftl"),
+        )
+        .expect("create crate-root namespace resource symlink");
+
+        let panic = with_manifest_env(Some(temp.path()), || {
+            std::panic::catch_unwind(track_i18n_assets)
+        })
+        .expect_err("crate-root namespace resource symlink should be rejected");
+        let message = panic_message(panic.as_ref()).unwrap_or_default();
+        assert!(
+            message.contains("symlink"),
+            "unexpected panic message: {message}"
         );
     }
 

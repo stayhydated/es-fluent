@@ -279,10 +279,11 @@ fn watcher_conservatively_maps_indeterminate_build_graph_inputs() {
     let build_target = temp.path().join("build.rs");
     fs::write(
         &build_target,
-        "include!(concat!(env!(\"CARGO_MANIFEST_DIR\"), \"/support.rs\"));\nfn main() {}\n",
+        "macro_rules! load_config { () => { include!(\"support/config.rs\"); }; } load_config!(); fn main() {}\n",
     )
     .expect("write build target");
-    let support = temp.path().join("support.rs");
+    fs::create_dir_all(temp.path().join("support")).expect("create support directory");
+    let support = temp.path().join("support/config.rs");
     fs::write(&support, "pub fn configure() {}\n").expect("write support");
     let mut krate = test_crate("watch-indeterminate", true);
     krate.manifest_dir = crate::core::ManifestDir::from_discovered(temp.path().to_path_buf());

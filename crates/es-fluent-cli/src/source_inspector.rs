@@ -32,10 +32,14 @@ impl SourceTarget {
             return false;
         }
 
+        self.is_expected_root(&root)
+    }
+
+    fn is_expected_root(self, root: &str) -> bool {
         match self {
             Self::Call(_) => root == "es_fluent_build",
             Self::Macro(_) => matches!(
-                root.as_str(),
+                root,
                 "es_fluent_manager_embedded"
                     | "es_fluent_manager_dioxus"
                     | "es_fluent_manager_bevy"
@@ -536,6 +540,8 @@ impl<'ast> syn::visit::Visit<'ast> for FunctionCallVisitor<'_> {
     fn visit_item_fn(&mut self, _function: &'ast syn::ItemFn) {}
 
     fn visit_expr_closure(&mut self, _closure: &'ast syn::ExprClosure) {}
+
+    fn visit_expr_async(&mut self, _expression: &'ast syn::ExprAsync) {}
 }
 
 fn resolve_local_functions(
@@ -594,6 +600,7 @@ struct ImportResolution {
     verified: bool,
     uncertain: bool,
     shadowed: bool,
+    expected_root_shadowed: bool,
 }
 
 impl ImportResolution {
@@ -601,6 +608,7 @@ impl ImportResolution {
         self.verified |= other.verified;
         self.uncertain |= other.uncertain;
         self.shadowed |= other.shadowed;
+        self.expected_root_shadowed |= other.expected_root_shadowed;
     }
 }
 
@@ -633,8 +641,15 @@ impl<'a> EvidenceVisitor<'a> {
 
     fn record(&mut self, path: &syn::Path, span: Span, conditional: bool) {
         let verified = if path.segments.len() > 1 {
-            self.target
-                .is_some_and(|target| target.is_expected_path(path))
+            self.target.is_some_and(|target| {
+                target.is_expected_path(path)
+                    && (path.leading_colon.is_some()
+                        || !self
+                            .scopes
+                            .iter()
+                            .rev()
+                            .any(|scope| scope.expected_root_shadowed))
+            })
         } else {
             self.scopes
                 .iter()
@@ -759,6 +774,12 @@ impl<'ast> syn::visit::Visit<'ast> for EvidenceVisitor<'_> {
         });
     }
 
+    fn visit_expr_async(&mut self, expression: &'ast syn::ExprAsync) {
+        self.visit_execution_uncertain(|visitor| {
+            syn::visit::visit_expr_async(visitor, expression);
+        });
+    }
+
     fn visit_expr_if(&mut self, expression: &'ast syn::ExprIf) {
         self.visit_with_attributes(&expression.attrs, |visitor| {
             visitor.visit_expr(&expression.cond);
@@ -840,17 +861,24 @@ impl<'ast> syn::visit::Visit<'ast> for EvidenceVisitor<'_> {
 
     fn visit_item_macro(&mut self, item: &'ast syn::ItemMacro) {
         self.visit_with_attributes(&item.attrs, |visitor| {
-            if item.mac.path.is_ident("macro_rules")
-                && visitor.target.is_some_and(|target| {
-                    token_stream_contains_ident(&item.mac.tokens, target.name())
-                })
-            {
-                visitor.indeterminate_reasons.push(format!(
-                    "macro wrapper involving `{}` at {}:{}",
-                    visitor.target.expect("checked target").name(),
-                    visitor.current_file.display(),
-                    item.mac.path.span().start().line
-                ));
+            if item.mac.path.is_ident("macro_rules") {
+                if token_stream_contains_macro_invocation(&item.mac.tokens, "include") {
+                    visitor.indeterminate_reasons.push(format!(
+                        "macro wrapper involving `include!` at {}:{}",
+                        visitor.current_file.display(),
+                        item.mac.path.span().start().line
+                    ));
+                }
+                if let Some(target) = visitor.target
+                    && token_stream_contains_ident(&item.mac.tokens, target.name())
+                {
+                    visitor.indeterminate_reasons.push(format!(
+                        "macro wrapper involving `{}` at {}:{}",
+                        target.name(),
+                        visitor.current_file.display(),
+                        item.mac.path.span().start().line
+                    ));
+                }
             }
             syn::visit::visit_item_macro(visitor, item);
         });
@@ -891,6 +919,7 @@ fn imports_for_items(items: &[syn::Item], target: Option<SourceTarget>) -> Impor
                 item if item_shadows_target(item, target) => found.shadowed = true,
                 _ => {},
             }
+            found.expected_root_shadowed |= item_shadows_expected_root(item, target);
             found
         })
 }
@@ -908,6 +937,7 @@ fn imports_for_statements(
                     item if item_shadows_target(item, target) => found.shadowed = true,
                     _ => {},
                 }
+                found.expected_root_shadowed |= item_shadows_expected_root(item, target);
             }
             found
         })
@@ -927,6 +957,31 @@ fn item_shadows_target(item: &syn::Item, target: Option<SourceTarget>) -> bool {
         _ => None,
     };
     ident.is_some_and(|ident| ident == target)
+}
+
+fn item_shadows_expected_root(item: &syn::Item, target: Option<SourceTarget>) -> bool {
+    let Some(target) = target else {
+        return false;
+    };
+    let ident = match item {
+        syn::Item::Enum(item) => Some(&item.ident),
+        syn::Item::ExternCrate(item) => {
+            let bound = item
+                .rename
+                .as_ref()
+                .map_or(&item.ident, |(_, rename)| rename);
+            return target.is_expected_root(&bound.to_string())
+                && !target.is_expected_root(&item.ident.to_string());
+        },
+        syn::Item::Mod(item) => Some(&item.ident),
+        syn::Item::Struct(item) => Some(&item.ident),
+        syn::Item::Trait(item) => Some(&item.ident),
+        syn::Item::TraitAlias(item) => Some(&item.ident),
+        syn::Item::Type(item) => Some(&item.ident),
+        syn::Item::Union(item) => Some(&item.ident),
+        _ => None,
+    };
+    ident.is_some_and(|ident| target.is_expected_root(&ident.to_string()))
 }
 
 fn import_resolution(item: &syn::ItemUse, target: Option<SourceTarget>) -> ImportResolution {
@@ -955,6 +1010,17 @@ fn inspect_use_tree(
             prefix.pop();
         },
         syn::UseTree::Name(name) => {
+            if target.is_expected_root(&name.ident.to_string()) && !prefix.is_empty() {
+                resolution.expected_root_shadowed = true;
+            }
+            if name.ident == "self"
+                && prefix
+                    .last()
+                    .is_some_and(|ident| target.is_expected_root(&ident.to_string()))
+                && prefix.len() > 1
+            {
+                resolution.expected_root_shadowed = true;
+            }
             prefix.push(name.ident.clone());
             if name.ident == target.name() {
                 let path = syn::Path {
@@ -973,6 +1039,11 @@ fn inspect_use_tree(
             if rename.ident == target.name() || rename.rename == target.name() {
                 resolution.uncertain = true;
             }
+            if target.is_expected_root(&rename.rename.to_string())
+                && (!prefix.is_empty() || !target.is_expected_root(&rename.ident.to_string()))
+            {
+                resolution.expected_root_shadowed = true;
+            }
         },
         syn::UseTree::Glob(_) => {},
         syn::UseTree::Group(group) => {
@@ -990,6 +1061,25 @@ fn token_stream_contains_ident(tokens: &proc_macro2::TokenStream, target: &str) 
             token_stream_contains_ident(&group.stream(), target)
         },
         proc_macro2::TokenTree::Punct(_) | proc_macro2::TokenTree::Literal(_) => false,
+    })
+}
+
+fn token_stream_contains_macro_invocation(tokens: &proc_macro2::TokenStream, target: &str) -> bool {
+    let tokens = tokens.clone().into_iter().collect::<Vec<_>>();
+    if tokens.windows(2).any(|tokens| {
+        matches!(&tokens[0], proc_macro2::TokenTree::Ident(ident) if ident == target)
+            && matches!(&tokens[1], proc_macro2::TokenTree::Punct(punct) if punct.as_char() == '!')
+    }) {
+        return true;
+    }
+
+    tokens.into_iter().any(|token| match token {
+        proc_macro2::TokenTree::Group(group) => {
+            token_stream_contains_macro_invocation(&group.stream(), target)
+        },
+        proc_macro2::TokenTree::Ident(_)
+        | proc_macro2::TokenTree::Punct(_)
+        | proc_macro2::TokenTree::Literal(_) => false,
     })
 }
 
@@ -1194,6 +1284,7 @@ mod tests {
             "fn main() { match false { true => es_fluent_build::track_i18n_assets(), false => {} } }",
             "fn main() { while false { es_fluent_build::track_i18n_assets(); } }",
             "fn main() { false && { es_fluent_build::track_i18n_assets(); true }; }",
+            "fn main() { let _future = async { es_fluent_build::track_i18n_assets(); }; }",
         ] {
             assert!(matches!(
                 inspect_fixture(
@@ -1221,6 +1312,26 @@ mod tests {
             InspectionOutcome::Indeterminate(reason)
                 if reason.contains("could not be resolved to the expected es-fluent dependency")
         ));
+    }
+
+    #[test]
+    fn local_module_shadowing_build_dependency_is_indeterminate() {
+        for source in [
+            "mod es_fluent_build { pub fn track_i18n_assets() {} } fn main() { es_fluent_build::track_i18n_assets(); }",
+            "mod local { pub mod es_fluent_build { pub fn track_i18n_assets() {} } } use local::es_fluent_build; fn main() { es_fluent_build::track_i18n_assets(); }",
+            "mod local { pub fn track_i18n_assets() {} } use local as es_fluent_build; fn main() { es_fluent_build::track_i18n_assets(); }",
+            "extern crate self as es_fluent_build; fn track_i18n_assets() {} fn main() { es_fluent_build::track_i18n_assets(); }",
+        ] {
+            assert!(matches!(
+                inspect_fixture(
+                    &[("build.rs", source)],
+                    "build.rs",
+                    SourceTarget::Call("track_i18n_assets")
+                ),
+                InspectionOutcome::Indeterminate(reason)
+                    if reason.contains("could not be resolved to the expected es-fluent dependency")
+            ));
+        }
     }
 
     #[test]
@@ -1318,5 +1429,28 @@ mod tests {
             ),
             InspectionOutcome::Found(_)
         ));
+    }
+
+    #[test]
+    fn source_graph_marks_macro_wrapped_include_indeterminate_without_a_doctor_target() {
+        let temp = tempfile::tempdir().expect("tempdir");
+        let support = temp.path().join("support");
+        fs::create_dir_all(&support).expect("create support directory");
+        fs::write(
+            temp.path().join("build.rs"),
+            "macro_rules! load_config { () => { include!(\"support/config.rs\"); }; } load_config!(); fn main() {}\n",
+        )
+        .expect("write build target");
+        fs::write(support.join("config.rs"), "pub fn configure() {}\n")
+            .expect("write included source");
+
+        let graph = reachable_source_graph(&temp.path().join("build.rs"), temp.path());
+
+        assert!(
+            graph
+                .indeterminate_reasons
+                .iter()
+                .any(|reason| { reason.contains("macro wrapper") && reason.contains("include") })
+        );
     }
 }

@@ -1036,6 +1036,8 @@ fn binary_doctor_warns_for_branch_guarded_and_shadowed_build_helper_calls() {
     for source in [
         "fn main() { if false { es_fluent_build::track_i18n_assets(); } }\n",
         "use es_fluent_build::track_i18n_assets;\nfn main() { fn track_i18n_assets() {} track_i18n_assets(); }\n",
+        "mod es_fluent_build { pub fn track_i18n_assets() {} }\nfn main() { es_fluent_build::track_i18n_assets(); }\n",
+        "fn main() { let _future = async { es_fluent_build::track_i18n_assets(); }; }\n",
     ] {
         let temp = fixtures::create_workspace();
         std::fs::write(

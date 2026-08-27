@@ -422,6 +422,28 @@ mod tests {
     }
 
     #[test]
+    fn test_compute_crate_inputs_hash_is_uncacheable_for_macro_wrapped_include() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let src_dir = temp_dir.path().join("src");
+        let support_dir = temp_dir.path().join("support");
+        fs::create_dir_all(&src_dir).unwrap();
+        fs::create_dir_all(&support_dir).unwrap();
+        fs::write(src_dir.join("lib.rs"), "pub struct App;\n").unwrap();
+        let build_target = temp_dir.path().join("build.rs");
+        fs::write(
+            &build_target,
+            "macro_rules! load_config { () => { include!(\"support/config.rs\"); }; } load_config!(); fn main() {}\n",
+        )
+        .unwrap();
+        fs::write(support_dir.join("config.rs"), "pub fn configure() {}\n").unwrap();
+
+        assert_eq!(
+            compute_crate_inputs_hash(temp_dir.path(), &src_dir, None, Some(&build_target)),
+            None
+        );
+    }
+
+    #[test]
     fn test_compute_crate_inputs_hash_ignores_generated_dirs_for_root_source_dir() {
         let temp_dir = tempfile::tempdir().unwrap();
         fs::write(temp_dir.path().join("lib.rs"), "pub struct Demo;\n").unwrap();
