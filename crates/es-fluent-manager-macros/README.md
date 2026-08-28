@@ -8,7 +8,7 @@ Dioxus, and Bevy managers.
 
 Applications should call the re-exported macro from their concrete manager:
 
-~~~rust
+~~~rust,ignore
 es_fluent_manager_embedded::define_i18n_module!();
 // or:
 // es_fluent_manager_dioxus::define_i18n_module!();

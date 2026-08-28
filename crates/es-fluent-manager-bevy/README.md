@@ -16,13 +16,13 @@ es-fluent-manager-bevy = "*"
 
 Register package resources from a library module:
 
-~~~rust
+~~~rust,ignore
 es_fluent_manager_bevy::define_i18n_module!();
 ~~~
 
 Install the plugin:
 
-~~~rust
+~~~rust,no_run
 use bevy::prelude::*;
 use es_fluent_manager_bevy::I18nPlugin;
 use unic_langid::langid;

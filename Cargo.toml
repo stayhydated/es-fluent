@@ -32,7 +32,7 @@ license = "MIT OR Apache-2.0"
 publish = true
 readme = "README.md"
 repository = "https://github.com/stayhydated/es-fluent"
-rust-version = "1.96"
+rust-version = "1.98"
 version = "0.18.1"
 
 [workspace.dependencies]
@@ -82,14 +82,14 @@ fs-err = "3.3"
 futures = "0.3"
 getset = "0.1"
 globset = "0.4"
-gpui = { git = "https://github.com/zed-industries/zed", rev = "20ce54f8e407d575cc2d873ffa1c09a08c2689f1" }
-gpui-component = { git = "https://github.com/longbridge/gpui-component" }
+gpui = { branch = "linux-headless-renderer", git = "https://github.com/stayhydated/zed" }
+gpui-component = { git = "https://github.com/stayhydated/gpui-component", rev = "33f25d368447a47ab5da2c674b2e833826c79fb1" }
 gpui_platform = { features = [
   "font-kit",
   "x11",
   "wayland",
   "runtime_shaders",
-], git = "https://github.com/zed-industries/zed", rev = "20ce54f8e407d575cc2d873ffa1c09a08c2689f1" }
+], branch = "linux-headless-renderer", git = "https://github.com/stayhydated/zed" }
 heck = "0.5"
 icu_calendar = "2.2"
 icu_datetime = "2.2"
@@ -121,9 +121,9 @@ serde = "1.0"
 serde_json = "1.0"
 serial_test = "4.0"
 similar = "3.1"
-stayhydated-dioxus = { git = "https://github.com/stayhydated/shared", rev = "2b62be85c86ddfe616fc2081c1aeaa5c00decca6" }
-stayhydated-site = { git = "https://github.com/stayhydated/shared", rev = "2b62be85c86ddfe616fc2081c1aeaa5c00decca6" }
-stayhydated-xtask = { git = "https://github.com/stayhydated/shared", rev = "2b62be85c86ddfe616fc2081c1aeaa5c00decca6" }
+stayhydated-dioxus = { git = "https://github.com/stayhydated/shared", rev = "809946144fe13b04a57ba17677c4c699143f4786" }
+stayhydated-site = { git = "https://github.com/stayhydated/shared", rev = "809946144fe13b04a57ba17677c4c699143f4786" }
+stayhydated-xtask = { git = "https://github.com/stayhydated/shared", rev = "809946144fe13b04a57ba17677c4c699143f4786" }
 strum = "0.28"
 syn = "3.0"
 temp-env = "0.3"
@@ -142,9 +142,6 @@ wasm-bindgen = "0.2"
 web = { path = "web" }
 web-sys = "0.3"
 writeable = "0.6"
-
-[replace]
-"https://github.com/zed-industries/zed#gpui@0.2.2" = { git = "https://github.com/zed-industries/zed", rev = "20ce54f8e407d575cc2d873ffa1c09a08c2689f1" }
 
 [profile.dev]
 codegen-units = 16

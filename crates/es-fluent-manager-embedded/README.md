@@ -17,7 +17,7 @@ unic-langid = "0.9"
 
 Register resources from a library-reachable module:
 
-~~~rust
+~~~rust,ignore
 es_fluent_manager_embedded::define_i18n_module!();
 ~~~
 

@@ -6,8 +6,8 @@ use es_fluent_derive_core::{
     grammar::LanguageMode,
     macro_input::ValidatedMacroInput,
     macro_support::{
-        core_error_to_compile_error, resolve_crate_path, static_domain_tokens,
-        static_entry_id_tokens,
+        core_error_to_compile_error, resolve_crate_path, resolve_crate_path_with_self_alias,
+        static_domain_tokens, static_entry_id_tokens,
     },
     semantic::{
         DerivePathList, GeneratedEnumModel, MessageEntryModel, RustSourceName, RustTypeName,
@@ -34,7 +34,7 @@ struct CratePaths {
 impl CratePaths {
     fn resolve() -> Self {
         Self {
-            facade: resolve_crate_path("es-fluent", "es_fluent"),
+            facade: resolve_crate_path_with_self_alias("es-fluent", "es_fluent"),
             lang: resolve_crate_path("es-fluent-lang", "es_fluent_lang"),
         }
     }

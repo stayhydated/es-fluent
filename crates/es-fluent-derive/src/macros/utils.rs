@@ -21,7 +21,7 @@ pub struct CodegenContext {
 impl CodegenContext {
     pub fn resolve(input: &syn::DeriveInput, derive: FallbackValidationDerive) -> Self {
         Self {
-            facade_path: ResolvedCratePath::resolve("es-fluent", "es_fluent"),
+            facade_path: ResolvedCratePath::resolve_with_self_alias("es-fluent", "es_fluent"),
             fallback_validation: macro_support::fallback_validation_for_derive(input, derive),
             fallback_setup_diagnostic_emitted: std::cell::Cell::new(false),
         }

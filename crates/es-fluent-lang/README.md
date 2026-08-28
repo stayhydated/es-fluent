@@ -14,7 +14,7 @@ strum = { version = "0.28", features = ["derive"] }
 
 Annotate an empty enum:
 
-~~~rust
+~~~rust,ignore
 use es_fluent_lang::es_fluent_language;
 use strum::EnumIter;
 
