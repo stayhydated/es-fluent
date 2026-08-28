@@ -39,7 +39,7 @@ pub(super) fn watch_modes_for_crates<'a>(
     for directory in path_to_crate.build_source_watch_dirs() {
         insert_watch_mode(&mut directories, directory, RecursiveMode::Recursive);
     }
-    for directory in path_to_crate.cargo_config_watch_dirs() {
+    for directory in path_to_crate.cargo_input_watch_dirs() {
         insert_watch_mode(&mut directories, directory, RecursiveMode::NonRecursive);
     }
     for krate in crates {
@@ -430,6 +430,47 @@ mod tests {
         )
     }
 
+    fn workspace_runtime_fixture() -> (tempfile::TempDir, CrateInfo, WorkspaceInfo) {
+        let temp = tempfile::tempdir().expect("tempdir");
+        let workspace_root = temp.path();
+        let manifest_dir = workspace_root.join("crates/crate-a");
+        let src_dir = manifest_dir.join("src");
+        std::fs::create_dir_all(&src_dir).expect("create source directory");
+        std::fs::write(
+            workspace_root.join("Cargo.toml"),
+            "[workspace]\nmembers = [\"crates/crate-a\"]\nresolver = \"3\"\n",
+        )
+        .expect("write workspace manifest");
+        std::fs::write(workspace_root.join("Cargo.lock"), "version = 4\n")
+            .expect("write workspace lockfile");
+        std::fs::write(
+            manifest_dir.join("Cargo.toml"),
+            "[package]\nname = \"crate-a\"\nversion = \"0.1.0\"\nedition = \"2024\"\n",
+        )
+        .expect("write crate manifest");
+        std::fs::write(src_dir.join("lib.rs"), "pub struct Demo;\n").expect("write library");
+        std::fs::write(
+            manifest_dir.join("i18n.toml"),
+            "fallback_language = \"en\"\n",
+        )
+        .expect("write i18n config");
+
+        let mut krate = test_crate();
+        krate.manifest_dir = crate::core::ManifestDir::from_discovered(manifest_dir.clone());
+        krate.src_dir = crate::core::SourceDir::from_discovered(src_dir);
+        krate.i18n_config_path =
+            crate::core::DiscoveredI18nConfigPath::from_discovered(manifest_dir.join("i18n.toml"));
+        krate.ftl_output_dir =
+            crate::core::DiscoveredFtlOutputDir::from_discovered(manifest_dir.join("i18n/en"));
+        let workspace = WorkspaceInfo {
+            root_dir: workspace_root.to_path_buf(),
+            target_dir: workspace_root.join("target"),
+            crates: vec![krate.clone()],
+        };
+
+        (temp, krate, workspace)
+    }
+
     #[test]
     fn observe_hash_marks_generating_crate_dirty_when_content_changes_mid_run() {
         let krate = test_crate();
@@ -478,42 +519,8 @@ mod tests {
 
     #[test]
     fn workspace_lock_event_is_not_suppressed_and_marks_active_generation_for_rerun() {
-        let temp = tempfile::tempdir().expect("tempdir");
-        let workspace_root = temp.path();
-        let manifest_dir = workspace_root.join("crates/crate-a");
-        let src_dir = manifest_dir.join("src");
-        std::fs::create_dir_all(&src_dir).expect("create source directory");
-        std::fs::write(
-            workspace_root.join("Cargo.toml"),
-            "[workspace]\nmembers = [\"crates/crate-a\"]\nresolver = \"3\"\n",
-        )
-        .expect("write workspace manifest");
-        std::fs::write(workspace_root.join("Cargo.lock"), "version = 4\n")
-            .expect("write workspace lockfile");
-        std::fs::write(
-            manifest_dir.join("Cargo.toml"),
-            "[package]\nname = \"crate-a\"\nversion = \"0.1.0\"\nedition = \"2024\"\n",
-        )
-        .expect("write crate manifest");
-        std::fs::write(src_dir.join("lib.rs"), "pub struct Demo;\n").expect("write library");
-        std::fs::write(
-            manifest_dir.join("i18n.toml"),
-            "fallback_language = \"en\"\n",
-        )
-        .expect("write i18n config");
-
-        let mut krate = test_crate();
-        krate.manifest_dir = crate::core::ManifestDir::from_discovered(manifest_dir.clone());
-        krate.src_dir = crate::core::SourceDir::from_discovered(src_dir);
-        krate.i18n_config_path =
-            crate::core::DiscoveredI18nConfigPath::from_discovered(manifest_dir.join("i18n.toml"));
-        krate.ftl_output_dir =
-            crate::core::DiscoveredFtlOutputDir::from_discovered(manifest_dir.join("i18n/en"));
-        let workspace = WorkspaceInfo {
-            root_dir: workspace_root.to_path_buf(),
-            target_dir: workspace_root.join("target"),
-            crates: vec![krate.clone()],
-        };
+        let (_temp, krate, workspace) = workspace_runtime_fixture();
+        let workspace_root = &workspace.root_dir;
         let mut runtime = WatchRuntime::new(
             std::slice::from_ref(&krate),
             &workspace,
@@ -529,6 +536,53 @@ mod tests {
         std::fs::write(&lock_path, "version = 5\n").expect("change workspace lockfile");
         let event = DebouncedEvent::new(
             Event::new(EventKind::Any).add_path(lock_path),
+            Instant::now(),
+        );
+        let affected = runtime.affected_crates_for_events(std::slice::from_ref(&event));
+        assert_eq!(affected, vec![krate.name.to_string()]);
+
+        let crates = [krate.clone()];
+        let mut app = TuiApp::new(&crates);
+        runtime.handle_affected_crates(&mut app, affected);
+
+        assert_ne!(
+            runtime
+                .observed_hash(krate.name.as_str())
+                .expect("updated observed hash"),
+            initial_hash
+        );
+        assert!(
+            runtime
+                .dirty_generating_crates
+                .contains(krate.name.as_str())
+        );
+        assert!(runtime.finish_generation(krate.name.as_str()));
+    }
+
+    #[test]
+    fn cargo_config_event_is_not_suppressed_and_marks_active_generation_for_rerun() {
+        let (_temp, krate, workspace) = workspace_runtime_fixture();
+        let cargo_dir = workspace.root_dir.join(".cargo");
+        std::fs::create_dir_all(&cargo_dir).expect("create Cargo config directory");
+        let config_path = cargo_dir.join("config.toml");
+        std::fs::write(&config_path, "[env]\nINVENTORY_MODE = \"off\"\n")
+            .expect("write initial Cargo config");
+
+        let mut runtime = WatchRuntime::new(
+            std::slice::from_ref(&krate),
+            &workspace,
+            &FluentParseMode::default(),
+        );
+        let initial_hash = runtime
+            .observed_hash(krate.name.as_str())
+            .expect("initial observed hash")
+            .to_string();
+        runtime.begin_generation(krate.name.as_str());
+
+        std::fs::write(&config_path, "[env]\nINVENTORY_MODE = \"on\"\n")
+            .expect("change Cargo config");
+        let event = DebouncedEvent::new(
+            Event::new(EventKind::Any).add_path(config_path),
             Instant::now(),
         );
         let affected = runtime.affected_crates_for_events(std::slice::from_ref(&event));

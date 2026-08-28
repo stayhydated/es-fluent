@@ -104,10 +104,13 @@ deferred to the requested operation so its normal validation and transaction
 diagnostics remain authoritative.
 
 `watch` runs the same generation flow when Rust, manifest, build
-script, configuration, or workspace lockfile inputs change. Press `q`
-or `Ctrl-C` to stop after active work and any already queued rerun
-finish. Transient Cargo metadata errors keep the previous build-source graph
-and watches active; saving a corrected manifest retries metadata discovery.
+script, configuration, or workspace lockfile inputs change. Applicable
+`.cargo/config.toml` and `.cargo/config` files in the workspace hierarchy and
+Cargo home, their recursive includes, and configured lockfile paths invalidate
+both watch fingerprints and cached derive inventory. Press `q` or `Ctrl-C` to
+stop after active work and any already queued rerun finish. Transient Cargo
+metadata errors keep the previous build-source graph and watches active; saving
+a corrected manifest retries metadata discovery.
 
 ## Validate before committing
 

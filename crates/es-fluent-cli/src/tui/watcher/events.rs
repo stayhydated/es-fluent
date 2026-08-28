@@ -7,10 +7,10 @@ use std::path::{Path, PathBuf};
 pub(super) struct PathToCrateMap {
     workspace_root: PathBuf,
     target_dir: PathBuf,
-    cargo_config_dirs: BTreeSet<PathBuf>,
+    cargo_input_dirs: BTreeSet<PathBuf>,
     cargo_config_paths: BTreeSet<PathBuf>,
-    cargo_config_topology_dirs: BTreeSet<PathBuf>,
-    cargo_config_topology_paths: BTreeSet<PathBuf>,
+    cargo_lockfile_paths: BTreeSet<PathBuf>,
+    cargo_input_topology_paths: BTreeSet<PathBuf>,
     workspace_crates: Vec<String>,
     manifest_dirs: Vec<(PathBuf, String)>,
     src_dirs: Vec<SourceDirMatch>,
@@ -34,7 +34,7 @@ pub(super) fn build_path_to_crate(
         valid_crates,
         workspace_root,
         target_dir,
-        configured_cargo_home(),
+        crate::generation::cache::configured_cargo_home(),
     )
 }
 
@@ -45,28 +45,21 @@ pub(super) fn build_path_to_crate_with_cargo_home(
     cargo_home: Option<PathBuf>,
 ) -> PathToCrateMap {
     let (build_sources, build_source_dirs) = build_source_entries(valid_crates);
-    let cargo_config_candidates = cargo_config_candidates(workspace_root, cargo_home);
-    let cargo_config_dirs = cargo_config_candidates
-        .iter()
-        .filter(|directory| directory.is_dir())
-        .cloned()
-        .collect::<BTreeSet<_>>();
-    let cargo_config_paths = cargo_config_candidates
-        .iter()
-        .flat_map(|directory| [directory.join("config.toml"), directory.join("config")])
-        .collect();
-    let (cargo_config_topology_dirs, cargo_config_topology_paths) = cargo_config_candidates
-        .iter()
-        .filter_map(|directory| cargo_config_topology_watch(directory))
-        .unzip();
+    let cargo_inputs = crate::generation::cache::cargo_inputs(workspace_root, cargo_home);
+    let (cargo_input_dirs, cargo_input_topology_paths) = cargo_input_watches(
+        cargo_inputs
+            .config_paths
+            .iter()
+            .chain(&cargo_inputs.lockfile_paths),
+    );
 
     PathToCrateMap {
         workspace_root: workspace_root.to_path_buf(),
         target_dir: target_dir.to_path_buf(),
-        cargo_config_dirs,
-        cargo_config_paths,
-        cargo_config_topology_dirs,
-        cargo_config_topology_paths,
+        cargo_input_dirs,
+        cargo_config_paths: cargo_inputs.config_paths,
+        cargo_lockfile_paths: cargo_inputs.lockfile_paths,
+        cargo_input_topology_paths,
         workspace_crates: valid_crates
             .iter()
             .map(|krate| krate.name.to_string())
@@ -92,33 +85,34 @@ pub(super) fn build_path_to_crate_with_cargo_home(
     }
 }
 
-fn configured_cargo_home() -> Option<PathBuf> {
-    std::env::var_os("CARGO_HOME")
-        .map(PathBuf::from)
-        .or_else(|| std::env::var_os("HOME").map(|home| PathBuf::from(home).join(".cargo")))
-        .or_else(|| std::env::var_os("USERPROFILE").map(|home| PathBuf::from(home).join(".cargo")))
-}
+fn cargo_input_watches<'a>(
+    paths: impl IntoIterator<Item = &'a PathBuf>,
+) -> (BTreeSet<PathBuf>, BTreeSet<PathBuf>) {
+    let mut watch_dirs = BTreeSet::new();
+    let mut topology_paths = BTreeSet::new();
 
-fn cargo_config_candidates(
-    workspace_root: &Path,
-    cargo_home: Option<PathBuf>,
-) -> BTreeSet<PathBuf> {
-    let mut directories = workspace_root
-        .ancestors()
-        .map(|ancestor| ancestor.join(".cargo"))
-        .collect::<BTreeSet<_>>();
-    if let Some(cargo_home) = cargo_home {
-        let cargo_home = if cargo_home.is_absolute() {
-            cargo_home
-        } else {
-            workspace_root.join(cargo_home)
+    for path in paths {
+        let Some(parent) = path.parent() else {
+            continue;
         };
-        directories.insert(cargo_home);
+        if parent.is_dir() {
+            watch_dirs.insert(parent.to_path_buf());
+            if let Some(parent_dir) = parent.parent()
+                && parent_dir.is_dir()
+            {
+                watch_dirs.insert(parent_dir.to_path_buf());
+                topology_paths.insert(parent.to_path_buf());
+            }
+        } else if let Some((watch_dir, topology_path)) = cargo_input_topology_watch(parent) {
+            watch_dirs.insert(watch_dir);
+            topology_paths.insert(topology_path);
+        }
     }
-    directories
+
+    (watch_dirs, topology_paths)
 }
 
-fn cargo_config_topology_watch(candidate: &Path) -> Option<(PathBuf, PathBuf)> {
+fn cargo_input_topology_watch(candidate: &Path) -> Option<(PathBuf, PathBuf)> {
     let mut missing_suffix = Vec::new();
     let mut current = candidate.parent()?;
     while !current.is_dir() {
@@ -221,7 +215,7 @@ pub(super) fn process_file_events(
                 continue;
             }
 
-            if path_to_crate.is_cargo_config_event(path) {
+            if path_to_crate.is_cargo_input_event(path) {
                 for crate_name in path_to_crate.workspace_crates() {
                     affected.insert(crate_name.to_string(), ());
                 }
@@ -278,12 +272,8 @@ impl PathToCrateMap {
             .collect()
     }
 
-    pub(super) fn cargo_config_watch_dirs(&self) -> BTreeSet<PathBuf> {
-        self.cargo_config_dirs
-            .iter()
-            .chain(&self.cargo_config_topology_dirs)
-            .cloned()
-            .collect()
+    pub(super) fn cargo_input_watch_dirs(&self) -> BTreeSet<PathBuf> {
+        self.cargo_input_dirs.clone()
     }
 
     pub(super) fn should_refresh_build_sources(&self, events: &[DebouncedEvent]) -> bool {
@@ -292,6 +282,7 @@ impl PathToCrateMap {
                 self.is_build_source_event(path)
                     || self.is_manifest_event(path)
                     || self.is_cargo_config_event(path)
+                    || self.is_cargo_input_topology_event(path)
             })
         })
     }
@@ -300,6 +291,7 @@ impl PathToCrateMap {
         events.iter().flat_map(|event| &event.paths).any(|path| {
             self.is_manifest_event(path)
                 || self.is_cargo_config_event(path)
+                || self.is_cargo_input_topology_event(path)
                 || self.match_missing_default_build_target(path).is_some()
         })
     }
@@ -349,7 +341,17 @@ impl PathToCrateMap {
     }
 
     fn is_cargo_config_event(&self, path: &Path) -> bool {
-        self.cargo_config_paths.contains(path) || self.cargo_config_topology_paths.contains(path)
+        self.cargo_config_paths.contains(path)
+    }
+
+    fn is_cargo_input_topology_event(&self, path: &Path) -> bool {
+        self.cargo_input_topology_paths.contains(path)
+    }
+
+    fn is_cargo_input_event(&self, path: &Path) -> bool {
+        self.is_cargo_config_event(path)
+            || self.cargo_lockfile_paths.contains(path)
+            || self.is_cargo_input_topology_event(path)
     }
 
     fn is_target_output_for_directory(&self, path: &Path, directory: &Path) -> bool {

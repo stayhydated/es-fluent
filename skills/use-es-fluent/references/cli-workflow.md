@@ -29,7 +29,9 @@ manual verification.
 
 In `watch`, transient Cargo metadata errors leave the previous build-source
 graph and watches active. Save the corrected manifest to retry discovery in the
-same session.
+same session. Applicable `.cargo/config.toml` and `.cargo/config` files in the
+workspace hierarchy and Cargo home, their recursive includes, and configured
+lockfile paths invalidate both watch fingerprints and cached derive inventory.
 
 ## Routine workflow
 

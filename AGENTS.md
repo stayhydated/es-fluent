@@ -128,8 +128,10 @@ maintenance, examples, an mdBook, and a Dioxus-rendered web site.
 - Treat Cargo metadata as authoritative for library and custom-build target
   paths. `doctor` verifies calls and manager registration through parsed local
   module graphs; cache and watch inputs follow the selected custom-build target
-  and its reachable local modules. Unsupported static-analysis constructs are
-  warnings, not passes.
+  and its reachable local modules. Applicable Cargo configuration files from the
+  workspace hierarchy and Cargo home, their recursive includes, and configured
+  lockfile paths share one watcher and runner-cache invalidation contract.
+  Unsupported static-analysis constructs are warnings, not passes.
 - When CLI behavior changes, keep `crates/es-fluent-cli/README.md`,
   `book/src/cli.md`, `skills/use-es-fluent/references/cli-workflow.md`, and the
   relevant root README sections aligned. `crates/es-fluent-cli/tests/main_smoke.rs`

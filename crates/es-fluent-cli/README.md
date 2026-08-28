@@ -45,7 +45,10 @@ cannot prove and require manual verification.
 
 During `watch`, transient Cargo metadata errors are reported while the previous
 build-source graph and watches remain active. Saving a corrected manifest
-retries metadata discovery without restarting the session.
+retries metadata discovery without restarting the session. Applicable
+`.cargo/config.toml` and `.cargo/config` files in the workspace hierarchy and
+Cargo home, their recursive includes, and configured lockfile paths invalidate
+both watch fingerprints and cached derive inventory.
 
 Inspect fallback resources or every locale:
 

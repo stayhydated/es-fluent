@@ -1388,6 +1388,80 @@ fn watcher_resolves_relative_cargo_home_from_workspace_root_non_recursively() {
 }
 
 #[test]
+fn watcher_maps_included_cargo_configs_and_configured_lockfiles_to_all_crates() {
+    let temp = tempfile::tempdir().expect("tempdir");
+    let workspace_root = temp.path().join("workspace");
+    let cargo_dir = workspace_root.join(".cargo");
+    let config_parts = workspace_root.join("config-parts");
+    let lock_dir = workspace_root.join("locks");
+    fs::create_dir_all(workspace_root.join("src")).expect("create source directory");
+    fs::create_dir_all(&cargo_dir).expect("create Cargo config directory");
+    fs::create_dir_all(&config_parts).expect("create included config directory");
+    fs::create_dir_all(&lock_dir).expect("create lockfile directory");
+    fs::write(
+        cargo_dir.join("config.toml"),
+        concat!(
+            "include = [\n",
+            "  \"../config-parts/base.toml\",\n",
+            "  { path = \"../optional/config.toml\", optional = true },\n",
+            "]\n",
+        ),
+    )
+    .expect("write Cargo config");
+    let included_config = config_parts.join("base.toml");
+    fs::write(
+        &included_config,
+        "[resolver]\nlockfile-path = \"locks/Cargo.lock\"\n",
+    )
+    .expect("write included Cargo config");
+    let configured_lockfile = lock_dir.join("Cargo.lock");
+    fs::write(&configured_lockfile, "version = 4\n").expect("write configured lockfile");
+
+    let mut crate_a = test_crate("config-input-a", true);
+    crate_a.manifest_dir = crate::core::ManifestDir::from_discovered(workspace_root.clone());
+    crate_a.src_dir = crate::core::SourceDir::from_discovered(workspace_root.join("src"));
+    crate_a.i18n_config_path =
+        crate::core::DiscoveredI18nConfigPath::from_discovered(workspace_root.join("i18n.toml"));
+    let mut crate_b = crate_a.clone();
+    crate_b.name =
+        es_fluent_runner::PackageName::try_new("config-input-b").expect("valid package name");
+
+    let path_to_crate = super::events::build_path_to_crate_with_cargo_home(
+        &[&crate_a, &crate_b],
+        &workspace_root,
+        &workspace_root.join("target"),
+        None,
+    );
+    let modes = super::runtime::watch_modes_for_crates(&path_to_crate, [&crate_a, &crate_b]);
+    assert_eq!(
+        modes.get(&config_parts),
+        Some(&RecursiveMode::NonRecursive),
+        "included Cargo config directories must be watched"
+    );
+    assert_eq!(
+        modes.get(&lock_dir),
+        Some(&RecursiveMode::NonRecursive),
+        "configured lockfile directories must be watched"
+    );
+
+    for event_path in [
+        included_config,
+        configured_lockfile,
+        workspace_root.join("optional"),
+    ] {
+        let mut affected =
+            super::events::process_file_events(&[event_with_path(&event_path)], &path_to_crate);
+        affected.sort();
+        assert_eq!(
+            affected,
+            vec!["config-input-a".to_string(), "config-input-b".to_string()],
+            "{} must map to every selected crate",
+            event_path.display()
+        );
+    }
+}
+
+#[test]
 fn watcher_tracks_ancestor_cargo_config_directory_creation_and_removal() {
     let temp = tempfile::tempdir().expect("tempdir");
     let ancestor = temp.path().join("ancestor");

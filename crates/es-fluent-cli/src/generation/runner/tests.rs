@@ -803,6 +803,76 @@ fn monolithic_runner_staleness_detects_workspace_lockfile_changes() {
 }
 
 #[test]
+fn monolithic_runner_staleness_detects_cargo_config_changes() {
+    let (_temp, workspace) = create_workspace_fixture("cargo-config-stale", true);
+    let cargo_dir = workspace.root_dir.join(".cargo");
+    fs::create_dir_all(&cargo_dir).expect("create Cargo config directory");
+    let config_path = cargo_dir.join("config.toml");
+    crate::test_fixtures::write_file(&config_path, "[env]\nINVENTORY_MODE = \"off\"\n");
+
+    let runner = MonolithicRunner::new(&workspace);
+    install_cached_runner(&runner, &workspace, &FakeRunnerBehavior::stdout("ok\n"));
+    assert!(!runner.is_stale(), "initial Cargo config should be cached");
+
+    crate::test_fixtures::write_file(&config_path, "[env]\nINVENTORY_MODE = \"on\"\n");
+
+    assert!(
+        runner.is_stale(),
+        "Cargo config content changes must invalidate the cached runner"
+    );
+}
+
+#[test]
+fn monolithic_runner_staleness_detects_included_cargo_config_changes() {
+    let (_temp, workspace) = create_workspace_fixture("included-config-stale", true);
+    let cargo_dir = workspace.root_dir.join(".cargo");
+    fs::create_dir_all(&cargo_dir).expect("create Cargo config directory");
+    crate::test_fixtures::write_file(
+        &cargo_dir.join("config.toml"),
+        "include = [\"../shared-config.toml\"]\n",
+    );
+    let included_config = workspace.root_dir.join("shared-config.toml");
+    crate::test_fixtures::write_file(&included_config, "[env]\nINVENTORY_MODE = \"off\"\n");
+
+    let runner = MonolithicRunner::new(&workspace);
+    install_cached_runner(&runner, &workspace, &FakeRunnerBehavior::stdout("ok\n"));
+    assert!(!runner.is_stale(), "included Cargo config should be cached");
+
+    crate::test_fixtures::write_file(&included_config, "[env]\nINVENTORY_MODE = \"on\"\n");
+
+    assert!(
+        runner.is_stale(),
+        "included Cargo config changes must invalidate the cached runner"
+    );
+}
+
+#[test]
+fn monolithic_runner_staleness_detects_configured_lockfile_changes() {
+    let (_temp, workspace) = create_workspace_fixture("configured-lock-stale", true);
+    let cargo_dir = workspace.root_dir.join(".cargo");
+    let lock_dir = workspace.root_dir.join("locks");
+    fs::create_dir_all(&cargo_dir).expect("create Cargo config directory");
+    fs::create_dir_all(&lock_dir).expect("create configured lockfile directory");
+    crate::test_fixtures::write_file(
+        &cargo_dir.join("config.toml"),
+        "[resolver]\nlockfile-path = \"locks/Cargo.lock\"\n",
+    );
+    let configured_lockfile = lock_dir.join("Cargo.lock");
+    crate::test_fixtures::write_file(&configured_lockfile, "version = 4\n");
+
+    let runner = MonolithicRunner::new(&workspace);
+    install_cached_runner(&runner, &workspace, &FakeRunnerBehavior::stdout("ok\n"));
+    assert!(!runner.is_stale(), "configured lockfile should be cached");
+
+    crate::test_fixtures::write_file(&configured_lockfile, "version = 5\n");
+
+    assert!(
+        runner.is_stale(),
+        "configured lockfile changes must invalidate the cached runner"
+    );
+}
+
+#[test]
 fn monolithic_runner_lock_serializes_shared_runner_access() {
     let temp = tempfile::tempdir().expect("tempdir");
     let first = acquire_monolithic_runner_lock(temp.path()).expect("acquire first lock");
