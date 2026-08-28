@@ -1,6 +1,7 @@
 use es_fluent_derive_core::expansion::{
     EsFluentGeneratedVariant, EsFluentVariantsExpansion, ExpansionError,
 };
+use es_fluent_derive_core::macro_support::FallbackValidationDerive;
 use proc_macro2::TokenStream;
 use quote::quote;
 use syn::{DeriveInput, parse_macro_input};
@@ -10,7 +11,7 @@ use crate::macros::utils::{CodegenContext, GeneratedUnitEnumInput};
 
 pub fn from(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let input = parse_macro_input!(input as DeriveInput);
-    let context = CodegenContext::resolve(&input);
+    let context = CodegenContext::resolve(&input, FallbackValidationDerive::EsFluentVariants);
     expand_es_fluent_variants_with_context(input, &context).into()
 }
 

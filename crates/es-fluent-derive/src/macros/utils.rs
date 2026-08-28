@@ -1,4 +1,4 @@
-use es_fluent_derive_core::macro_support::{self, ResolvedCratePath};
+use es_fluent_derive_core::macro_support::{self, FallbackValidationDerive, ResolvedCratePath};
 use es_fluent_derive_core::semantic::{
     ArgName, ArgumentModel, ArgumentValueStrategy, ChoiceModel, DomainName, FluentMessageId,
     GeneratedEnumModel, GeneratedKeyName, MessageEntryModel, MessageModel,
@@ -19,10 +19,10 @@ pub struct CodegenContext {
 }
 
 impl CodegenContext {
-    pub fn resolve(input: &syn::DeriveInput) -> Self {
+    pub fn resolve(input: &syn::DeriveInput, derive: FallbackValidationDerive) -> Self {
         Self {
             facade_path: ResolvedCratePath::resolve("es-fluent", "es_fluent"),
-            fallback_validation: macro_support::fallback_validation(input),
+            fallback_validation: macro_support::fallback_validation_for_derive(input, derive),
             fallback_setup_diagnostic_emitted: std::cell::Cell::new(false),
         }
     }

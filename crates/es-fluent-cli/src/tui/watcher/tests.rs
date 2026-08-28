@@ -464,6 +464,80 @@ fn watcher_rediscovers_custom_build_target_after_manifest_edit() {
 }
 
 #[test]
+fn watcher_rediscovers_library_target_and_watches_new_source_directory() {
+    let temp = tempfile::tempdir().expect("tempdir");
+    let old_src_dir = temp.path().join("src");
+    let new_src_dir = temp.path().join("generated");
+    fs::create_dir_all(&old_src_dir).expect("create old source directory");
+    fs::create_dir_all(&new_src_dir).expect("create new source directory");
+    fs::write(old_src_dir.join("lib.rs"), "pub struct Demo;\n").expect("write old library");
+    fs::write(new_src_dir.join("lib.rs"), "pub struct Demo;\n").expect("write new library");
+    fs::write(
+        temp.path().join("Cargo.toml"),
+        "[package]\nname = \"watch-library-target\"\nversion = \"0.1.0\"\nedition = \"2024\"\n\n[lib]\npath = \"src/lib.rs\"\n",
+    )
+    .expect("write initial manifest");
+    fs::write(
+        temp.path().join("i18n.toml"),
+        "fallback_language = \"en\"\nassets_dir = \"i18n\"\n",
+    )
+    .expect("write i18n config");
+
+    let workspace =
+        crate::utils::discover_workspace_scoped(temp.path(), crate::utils::DiscoveryScope::All)
+            .expect("discover initial workspace");
+    let krate = workspace.crates[0].clone();
+    let mut runtime = super::runtime::WatchRuntime::new(
+        std::slice::from_ref(&krate),
+        &workspace,
+        &FluentParseMode::default(),
+    );
+
+    fs::write(
+        temp.path().join("Cargo.toml"),
+        "[package]\nname = \"watch-library-target\"\nversion = \"0.1.0\"\nedition = \"2024\"\n\n[lib]\npath = \"generated/lib.rs\"\n",
+    )
+    .expect("select new library target");
+    let update = runtime
+        .refresh_build_sources_if_needed(&[event_with_path(&temp.path().join("Cargo.toml"))])
+        .expect("rediscover Cargo metadata")
+        .expect("manifest edit should refresh source watches");
+
+    let new_library = new_src_dir
+        .join("lib.rs")
+        .canonicalize()
+        .expect("canonical new library target");
+    let old_source = old_src_dir
+        .canonicalize()
+        .expect("canonical old source directory");
+    let new_source = new_src_dir
+        .canonicalize()
+        .expect("canonical new source directory");
+    let refreshed = runtime.valid_crates();
+    assert_eq!(refreshed[0].src_dir.as_path(), new_source.as_path());
+    assert_eq!(
+        refreshed[0]
+            .library_target_path
+            .as_ref()
+            .expect("library target")
+            .as_path(),
+        new_library.as_path()
+    );
+    assert!(update.added.contains(&new_source));
+    assert!(update.removed.contains(&old_source));
+    assert_eq!(
+        runtime.affected_crates_for_events(&[event_with_path(&new_library)]),
+        vec!["watch-library-target".to_string()]
+    );
+    assert!(
+        runtime
+            .affected_crates_for_events(&[event_with_path(&old_src_dir.join("lib.rs"))])
+            .is_empty(),
+        "the old library source directory should no longer map to the package"
+    );
+}
+
+#[test]
 fn watcher_recovers_after_transient_manifest_rediscovery_error() {
     let temp = tempfile::tempdir().expect("tempdir");
     let src_dir = temp.path().join("src");
@@ -495,6 +569,10 @@ fn watcher_recovers_after_transient_manifest_rediscovery_error() {
         &workspace,
         &FluentParseMode::default(),
     );
+    let old_library_target = krate
+        .library_target_path
+        .clone()
+        .expect("initial library target");
     let mut app = crate::tui::TuiApp::new(std::slice::from_ref(&krate));
     let manifest_event = event_with_path(&temp.path().join("Cargo.toml"));
     let old_target = old_dir
@@ -520,6 +598,20 @@ fn watcher_recovers_after_transient_manifest_rediscovery_error() {
         runtime.affected_crates_for_events(&[event_with_path(&old_target)]),
         vec!["watch-recovery".to_string()],
         "failed rediscovery should retain the previous build-source graph"
+    );
+    assert_eq!(
+        runtime.valid_crates()[0]
+            .library_target_path
+            .as_ref()
+            .expect("library target should remain available")
+            .as_path(),
+        old_library_target.as_path(),
+        "failed rediscovery should retain the previous library target"
+    );
+    assert_eq!(
+        runtime.affected_crates_for_events(&[event_with_path(old_library_target.as_path())]),
+        vec!["watch-recovery".to_string()],
+        "failed rediscovery should retain the previous source mapping"
     );
 
     fs::write(

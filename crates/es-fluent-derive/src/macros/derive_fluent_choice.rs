@@ -1,6 +1,7 @@
 //! This module provides the implementation of the `EsFluentChoice` derive macro.
 
 use es_fluent_derive_core::expansion::{EsFluentChoiceExpansion, ExpansionError};
+use es_fluent_derive_core::macro_support::FallbackValidationDerive;
 use syn::{DeriveInput, parse_macro_input};
 
 use crate::macros::utils::CodegenContext;
@@ -8,7 +9,7 @@ use crate::macros::utils::CodegenContext;
 /// The entry point for the `EsFluentChoice` derive macro.
 pub fn from(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let input = parse_macro_input!(input as DeriveInput);
-    let context = CodegenContext::resolve(&input);
+    let context = CodegenContext::resolve(&input, FallbackValidationDerive::EsFluentChoice);
     expand_choice_with_context(input, &context).into()
 }
 

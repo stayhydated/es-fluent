@@ -171,11 +171,9 @@ pub(super) fn process_file_events(
 }
 
 impl PathToCrateMap {
-    pub(super) fn refresh_build_sources(&mut self, valid_crates: &[&CrateInfo]) {
-        let (build_sources, build_source_dirs) = build_source_entries(valid_crates);
-        self.build_sources = build_sources;
-        self.build_source_dirs = build_source_dirs;
-        self.missing_default_build_targets = missing_default_build_target_entries(valid_crates);
+    pub(super) fn refresh_for_crates(&mut self, valid_crates: &[&CrateInfo]) {
+        let workspace_root = self.workspace_root.clone();
+        *self = build_path_to_crate(valid_crates, &workspace_root);
     }
 
     pub(super) fn build_source_watch_dirs(&self) -> BTreeSet<PathBuf> {

@@ -21,13 +21,25 @@ pub(super) struct WatchRuntime {
     valid_crates: Vec<CrateInfo>,
     crates_by_name: HashMap<String, CrateInfo>,
     path_to_crate: PathToCrateMap,
-    custom_build_dirs: BTreeSet<PathBuf>,
+    watched_dirs: BTreeSet<PathBuf>,
     observed_hashes: HashMap<String, Option<String>>,
     active_generation_hashes: HashMap<String, Option<String>>,
     dirty_generating_crates: HashSet<String>,
     generation_handles: HashMap<String, JoinHandle<()>>,
     result_tx: Sender<GenerateResult>,
     result_rx: Receiver<GenerateResult>,
+}
+
+fn watch_dirs_for_crates(
+    path_to_crate: &PathToCrateMap,
+    crates: &[CrateInfo],
+) -> BTreeSet<PathBuf> {
+    let mut directories = path_to_crate.build_source_watch_dirs();
+    for krate in crates {
+        directories.insert(krate.manifest_dir.to_path_buf());
+        directories.insert(krate.src_dir.to_path_buf());
+    }
+    directories
 }
 
 impl WatchRuntime {
@@ -44,7 +56,7 @@ impl WatchRuntime {
         let valid_crate_refs = valid_crates.iter().collect::<Vec<_>>();
         let path_to_crate =
             super::events::build_path_to_crate(&valid_crate_refs, &workspace.root_dir);
-        let custom_build_dirs = path_to_crate.build_source_watch_dirs();
+        let watched_dirs = watch_dirs_for_crates(&path_to_crate, &valid_crates);
         let mut crates_by_name = HashMap::new();
         let mut observed_hashes = HashMap::new();
 
@@ -70,7 +82,7 @@ impl WatchRuntime {
             valid_crates,
             crates_by_name,
             path_to_crate,
-            custom_build_dirs,
+            watched_dirs,
             observed_hashes,
             active_generation_hashes: HashMap::new(),
             dirty_generating_crates: HashSet::new(),
@@ -92,30 +104,21 @@ impl WatchRuntime {
             return Ok(None);
         }
 
+        let previous_watched_dirs = self.watched_dirs.clone();
         if self.path_to_crate.has_rediscovery_event(events) {
-            self.rediscover_custom_build_targets()?;
+            self.rediscover_crate_targets()?;
         }
         let valid_crate_refs = self.valid_crates.iter().collect::<Vec<_>>();
-        self.path_to_crate.refresh_build_sources(&valid_crate_refs);
-        let mut refreshed_dirs = self.path_to_crate.build_source_watch_dirs();
-        refreshed_dirs.extend(
-            self.custom_build_dirs
-                .iter()
-                .filter(|directory| {
-                    self.valid_crates
-                        .iter()
-                        .any(|krate| krate.manifest_dir.as_path() == directory.as_path())
-                })
-                .cloned(),
-        );
+        self.path_to_crate.refresh_for_crates(&valid_crate_refs);
+        let refreshed_dirs = watch_dirs_for_crates(&self.path_to_crate, &self.valid_crates);
         let removed = self
-            .custom_build_dirs
+            .watched_dirs
             .difference(&refreshed_dirs)
             .cloned()
             .collect::<BTreeSet<_>>();
         let update = BuildSourceWatchUpdate {
             added: refreshed_dirs
-                .difference(&self.custom_build_dirs)
+                .difference(&previous_watched_dirs)
                 .cloned()
                 .collect(),
             rearmed: refreshed_dirs
@@ -125,7 +128,7 @@ impl WatchRuntime {
                 .collect(),
             removed: removed.into_iter().collect(),
         };
-        self.custom_build_dirs = refreshed_dirs;
+        self.watched_dirs = refreshed_dirs;
         Ok(Some(update))
     }
 
@@ -310,7 +313,7 @@ impl WatchRuntime {
         }
     }
 
-    fn rediscover_custom_build_targets(&mut self) -> anyhow::Result<()> {
+    fn rediscover_crate_targets(&mut self) -> anyhow::Result<()> {
         let selected_packages = self
             .valid_crates
             .iter()
@@ -326,7 +329,7 @@ impl WatchRuntime {
                 .iter()
                 .find(|candidate| candidate.name == krate.name)
             {
-                krate.custom_build_target_path = refreshed.custom_build_target_path.clone();
+                *krate = refreshed.clone();
             }
         }
         self.crates_by_name = self

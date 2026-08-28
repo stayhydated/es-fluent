@@ -1250,6 +1250,12 @@ fn statement_may_skip_following(
     statement: &syn::Stmt,
     diverging_functions: &HashSet<String>,
 ) -> bool {
+    if let syn::Stmt::Expr(syn::Expr::Loop(expression), _) = statement
+        && !loop_definitely_exits(expression)
+    {
+        return true;
+    }
+
     let mut visitor = FollowingStatementExitVisitor {
         found: false,
         nested_loop_depth: 0,
@@ -1258,6 +1264,21 @@ fn statement_may_skip_following(
     };
     visitor.visit_stmt(statement);
     visitor.found
+}
+
+fn loop_definitely_exits(expression: &syn::ExprLoop) -> bool {
+    let Some(syn::Stmt::Expr(syn::Expr::Break(exit), _)) = expression.body.stmts.first() else {
+        return false;
+    };
+    if exit.expr.is_some() {
+        return false;
+    }
+    exit.label.as_ref().is_none_or(|label| {
+        expression
+            .label
+            .as_ref()
+            .is_some_and(|loop_label| label.ident == loop_label.name.ident)
+    })
 }
 
 struct FollowingStatementExitVisitor<'a> {
@@ -2134,6 +2155,24 @@ mod tests {
             ),
             InspectionOutcome::Found(_)
         ));
+    }
+
+    #[test]
+    fn build_helper_calls_after_conditionally_breaking_loops_are_indeterminate() {
+        for source in [
+            "fn main() { loop { if runtime_condition() { break; } } es_fluent_build::track_i18n_assets(); }",
+            "fn main() { loop { if runtime_condition() { continue; } break; } es_fluent_build::track_i18n_assets(); }",
+        ] {
+            assert!(matches!(
+                inspect_fixture(
+                    &[("build.rs", source)],
+                    "build.rs",
+                    SourceTarget::Call("track_i18n_assets")
+                ),
+                InspectionOutcome::Indeterminate(reason)
+                    if reason.contains("under control flow that could not be proven to execute")
+            ));
+        }
     }
 
     #[test]

@@ -10,6 +10,8 @@ use es_fluent_shared::resource::{
 use proc_macro_crate::{FoundCrate, crate_name};
 use proc_macro2::TokenStream;
 use quote::{format_ident, quote, quote_spanned};
+use std::collections::HashSet;
+use std::path::{Path, PathBuf};
 
 #[derive(Clone, Debug)]
 pub struct ResolvedCratePath {
@@ -173,7 +175,42 @@ impl FallbackValidation {
     }
 }
 
+#[doc(hidden)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum FallbackValidationDerive {
+    EsFluent,
+    EsFluentLabel,
+    EsFluentVariants,
+    EsFluentChoice,
+}
+
+impl FallbackValidationDerive {
+    const fn name(self) -> &'static str {
+        match self {
+            Self::EsFluent => "EsFluent",
+            Self::EsFluentLabel => "EsFluentLabel",
+            Self::EsFluentVariants => "EsFluentVariants",
+            Self::EsFluentChoice => "EsFluentChoice",
+        }
+    }
+}
+
 pub fn fallback_validation(input: &syn::DeriveInput) -> FallbackValidation {
+    fallback_validation_impl(input, None)
+}
+
+#[doc(hidden)]
+pub fn fallback_validation_for_derive(
+    input: &syn::DeriveInput,
+    derive: FallbackValidationDerive,
+) -> FallbackValidation {
+    fallback_validation_impl(input, Some(derive))
+}
+
+fn fallback_validation_impl(
+    input: &syn::DeriveInput,
+    derive: Option<FallbackValidationDerive>,
+) -> FallbackValidation {
     let Ok(package) = std::env::var("CARGO_PKG_NAME") else {
         return FallbackValidation::unconfigured();
     };
@@ -208,7 +245,7 @@ pub fn fallback_validation(input: &syn::DeriveInput) -> FallbackValidation {
             },
         };
     }
-    if derive_requires_test(input)
+    if derive_requires_test(input, derive)
         || std::env::var_os(INVENTORY_RUNNER_ENV).is_some()
         || std::env::var_os("UNSTABLE_RUSTDOC_TEST_PATH").is_some()
     {
@@ -265,70 +302,560 @@ fn attributes_require_test(attributes: &[syn::Attribute]) -> bool {
         .any(|predicate| cfg_with_test_disabled(&predicate) == TestDisabledCfg::False)
 }
 
-fn derive_requires_test(input: &syn::DeriveInput) -> bool {
-    if attributes_require_test(&input.attrs) {
+fn attributes_enable_test_only_derive(
+    attributes: &[syn::Attribute],
+    derive: Option<FallbackValidationDerive>,
+) -> bool {
+    let Some(derive) = derive else {
+        return false;
+    };
+    attributes.iter().any(|attribute| {
+        let syn::Meta::List(list) = &attribute.meta else {
+            return false;
+        };
+        if !list.path.is_ident("cfg_attr") {
+            return false;
+        }
+        let Some(arguments) = cfg_predicates(list) else {
+            return false;
+        };
+        let Some((predicate, applied_attributes)) = arguments.split_first() else {
+            return false;
+        };
+        cfg_with_test_disabled(predicate) == TestDisabledCfg::False
+            && applied_attributes
+                .iter()
+                .any(|attribute| meta_derives(attribute, derive))
+    })
+}
+
+fn meta_derives(meta: &syn::Meta, derive: FallbackValidationDerive) -> bool {
+    let syn::Meta::List(list) = meta else {
+        return false;
+    };
+    if !list.path.is_ident("derive") {
+        return false;
+    }
+
+    use syn::parse::Parser as _;
+
+    syn::punctuated::Punctuated::<syn::Path, syn::Token![,]>::parse_terminated
+        .parse2(list.tokens.clone())
+        .ok()
+        .is_some_and(|paths| {
+            paths.iter().any(|path| {
+                path.segments
+                    .last()
+                    .is_some_and(|segment| segment.ident == derive.name())
+            })
+        })
+}
+
+fn derive_requires_test(
+    input: &syn::DeriveInput,
+    derive: Option<FallbackValidationDerive>,
+) -> bool {
+    if attributes_require_test(&input.attrs)
+        || attributes_enable_test_only_derive(&input.attrs, derive)
+    {
         return true;
     }
 
-    // Rustc evaluates and removes an active `cfg` attribute before invoking a
-    // derive. Reparse the real source file to recover item and inline-module
-    // guards, and keep ambiguous or unavailable source evidence strict.
+    // Rustc removes active `cfg` and `cfg_attr` attributes before invoking a
+    // derive. Follow only Cargo target roots and module branches that can own
+    // this source file, then match the declaration by its stable source
+    // location. Unresolved and macro-generated evidence remains strict.
     let Some(source_path) = input.ident.span().local_file() else {
         return false;
     };
-    let Ok(source) = std::fs::read_to_string(source_path) else {
+    let source_path = canonical_path(&source_path);
+    let Ok(source) = std::fs::read_to_string(&source_path) else {
         return false;
     };
-    let Ok(file) = syn::parse_file(&source) else {
+    let source_text = input.ident.span().source_text();
+    let Some(range) = source_range(&source, input.ident.span().start(), source_text.as_deref())
+    else {
         return false;
     };
-    source_items_require_test(&file.items, &input.ident.to_string(), false)
+    let Some((marked_source, marker_ident)) =
+        mark_source_declaration(&source, range, source_text.as_deref())
+    else {
+        return false;
+    };
+    let manifest_dir = std::env::var_os("CARGO_MANIFEST_DIR")
+        .map(PathBuf::from)
+        .unwrap_or_default();
+    let target = SourceDeclaration {
+        path: source_path.clone(),
+        marked_source,
+        marker_ident,
+    };
+    let mut evidence = Vec::new();
+    let mut visited = HashSet::new();
+    for root in cargo_source_roots(&manifest_dir) {
+        let module_dir = root.path.parent().unwrap_or(Path::new(""));
+        collect_source_evidence(
+            &root.path,
+            module_dir,
+            root.test_only,
+            &target,
+            derive,
+            &mut visited,
+            &mut evidence,
+        );
+    }
+
+    if evidence.is_empty() {
+        let module_dir = source_path.parent().unwrap_or(Path::new(""));
+        collect_source_evidence(
+            &source_path,
+            module_dir,
+            false,
+            &target,
+            derive,
+            &mut visited,
+            &mut evidence,
+        );
+    }
+
+    !evidence.is_empty() && evidence.into_iter().all(std::convert::identity)
 }
 
-fn source_items_require_test(
-    items: &[syn::Item],
-    target_ident: &str,
+#[derive(Debug)]
+struct SourceDeclaration {
+    path: PathBuf,
+    marked_source: String,
+    marker_ident: String,
+}
+
+#[derive(Clone, Debug, Eq, Hash, PartialEq)]
+struct SourceRoot {
+    path: PathBuf,
+    test_only: bool,
+}
+
+fn collect_source_evidence(
+    path: &Path,
+    module_dir: &Path,
     parent_requires_test: bool,
-) -> bool {
-    let mut matching_items = Vec::new();
-    collect_matching_item_cfgs(
-        items,
-        target_ident,
+    target: &SourceDeclaration,
+    derive: Option<FallbackValidationDerive>,
+    visited: &mut HashSet<(PathBuf, PathBuf, bool)>,
+    evidence: &mut Vec<bool>,
+) {
+    let path = canonical_path(path);
+    let module_dir = canonical_path(module_dir);
+    if !visited.insert((path.clone(), module_dir.clone(), parent_requires_test)) {
+        return;
+    }
+    let source = if path == target.path {
+        target.marked_source.as_str()
+    } else {
+        let Ok(source) = std::fs::read_to_string(&path) else {
+            return;
+        };
+        // The parsed syntax is used only for this call.
+        return collect_source_evidence_from_source(
+            &source,
+            &path,
+            &module_dir,
+            parent_requires_test,
+            target,
+            derive,
+            visited,
+            evidence,
+        );
+    };
+    collect_source_evidence_from_source(
+        source,
+        &path,
+        &module_dir,
         parent_requires_test,
-        &mut matching_items,
+        target,
+        derive,
+        visited,
+        evidence,
     );
-    !matching_items.is_empty() && matching_items.into_iter().all(std::convert::identity)
 }
 
-fn collect_matching_item_cfgs(
-    items: &[syn::Item],
-    target_ident: &str,
+#[expect(
+    clippy::too_many_arguments,
+    reason = "source ownership evidence carries traversal state explicitly"
+)]
+fn collect_source_evidence_from_source(
+    source: &str,
+    path: &Path,
+    module_dir: &Path,
     parent_requires_test: bool,
-    matching_items: &mut Vec<bool>,
+    target: &SourceDeclaration,
+    derive: Option<FallbackValidationDerive>,
+    visited: &mut HashSet<(PathBuf, PathBuf, bool)>,
+    evidence: &mut Vec<bool>,
+) {
+    let Ok(file) = syn::parse_file(source) else {
+        return;
+    };
+    collect_item_evidence(
+        &file.items,
+        path,
+        module_dir,
+        parent_requires_test,
+        target,
+        derive,
+        visited,
+        evidence,
+    );
+}
+
+#[expect(
+    clippy::too_many_arguments,
+    reason = "source ownership evidence carries traversal state explicitly"
+)]
+fn collect_item_evidence(
+    items: &[syn::Item],
+    current_file: &Path,
+    module_dir: &Path,
+    parent_requires_test: bool,
+    target: &SourceDeclaration,
+    derive: Option<FallbackValidationDerive>,
+    visited: &mut HashSet<(PathBuf, PathBuf, bool)>,
+    evidence: &mut Vec<bool>,
 ) {
     for item in items {
-        match item {
-            syn::Item::Enum(item) if item.ident == target_ident => {
-                matching_items.push(parent_requires_test || attributes_require_test(&item.attrs))
-            },
-            syn::Item::Struct(item) if item.ident == target_ident => {
-                matching_items.push(parent_requires_test || attributes_require_test(&item.attrs))
-            },
-            syn::Item::Union(item) if item.ident == target_ident => {
-                matching_items.push(parent_requires_test || attributes_require_test(&item.attrs))
-            },
-            syn::Item::Mod(module) => {
-                if let Some((_, items)) = &module.content {
-                    collect_matching_item_cfgs(
-                        items,
-                        target_ident,
-                        parent_requires_test || attributes_require_test(&module.attrs),
-                        matching_items,
-                    );
-                }
-            },
-            _ => {},
+        let declaration = match item {
+            syn::Item::Enum(item) => Some((&item.ident, &item.attrs)),
+            syn::Item::Struct(item) => Some((&item.ident, &item.attrs)),
+            syn::Item::Union(item) => Some((&item.ident, &item.attrs)),
+            _ => None,
+        };
+        if let Some((ident, attributes)) = declaration
+            && current_file == target.path
+            && ident == target.marker_ident.as_str()
+        {
+            evidence.push(
+                parent_requires_test
+                    || attributes_require_test(attributes)
+                    || attributes_enable_test_only_derive(attributes, derive),
+            );
         }
+
+        if let syn::Item::Macro(item_macro) = item
+            && current_file == target.path
+            && token_stream_contains_ident(&item_macro.mac.tokens, &target.marker_ident)
+        {
+            evidence.push(
+                parent_requires_test
+                    || attributes_require_test(&item_macro.attrs)
+                    || attributes_enable_test_only_derive(&item_macro.attrs, derive),
+            );
+        }
+
+        let syn::Item::Mod(module) = item else {
+            continue;
+        };
+        let module_requires_test = parent_requires_test || attributes_require_test(&module.attrs);
+        if let Some((_, items)) = &module.content {
+            let child_dir = module_dir.join(module.ident.to_string());
+            collect_item_evidence(
+                items,
+                current_file,
+                &child_dir,
+                module_requires_test,
+                target,
+                derive,
+                visited,
+                evidence,
+            );
+            continue;
+        }
+
+        for (child_path, child_dir) in resolve_module_paths(module, module_dir) {
+            if child_path == target.path || target.path.starts_with(&child_dir) {
+                collect_source_evidence(
+                    &child_path,
+                    &child_dir,
+                    module_requires_test,
+                    target,
+                    derive,
+                    visited,
+                    evidence,
+                );
+            }
+        }
+    }
+}
+
+fn token_stream_contains_ident(tokens: &TokenStream, target: &str) -> bool {
+    tokens.clone().into_iter().any(|token| match token {
+        proc_macro2::TokenTree::Group(group) => {
+            token_stream_contains_ident(&group.stream(), target)
+        },
+        proc_macro2::TokenTree::Ident(ident) => ident == target,
+        proc_macro2::TokenTree::Punct(_) | proc_macro2::TokenTree::Literal(_) => false,
+    })
+}
+
+fn resolve_module_paths(module: &syn::ItemMod, module_dir: &Path) -> Vec<(PathBuf, PathBuf)> {
+    if let Some(attribute) = module
+        .attrs
+        .iter()
+        .find(|attribute| attribute.path().is_ident("path"))
+    {
+        let syn::Meta::NameValue(value) = &attribute.meta else {
+            return Vec::new();
+        };
+        let syn::Expr::Lit(expression) = &value.value else {
+            return Vec::new();
+        };
+        let syn::Lit::Str(path) = &expression.lit else {
+            return Vec::new();
+        };
+        let path = canonical_path(&module_dir.join(path.value()));
+        let child_dir = module_child_dir(&path, &module.ident.to_string());
+        return path
+            .is_file()
+            .then_some((path, child_dir))
+            .into_iter()
+            .collect();
+    }
+
+    let name = module.ident.to_string();
+    let flat = canonical_path(&module_dir.join(format!("{name}.rs")));
+    let nested = canonical_path(&module_dir.join(&name).join("mod.rs"));
+    [flat, nested]
+        .into_iter()
+        .filter(|path| path.is_file())
+        .map(|path| {
+            let child_dir = module_child_dir(&path, &name);
+            (path, child_dir)
+        })
+        .collect()
+}
+
+fn module_child_dir(path: &Path, module_name: &str) -> PathBuf {
+    if path.file_name().is_some_and(|name| name == "mod.rs") {
+        path.parent().map(Path::to_path_buf).unwrap_or_default()
+    } else {
+        path.parent()
+            .map(|parent| parent.join(module_name))
+            .unwrap_or_default()
+    }
+}
+
+fn canonical_path(path: &Path) -> PathBuf {
+    std::fs::canonicalize(path).unwrap_or_else(|_| path.to_path_buf())
+}
+
+fn mark_source_declaration(
+    source: &str,
+    range: std::ops::Range<usize>,
+    expected: Option<&str>,
+) -> Option<(String, String)> {
+    let actual = source.get(range.clone())?;
+    if actual.is_empty() || expected.is_some_and(|expected| expected != actual) {
+        return None;
+    }
+    let mut marker = "__EsFluentFallbackValidationTarget".to_string();
+    while source.contains(&marker) {
+        marker.push('_');
+    }
+    let mut marked = source.to_string();
+    marked.replace_range(range, &marker);
+    Some((marked, marker))
+}
+
+fn source_range(
+    source: &str,
+    location: proc_macro2::LineColumn,
+    expected: Option<&str>,
+) -> Option<std::ops::Range<usize>> {
+    let expected = expected?;
+    let line_start = if location.line == 1 {
+        0
+    } else {
+        source
+            .match_indices('\n')
+            .nth(location.line.checked_sub(2)?)
+            .map(|(index, _)| index + 1)?
+    };
+    let line = source
+        .get(line_start..)?
+        .split_once('\n')
+        .map_or_else(|| source.get(line_start..), |(line, _)| Some(line))?;
+    let byte_column = line_start.checked_add(location.column)?;
+    let character_column = line.char_indices().nth(location.column).map_or_else(
+        || line_start.checked_add(line.len()),
+        |(index, _)| line_start.checked_add(index),
+    )?;
+
+    [byte_column, character_column]
+        .into_iter()
+        .find_map(|start| {
+            let end = start.checked_add(expected.len())?;
+            (source.get(start..end) == Some(expected)).then_some(start..end)
+        })
+}
+
+fn cargo_source_roots(manifest_dir: &Path) -> Vec<SourceRoot> {
+    let manifest = std::fs::read_to_string(manifest_dir.join("Cargo.toml"))
+        .ok()
+        .and_then(|source| toml::from_str::<toml::Value>(&source).ok());
+    let package = manifest
+        .as_ref()
+        .and_then(|manifest| manifest.get("package"))
+        .and_then(toml::Value::as_table);
+    let mut roots = Vec::new();
+
+    if let Some(library) = manifest
+        .as_ref()
+        .and_then(|manifest| manifest.get("lib"))
+        .and_then(toml::Value::as_table)
+    {
+        add_source_root(
+            &mut roots,
+            manifest_dir,
+            library.get("path").and_then(toml::Value::as_str),
+            "src/lib.rs",
+            false,
+        );
+    } else if package_bool(package, "autolib") {
+        add_existing_root(&mut roots, manifest_dir.join("src/lib.rs"), false);
+    }
+
+    add_declared_target_roots(
+        &mut roots,
+        manifest.as_ref(),
+        manifest_dir,
+        "bin",
+        "src/bin",
+        false,
+    );
+    add_declared_target_roots(
+        &mut roots,
+        manifest.as_ref(),
+        manifest_dir,
+        "test",
+        "tests",
+        true,
+    );
+    add_declared_target_roots(
+        &mut roots,
+        manifest.as_ref(),
+        manifest_dir,
+        "example",
+        "examples",
+        false,
+    );
+    add_declared_target_roots(
+        &mut roots,
+        manifest.as_ref(),
+        manifest_dir,
+        "bench",
+        "benches",
+        false,
+    );
+
+    if package_bool(package, "autobins") {
+        add_existing_root(&mut roots, manifest_dir.join("src/main.rs"), false);
+        add_auto_target_roots(&mut roots, &manifest_dir.join("src/bin"), false);
+    }
+    if package_bool(package, "autotests") {
+        add_auto_target_roots(&mut roots, &manifest_dir.join("tests"), true);
+    }
+    if package_bool(package, "autoexamples") {
+        add_auto_target_roots(&mut roots, &manifest_dir.join("examples"), false);
+    }
+    if package_bool(package, "autobenches") {
+        add_auto_target_roots(&mut roots, &manifest_dir.join("benches"), false);
+    }
+
+    let mut seen = HashSet::new();
+    roots.retain(|root| seen.insert(root.clone()));
+    roots
+}
+
+fn package_bool(package: Option<&toml::Table>, key: &str) -> bool {
+    package
+        .and_then(|package| package.get(key))
+        .and_then(toml::Value::as_bool)
+        .unwrap_or(true)
+}
+
+fn add_declared_target_roots(
+    roots: &mut Vec<SourceRoot>,
+    manifest: Option<&toml::Value>,
+    manifest_dir: &Path,
+    table: &str,
+    default_dir: &str,
+    test_only: bool,
+) {
+    let Some(targets) = manifest
+        .and_then(|manifest| manifest.get(table))
+        .and_then(toml::Value::as_array)
+    else {
+        return;
+    };
+    for target in targets {
+        let Some(target) = target.as_table() else {
+            continue;
+        };
+        if let Some(path) = target.get("path").and_then(toml::Value::as_str) {
+            add_existing_root(roots, manifest_dir.join(path), test_only);
+            continue;
+        }
+        let Some(name) = target.get("name").and_then(toml::Value::as_str) else {
+            continue;
+        };
+        add_existing_root(
+            roots,
+            manifest_dir.join(default_dir).join(format!("{name}.rs")),
+            test_only,
+        );
+        add_existing_root(
+            roots,
+            manifest_dir.join(default_dir).join(name).join("main.rs"),
+            test_only,
+        );
+        if table == "bin" {
+            add_existing_root(roots, manifest_dir.join("src/main.rs"), test_only);
+        }
+    }
+}
+
+fn add_source_root(
+    roots: &mut Vec<SourceRoot>,
+    manifest_dir: &Path,
+    configured_path: Option<&str>,
+    default_path: &str,
+    test_only: bool,
+) {
+    add_existing_root(
+        roots,
+        manifest_dir.join(configured_path.unwrap_or(default_path)),
+        test_only,
+    );
+}
+
+fn add_auto_target_roots(roots: &mut Vec<SourceRoot>, directory: &Path, test_only: bool) {
+    let Ok(entries) = std::fs::read_dir(directory) else {
+        return;
+    };
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if path.extension().is_some_and(|extension| extension == "rs") {
+            add_existing_root(roots, path, test_only);
+        } else if path.is_dir() {
+            add_existing_root(roots, path.join("main.rs"), test_only);
+        }
+    }
+}
+
+fn add_existing_root(roots: &mut Vec<SourceRoot>, path: PathBuf, test_only: bool) {
+    if path.is_file() {
+        roots.push(SourceRoot {
+            path: canonical_path(&path),
+            test_only,
+        });
     }
 }
 
@@ -547,30 +1074,24 @@ mod tests {
     }
 
     #[test]
-    fn source_item_cfgs_include_inline_module_ancestors() {
-        let file = syn::parse_file(
-            r#"
-                #[cfg(test)]
-                mod tests {
-                    struct NestedTestOnly;
-                }
+    fn cfg_attr_exemption_is_specific_to_the_test_only_derive() {
+        let input: syn::DeriveInput = syn::parse_quote! {
+            #[cfg_attr(test, derive(es_fluent::EsFluent))]
+            #[cfg_attr(any(test, feature = "demo"), derive(es_fluent::EsFluentLabel))]
+            struct TestOnly;
+        };
 
-                #[cfg(any(test, feature = "demo"))]
-                struct MaybeTest;
-
-                #[cfg(test)]
-                struct ReusedName;
-                struct ReusedName;
-            "#,
-        )
-        .expect("parse source");
-
-        assert!(source_items_require_test(
-            &file.items,
-            "NestedTestOnly",
-            false
+        assert!(attributes_enable_test_only_derive(
+            &input.attrs,
+            Some(FallbackValidationDerive::EsFluent)
         ));
-        assert!(!source_items_require_test(&file.items, "MaybeTest", false));
-        assert!(!source_items_require_test(&file.items, "ReusedName", false));
+        assert!(!attributes_enable_test_only_derive(
+            &input.attrs,
+            Some(FallbackValidationDerive::EsFluentLabel)
+        ));
+        assert!(!attributes_enable_test_only_derive(
+            &input.attrs,
+            Some(FallbackValidationDerive::EsFluentVariants)
+        ));
     }
 }
