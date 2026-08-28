@@ -13,6 +13,7 @@ const SUBCOMMANDS: &[&str] = &[
     "fmt",
     "check",
     "status",
+    "doctor",
     "sync",
     "add-locale",
     "tree",
@@ -490,6 +491,1042 @@ fn binary_status_help_describes_all_scope() {
 }
 
 #[test]
+fn binary_doctor_help_describes_read_only_setup_scope() {
+    Command::cargo_bin("cargo-es-fluent")
+        .expect("binary exists")
+        .args(["es-fluent", "doctor", "--help"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains(
+            "Read-only diagnosis of localization setup, build integration, managers, and fallback catalog readiness",
+        ))
+        .stdout(predicate::str::contains("--output <OUTPUT>"));
+}
+
+#[test]
+fn binary_doctor_reports_setup_problems_as_json() {
+    let temp = fixtures::create_workspace();
+    let output = Command::cargo_bin("cargo-es-fluent")
+        .expect("binary exists")
+        .args([
+            "es-fluent",
+            "doctor",
+            "--path",
+            temp.path().to_str().expect("workspace path"),
+            "--output",
+            "json",
+        ])
+        .output()
+        .expect("run doctor");
+
+    assert!(!output.status.success());
+    let json: Value = serde_json::from_slice(&output.stdout).expect("doctor JSON");
+    assert_eq!(json["healthy"], false);
+    assert!(json["error_count"].as_u64().is_some_and(|count| count >= 2));
+    assert!(json["checks"].as_array().is_some_and(|checks| {
+        checks
+            .iter()
+            .any(|check| check["category"] == "build_dependency" && check["status"] == "error")
+            && checks
+                .iter()
+                .any(|check| check["category"] == "build_script" && check["status"] == "error")
+    }));
+}
+
+#[test]
+fn binary_doctor_reports_invalid_config_as_json() {
+    let temp = fixtures::create_workspace();
+    std::fs::write(temp.path().join("i18n.toml"), "not = [valid").expect("write invalid i18n.toml");
+    let output = Command::cargo_bin("cargo-es-fluent")
+        .expect("binary exists")
+        .args([
+            "es-fluent",
+            "doctor",
+            "--path",
+            temp.path().to_str().expect("workspace path"),
+            "--output",
+            "json",
+        ])
+        .output()
+        .expect("run doctor");
+
+    assert!(!output.status.success());
+    let json: Value = serde_json::from_slice(&output.stdout).expect("doctor JSON");
+    assert_eq!(json["healthy"], false);
+    assert_eq!(json["error_count"], 1);
+    assert!(
+        json["workspace_errors"][0]
+            .as_str()
+            .is_some_and(|error| error.contains("Failed to read") && error.contains("i18n.toml"))
+    );
+}
+
+#[test]
+fn binary_doctor_accepts_complete_embedded_setup() {
+    let temp = fixtures::create_workspace();
+    let crates_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .expect("workspace crates directory");
+    let manager_path = crates_dir
+        .join("es-fluent-manager-embedded")
+        .to_string_lossy()
+        .replace('\\', "/");
+    let build_path = crates_dir
+        .join("es-fluent-build")
+        .to_string_lossy()
+        .replace('\\', "/");
+    std::fs::write(
+        temp.path().join("Cargo.toml"),
+        format!(
+            "[package]\nname = \"test-app\"\nversion = \"0.1.0\"\nedition = \"2024\"\n\n[dependencies]\nes-fluent-manager-embedded = {{ path = \"{manager_path}\" }}\n\n[build-dependencies]\nes-fluent-build = {{ path = \"{build_path}\" }}\n"
+        ),
+    )
+    .expect("write Cargo.toml");
+    std::fs::write(
+        temp.path().join("build.rs"),
+        "fn main() { es_fluent_build::track_i18n_assets(); }\n",
+    )
+    .expect("write build.rs");
+    std::fs::write(
+        temp.path().join("src/lib.rs"),
+        "es_fluent_manager_embedded::define_i18n_module!();\n",
+    )
+    .expect("write lib.rs");
+
+    Command::cargo_bin("cargo-es-fluent")
+        .expect("binary exists")
+        .args([
+            "es-fluent",
+            "doctor",
+            "--path",
+            temp.path().to_str().expect("workspace path"),
+        ])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Fluent Setup Doctor"))
+        .stdout(predicate::str::contains("Summary: 0 error(s)"));
+}
+
+#[test]
+fn binary_doctor_accepts_manager_registration_through_dependency_alias() {
+    let temp = fixtures::create_workspace();
+    let crates_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .expect("workspace crates directory");
+    let manager_path = crates_dir
+        .join("es-fluent-manager-embedded")
+        .to_string_lossy()
+        .replace('\\', "/");
+    let build_path = crates_dir
+        .join("es-fluent-build")
+        .to_string_lossy()
+        .replace('\\', "/");
+    std::fs::write(
+        temp.path().join("Cargo.toml"),
+        format!(
+            "[package]\nname = \"test-app\"\nversion = \"0.1.0\"\nedition = \"2024\"\n\n[dependencies]\nmanager = {{ package = \"es-fluent-manager-embedded\", path = \"{manager_path}\" }}\n\n[build-dependencies]\nes-fluent-build = {{ path = \"{build_path}\" }}\n"
+        ),
+    )
+    .expect("write Cargo.toml");
+    std::fs::write(
+        temp.path().join("build.rs"),
+        "fn main() { es_fluent_build::track_i18n_assets(); }\n",
+    )
+    .expect("write build.rs");
+    std::fs::write(
+        temp.path().join("src/lib.rs"),
+        "manager::define_i18n_module!();\n",
+    )
+    .expect("write lib.rs");
+
+    Command::cargo_bin("cargo-es-fluent")
+        .expect("binary exists")
+        .args([
+            "es-fluent",
+            "doctor",
+            "--path",
+            temp.path().to_str().expect("workspace path"),
+        ])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Summary: 0 error(s)"));
+}
+
+#[test]
+fn binary_doctor_resolves_build_helper_calls_through_dependency_alias() {
+    let temp = fixtures::create_workspace();
+    let crates_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .expect("workspace crates directory");
+    let build_path = crates_dir
+        .join("es-fluent-build")
+        .to_string_lossy()
+        .replace('\\', "/");
+    std::fs::write(
+        temp.path().join("Cargo.toml"),
+        format!(
+            "[package]\nname = \"test-app\"\nversion = \"0.1.0\"\nedition = \"2024\"\n\n[build-dependencies]\nbuilder = {{ package = \"es-fluent-build\", path = \"{build_path}\" }}\n"
+        ),
+    )
+    .expect("write Cargo.toml");
+    std::fs::write(
+        temp.path().join("build.rs"),
+        "fn main() { builder::track_i18n_assets(); }\n",
+    )
+    .expect("write aliased build script");
+
+    let run_doctor = || {
+        Command::cargo_bin("cargo-es-fluent")
+            .expect("binary exists")
+            .args([
+                "es-fluent",
+                "doctor",
+                "--path",
+                temp.path().to_str().expect("workspace path"),
+                "--output",
+                "json",
+            ])
+            .output()
+            .expect("run doctor")
+    };
+
+    let aliased = run_doctor();
+    assert!(
+        aliased.status.success(),
+        "{}",
+        String::from_utf8_lossy(&aliased.stderr)
+    );
+    let json: Value = serde_json::from_slice(&aliased.stdout).expect("doctor JSON");
+    let checks = json["checks"].as_array().expect("checks");
+    assert!(
+        checks
+            .iter()
+            .any(|check| { check["category"] == "build_script" && check["status"] == "pass" })
+    );
+
+    std::fs::write(
+        temp.path().join("build.rs"),
+        "fn main() { es_fluent_build::track_i18n_assets(); }\n",
+    )
+    .expect("write unresolved canonical build script");
+    let canonical = run_doctor();
+    let json: Value = serde_json::from_slice(&canonical.stdout).expect("doctor JSON");
+    let checks = json["checks"].as_array().expect("checks");
+    assert!(
+        !checks
+            .iter()
+            .any(|check| { check["category"] == "build_script" && check["status"] == "pass" })
+    );
+    assert!(
+        checks
+            .iter()
+            .any(|check| { check["category"] == "build_script" && check["status"] == "warning" })
+    );
+}
+
+#[test]
+fn binary_doctor_rejects_registration_from_an_undeclared_manager() {
+    let temp = fixtures::create_workspace();
+    let crates_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .expect("workspace crates directory");
+    let manager_path = crates_dir
+        .join("es-fluent-manager-embedded")
+        .to_string_lossy()
+        .replace('\\', "/");
+    let build_path = crates_dir
+        .join("es-fluent-build")
+        .to_string_lossy()
+        .replace('\\', "/");
+    std::fs::write(
+        temp.path().join("Cargo.toml"),
+        format!(
+            "[package]\nname = \"test-app\"\nversion = \"0.1.0\"\nedition = \"2024\"\n\n[dependencies]\nes-fluent-manager-embedded = {{ path = \"{manager_path}\" }}\n\n[build-dependencies]\nes-fluent-build = {{ path = \"{build_path}\" }}\n"
+        ),
+    )
+    .expect("write Cargo.toml");
+    std::fs::write(
+        temp.path().join("build.rs"),
+        "fn main() { es_fluent_build::track_i18n_assets(); }\n",
+    )
+    .expect("write build.rs");
+    std::fs::write(
+        temp.path().join("src/lib.rs"),
+        "es_fluent_manager_bevy::define_i18n_module!();\n",
+    )
+    .expect("write lib.rs");
+
+    let output = Command::cargo_bin("cargo-es-fluent")
+        .expect("binary exists")
+        .args([
+            "es-fluent",
+            "doctor",
+            "--path",
+            temp.path().to_str().expect("workspace path"),
+            "--output",
+            "json",
+        ])
+        .output()
+        .expect("run doctor");
+
+    assert!(!output.status.success());
+    let json: Value = serde_json::from_slice(&output.stdout).expect("doctor JSON");
+    assert_eq!(json["healthy"], false);
+    assert!(json["checks"].as_array().is_some_and(|checks| {
+        checks
+            .iter()
+            .any(|check| check["category"] == "manager_registration" && check["status"] == "error")
+            && !checks.iter().any(|check| {
+                check["category"] == "manager_registration" && check["status"] == "pass"
+            })
+    }));
+}
+
+#[test]
+fn binary_doctor_reports_package_local_policies_in_mixed_workspace() {
+    let temp = tempfile::tempdir().expect("tempdir");
+    std::fs::write(
+        temp.path().join("Cargo.toml"),
+        "[workspace]\nmembers = [\"strict-app\", \"fallback-app\"]\nresolver = \"3\"\n",
+    )
+    .expect("write workspace manifest");
+    for (package, policy) in [
+        ("strict-app", ""),
+        (
+            "fallback-app",
+            "missing_message_policy = \"fallback-str\"\n",
+        ),
+    ] {
+        let package_dir = temp.path().join(package);
+        std::fs::create_dir_all(package_dir.join("src")).expect("create src");
+        std::fs::create_dir_all(package_dir.join("i18n/en")).expect("create locale");
+        std::fs::write(
+            package_dir.join("Cargo.toml"),
+            format!("[package]\nname = \"{package}\"\nversion = \"0.1.0\"\nedition = \"2024\"\n"),
+        )
+        .expect("write package manifest");
+        std::fs::write(package_dir.join("src/lib.rs"), "pub struct App;\n").expect("write lib");
+        std::fs::write(
+            package_dir.join("i18n.toml"),
+            format!("fallback_language = \"en\"\nassets_dir = \"i18n\"\n{policy}"),
+        )
+        .expect("write config");
+        std::fs::write(
+            package_dir.join(format!("i18n/en/{package}.ftl")),
+            "hello = Hello\n",
+        )
+        .expect("write FTL");
+    }
+
+    let output = Command::cargo_bin("cargo-es-fluent")
+        .expect("binary exists")
+        .args([
+            "es-fluent",
+            "doctor",
+            "--path",
+            temp.path().to_str().expect("workspace path"),
+            "--output",
+            "json",
+        ])
+        .output()
+        .expect("run doctor");
+
+    assert!(!output.status.success());
+    let json: Value = serde_json::from_slice(&output.stdout).expect("doctor JSON");
+    let checks = json["checks"].as_array().expect("checks");
+    for (package, policy) in [("strict-app", "strict"), ("fallback-app", "fallback-str")] {
+        assert!(checks.iter().any(|check| {
+            check["package"] == package
+                && check["category"] == "missing_message_policy"
+                && check["message"]
+                    .as_str()
+                    .is_some_and(|message| message.contains(&format!("`{policy}`")))
+        }));
+    }
+}
+
+#[test]
+fn binary_doctor_follows_custom_build_and_library_target_graphs() {
+    let temp = fixtures::create_workspace();
+    let crates_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .expect("workspace crates directory");
+    let manager_path = crates_dir
+        .join("es-fluent-manager-embedded")
+        .to_string_lossy()
+        .replace('\\', "/");
+    let build_path = crates_dir
+        .join("es-fluent-build")
+        .to_string_lossy()
+        .replace('\\', "/");
+    std::fs::write(
+        temp.path().join("Cargo.toml"),
+        format!(
+            "[package]\nname = \"test-app\"\nversion = \"0.1.0\"\nedition = \"2024\"\nbuild = \"support/i18n.rs\"\n\n[dependencies]\nes-fluent-manager-embedded = {{ path = \"{manager_path}\" }}\n\n[build-dependencies]\nes-fluent-build = {{ path = \"{build_path}\" }}\n"
+        ),
+    )
+    .expect("write Cargo.toml");
+    std::fs::write(
+        temp.path().join("i18n.toml"),
+        "fallback_language = \"en\"\nassets_dir = \"i18n\"\nmissing_message_policy = \"fallback-str\"\n",
+    )
+    .expect("write config");
+    std::fs::create_dir_all(temp.path().join("support")).expect("create support");
+    std::fs::write(
+        temp.path().join("support/i18n.rs"),
+        "mod helper; fn main() { helper::configure(); }\n",
+    )
+    .expect("write custom build target");
+    std::fs::write(
+        temp.path().join("support/helper.rs"),
+        "pub fn configure() { es_fluent_build::track_i18n_assets(); }\n",
+    )
+    .expect("write build helper");
+    std::fs::write(temp.path().join("build.rs"), "fn main() {}\n").expect("write unused build.rs");
+    std::fs::write(temp.path().join("src/lib.rs"), "mod registration;\n").expect("write lib.rs");
+    std::fs::write(
+        temp.path().join("src/registration.rs"),
+        "es_fluent_manager_embedded::define_i18n_module!();\n",
+    )
+    .expect("write registration");
+
+    let output = Command::cargo_bin("cargo-es-fluent")
+        .expect("binary exists")
+        .args([
+            "es-fluent",
+            "doctor",
+            "--path",
+            temp.path().to_str().expect("workspace path"),
+            "--output",
+            "json",
+        ])
+        .output()
+        .expect("run doctor");
+
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let json: Value = serde_json::from_slice(&output.stdout).expect("doctor JSON");
+    let checks = json["checks"].as_array().expect("checks");
+    assert!(checks.iter().any(|check| {
+        check["category"] == "build_script"
+            && check["status"] == "pass"
+            && check["message"]
+                .as_str()
+                .is_some_and(|message| message.contains("support/helper.rs"))
+    }));
+    assert!(checks.iter().any(|check| {
+        check["category"] == "manager_registration"
+            && check["status"] == "pass"
+            && check["message"]
+                .as_str()
+                .is_some_and(|message| message.contains("src/registration.rs"))
+    }));
+    assert!(checks.iter().any(|check| {
+        check["category"] == "missing_message_policy"
+            && check["message"]
+                .as_str()
+                .is_some_and(|message| message.contains("`fallback-str`"))
+    }));
+}
+
+#[test]
+fn binary_doctor_does_not_pass_inactive_target_build_dependency() {
+    let temp = fixtures::create_workspace();
+    let crates_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .expect("workspace crates directory");
+    let build_path = crates_dir
+        .join("es-fluent-build")
+        .to_string_lossy()
+        .replace('\\', "/");
+    std::fs::write(
+        temp.path().join("Cargo.toml"),
+        format!(
+            "[package]\nname = \"test-app\"\nversion = \"0.1.0\"\nedition = \"2024\"\n\n[target.'cfg(target_os = \"none\")'.build-dependencies]\nes-fluent-build = {{ path = \"{build_path}\" }}\n"
+        ),
+    )
+    .expect("write Cargo.toml");
+    std::fs::write(
+        temp.path().join("build.rs"),
+        "fn main() { es_fluent_build::track_i18n_assets(); }\n",
+    )
+    .expect("write build.rs");
+
+    let output = Command::cargo_bin("cargo-es-fluent")
+        .expect("binary exists")
+        .args([
+            "es-fluent",
+            "doctor",
+            "--path",
+            temp.path().to_str().expect("workspace path"),
+            "--output",
+            "json",
+        ])
+        .output()
+        .expect("run doctor");
+
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let json: Value = serde_json::from_slice(&output.stdout).expect("doctor JSON");
+    let checks = json["checks"].as_array().expect("checks");
+    assert!(checks.iter().any(|check| {
+        check["category"] == "build_dependency"
+            && check["status"] == "warning"
+            && check["message"]
+                .as_str()
+                .is_some_and(|message| message.contains("target_os = \"none\""))
+    }));
+    assert!(
+        !checks
+            .iter()
+            .any(|check| { check["category"] == "build_dependency" && check["status"] == "pass" })
+    );
+}
+
+#[test]
+fn binary_doctor_rejects_disabled_build_target_even_with_root_build_rs() {
+    let temp = fixtures::create_workspace();
+    let crates_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .expect("workspace crates directory");
+    let build_path = crates_dir
+        .join("es-fluent-build")
+        .to_string_lossy()
+        .replace('\\', "/");
+    std::fs::write(
+        temp.path().join("Cargo.toml"),
+        format!(
+            "[package]\nname = \"test-app\"\nversion = \"0.1.0\"\nedition = \"2024\"\nbuild = false\n\n[build-dependencies]\nes-fluent-build = {{ path = \"{build_path}\" }}\n"
+        ),
+    )
+    .expect("write Cargo.toml");
+    std::fs::write(
+        temp.path().join("build.rs"),
+        "fn main() { es_fluent_build::track_i18n_assets(); }\n",
+    )
+    .expect("write unused build.rs");
+
+    let output = Command::cargo_bin("cargo-es-fluent")
+        .expect("binary exists")
+        .args([
+            "es-fluent",
+            "doctor",
+            "--path",
+            temp.path().to_str().expect("workspace path"),
+            "--output",
+            "json",
+        ])
+        .output()
+        .expect("run doctor");
+
+    assert!(!output.status.success());
+    let json: Value = serde_json::from_slice(&output.stdout).expect("doctor JSON");
+    assert!(json["checks"].as_array().is_some_and(|checks| {
+        checks.iter().any(|check| {
+            check["category"] == "build_script"
+                && check["status"] == "error"
+                && check["message"] == "Cargo metadata reports no custom-build target"
+        })
+    }));
+}
+
+#[test]
+fn binary_doctor_does_not_accept_comments_strings_or_unreferenced_sources() {
+    let temp = fixtures::create_workspace();
+    let crates_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .expect("workspace crates directory");
+    let manager_path = crates_dir
+        .join("es-fluent-manager-embedded")
+        .to_string_lossy()
+        .replace('\\', "/");
+    let build_path = crates_dir
+        .join("es-fluent-build")
+        .to_string_lossy()
+        .replace('\\', "/");
+    std::fs::write(
+        temp.path().join("Cargo.toml"),
+        format!(
+            "[package]\nname = \"test-app\"\nversion = \"0.1.0\"\nedition = \"2024\"\n\n[dependencies]\nes-fluent-manager-embedded = {{ path = \"{manager_path}\" }}\n\n[build-dependencies]\nes-fluent-build = {{ path = \"{build_path}\" }}\n"
+        ),
+    )
+    .expect("write Cargo.toml");
+    std::fs::write(
+        temp.path().join("build.rs"),
+        "fn main() { let _ = \"track_i18n_assets\"; } // track_i18n_assets()\n",
+    )
+    .expect("write build.rs");
+    std::fs::write(
+        temp.path().join("src/lib.rs"),
+        "const _: &str = \"define_i18n_module!\";\n",
+    )
+    .expect("write lib.rs");
+    std::fs::write(
+        temp.path().join("src/unused.rs"),
+        "es_fluent_manager_embedded::define_i18n_module!();\n",
+    )
+    .expect("write unused source");
+
+    let output = Command::cargo_bin("cargo-es-fluent")
+        .expect("binary exists")
+        .args([
+            "es-fluent",
+            "doctor",
+            "--path",
+            temp.path().to_str().expect("workspace path"),
+            "--output",
+            "json",
+        ])
+        .output()
+        .expect("run doctor");
+
+    assert!(!output.status.success());
+    let json: Value = serde_json::from_slice(&output.stdout).expect("doctor JSON");
+    let checks = json["checks"].as_array().expect("checks");
+    for category in ["build_script", "manager_registration"] {
+        assert!(
+            checks
+                .iter()
+                .any(|check| { check["category"] == category && check["status"] == "error" })
+        );
+    }
+}
+
+#[test]
+fn binary_doctor_warns_when_static_inspection_is_indeterminate() {
+    let temp = fixtures::create_workspace();
+    let crates_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .expect("workspace crates directory");
+    let build_path = crates_dir
+        .join("es-fluent-build")
+        .to_string_lossy()
+        .replace('\\', "/");
+    std::fs::write(
+        temp.path().join("Cargo.toml"),
+        format!(
+            "[package]\nname = \"test-app\"\nversion = \"0.1.0\"\nedition = \"2024\"\n\n[build-dependencies]\nes-fluent-build = {{ path = \"{build_path}\" }}\n"
+        ),
+    )
+    .expect("write Cargo.toml");
+    std::fs::write(
+        temp.path().join("build.rs"),
+        "include!(concat!(env!(\"OUT_DIR\"), \"/generated.rs\"));\nfn main() {}\n",
+    )
+    .expect("write build.rs");
+
+    let output = Command::cargo_bin("cargo-es-fluent")
+        .expect("binary exists")
+        .args([
+            "es-fluent",
+            "doctor",
+            "--path",
+            temp.path().to_str().expect("workspace path"),
+            "--output",
+            "json",
+        ])
+        .output()
+        .expect("run doctor");
+
+    assert!(output.status.success());
+    let json: Value = serde_json::from_slice(&output.stdout).expect("doctor JSON");
+    assert!(json["checks"].as_array().is_some_and(|checks| {
+        checks
+            .iter()
+            .any(|check| check["category"] == "build_script" && check["status"] == "warning")
+    }));
+    assert!(
+        !String::from_utf8_lossy(&output.stdout).contains(temp.path().to_string_lossy().as_ref()),
+        "doctor JSON should keep warning paths workspace-relative"
+    );
+}
+
+#[test]
+fn binary_doctor_warns_for_opaque_macro_build_integrations() {
+    let crates_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .expect("workspace crates directory");
+    let build_path = crates_dir
+        .join("es-fluent-build")
+        .to_string_lossy()
+        .replace('\\', "/");
+    for (source, reason) in [
+        (
+            "configure_i18n!();\nfn main() {}\n",
+            "opaque item macro expansion",
+        ),
+        (
+            "fn main() { configure_i18n!(); }\n",
+            "opaque statement macro expansion",
+        ),
+        (
+            "fn main() { let _configuration = configure_i18n!(); }\n",
+            "opaque expression macro expansion",
+        ),
+        (
+            "macro_rules! define_local_helper { () => { mod es_fluent_build { pub fn track_i18n_assets() {} } }; }\ndefine_local_helper!();\nfn main() { es_fluent_build::track_i18n_assets(); }\n",
+            "opaque item macro expansion",
+        ),
+    ] {
+        let temp = fixtures::create_workspace();
+        std::fs::write(
+            temp.path().join("Cargo.toml"),
+            format!(
+                "[package]\nname = \"test-app\"\nversion = \"0.1.0\"\nedition = \"2024\"\n\n[build-dependencies]\nes-fluent-build = {{ path = \"{build_path}\" }}\n"
+            ),
+        )
+        .expect("write Cargo.toml");
+        std::fs::write(temp.path().join("build.rs"), source).expect("write build.rs");
+
+        let output = Command::cargo_bin("cargo-es-fluent")
+            .expect("binary exists")
+            .args([
+                "es-fluent",
+                "doctor",
+                "--path",
+                temp.path().to_str().expect("workspace path"),
+                "--output",
+                "json",
+            ])
+            .output()
+            .expect("run doctor");
+
+        assert!(output.status.success());
+        let json: Value = serde_json::from_slice(&output.stdout).expect("doctor JSON");
+        assert!(json["checks"].as_array().is_some_and(|checks| {
+            checks.iter().any(|check| {
+                check["category"] == "build_script"
+                    && check["status"] == "warning"
+                    && check["message"]
+                        .as_str()
+                        .is_some_and(|message| message.contains(reason))
+            }) && !checks
+                .iter()
+                .any(|check| check["category"] == "build_script" && check["status"] == "error")
+        }));
+    }
+}
+
+#[test]
+fn binary_doctor_does_not_pass_unreachable_build_helper_call() {
+    let temp = fixtures::create_workspace();
+    let crates_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .expect("workspace crates directory");
+    let build_path = crates_dir
+        .join("es-fluent-build")
+        .to_string_lossy()
+        .replace('\\', "/");
+    std::fs::write(
+        temp.path().join("Cargo.toml"),
+        format!(
+            "[package]\nname = \"test-app\"\nversion = \"0.1.0\"\nedition = \"2024\"\n\n[build-dependencies]\nes-fluent-build = {{ path = \"{build_path}\" }}\n"
+        ),
+    )
+    .expect("write Cargo.toml");
+    std::fs::write(
+        temp.path().join("build.rs"),
+        "fn unused() { es_fluent_build::track_i18n_assets(); }\nfn main() {}\n",
+    )
+    .expect("write build.rs");
+
+    let output = Command::cargo_bin("cargo-es-fluent")
+        .expect("binary exists")
+        .args([
+            "es-fluent",
+            "doctor",
+            "--path",
+            temp.path().to_str().expect("workspace path"),
+            "--output",
+            "json",
+        ])
+        .output()
+        .expect("run doctor");
+
+    assert!(output.status.success());
+    let json: Value = serde_json::from_slice(&output.stdout).expect("doctor JSON");
+    assert!(json["checks"].as_array().is_some_and(|checks| {
+        checks.iter().any(|check| {
+            check["category"] == "build_script"
+                && check["status"] == "warning"
+                && check["message"]
+                    .as_str()
+                    .is_some_and(|message| message.contains("could not be proven reachable"))
+        }) && !checks
+            .iter()
+            .any(|check| check["category"] == "build_script" && check["status"] == "pass")
+    }));
+}
+
+#[test]
+fn binary_doctor_warns_for_indeterminate_build_helper_calls() {
+    let crates_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .expect("workspace crates directory");
+    let build_path = crates_dir
+        .join("es-fluent-build")
+        .to_string_lossy()
+        .replace('\\', "/");
+
+    for source in [
+        "fn main() { if false { es_fluent_build::track_i18n_assets(); } }\n",
+        "fn skip() -> bool { false }\nfn main() { if skip() { return; } es_fluent_build::track_i18n_assets(); }\n",
+        "fn setup() { es_fluent_build::track_i18n_assets(); }\nfn main() { if false { setup(); } }\n",
+        "use es_fluent_build::track_i18n_assets;\nfn main() { fn track_i18n_assets() {} track_i18n_assets(); }\n",
+        "use es_fluent_build::track_i18n_assets;\nfn main() { let track_i18n_assets = || {}; track_i18n_assets(); }\n",
+        "mod es_fluent_build { pub fn track_i18n_assets() {} }\nfn main() { es_fluent_build::track_i18n_assets(); }\n",
+        "fn main() { let _future = async { es_fluent_build::track_i18n_assets(); }; }\n",
+        "use es_fluent_build::track_i18n_assets;\nfn main() { let f: fn() = track_i18n_assets; f(); }\n",
+        "fn main() { panic!(\"stop\"); es_fluent_build::track_i18n_assets(); }\n",
+        "fn main() { std::process::exit(0); es_fluent_build::track_i18n_assets(); }\n",
+        "fn stop() -> ! { loop {} }\nfn main() { stop(); es_fluent_build::track_i18n_assets(); }\n",
+    ] {
+        let temp = fixtures::create_workspace();
+        std::fs::write(
+            temp.path().join("Cargo.toml"),
+            format!(
+                "[package]\nname = \"test-app\"\nversion = \"0.1.0\"\nedition = \"2024\"\n\n[build-dependencies]\nes-fluent-build = {{ path = \"{build_path}\" }}\n"
+            ),
+        )
+        .expect("write Cargo.toml");
+        std::fs::write(temp.path().join("build.rs"), source).expect("write build.rs");
+
+        let output = Command::cargo_bin("cargo-es-fluent")
+            .expect("binary exists")
+            .args([
+                "es-fluent",
+                "doctor",
+                "--path",
+                temp.path().to_str().expect("workspace path"),
+                "--output",
+                "json",
+            ])
+            .output()
+            .expect("run doctor");
+
+        assert!(output.status.success());
+        let json: Value = serde_json::from_slice(&output.stdout).expect("doctor JSON");
+        assert!(json["checks"].as_array().is_some_and(|checks| {
+            checks
+                .iter()
+                .any(|check| check["category"] == "build_script" && check["status"] == "warning")
+                && !checks
+                    .iter()
+                    .any(|check| check["category"] == "build_script" && check["status"] == "pass")
+        }));
+    }
+}
+
+#[test]
+fn binary_doctor_rejects_build_helper_calls_after_diverging_statements() {
+    let temp = fixtures::create_workspace();
+    let crates_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .expect("workspace crates directory");
+    let build_path = crates_dir
+        .join("es-fluent-build")
+        .to_string_lossy()
+        .replace('\\', "/");
+    std::fs::write(
+        temp.path().join("Cargo.toml"),
+        format!(
+            "[package]\nname = \"test-app\"\nversion = \"0.1.0\"\nedition = \"2024\"\n\n[build-dependencies]\nes-fluent-build = {{ path = \"{build_path}\" }}\n"
+        ),
+    )
+    .expect("write Cargo.toml");
+    for source in [
+        "fn main() { { return; } es_fluent_build::track_i18n_assets(); }\n",
+        "fn main() { loop {} es_fluent_build::track_i18n_assets(); }\n",
+    ] {
+        std::fs::write(temp.path().join("build.rs"), source).expect("write build.rs");
+
+        let output = Command::cargo_bin("cargo-es-fluent")
+            .expect("binary exists")
+            .args([
+                "es-fluent",
+                "doctor",
+                "--path",
+                temp.path().to_str().expect("workspace path"),
+                "--output",
+                "json",
+            ])
+            .output()
+            .expect("run doctor");
+
+        assert!(!output.status.success());
+        let json: Value = serde_json::from_slice(&output.stdout).expect("doctor JSON");
+        assert!(json["checks"].as_array().is_some_and(|checks| {
+            checks
+                .iter()
+                .any(|check| check["category"] == "build_script" && check["status"] == "error")
+                && !checks
+                    .iter()
+                    .any(|check| check["category"] == "build_script" && check["status"] == "pass")
+        }));
+    }
+}
+
+#[cfg(unix)]
+#[test]
+fn binary_doctor_rejects_symlinked_fallback_resource() {
+    let temp = fixtures::create_workspace();
+    let outside = fixtures::tempdir();
+    let fallback_resource = temp.path().join("i18n/en/test-app.ftl");
+    std::fs::remove_file(&fallback_resource).expect("remove real fallback resource");
+    let outside_resource = outside.path().join("test-app.ftl");
+    std::fs::write(&outside_resource, "hello = Outside\n").expect("write outside resource");
+    std::os::unix::fs::symlink(&outside_resource, &fallback_resource)
+        .expect("create fallback resource symlink");
+
+    let output = Command::cargo_bin("cargo-es-fluent")
+        .expect("binary exists")
+        .args([
+            "es-fluent",
+            "doctor",
+            "--path",
+            temp.path().to_str().expect("workspace path"),
+            "--output",
+            "json",
+        ])
+        .output()
+        .expect("run doctor");
+
+    assert!(!output.status.success());
+    let json: Value = serde_json::from_slice(&output.stdout).expect("doctor JSON");
+    assert_eq!(json["healthy"], false);
+    assert!(json["checks"].as_array().is_some_and(|checks| {
+        checks.iter().any(|check| {
+            check["category"] == "catalog"
+                && check["status"] == "error"
+                && check["message"].as_str().is_some_and(|message| {
+                    message.contains("Fluent resource must be a real file, not a symlink")
+                })
+        }) && !checks
+            .iter()
+            .any(|check| check["category"] == "catalog" && check["status"] == "pass")
+    }));
+}
+
+#[cfg(unix)]
+#[test]
+fn binary_doctor_rejects_symlinked_non_fallback_locale() {
+    let temp = fixtures::create_workspace();
+    let outside = fixtures::tempdir();
+    std::fs::create_dir_all(outside.path().join("fr")).expect("create external locale");
+    std::os::unix::fs::symlink(outside.path().join("fr"), temp.path().join("i18n/fr"))
+        .expect("create non-fallback locale symlink");
+
+    let output = Command::cargo_bin("cargo-es-fluent")
+        .expect("binary exists")
+        .args([
+            "es-fluent",
+            "doctor",
+            "--path",
+            temp.path().to_str().expect("workspace path"),
+            "--output",
+            "json",
+        ])
+        .output()
+        .expect("run doctor");
+
+    assert!(!output.status.success());
+    let json: Value = serde_json::from_slice(&output.stdout).expect("doctor JSON");
+    assert!(json["checks"].as_array().is_some_and(|checks| {
+        checks.iter().any(|check| {
+            check["category"] == "catalog"
+                && check["status"] == "error"
+                && check["message"].as_str().is_some_and(|message| {
+                    message.contains("locale asset entries must not be symlinks")
+                        && message.contains("i18n/fr")
+                })
+        }) && !checks
+            .iter()
+            .any(|check| check["category"] == "catalog" && check["status"] == "pass")
+    }));
+}
+
+#[test]
+fn binary_doctor_rejects_invalid_namespace_in_non_fallback_crate_root_locale() {
+    let temp = fixtures::create_workspace();
+    std::fs::write(
+        temp.path().join("i18n.toml"),
+        "fallback_language = \"en\"\nassets_dir = \".\"\n",
+    )
+    .expect("write config");
+    std::fs::create_dir_all(temp.path().join("en")).expect("create fallback locale");
+    std::fs::create_dir_all(temp.path().join("fr/test-app")).expect("create namespace dir");
+    std::fs::write(temp.path().join("en/test-app.ftl"), "hello = Hello\n")
+        .expect("write fallback resource");
+    std::fs::write(
+        temp.path().join("fr/test-app/ bad .ftl"),
+        "hello = Bonjour\n",
+    )
+    .expect("write invalid namespace resource");
+
+    let output = Command::cargo_bin("cargo-es-fluent")
+        .expect("binary exists")
+        .args([
+            "es-fluent",
+            "doctor",
+            "--path",
+            temp.path().to_str().expect("workspace path"),
+            "--output",
+            "json",
+        ])
+        .output()
+        .expect("run doctor");
+
+    assert!(!output.status.success());
+    let json: Value = serde_json::from_slice(&output.stdout).expect("doctor JSON");
+    assert!(json["checks"].as_array().is_some_and(|checks| {
+        checks.iter().any(|check| {
+            check["category"] == "catalog"
+                && check["status"] == "error"
+                && check["message"].as_str().is_some_and(|message| {
+                    message.contains("discovered invalid namespace ' bad '")
+                        && message.contains("leading or trailing whitespace")
+                })
+        })
+    }));
+}
+
+#[test]
+fn inventory_runner_uses_hidden_inventory_mode() {
+    let temp = fixtures::create_workspace();
+    Command::cargo_bin("cargo-es-fluent")
+        .expect("binary exists")
+        .args([
+            "es-fluent",
+            "generate",
+            "--path",
+            temp.path().to_str().expect("workspace path"),
+            "--dry-run",
+            "--force-run",
+        ])
+        .assert()
+        .success();
+
+    let manifest = std::fs::read_to_string(temp.path().join(".es-fluent/Cargo.toml"))
+        .expect("read inventory runner manifest");
+    let manifest: toml::Value = toml::from_str(&manifest).expect("parse runner manifest");
+    let es_fluent = manifest
+        .get("dependencies")
+        .and_then(toml::Value::as_table)
+        .and_then(|dependencies| dependencies.get("es-fluent"))
+        .expect("runner es-fluent dependency");
+    assert!(
+        es_fluent.get("features").is_none(),
+        "inventory runner must use its hidden environment mode: {manifest}"
+    );
+}
+
+#[test]
 fn binary_tree_help_describes_hide_entry_detail_scope() {
     Command::cargo_bin("cargo-es-fluent")
         .expect("binary exists")
@@ -551,6 +1588,7 @@ fn binary_every_command_has_a_noninteractive_success_path() {
             "status",
             &["status", "--path", workspace, "--output", "json"],
         ),
+        ("doctor", &["doctor", "--help"]),
         (
             "sync",
             &[

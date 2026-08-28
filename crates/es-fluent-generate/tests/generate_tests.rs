@@ -127,6 +127,42 @@ fn test_generate_conservative_mode_preserves_existing() {
 }
 
 #[test]
+fn test_generate_conservative_mode_repairs_attribute_only_message() {
+    let temp_dir = TempDir::new().expect("tempdir");
+    let i18n_path = temp_dir.path().join("i18n");
+    let ftl_file_path = i18n_path.join("test_crate.ftl");
+    fs::create_dir_all(&i18n_path).expect("create i18n directory");
+    fs::write(
+        &ftl_file_path,
+        "test_enum-Variant1 =\n    .aria-label = Preserved attribute\n",
+    )
+    .expect("write attribute-only message");
+
+    let type_info = common::enum_type(
+        "TestEnum",
+        vec![common::variant(
+            "Variant1",
+            &common::ftl_key("TestEnum", "Variant1"),
+        )],
+    );
+
+    es_fluent_generate::generate(
+        "test_crate",
+        &i18n_path,
+        temp_dir.path(),
+        std::slice::from_ref(&type_info),
+        FluentParseMode::Conservative,
+        false,
+    )
+    .expect("repair attribute-only fallback message");
+
+    assert_eq!(
+        read_ftl(&ftl_file_path),
+        "## TestEnum\n\ntest_enum-Variant1 = Variant1\n    .aria-label = Preserved attribute\n"
+    );
+}
+
+#[test]
 #[cfg_attr(not(target_os = "linux"), ignore = "insta snapshots are Linux-only")]
 fn test_generate_inserts_variants_into_empty_group() {
     let temp_dir = TempDir::new().unwrap();

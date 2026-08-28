@@ -1202,6 +1202,8 @@ mod tests {
             name: es_fluent_runner::PackageName::try_new("test-app").expect("valid package name"),
             manifest_dir: crate::core::ManifestDir::from_discovered(temp.path().to_path_buf()),
             src_dir: crate::core::SourceDir::from_discovered(temp.path().join("src")),
+            library_target_path: None,
+            custom_build_target_path: None,
             i18n_config_path: crate::core::DiscoveredI18nConfigPath::from_discovered(
                 temp.path().join("i18n.toml"),
             ),

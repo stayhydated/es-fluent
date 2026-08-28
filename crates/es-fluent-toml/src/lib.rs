@@ -20,6 +20,26 @@ enum LanguageEntryMode {
     CrateRootAssets,
 }
 
+/// Policy for normal typed lookup when a Fluent message value is missing.
+#[derive(Clone, Copy, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum MissingMessagePolicy {
+    /// Require every generated key to have a fallback message value.
+    #[default]
+    Strict,
+    /// Return the generated snake_case source name from normal lookup.
+    FallbackStr,
+}
+
+impl std::fmt::Display for MissingMessagePolicy {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Strict => formatter.write_str("strict"),
+            Self::FallbackStr => formatter.write_str("fallback-str"),
+        }
+    }
+}
+
 const CRATE_ROOT_ASSET_IGNORED_DIRS: &[&str] = &[
     ".cargo", ".git", ".github", ".idea", ".vscode", "benches", "bin", "build", "dev", "dist",
     "doc", "docs", "examples", "lib", "man", "src", "target", "tests",
@@ -193,6 +213,9 @@ pub struct RawI18nConfig {
     /// used by `#[fluent(domain = "...")]` and produce sibling domain files.
     #[serde(default)]
     pub domains: Vec<String>,
+    /// Missing-message behavior for normal typed lookup.
+    #[serde(default)]
+    pub missing_message_policy: MissingMessagePolicy,
     /// Whether `cargo es-fluent check --all-locales` should warn when a non-fallback
     /// locale copies the fallback message text.
     ///
@@ -243,6 +266,7 @@ impl RawI18nConfig {
             fluent_feature: self.fluent_feature,
             namespaces,
             domains,
+            missing_message_policy: self.missing_message_policy,
             check_fallback_copies: self.check_fallback_copies,
         })
     }
@@ -283,6 +307,9 @@ pub struct I18nConfig {
     /// Additional FTL domains owned by this package.
     #[builder(default)]
     pub domains: Vec<FluentDomain>,
+    /// Missing-message behavior for normal typed lookup.
+    #[builder(default)]
+    pub missing_message_policy: MissingMessagePolicy,
     /// Whether `cargo es-fluent check --all-locales` should warn when a non-fallback
     /// locale copies the fallback message text.
     #[builder(default = true)]
@@ -369,6 +396,11 @@ impl ResolvedI18nLayout {
     /// Returns the additional FTL domains owned by this package.
     pub fn domains(&self) -> &[FluentDomain] {
         &self.config.domains
+    }
+
+    /// Returns the package-local missing-message policy.
+    pub fn missing_message_policy(&self) -> MissingMessagePolicy {
+        self.config.missing_message_policy
     }
 }
 

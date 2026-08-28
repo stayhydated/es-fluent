@@ -7,13 +7,16 @@ localizable types through library targets.
 
 ## Install dependencies
 
-Add the facade, embedded manager, and locale identifier crate:
+Add the facade, embedded manager, locale identifier, and build helper:
 
 ~~~toml
 [dependencies]
 es-fluent = "0.18"
 es-fluent-manager-embedded = "0.18"
 unic-langid = "0.9"
+
+[build-dependencies]
+es-fluent-build = "0.18"
 ~~~
 
 Install the Cargo subcommand:
@@ -37,8 +40,19 @@ Create the fallback locale directory:
 mkdir -p assets/locales/en
 ~~~
 
-See [Configure a project](configuration.md) for feature-gated derives,
-namespace allowlists, additional domains, and validation settings.
+Create Cargo's default custom-build target to track locale changes and write the
+strict fallback-message catalog:
+
+~~~rust,no_run
+// build.rs
+fn main() {
+    es_fluent_build::track_i18n_assets();
+}
+~~~
+
+See [Configure a project](configuration.md) for the package-local
+missing-message policy, feature-gated derives, namespace allowlists, additional
+domains, and validation settings.
 
 ## Define the runtime module
 
@@ -69,9 +83,10 @@ pub struct Greeting<'a> {
 
 ## Generate fallback FTL
 
-Run:
+Verify the setup, then generate:
 
 ~~~sh
+cargo es-fluent doctor
 cargo es-fluent generate
 ~~~
 

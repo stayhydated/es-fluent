@@ -88,6 +88,37 @@ fn validate_loaded_ftl_files_reports_key_in_wrong_resource_as_missing_from_expec
     }));
 }
 
+#[test]
+fn validate_loaded_ftl_files_treats_attribute_only_message_as_missing() {
+    let temp = tempfile::tempdir().unwrap();
+    let ftl_path = temp.path().join("i18n/en/test-app.ftl");
+    fs::create_dir_all(ftl_path.parent().unwrap()).unwrap();
+    let source = "hello =\n    .label = Hello\n";
+    fs::write(&ftl_path, source).unwrap();
+
+    let loaded_files = vec![LoadedFtlFile {
+        abs_path: ftl_path,
+        relative_path: PathBuf::from("test-app.ftl"),
+        resource: fluent_syntax::parser::parse(source.to_string()).unwrap(),
+        keys: std::iter::once("hello".to_string()).collect(),
+    }];
+    let mut expected_keys = IndexMap::new();
+    expected_keys.insert(expected_key("hello"), key_info(&[], None, None));
+    let ctx = ValidationContext {
+        owner: "test-app",
+        expected_keys: &expected_keys,
+        workspace_root: temp.path(),
+        manifest_dir: temp.path(),
+    };
+
+    let issues = validate_loaded(&ctx, loaded_files, "en");
+    assert!(
+        issues.iter().any(
+            |issue| matches!(issue, ValidationIssue::MissingKey(error) if error.key == "hello")
+        )
+    );
+}
+
 fn expected_key(value: &str) -> FluentMessageKey {
     FluentMessageKey::new(
         FluentDomain::try_new("test-app").unwrap(),
@@ -488,6 +519,8 @@ fn validate_crate_reports_missing_main_file_as_missing_key() {
         name: package("test-crate"),
         manifest_dir: crate::core::ManifestDir::from_discovered(temp.path().to_path_buf()),
         src_dir: crate::core::SourceDir::from_discovered(temp.path().join("src")),
+        library_target_path: None,
+        custom_build_target_path: None,
         i18n_config_path: crate::core::DiscoveredI18nConfigPath::from_discovered(
             temp.path().join("i18n.toml"),
         ),
@@ -551,6 +584,8 @@ fn validate_crate_respects_config_disabled_fallback_copy_check() {
         name: package("test-crate"),
         manifest_dir: crate::core::ManifestDir::from_discovered(temp.path().to_path_buf()),
         src_dir: crate::core::SourceDir::from_discovered(temp.path().join("src")),
+        library_target_path: None,
+        custom_build_target_path: None,
         i18n_config_path: crate::core::DiscoveredI18nConfigPath::from_discovered(
             temp.path().join("i18n.toml"),
         ),
@@ -676,6 +711,8 @@ fn validate_ftl_files_reports_syntax_issue_when_discovery_errors() {
         name: package("test-crate"),
         manifest_dir: crate::core::ManifestDir::from_discovered(temp.path().to_path_buf()),
         src_dir: crate::core::SourceDir::from_discovered(src_dir),
+        library_target_path: None,
+        custom_build_target_path: None,
         i18n_config_path: crate::core::DiscoveredI18nConfigPath::from_discovered(
             temp.path().join("i18n.toml"),
         ),

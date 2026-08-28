@@ -9,7 +9,7 @@ use es_fluent_runner::{
     FluentParseMode, I18nTomlPath, PackageName, RunnerMetadataStore, RunnerRequest,
 };
 use fs_err as fs;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::sync::mpsc;
 use std::thread;
 use std::time::Duration;
@@ -72,6 +72,8 @@ fn create_workspace_fixture(
         name: package(crate_name),
         manifest_dir: crate::core::ManifestDir::from_discovered(temp.path().to_path_buf()),
         src_dir: crate::core::SourceDir::from_discovered(src_dir),
+        library_target_path: None,
+        custom_build_target_path: None,
         i18n_config_path: crate::core::DiscoveredI18nConfigPath::from_discovered(i18n_config_path),
         ftl_output_dir: crate::core::DiscoveredFtlOutputDir::from_discovered(
             temp.path().join("i18n/en"),
@@ -94,7 +96,9 @@ fn crate_inputs_hash(krate: &CrateInfo) -> String {
         &krate.manifest_dir,
         &krate.src_dir,
         Some(&krate.i18n_config_path),
+        krate.custom_build_target_path.as_deref(),
     )
+    .expect("test fixture has a determinate source graph")
 }
 
 fn workspace_crate_hashes(workspace: &WorkspaceInfo) -> indexmap::IndexMap<PackageName, String> {
@@ -151,6 +155,12 @@ fn install_cached_runner(
     )
 }
 
+fn runner_target_dir(workspace_root: &Path) -> PathBuf {
+    RunnerMetadataStore::temp_for_workspace(workspace_root)
+        .base_dir()
+        .join("target")
+}
+
 fn write_cached_runner(
     runner: &MonolithicRunner<'_>,
     workspace: &WorkspaceInfo,
@@ -170,8 +180,11 @@ fn write_cached_runner(
 
 #[test]
 fn test_temp_crate_config_nonexistent_manifest() {
-    let config = TempCrateConfig::from_manifest(Path::new("/nonexistent/Cargo.toml"))
-        .expect("load temp crate config");
+    let config = TempCrateConfig::from_manifest(
+        Path::new("/nonexistent/Cargo.toml"),
+        PathBuf::from("/nonexistent/.es-fluent/target"),
+    )
+    .expect("load temp crate config");
     // With fallback, should find local es-fluent from CLI workspace
     // If running in CI or different environment, may still be crates.io
     assert!(matches!(
@@ -205,7 +218,8 @@ fn test_temp_crate_config_non_workspace_member() {
     fs::create_dir_all(&src_dir).unwrap();
     fs::write(src_dir.join("lib.rs"), "").unwrap();
 
-    let config = TempCrateConfig::from_manifest(&manifest_path).expect("load temp crate config");
+    let config = TempCrateConfig::from_manifest(&manifest_path, runner_target_dir(temp_dir.path()))
+        .expect("load temp crate config");
     // With fallback, should find local es-fluent from CLI workspace
     assert!(matches!(
         config.es_fluent_dep,
@@ -276,12 +290,13 @@ fn temp_crate_config_uses_valid_cached_metadata() {
                 ..Default::default()
             },
         ),
-        target_dir: "/tmp/target".to_string(),
     }
     .save(temp_dir.base_dir())
     .expect("save metadata cache");
 
-    let config = TempCrateConfig::from_manifest(&manifest_path).expect("load temp crate config");
+    let runner_target = runner_target_dir(temp.path());
+    let config = TempCrateConfig::from_manifest(&manifest_path, runner_target.clone())
+        .expect("load temp crate config");
     match &config.es_fluent_dep {
         cargo_manifest::Dependency::Detailed(detail) => {
             assert_eq!(detail.path.as_deref(), Some("/tmp/es"));
@@ -294,10 +309,7 @@ fn temp_crate_config_uses_valid_cached_metadata() {
         },
         dep => panic!("expected detailed dependency, got {dep:?}"),
     }
-    assert_eq!(
-        config.target_dir.as_path(),
-        Path::new("/tmp/target").join("es-fluent")
-    );
+    assert_eq!(config.target_dir, runner_target);
 }
 
 #[test]
@@ -310,7 +322,8 @@ fn temp_crate_config_writes_metadata_cache_when_lock_exists() {
     );
     crate::test_fixtures::write_file(&temp.path().join("Cargo.lock"), "lock-content");
 
-    let _ = TempCrateConfig::from_manifest(&manifest_path).expect("load temp crate config");
+    let _ = TempCrateConfig::from_manifest(&manifest_path, runner_target_dir(temp.path()))
+        .expect("load temp crate config");
     let temp_dir = es_fluent_runner::RunnerMetadataStore::temp_for_workspace(temp.path());
     let cache = MetadataCache::load(temp_dir.base_dir());
     assert!(cache.is_some(), "metadata cache should be written");
@@ -336,6 +349,22 @@ fn runner_crate_writes_manifest_and_config_files() {
 }
 
 #[test]
+fn runner_cargo_command_forces_workspace_local_target_dir() {
+    let temp = tempfile::tempdir().expect("tempdir");
+    let runner = RunnerCrate::new(temp.path());
+    let command = runner.cargo_command();
+    let expected_target = temp.path().join("target");
+
+    assert_eq!(
+        command
+            .get_envs()
+            .find(|(name, _)| *name == "CARGO_TARGET_DIR")
+            .and_then(|(_, value)| value),
+        Some(expected_target.as_os_str())
+    );
+}
+
+#[test]
 fn prepare_monolithic_runner_crate_writes_expected_files() {
     let (_temp, workspace) = create_workspace_fixture("test-runner", true);
 
@@ -344,6 +373,33 @@ fn prepare_monolithic_runner_crate_writes_expected_files() {
     assert!(runner_dir.join("src/main.rs").exists());
     assert!(runner_dir.join(".cargo/config.toml").exists());
     assert!(runner_dir.join(".gitignore").exists());
+}
+
+#[test]
+fn runner_paths_ignore_application_target_dir_changes() {
+    let (temp, mut workspace) = create_workspace_fixture("runner-local-target", true);
+    workspace.target_dir = temp.path().join("application-target-a");
+    let first_binary = super::monolithic::get_monolithic_binary_path(&workspace);
+    workspace.target_dir = temp.path().join("application-target-b");
+    let second_binary = super::monolithic::get_monolithic_binary_path(&workspace);
+
+    let expected = runner_target_dir(temp.path())
+        .join("debug")
+        .join(crate::test_fixtures::fake_runner_binary_name());
+    assert_eq!(first_binary, expected);
+    assert_eq!(second_binary, expected);
+
+    let runner_dir = prepare_monolithic_runner_crate(&workspace).expect("prepare runner");
+    let config = fs::read_to_string(runner_dir.join(".cargo/config.toml"))
+        .expect("read runner Cargo config");
+    let config: toml::Value = toml::from_str(&config).expect("parse runner Cargo config");
+    assert_eq!(
+        config
+            .get("build")
+            .and_then(|build| build.get("target-dir"))
+            .and_then(toml::Value::as_str),
+        Some(runner_target_dir(temp.path()).to_string_lossy().as_ref())
+    );
 }
 
 #[test]
@@ -396,6 +452,30 @@ fn prepare_monolithic_runner_crate_rejects_nested_temp_dir_symlink_without_writi
     assert!(!outside.path().join("main.rs").exists());
 }
 
+#[cfg(unix)]
+#[test]
+fn prepare_monolithic_runner_rejects_symlinked_runner_artifact_paths() {
+    let binary = format!("es-fluent-runner{}", std::env::consts::EXE_SUFFIX);
+    for relative in [
+        "target".to_string(),
+        "target/debug".to_string(),
+        format!("target/debug/{binary}"),
+    ] {
+        let (temp, workspace) = create_workspace_fixture("runner-artifact-symlink", true);
+        let outside = tempfile::tempdir().expect("outside tempdir");
+        let temp_store = RunnerMetadataStore::temp_for_workspace(temp.path());
+        let artifact = temp_store.base_dir().join(&relative);
+        fs::create_dir_all(artifact.parent().expect("artifact parent"))
+            .expect("create artifact parent");
+        std::os::unix::fs::symlink(outside.path(), &artifact).expect("create artifact symlink");
+
+        let error = prepare_monolithic_runner_crate(&workspace)
+            .expect_err("symlinked runner artifact path should be rejected");
+        assert!(error.to_string().contains("symlink"), "{error:#}");
+        assert!(error.to_string().contains(&relative), "{error:#}");
+    }
+}
+
 #[test]
 fn prepare_monolithic_runner_crate_serializes_windows_style_paths() {
     let (temp, workspace) = create_workspace_fixture("windows-paths", true);
@@ -415,7 +495,6 @@ fn prepare_monolithic_runner_crate_serializes_windows_style_paths() {
                 ..Default::default()
             },
         ),
-        target_dir: r"C:\work\target".to_string(),
     }
     .save(temp_dir.base_dir())
     .expect("save metadata cache");
@@ -452,14 +531,7 @@ fn prepare_monolithic_runner_crate_serializes_windows_style_paths() {
 
     let cargo_config =
         fs::read_to_string(runner_dir.join(".cargo/config.toml")).expect("read runner config.toml");
-    let runner_target_dir = Path::new(r"C:\work\target").join("es-fluent");
-    assert!(
-        cargo_config.contains(&format!(
-            "target-dir = '{}'",
-            runner_target_dir.to_string_lossy()
-        )),
-        "runner config did not preserve a TOML-safe target dir: {cargo_config}"
-    );
+    let runner_target_dir = temp_dir.base_dir().join("target");
     let parsed_config: toml::Value = toml::from_str(&cargo_config).expect("parse config.toml");
     assert_eq!(
         parsed_config
@@ -664,19 +736,53 @@ fn monolithic_runner_staleness_detects_crate_manifest_changes() {
 
 #[test]
 fn monolithic_runner_staleness_detects_build_script_changes() {
-    let (_temp, workspace) = create_workspace_fixture("build-script-stale", true);
+    let (_temp, mut workspace) = create_workspace_fixture("build-script-stale", true);
+    let build_script = workspace.crates[0].manifest_dir.join("build.rs");
+    crate::test_fixtures::write_file(&build_script, "fn main() {}\n");
+    workspace.crates[0].custom_build_target_path = Some(
+        crate::core::CustomBuildTargetPath::from_discovered(build_script.clone()),
+    );
     let runner = MonolithicRunner::new(&workspace);
     install_cached_runner(&runner, &workspace, &FakeRunnerBehavior::stdout("ok\n"));
 
-    let krate = &workspace.crates[0];
     crate::test_fixtures::write_file(
-        &krate.manifest_dir.join("build.rs"),
+        &build_script,
         "fn main() { println!(\"cargo:rerun-if-changed=build.rs\"); }\n",
     );
 
     assert!(
         runner.is_stale(),
         "build script change should mark runner stale"
+    );
+}
+
+#[test]
+fn monolithic_runner_is_always_stale_for_indeterminate_build_graph() {
+    let (_temp, mut workspace) = create_workspace_fixture("indeterminate-build", true);
+    let build_script = workspace.crates[0].manifest_dir.join("build.rs");
+    crate::test_fixtures::write_file(&build_script, "fn main() {}\n");
+    workspace.crates[0].custom_build_target_path = Some(
+        crate::core::CustomBuildTargetPath::from_discovered(build_script.clone()),
+    );
+    let runner = MonolithicRunner::new(&workspace);
+    install_cached_runner(&runner, &workspace, &FakeRunnerBehavior::stdout("ok\n"));
+    assert!(
+        !runner.is_stale(),
+        "determinate build graph should be cached"
+    );
+
+    crate::test_fixtures::write_file(
+        &build_script,
+        "include!(concat!(env!(\"CARGO_MANIFEST_DIR\"), \"/support.rs\"));\nfn main() {}\n",
+    );
+    crate::test_fixtures::write_file(
+        &workspace.crates[0].manifest_dir.join("support.rs"),
+        "pub fn configure() {}\n",
+    );
+
+    assert!(
+        runner.is_stale(),
+        "indeterminate build graph must not reuse runner inventory"
     );
 }
 
@@ -693,6 +799,76 @@ fn monolithic_runner_staleness_detects_workspace_lockfile_changes() {
     assert!(
         runner.is_stale(),
         "workspace lockfile change should mark runner stale"
+    );
+}
+
+#[test]
+fn monolithic_runner_staleness_detects_cargo_config_changes() {
+    let (_temp, workspace) = create_workspace_fixture("cargo-config-stale", true);
+    let cargo_dir = workspace.root_dir.join(".cargo");
+    fs::create_dir_all(&cargo_dir).expect("create Cargo config directory");
+    let config_path = cargo_dir.join("config.toml");
+    crate::test_fixtures::write_file(&config_path, "[env]\nINVENTORY_MODE = \"off\"\n");
+
+    let runner = MonolithicRunner::new(&workspace);
+    install_cached_runner(&runner, &workspace, &FakeRunnerBehavior::stdout("ok\n"));
+    assert!(!runner.is_stale(), "initial Cargo config should be cached");
+
+    crate::test_fixtures::write_file(&config_path, "[env]\nINVENTORY_MODE = \"on\"\n");
+
+    assert!(
+        runner.is_stale(),
+        "Cargo config content changes must invalidate the cached runner"
+    );
+}
+
+#[test]
+fn monolithic_runner_staleness_detects_included_cargo_config_changes() {
+    let (_temp, workspace) = create_workspace_fixture("included-config-stale", true);
+    let cargo_dir = workspace.root_dir.join(".cargo");
+    fs::create_dir_all(&cargo_dir).expect("create Cargo config directory");
+    crate::test_fixtures::write_file(
+        &cargo_dir.join("config.toml"),
+        "include = [\"../shared-config.toml\"]\n",
+    );
+    let included_config = workspace.root_dir.join("shared-config.toml");
+    crate::test_fixtures::write_file(&included_config, "[env]\nINVENTORY_MODE = \"off\"\n");
+
+    let runner = MonolithicRunner::new(&workspace);
+    install_cached_runner(&runner, &workspace, &FakeRunnerBehavior::stdout("ok\n"));
+    assert!(!runner.is_stale(), "included Cargo config should be cached");
+
+    crate::test_fixtures::write_file(&included_config, "[env]\nINVENTORY_MODE = \"on\"\n");
+
+    assert!(
+        runner.is_stale(),
+        "included Cargo config changes must invalidate the cached runner"
+    );
+}
+
+#[test]
+fn monolithic_runner_staleness_detects_configured_lockfile_changes() {
+    let (_temp, workspace) = create_workspace_fixture("configured-lock-stale", true);
+    let cargo_dir = workspace.root_dir.join(".cargo");
+    let lock_dir = workspace.root_dir.join("locks");
+    fs::create_dir_all(&cargo_dir).expect("create Cargo config directory");
+    fs::create_dir_all(&lock_dir).expect("create configured lockfile directory");
+    crate::test_fixtures::write_file(
+        &cargo_dir.join("config.toml"),
+        "[resolver]\nlockfile-path = \"locks/Cargo.lock\"\n",
+    );
+    let configured_lockfile = lock_dir.join("Cargo.lock");
+    crate::test_fixtures::write_file(&configured_lockfile, "version = 4\n");
+
+    let runner = MonolithicRunner::new(&workspace);
+    install_cached_runner(&runner, &workspace, &FakeRunnerBehavior::stdout("ok\n"));
+    assert!(!runner.is_stale(), "configured lockfile should be cached");
+
+    crate::test_fixtures::write_file(&configured_lockfile, "version = 5\n");
+
+    assert!(
+        runner.is_stale(),
+        "configured lockfile changes must invalidate the cached runner"
     );
 }
 
@@ -907,6 +1083,39 @@ fn run_monolithic_fast_path_surfaces_execution_errors() {
     assert!(err.to_string().contains("Failed to run monolithic binary"));
 }
 
+#[cfg(unix)]
+#[test]
+fn run_monolithic_fast_path_rejects_symlinked_cached_binary() {
+    let (_temp, workspace) = create_workspace_fixture("fast-symlink", true);
+    let outside = tempfile::tempdir().expect("outside tempdir");
+    let outside_binary = outside.path().join("runner");
+    crate::test_fixtures::write_file(&outside_binary, "not executed");
+    let runner = MonolithicRunner::new(&workspace);
+    fs::create_dir_all(runner.binary_path.parent().expect("binary parent"))
+        .expect("create binary parent");
+    std::os::unix::fs::symlink(&outside_binary, &runner.binary_path)
+        .expect("create cached binary symlink");
+    let runner_mtime = crate::test_fixtures::runner_binary_mtime(&runner.binary_path);
+    write_cached_runner(
+        &runner,
+        &workspace,
+        runner_mtime,
+        CLI_VERSION,
+        workspace_crate_hashes(&workspace),
+    );
+
+    let request = RunnerRequest::Generate {
+        crate_name: package(&workspace.crates[0].name),
+        i18n_toml_path: i18n_path(&workspace.crates[0].i18n_config_path),
+        mode: FluentParseMode::Conservative,
+        dry_run: false,
+    };
+    let error = run_monolithic(&workspace, &request, false)
+        .expect_err("the fast path must reject a symlinked cached binary");
+    assert!(error.to_string().contains("artifact paths"), "{error:#}");
+    assert!(error.to_string().contains("symlink"), "{error:#}");
+}
+
 #[test]
 fn run_monolithic_force_run_uses_slow_path_and_writes_runner_cache() {
     let (_temp, workspace) = create_workspace_fixture("slow-path", true);
@@ -942,7 +1151,8 @@ fn run_monolithic_force_run_uses_slow_path_and_writes_runner_cache() {
 "#,
     );
 
-    let binary_path = crate::test_fixtures::fake_runner_binary_path(&workspace.target_dir);
+    let binary_path =
+        crate::test_fixtures::fake_runner_binary_path_for_workspace(&workspace.root_dir);
     crate::test_fixtures::install_fake_runner(
         &binary_path,
         &FakeRunnerBehavior::stdout("cache-metadata\n"),

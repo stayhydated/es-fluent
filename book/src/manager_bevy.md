@@ -39,6 +39,11 @@ Generated manager modules contribute their configured resources. Link every
 owner library in a multi-crate application; the host does not copy dependency
 FTL.
 
+Fallback-locale message values are compile-time checked through
+`es-fluent-build`. Set `missing_message_policy = "fallback-str"` in the owning
+package's `i18n.toml` when `BevyI18n` and `FluentText<T>` should render
+snake_case source names after locale fallback is exhausted.
+
 ## Localize UI text
 
 Derive `BevyFluentText` for component types that should refresh when

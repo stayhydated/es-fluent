@@ -1,4 +1,5 @@
 use anyhow::{Context as _, Result, bail};
+use es_fluent_shared::resource::INVENTORY_RUNNER_ENV;
 use fs_err as fs;
 use std::env;
 use std::path::{Path, PathBuf};
@@ -19,6 +20,14 @@ impl RunnerCrate<'_> {
         self.temp_dir.join("Cargo.toml")
     }
 
+    pub(super) fn cargo_command(&self) -> Command {
+        let mut command = Command::new("cargo");
+        command
+            .current_dir(self.temp_dir)
+            .env("CARGO_TARGET_DIR", self.temp_dir.join("target"));
+        command
+    }
+
     /// Write the Cargo.toml for the runner crate.
     pub(super) fn write_cargo_toml(&self, cargo_toml_content: &str) -> Result<()> {
         fs::write(self.temp_dir.join("Cargo.toml"), cargo_toml_content)
@@ -35,7 +44,7 @@ impl RunnerCrate<'_> {
 
     /// Run `cargo run` on the runner crate.
     pub(super) fn run_cargo(&self, bin_name: Option<&str>, args: &[String]) -> Result<String> {
-        let mut cmd = Command::new("cargo");
+        let mut cmd = self.cargo_command();
         cmd.arg("run");
         if let Some(bin) = bin_name {
             cmd.arg("--bin").arg(bin);
@@ -45,7 +54,7 @@ impl RunnerCrate<'_> {
             .arg("--quiet")
             .arg("--")
             .args(args)
-            .current_dir(self.temp_dir)
+            .env(INVENTORY_RUNNER_ENV, "1")
             .env("RUSTFLAGS", runner_rustflags());
 
         if env::var("NO_COLOR").is_err() {
@@ -69,7 +78,7 @@ impl RunnerCrate<'_> {
         bin_name: Option<&str>,
         args: &[String],
     ) -> Result<Output> {
-        let mut cmd = Command::new("cargo");
+        let mut cmd = self.cargo_command();
         cmd.arg("run");
         if let Some(bin) = bin_name {
             cmd.arg("--bin").arg(bin);
@@ -79,7 +88,7 @@ impl RunnerCrate<'_> {
             .arg("--quiet")
             .arg("--")
             .args(args)
-            .current_dir(self.temp_dir)
+            .env(INVENTORY_RUNNER_ENV, "1")
             .env("RUSTFLAGS", runner_rustflags());
 
         let output = cmd.output().context("Failed to run cargo")?;

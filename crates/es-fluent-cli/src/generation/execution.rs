@@ -180,6 +180,8 @@ mod tests {
                 "/tmp/test-crate",
             )),
             src_dir: crate::core::SourceDir::from_discovered(PathBuf::from("/tmp/test-crate/src")),
+            library_target_path: None,
+            custom_build_target_path: None,
             i18n_config_path: crate::core::DiscoveredI18nConfigPath::from_discovered(
                 PathBuf::from("/tmp/test-crate/i18n.toml"),
             ),

@@ -21,7 +21,11 @@ es-fluent-manager-dioxus = { version = "0.7", features = ["client"] }
 ~~~
 
 The crate has no default runtime feature. The module macro remains available
-for all feature combinations.
+for all feature combinations. Set `missing_message_policy = "fallback-str"` in
+the owning package's `i18n.toml` when client and request-scoped SSR lookup should
+render snake_case source names after locale fallback is exhausted.
+Fallback-locale values are compile-time checked by default through
+`es-fluent-build`.
 
 ## Register Dioxus assets
 

@@ -2,6 +2,7 @@ use super::context::ValidationContext;
 use crate::core::ValidationIssue;
 use crate::ftl::LoadedFtlFile;
 use es_fluent_shared::fluent::{FluentArgumentName, FluentDomain, FluentEntryId, FluentMessageKey};
+use es_fluent_shared::resource::classify_fluent_entry;
 use fluent_syntax::ast;
 use indexmap::IndexMap;
 use indexmap::map::Entry;
@@ -169,8 +170,9 @@ fn collect_actual_keys(
                         .any(|line| line.contains(SAME_AS_FALLBACK_MARKER));
                 },
                 ast::Entry::Message(msg) => {
-                    let id = match FluentEntryId::try_new(msg.id.name.clone()) {
-                        Ok(id) => id,
+                    let entry = match classify_fluent_entry(entry) {
+                        Ok(Some(entry)) => entry,
+                        Ok(None) => unreachable!("message entries are classified"),
                         Err(error) => {
                             issues.push(ctx.syntax_error_issue(
                                 locale,
@@ -181,6 +183,8 @@ fn collect_actual_keys(
                             continue;
                         },
                     };
+                    let id = entry.id;
+                    let resolves_message = entry.kind.resolves_message();
                     let key = FluentMessageKey::new(
                         FluentDomain::try_new(ctx.owner.to_string())
                             .expect("Cargo package owner is valid"),
@@ -200,6 +204,10 @@ fn collect_actual_keys(
                         continue;
                     }
                     seen_bundle_entries.insert(bundle_key, relative_path.clone());
+                    if !resolves_message {
+                        allow_same_as_fallback = false;
+                        continue;
+                    }
 
                     actual_keys.insert(
                         key,
@@ -216,8 +224,9 @@ fn collect_actual_keys(
                     allow_same_as_fallback = false;
                 },
                 ast::Entry::Term(term) => {
-                    let id = match FluentEntryId::try_new(term.id.name.clone()) {
-                        Ok(id) => id,
+                    let id = match classify_fluent_entry(entry) {
+                        Ok(Some(entry)) => entry.id,
+                        Ok(None) => unreachable!("term entries are classified"),
                         Err(error) => {
                             issues.push(ctx.syntax_error_issue(
                                 locale,

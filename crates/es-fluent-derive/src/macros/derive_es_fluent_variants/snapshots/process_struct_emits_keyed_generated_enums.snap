@@ -18,29 +18,33 @@ impl ::es_fluent::FluentMessage for LoginFormLabelVariants {
         match self {
             Self::Username => {
                 localize(
-                    ::es_fluent::registry::__macro::static_message_key(
-                        env!("CARGO_PKG_NAME"),
-                        ::es_fluent::registry::StaticFluentDomain::from_package_name(
+                    {
+                        ::es_fluent::registry::__macro::static_message_key(
                             env!("CARGO_PKG_NAME"),
-                        ),
-                        ::es_fluent::registry::__macro::static_entry_id(
-                            "login_form_label_variants-username",
-                        ),
-                    ),
+                            ::es_fluent::registry::StaticFluentDomain::from_package_name(
+                                env!("CARGO_PKG_NAME"),
+                            ),
+                            ::es_fluent::registry::__macro::static_entry_id(
+                                "login_form_label_variants-username",
+                            ),
+                        )
+                    },
                     None,
                 )
             }
             Self::Password => {
                 localize(
-                    ::es_fluent::registry::__macro::static_message_key(
-                        env!("CARGO_PKG_NAME"),
-                        ::es_fluent::registry::StaticFluentDomain::from_package_name(
+                    {
+                        ::es_fluent::registry::__macro::static_message_key(
                             env!("CARGO_PKG_NAME"),
-                        ),
-                        ::es_fluent::registry::__macro::static_entry_id(
-                            "login_form_label_variants-password",
-                        ),
-                    ),
+                            ::es_fluent::registry::StaticFluentDomain::from_package_name(
+                                env!("CARGO_PKG_NAME"),
+                            ),
+                            ::es_fluent::registry::__macro::static_entry_id(
+                                "login_form_label_variants-password",
+                            ),
+                        )
+                    },
                     None,
                 )
             }
@@ -126,15 +130,17 @@ mod __es_fluent_label_inventory_LoginFormLabelVariants {
 }
 impl ::es_fluent::FluentLabel for LoginFormLabelVariants {
     fn fluent_label_key() -> ::es_fluent::registry::StaticFluentMessageKey {
-        ::es_fluent::registry::__macro::static_message_key(
-            env!("CARGO_PKG_NAME"),
-            ::es_fluent::registry::StaticFluentDomain::from_package_name(
+        {
+            ::es_fluent::registry::__macro::static_message_key(
                 env!("CARGO_PKG_NAME"),
-            ),
-            ::es_fluent::registry::__macro::static_entry_id(
-                "login_form_label_variants_label",
-            ),
-        )
+                ::es_fluent::registry::StaticFluentDomain::from_package_name(
+                    env!("CARGO_PKG_NAME"),
+                ),
+                ::es_fluent::registry::__macro::static_entry_id(
+                    "login_form_label_variants_label",
+                ),
+            )
+        }
     }
 }
 ///`placeholder` variants of [`LoginForm`].
@@ -153,29 +159,33 @@ impl ::es_fluent::FluentMessage for LoginFormPlaceholderVariants {
         match self {
             Self::Username => {
                 localize(
-                    ::es_fluent::registry::__macro::static_message_key(
-                        env!("CARGO_PKG_NAME"),
-                        ::es_fluent::registry::StaticFluentDomain::from_package_name(
+                    {
+                        ::es_fluent::registry::__macro::static_message_key(
                             env!("CARGO_PKG_NAME"),
-                        ),
-                        ::es_fluent::registry::__macro::static_entry_id(
-                            "login_form_placeholder_variants-username",
-                        ),
-                    ),
+                            ::es_fluent::registry::StaticFluentDomain::from_package_name(
+                                env!("CARGO_PKG_NAME"),
+                            ),
+                            ::es_fluent::registry::__macro::static_entry_id(
+                                "login_form_placeholder_variants-username",
+                            ),
+                        )
+                    },
                     None,
                 )
             }
             Self::Password => {
                 localize(
-                    ::es_fluent::registry::__macro::static_message_key(
-                        env!("CARGO_PKG_NAME"),
-                        ::es_fluent::registry::StaticFluentDomain::from_package_name(
+                    {
+                        ::es_fluent::registry::__macro::static_message_key(
                             env!("CARGO_PKG_NAME"),
-                        ),
-                        ::es_fluent::registry::__macro::static_entry_id(
-                            "login_form_placeholder_variants-password",
-                        ),
-                    ),
+                            ::es_fluent::registry::StaticFluentDomain::from_package_name(
+                                env!("CARGO_PKG_NAME"),
+                            ),
+                            ::es_fluent::registry::__macro::static_entry_id(
+                                "login_form_placeholder_variants-password",
+                            ),
+                        )
+                    },
                     None,
                 )
             }
@@ -261,14 +271,16 @@ mod __es_fluent_label_inventory_LoginFormPlaceholderVariants {
 }
 impl ::es_fluent::FluentLabel for LoginFormPlaceholderVariants {
     fn fluent_label_key() -> ::es_fluent::registry::StaticFluentMessageKey {
-        ::es_fluent::registry::__macro::static_message_key(
-            env!("CARGO_PKG_NAME"),
-            ::es_fluent::registry::StaticFluentDomain::from_package_name(
+        {
+            ::es_fluent::registry::__macro::static_message_key(
                 env!("CARGO_PKG_NAME"),
-            ),
-            ::es_fluent::registry::__macro::static_entry_id(
-                "login_form_placeholder_variants_label",
-            ),
-        )
+                ::es_fluent::registry::StaticFluentDomain::from_package_name(
+                    env!("CARGO_PKG_NAME"),
+                ),
+                ::es_fluent::registry::__macro::static_entry_id(
+                    "login_form_placeholder_variants_label",
+                ),
+            )
+        }
     }
 }

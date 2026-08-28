@@ -364,7 +364,7 @@ fn collect_check_run_reports_valid_crate_orphans_alongside_other_setup_errors() 
     .expect("write b config");
     fs::write(b.join("i18n"), "not a directory\n").expect("write b assets file");
 
-    let binary_path = crate::test_fixtures::fake_runner_binary_path(&temp.path().join("target"));
+    let binary_path = crate::test_fixtures::fake_runner_binary_path_for_workspace(temp.path());
     let temp_store = es_fluent_runner::RunnerMetadataStore::temp_for_workspace(temp.path());
     let mut crate_hashes = indexmap::IndexMap::new();
     crate_hashes.insert(
@@ -373,7 +373,9 @@ fn collect_check_run_reports_valid_crate_orphans_alongside_other_setup_errors() 
             &a,
             &a.join("src"),
             Some(&a.join("i18n.toml")),
-        ),
+            None,
+        )
+        .expect("test fixture has a determinate source graph"),
     );
     crate::test_fixtures::install_fake_runner_with_cache(
         &binary_path,

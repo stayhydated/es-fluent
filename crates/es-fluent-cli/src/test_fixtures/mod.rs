@@ -262,9 +262,9 @@ pub fn fake_runner_binary_name() -> String {
 }
 
 #[cfg(test)]
-pub fn fake_runner_binary_path(target_dir: &Path) -> PathBuf {
-    target_dir
-        .join("es-fluent")
+pub fn fake_runner_binary_path_for_workspace(workspace_root: &Path) -> PathBuf {
+    workspace_root
+        .join(".es-fluent/target")
         .join("debug")
         .join(fake_runner_binary_name())
 }
@@ -445,14 +445,16 @@ pub fn install_fake_runner_with_cache(
 
 #[cfg(test)]
 pub fn setup_fake_runner_and_cache(temp: &tempfile::TempDir, behavior: FakeRunnerBehavior) {
-    let binary_path = fake_runner_binary_path(&temp.path().join("target"));
+    let binary_path = fake_runner_binary_path_for_workspace(temp.path());
     let src_dir = temp.path().join("src");
     let i18n_toml = temp.path().join("i18n.toml");
     let hash = crate::generation::cache::compute_crate_inputs_hash(
         temp.path(),
         &src_dir,
         Some(&i18n_toml),
-    );
+        None,
+    )
+    .expect("fake runner fixture has a determinate source graph");
     let temp_store = es_fluent_runner::RunnerMetadataStore::temp_for_workspace(temp.path());
     let mut crate_hashes = indexmap::IndexMap::new();
     crate_hashes.insert(

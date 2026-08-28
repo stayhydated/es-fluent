@@ -57,11 +57,14 @@ impl<'a> MonolithicRunner<'a> {
         let mut current_hashes = indexmap::IndexMap::new();
         for krate in &self.workspace.crates {
             if krate.src_dir.exists() {
-                let hash = crate::generation::cache::compute_crate_inputs_hash(
+                let Some(hash) = crate::generation::cache::compute_crate_inputs_hash(
                     &krate.manifest_dir,
                     &krate.src_dir,
                     Some(&krate.i18n_config_path),
-                );
+                    krate.custom_build_target_path.as_deref(),
+                ) else {
+                    return true;
+                };
                 current_hashes.insert(krate.name.clone(), hash);
             }
         }
@@ -200,7 +203,8 @@ pub fn prepare_monolithic_runner_crate(workspace: &WorkspaceInfo) -> Result<Path
     .context("Failed to write .es-fluent/.gitignore")?;
 
     let root_manifest = workspace.root_dir.join("Cargo.toml");
-    let config = TempCrateConfig::from_manifest(&root_manifest)?;
+    let config =
+        TempCrateConfig::from_manifest(&root_manifest, runner_target_dir(&workspace.root_dir))?;
 
     let crate_deps: Vec<MonolithicCrateDep> = workspace
         .crates
@@ -268,14 +272,17 @@ fn validate_runner_temp_dir(path: &Path) -> Result<()> {
                 path.display()
             );
         },
-        Ok(_) => validate_runner_temp_dir_entries(path),
+        Ok(_) => {
+            validate_runner_temp_dir_entries(path, path)?;
+            validate_runner_artifact_paths(path)
+        },
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(()),
         Err(error) => Err(error)
             .with_context(|| format!("Failed to inspect .es-fluent path {}", path.display())),
     }
 }
 
-fn validate_runner_temp_dir_entries(dir: &Path) -> Result<()> {
+fn validate_runner_temp_dir_entries(dir: &Path, runner_root: &Path) -> Result<()> {
     for entry in fs::read_dir(dir)
         .with_context(|| format!("Failed to inspect .es-fluent directory {}", dir.display()))?
     {
@@ -288,21 +295,55 @@ fn validate_runner_temp_dir_entries(dir: &Path) -> Result<()> {
                 path.display()
             );
         }
-        if file_type.is_dir() {
-            validate_runner_temp_dir_entries(&path)?;
+        if file_type.is_dir() && path != runner_root.join("target") {
+            validate_runner_temp_dir_entries(&path, runner_root)?;
         }
     }
 
     Ok(())
 }
 
+fn validate_runner_artifact_paths(runner_root: &Path) -> Result<()> {
+    let target_dir = runner_root.join("target");
+    let debug_dir = target_dir.join("debug");
+    for path in [
+        target_dir,
+        debug_dir.clone(),
+        debug_dir.join(format!("es-fluent-runner{}", std::env::consts::EXE_SUFFIX)),
+    ] {
+        match fs::symlink_metadata(&path) {
+            Ok(metadata) if metadata.file_type().is_symlink() => {
+                bail!(
+                    ".es-fluent runner artifact paths must not be symlinks: {}",
+                    path.display()
+                );
+            },
+            Ok(_) => {},
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {},
+            Err(error) => {
+                return Err(error).with_context(|| {
+                    format!(
+                        "Failed to inspect .es-fluent artifact path {}",
+                        path.display()
+                    )
+                });
+            },
+        }
+    }
+    Ok(())
+}
+
 /// Get the path to the monolithic binary if it exists.
 pub fn get_monolithic_binary_path(workspace: &WorkspaceInfo) -> PathBuf {
-    workspace
-        .target_dir
-        .join("es-fluent")
+    runner_target_dir(&workspace.root_dir)
         .join("debug")
         .join(format!("es-fluent-runner{}", std::env::consts::EXE_SUFFIX))
+}
+
+fn runner_target_dir(workspace_root: &Path) -> PathBuf {
+    RunnerMetadataStore::temp_for_workspace(workspace_root)
+        .base_dir()
+        .join("target")
 }
 
 fn render_monolithic_cargo_toml(
@@ -395,6 +436,7 @@ pub fn run_monolithic(
     force_run: bool,
 ) -> Result<String> {
     let runner = MonolithicRunner::new(workspace);
+    validate_runner_temp_dir(runner.temp_store.base_dir())?;
     let encoded_request = request.encode()?;
 
     if !force_run && runner.binary_path.exists() && !runner.is_stale() {
@@ -439,11 +481,14 @@ fn write_runner_cache(runner: &MonolithicRunner<'_>) {
         let mut crate_hashes = indexmap::IndexMap::new();
         for krate in &runner.workspace.crates {
             if krate.src_dir.exists() {
-                let hash = crate::generation::cache::compute_crate_inputs_hash(
+                let Some(hash) = crate::generation::cache::compute_crate_inputs_hash(
                     &krate.manifest_dir,
                     &krate.src_dir,
                     Some(&krate.i18n_config_path),
-                );
+                    krate.custom_build_target_path.as_deref(),
+                ) else {
+                    return;
+                };
                 crate_hashes.insert(krate.name.clone(), hash);
             }
         }

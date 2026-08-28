@@ -3,6 +3,9 @@ set windows-shell := ["pwsh.exe", "-NoLogo", "-Command"]
 default:
     @just --list
 
+doctor:
+    cargo es-fluent-local doctor --path .
+
 fmt:
     cargo sort-derives
     cargo fmt
@@ -38,7 +41,7 @@ test-publish:
 test-docs:
     cargo doc --workspace --all-features --no-deps --locked --open
 
-ci: fmt check clippy test cov
+ci: fmt doctor check clippy test cov
     cargo machete
 
 book:

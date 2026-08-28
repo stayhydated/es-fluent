@@ -233,6 +233,9 @@ pub trait FluentLocalizerExt: FluentLocalizer {
     }
 
     /// Renders a derived typed message through this explicit localizer.
+    ///
+    /// A key generated under the package-local `fallback-str` policy returns
+    /// its snake_case Rust source name. Strict keys still panic.
     fn localize_message<T>(&self, message: &T) -> String
     where
         T: FluentMessage + ?Sized,
@@ -249,14 +252,7 @@ pub trait FluentLocalizerExt: FluentLocalizer {
             callback_invocations = 1;
 
             value = Some(message.to_fluent_string_with(&mut |key, args| {
-                lookup(key, args).unwrap_or_else(|| {
-                    panic!(
-                        "missing Fluent message `{}` in domain `{}` owned by `{}`",
-                        key.id().as_str(),
-                        key.domain().as_str(),
-                        key.owner().as_str(),
-                    )
-                })
+                lookup(key, args).unwrap_or_else(|| super::missing_fluent_value(key, "message"))
             }));
         });
 
@@ -514,6 +510,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::collections::HashMap;
     use std::sync::{Mutex, RwLock, mpsc};
     use std::time::Duration;
 
@@ -522,6 +519,19 @@ mod tests {
             "test-owner",
             crate::registry::__macro::static_domain(domain),
             crate::registry::__macro::static_entry_id(id),
+        )
+    }
+
+    fn fallback_key(
+        domain: &'static str,
+        id: &'static str,
+        fallback: &'static str,
+    ) -> StaticFluentMessageKey {
+        crate::registry::__macro::static_message_key_with_fallback(
+            "test-owner",
+            crate::registry::__macro::static_domain(domain),
+            crate::registry::__macro::static_entry_id(id),
+            fallback,
         )
     }
 
@@ -704,6 +714,42 @@ mod tests {
         }
     }
 
+    struct FallbackMessage;
+
+    impl FluentMessage for FallbackMessage {
+        fn to_fluent_string_with(&self, localize: &mut FluentMessageLookup<'_>) -> String {
+            localize(
+                fallback_key("missing-domain", "fallback-id", "fallback_message"),
+                None,
+            )
+        }
+    }
+
+    struct MapLocalizer(HashMap<StaticFluentMessageKey, &'static str>);
+
+    impl FluentLocalizer for MapLocalizer {
+        fn localize<'a>(
+            &self,
+            key: StaticFluentMessageKey,
+            _args: Option<&FluentArgs<'a>>,
+        ) -> Option<String> {
+            self.0.get(&key).map(|value| (*value).to_string())
+        }
+    }
+
+    #[test]
+    fn fallback_message_key_matches_custom_localizer_map_entry() {
+        let localizer = MapLocalizer(HashMap::from([(
+            static_key("missing-domain", "fallback-id"),
+            "Translated fallback",
+        )]));
+
+        assert_eq!(
+            localizer.localize_message(&FallbackMessage),
+            "Translated fallback"
+        );
+    }
+
     struct CallbackOnlyMessage;
 
     impl FluentMessage for CallbackOnlyMessage {
@@ -809,6 +855,11 @@ mod tests {
             Some("Hello".to_string())
         );
         assert_eq!(localizer.try_localize_message(&MissingMessage), None);
+        assert_eq!(
+            localizer.localize_message(&FallbackMessage),
+            "fallback_message"
+        );
+        assert_eq!(localizer.try_localize_message(&FallbackMessage), None);
     }
 
     struct MinimalScopedLocalizer;

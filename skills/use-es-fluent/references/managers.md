@@ -110,5 +110,10 @@ around locale synchronization or text refresh.
 - Use `try_localize_message(...)` or
   `try_localize_label(...)` only when missing output is an expected
   state.
+- Keep package-local strict fallback-locale compile validation as the default.
+  Set `missing_message_policy = "fallback-str"` in the owning package's
+  `i18n.toml` only when normal lookup should return snake_case source names after
+  locale fallback fails. Embedded, Dioxus client/SSR, and Bevy use the policy
+  carried by each generated key.
 - Select a language before rendering. Failed switches keep the previous ready
   state.

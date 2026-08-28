@@ -21,8 +21,15 @@ All concrete managers follow the same application model:
    translation.
 
 Manager macros scan configured locale assets at compile time. Add
-`es-fluent-build` tracking when files or locale folders can change;
-see [Incremental builds](incremental_builds.md).
+`es-fluent-build` to track those assets and produce the fallback-message catalog
+used by strict derive validation; see
+[Incremental builds](incremental_builds.md).
+
+All managers route typed output through the owning package's missing-message
+policy. The default `strict` policy rejects missing fallback message values. Set
+`missing_message_policy = "fallback-str"` in `i18n.toml` so normal message and
+label lookup returns a snake_case Rust source name after locale fallback is
+exhausted; fallible lookup still returns `None`.
 
 Use `es-fluent-manager-core` directly only when building a custom
 runtime integration. Concrete managers provide the intended application-facing

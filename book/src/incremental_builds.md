@@ -1,8 +1,12 @@
 # Incremental builds
 
-If your crate uses the embedded, Dioxus, or Bevy manager macros, they discover locales at compile time by scanning your `assets_dir`. By default, Cargo doesn't know about these files, so changes like renaming a locale folder (e.g., `fr` → `fr-FR`) won't trigger a rebuild.
+Configured crates discover locale assets and validate derived messages against
+the fallback locale at compile time. Cargo also needs explicit asset tracking so
+locale changes, additions, renames, and deletions trigger that work again.
 
-The `es-fluent-build` crate provides a `build.rs` helper that emits `cargo:rerun-if-changed` directives for your locale assets, ensuring Cargo rebuilds when translations change. Crates that only use the derive macros do not need this setup.
+The `es-fluent-build` helper emits the rebuild directives and writes a catalog
+of resolvable fallback messages. Derive output uses that catalog to make a
+missing fallback message value a compile-time error.
 
 ## Setup
 
@@ -13,7 +17,8 @@ Add `es-fluent-build` to your **build dependencies**:
 es-fluent-build = "0.18"
 ```
 
-Call the tracking helper from `build.rs`:
+Call the tracking helper from Cargo's selected custom-build target. The default
+path is `build.rs`:
 
 ```rust,no_run
 // build.rs
@@ -22,4 +27,9 @@ fn main() {
 }
 ```
 
-This guarantees your project recompiles whenever locale files or folders are added, removed, or renamed.
+A custom `[package] build = "support/i18n.rs"` path uses the same helper call.
+This guarantees your project recompiles whenever locale files or folders are
+added, removed, or renamed. Run `cargo es-fluent doctor` to verify the helper
+through Cargo's selected target and its local module graph. A warning means
+static inspection could not prove the integration and requires manual
+verification.

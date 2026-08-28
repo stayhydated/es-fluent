@@ -11,7 +11,7 @@ and the CLI during development.
 | Bevy ECS and UI runtime | `es-fluent-manager-bevy` |
 | Typed locale enum and language labels | `es-fluent-lang` |
 | Generate, check, sync, format, and inspect FTL | `cargo es-fluent` from `es-fluent-cli` |
-| Rebuild when locale assets change | `es-fluent-build` under `[build-dependencies]` |
+| Track locale assets and compile-check fallback messages | `es-fluent-build` under `[build-dependencies]` |
 
 A general Rust application can start with:
 
@@ -20,6 +20,9 @@ A general Rust application can start with:
 es-fluent = "0.18"
 es-fluent-manager-embedded = "0.18"
 unic-langid = "0.9"
+
+[build-dependencies]
+es-fluent-build = "0.18"
 ~~~
 
 Install the CLI separately:

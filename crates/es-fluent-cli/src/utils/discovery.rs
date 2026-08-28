@@ -1,6 +1,6 @@
 use crate::core::{
-    CrateInfo, DiscoveredFtlOutputDir, DiscoveredI18nConfigPath, ManifestDir, SourceDir,
-    WorkspaceInfo,
+    CrateInfo, CustomBuildTargetPath, DiscoveredFtlOutputDir, DiscoveredI18nConfigPath,
+    LibraryTargetPath, ManifestDir, SourceDir, WorkspaceInfo,
 };
 use anyhow::{Context as _, Result};
 use cargo_metadata::{MetadataCommand, TargetKind};
@@ -12,6 +12,7 @@ pub(crate) enum DiscoveryScope<'a> {
     #[allow(dead_code)]
     All,
     Package(&'a str),
+    Packages(&'a [String]),
     RequestedPaths {
         lexical: &'a Path,
         canonical: &'a Path,
@@ -55,7 +56,9 @@ pub(crate) fn discover_workspace_scoped(
             &workspace_root,
             &metadata.workspace_packages(),
         ),
-        DiscoveryScope::All | DiscoveryScope::Package(_) => RequestedPathScope::All,
+        DiscoveryScope::All | DiscoveryScope::Package(_) | DiscoveryScope::Packages(_) => {
+            RequestedPathScope::All
+        },
     };
 
     let mut crates = Vec::new();
@@ -67,6 +70,9 @@ pub(crate) fn discover_workspace_scoped(
         let include_package = match scope {
             DiscoveryScope::All => true,
             DiscoveryScope::Package(package_filter) => package.name == package_filter,
+            DiscoveryScope::Packages(package_filters) => package_filters
+                .iter()
+                .any(|package_filter| package.name == package_filter),
             DiscoveryScope::RequestedPaths { .. } => match &path_scope {
                 RequestedPathScope::All => true,
                 RequestedPathScope::None => false,
@@ -112,16 +118,32 @@ pub(crate) fn discover_workspace_scoped(
                 )
             })
         });
-        let src_dir = lib_target
-            .and_then(|target| {
-                target
-                    .src_path
-                    .parent()
-                    .map(PathBuf::from)
-                    .map(|path| crate::utils::paths::normalize_windows_verbatim_path(&path))
-            })
+        let library_target_path = lib_target.map(|target| {
+            let path = PathBuf::from(&target.src_path);
+            LibraryTargetPath::from_discovered(
+                crate::utils::paths::normalize_windows_verbatim_path(&path),
+            )
+        });
+        let src_dir = library_target_path
+            .as_ref()
+            .and_then(|path| path.parent().map(Path::to_path_buf))
             .unwrap_or_else(|| manifest_dir.join("src"));
-        let has_lib_rs = lib_target.is_some();
+        let custom_build_target_path = package
+            .targets
+            .iter()
+            .find(|target| {
+                target
+                    .kind
+                    .iter()
+                    .any(|kind| matches!(kind, TargetKind::CustomBuild))
+            })
+            .map(|target| {
+                let path = PathBuf::from(&target.src_path);
+                CustomBuildTargetPath::from_discovered(
+                    crate::utils::paths::normalize_windows_verbatim_path(&path),
+                )
+            });
+        let has_lib_rs = library_target_path.is_some();
 
         let package_name = PackageName::try_new(package.name.to_string())
             .with_context(|| format!("invalid package name `{}`", package.name))?;
@@ -130,6 +152,8 @@ pub(crate) fn discover_workspace_scoped(
             name: package_name,
             manifest_dir: ManifestDir::from_discovered(manifest_dir),
             src_dir: SourceDir::from_discovered(src_dir),
+            library_target_path,
+            custom_build_target_path,
             i18n_config_path: DiscoveredI18nConfigPath::from_discovered(i18n_config_path),
             ftl_output_dir: DiscoveredFtlOutputDir::from_discovered(
                 crate::utils::paths::normalize_windows_verbatim_path(&ftl_output_dir),
@@ -353,6 +377,59 @@ mod tests {
         assert_eq!(ws.crates.len(), 1);
         assert!(ws.crates[0].has_lib_rs);
         assert_eq!(ws.crates[0].src_dir.as_path(), expected_src_dir.as_path());
+        assert_eq!(
+            ws.crates[0]
+                .library_target_path
+                .as_ref()
+                .expect("library target")
+                .as_path(),
+            expected_src_dir.join("lib.rs")
+        );
+    }
+
+    #[test]
+    fn discover_workspace_preserves_cargo_selected_build_target() {
+        for (build_setting, expected) in [
+            (None, Some("build.rs")),
+            (Some("\"support/i18n.rs\""), Some("support/i18n.rs")),
+            (Some("false"), None),
+        ] {
+            let temp = tempfile::tempdir().expect("tempdir");
+            fs::create_dir_all(temp.path().join("src")).expect("create src");
+            fs::create_dir_all(temp.path().join("support")).expect("create support");
+            let build =
+                build_setting.map_or_else(String::new, |value| format!("build = {value}\n"));
+            fs::write(
+                temp.path().join("Cargo.toml"),
+                format!(
+                    "[package]\nname = \"build-target\"\nversion = \"0.1.0\"\nedition = \"2024\"\n{build}"
+                ),
+            )
+            .expect("write manifest");
+            fs::write(temp.path().join("src/lib.rs"), LIB_RS).expect("write lib");
+            fs::write(temp.path().join("build.rs"), "fn main() {}\n").expect("write default build");
+            fs::write(temp.path().join("support/i18n.rs"), "fn main() {}\n")
+                .expect("write custom build");
+            fs::write(
+                temp.path().join("i18n.toml"),
+                "fallback_language = \"en\"\nassets_dir = \"i18n\"\n",
+            )
+            .expect("write config");
+
+            let workspace = discover_workspace(temp.path()).expect("discover workspace");
+            let actual = workspace.crates[0]
+                .custom_build_target_path
+                .as_ref()
+                .map(|path| {
+                    path.strip_prefix(crate::utils::paths::normalize_windows_verbatim_path(
+                        &temp.path().canonicalize().expect("canonical tempdir"),
+                    ))
+                    .expect("relative build path")
+                    .to_string_lossy()
+                    .replace('\\', "/")
+                });
+            assert_eq!(actual.as_deref(), expected);
+        }
     }
 
     #[test]

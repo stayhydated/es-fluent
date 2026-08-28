@@ -201,6 +201,8 @@ mod tests {
             name: es_fluent_runner::PackageName::try_new("test-crate").expect("valid package name"),
             manifest_dir: crate::core::ManifestDir::from_discovered(temp_dir.path().to_path_buf()),
             src_dir: crate::core::SourceDir::from_discovered(temp_dir.path().join("src")),
+            library_target_path: None,
+            custom_build_target_path: None,
             i18n_config_path: crate::core::DiscoveredI18nConfigPath::from_discovered(config_path),
             ftl_output_dir: crate::core::DiscoveredFtlOutputDir::from_discovered(assets.join("en")),
             has_lib_rs: true,
@@ -285,6 +287,8 @@ mod tests {
             name: es_fluent_runner::PackageName::try_new("test-crate").expect("valid package name"),
             manifest_dir: crate::core::ManifestDir::from_discovered(temp_dir.path().to_path_buf()),
             src_dir: crate::core::SourceDir::from_discovered(temp_dir.path().join("src")),
+            library_target_path: None,
+            custom_build_target_path: None,
             i18n_config_path: crate::core::DiscoveredI18nConfigPath::from_discovered(config_path),
             ftl_output_dir: crate::core::DiscoveredFtlOutputDir::from_discovered(
                 assets.join("en-US"),

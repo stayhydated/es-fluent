@@ -8,6 +8,7 @@ use crate::meta::TypeKind;
 pub use crate::namespace::{NamespacePathError, NamespaceRule, ResolvedNamespace};
 use crate::source::{SourceFile, SourceLine, SourceLocation};
 use std::borrow::Borrow;
+use std::hash::{Hash, Hasher};
 use std::path::Path;
 
 /// Static Fluent domain emitted by derive macros.
@@ -115,12 +116,14 @@ impl PartialEq<&str> for StaticFluentEntryId {
 ///
 /// `owner` identifies the crate whose `i18n.toml` defines `domain`. Domains are
 /// package-local, so two crates may both define a domain such as `ui` without
-/// sharing runtime lookup scope.
-#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+/// sharing runtime lookup scope. Generated fallback text is lookup metadata and
+/// does not participate in equality or hashing.
+#[derive(Clone, Copy, Debug)]
 pub struct StaticFluentMessageKey {
     owner: StaticFluentDomain,
     domain: StaticFluentDomain,
     id: StaticFluentEntryId,
+    fallback: Option<&'static str>,
 }
 
 impl StaticFluentMessageKey {
@@ -130,7 +133,27 @@ impl StaticFluentMessageKey {
         domain: StaticFluentDomain,
         id: StaticFluentEntryId,
     ) -> Self {
-        Self { owner, domain, id }
+        Self {
+            owner,
+            domain,
+            id,
+            fallback: None,
+        }
+    }
+
+    /// Creates a fully scoped key with a generated fallback string.
+    pub const fn with_fallback(
+        owner: StaticFluentDomain,
+        domain: StaticFluentDomain,
+        id: StaticFluentEntryId,
+        fallback: &'static str,
+    ) -> Self {
+        Self {
+            owner,
+            domain,
+            id,
+            fallback: Some(fallback),
+        }
     }
 
     /// Returns the crate that owns this key's domain definition.
@@ -146,6 +169,27 @@ impl StaticFluentMessageKey {
     /// Returns the Fluent message identifier.
     pub const fn id(self) -> StaticFluentEntryId {
         self.id
+    }
+
+    /// Returns the generated snake_case fallback string when one is available.
+    pub const fn fallback(self) -> Option<&'static str> {
+        self.fallback
+    }
+}
+
+impl PartialEq for StaticFluentMessageKey {
+    fn eq(&self, other: &Self) -> bool {
+        self.owner == other.owner && self.domain == other.domain && self.id == other.id
+    }
+}
+
+impl Eq for StaticFluentMessageKey {}
+
+impl Hash for StaticFluentMessageKey {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.owner.hash(state);
+        self.domain.hash(state);
+        self.id.hash(state);
     }
 }
 
@@ -468,6 +512,20 @@ pub mod __macro {
         StaticFluentMessageKey::new(StaticFluentDomain::new_unchecked(owner), domain, id)
     }
 
+    pub const fn static_message_key_with_fallback(
+        owner: &'static str,
+        domain: StaticFluentDomain,
+        id: StaticFluentEntryId,
+        fallback: &'static str,
+    ) -> StaticFluentMessageKey {
+        StaticFluentMessageKey::with_fallback(
+            StaticFluentDomain::new_unchecked(owner),
+            domain,
+            id,
+            fallback,
+        )
+    }
+
     pub const fn static_argument_name(value: &'static str) -> StaticFluentArgumentName {
         StaticFluentArgumentName::new_unchecked(value)
     }
@@ -522,10 +580,11 @@ pub mod __macro {
 mod tests {
     use super::{
         FtlScope, FtlTypeInfo, NamespacePathError, NamespaceRule, StaticFluentArgumentName,
-        StaticFluentDomain, StaticFluentEntryId, StaticFluentVariantKey,
+        StaticFluentDomain, StaticFluentEntryId, StaticFluentMessageKey, StaticFluentVariantKey,
     };
     use crate::meta::TypeKind;
     use crate::registry::FtlVariant;
+    use std::collections::HashMap;
     use std::path::PathBuf;
 
     fn test_manifest_dir() -> PathBuf {
@@ -543,6 +602,20 @@ mod tests {
         assert_eq!(key.as_str(), "very-high");
         assert_eq!(key.variant_key().as_str(), "very-high");
         assert!(StaticFluentVariantKey::try_new("not valid").is_err());
+    }
+
+    #[test]
+    fn fallback_metadata_does_not_change_static_message_key_identity() {
+        let owner = StaticFluentDomain::new_unchecked("demo");
+        let domain = StaticFluentDomain::new_unchecked("ui");
+        let id = StaticFluentEntryId::new_unchecked("save-button");
+        let plain = StaticFluentMessageKey::new(owner, domain, id);
+        let fallback = StaticFluentMessageKey::with_fallback(owner, domain, id, "save_button");
+        let messages = HashMap::from([(plain, "Save")]);
+
+        assert_eq!(plain, fallback);
+        assert_eq!(fallback.fallback(), Some("save_button"));
+        assert_eq!(messages.get(&fallback), Some(&"Save"));
     }
 
     #[test]

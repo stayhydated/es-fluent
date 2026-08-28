@@ -18,6 +18,9 @@ pub trait FluentLabel {
 
     /// Returns the localized label for this type using an explicit localization
     /// context.
+    ///
+    /// A label key generated under the package-local `fallback-str` policy
+    /// returns the labeled type's snake_case Rust name.
     fn localize_label<L: FluentLocalizer + ?Sized>(localizer: &L) -> String {
         localize_label(localizer, Self::fluent_label_key())
     }
@@ -36,14 +39,9 @@ pub fn localize_label<L: FluentLocalizer + ?Sized>(
     localizer: &L,
     key: StaticFluentMessageKey,
 ) -> String {
-    localizer.localize(key, None).unwrap_or_else(|| {
-        panic!(
-            "missing Fluent label `{}` in domain `{}` owned by `{}`",
-            key.id().as_str(),
-            key.domain().as_str(),
-            key.owner().as_str(),
-        )
-    })
+    localizer
+        .localize(key, None)
+        .unwrap_or_else(|| super::missing_fluent_value(key, "label"))
 }
 
 #[cfg(test)]
@@ -56,6 +54,15 @@ mod tests {
             "label-owner",
             crate::registry::__macro::static_domain("label-domain"),
             crate::registry::__macro::static_entry_id(id),
+        )
+    }
+
+    fn fallback_key(id: &'static str, fallback: &'static str) -> StaticFluentMessageKey {
+        crate::registry::__macro::static_message_key_with_fallback(
+            "label-owner",
+            crate::registry::__macro::static_domain("label-domain"),
+            crate::registry::__macro::static_entry_id(id),
+            fallback,
         )
     }
 
@@ -82,6 +89,14 @@ mod tests {
         }
     }
 
+    struct FallbackLabel;
+
+    impl FluentLabel for FallbackLabel {
+        fn fluent_label_key() -> StaticFluentMessageKey {
+            fallback_key("missing-id", "fallback_label")
+        }
+    }
+
     #[test]
     fn label_trait_exposes_typed_metadata_and_localizes() {
         let localizer = LabelLocalizer;
@@ -94,6 +109,8 @@ mod tests {
             Some("Label".into())
         );
         assert_eq!(TestLabel::localize_label(&localizer), "Label");
+        assert_eq!(FallbackLabel::localize_label(&localizer), "fallback_label");
+        assert_eq!(FallbackLabel::try_localize_label(&localizer), None);
     }
 
     #[test]

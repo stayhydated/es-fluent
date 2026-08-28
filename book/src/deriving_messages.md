@@ -80,6 +80,42 @@ let _ = i18n.localize_message(&welcome);
 `#[fluent_variants(skip)]` omits a struct field or enum variant from generated
 variant enums; `keys = [...]` values must be lowercase snake_case.
 
+## Choose the missing-message policy
+
+A configured crate uses the `strict` package-local policy by default and
+validates every derived message and label against a resolvable value in its
+fallback locale during compilation. Add `es-fluent-build` and call
+`track_i18n_assets()` from Cargo's selected custom-build target; see
+[Incremental builds](incremental_builds.md). Missing keys and messages that have
+attributes but no value fail at the declaring Rust item with the domain,
+fallback root, and recovery command. Missing build-helper wiring receives a
+separate setup diagnostic that points to `cargo es-fluent doctor`.
+
+Set `fallback-str` in the owning package's `i18n.toml` when rendering should
+continue if the active locale, Fluent locale fallback, and the configured
+fallback resource cannot resolve a value:
+
+```toml
+missing_message_policy = "fallback-str"
+```
+
+Strict and fallback-string packages can coexist in one workspace build.
+
+Normal `localize_message(...)` and `localize_label(...)` calls then return these
+snake_case values:
+
+| Derived output | Fallback source | Example |
+| --- | --- | --- |
+| `EsFluent` struct | Struct name | `WelcomeMessage` → `welcome_message` |
+| `EsFluent` enum message | Variant name | `InvalidPassword` → `invalid_password` |
+| `EsFluentVariants` message | Source field or variant name | `display_name` → `display_name` |
+| `EsFluentLabel` | Labeled type name | `LoginForm` → `login_form` |
+
+The concrete embedded, Dioxus, and Bevy managers all use this shared behavior.
+`try_localize_message(...)` and `try_localize_label(...)` remain fallible and
+return `None` instead of applying the string fallback. The policy does not
+permit malformed FTL or duplicate message/term IDs.
+
 ## Localized temporal arguments
 
 Enable the feature for the date/time library used by your message fields:

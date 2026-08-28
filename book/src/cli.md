@@ -35,6 +35,7 @@ the configured fallback locale directory.
 | `watch` | Regenerate while Rust and configuration inputs change. |
 | `check` | Validate configuration, keys, variables, locales, and orphaned files. |
 | `status` | Preview pending generation, cleanup, formatting, sync, and validation work. |
+| `doctor` | Diagnose configuration, build wiring, managers, and fallback catalog readiness. |
 | `fmt` | Format selected FTL resources. |
 | `sync` | Copy missing fallback keys into existing target locales. |
 | `add-locale` | Create target locale directories and seed their FTL files. |
@@ -59,6 +60,26 @@ Commands use the current directory by default.
 Package-filtered commands avoid unrelated package configuration and compilation.
 A filter that selects no configured package exits non-zero.
 
+## Diagnose setup
+
+Run the read-only setup doctor before generation or when compiler diagnostics
+report missing catalog wiring:
+
+~~~sh
+cargo es-fluent doctor
+cargo es-fluent doctor --output json
+~~~
+
+`doctor` checks `i18n.toml`, fallback locale and FTL catalog inputs, Cargo's
+selected library and custom-build targets, the `es-fluent-build` build
+dependency and `track_i18n_assets()` call, concrete manager declarations and
+features, `define_i18n_module!()` registration, and the package-local strict or
+`fallback-str` policy. It parses the local module graphs rooted at the selected
+targets, so comments, strings, unreferenced files, and an unused root `build.rs`
+do not count as integration evidence. Errors produce a non-zero exit code.
+Warnings identify cases where static inspection cannot prove the integration
+and request manual verification.
+
 ## Generate fallback resources
 
 ~~~sh
@@ -76,12 +97,20 @@ cargo es-fluent generate --mode aggressive --dry-run
 
 `--dry-run` previews changes without writing them.
 `--force-run` refreshes cached derive inventory. Generation may
-compile selected library targets.
+compile selected library targets. A hidden inventory mode defers strict
+missing-key coverage only for that temporary build, so new keys can be collected
+without changing the package's configured runtime policy. Catalog parsing is
+deferred to the requested operation so its normal validation and transaction
+diagnostics remain authoritative.
 
 `watch` runs the same generation flow when Rust, manifest, build
-script, configuration, or workspace lockfile inputs change. Press `q`
-or `Ctrl-C` to stop after active work and any already queued rerun
-finish.
+script, configuration, or workspace lockfile inputs change. Applicable
+`.cargo/config.toml` and `.cargo/config` files in the workspace hierarchy and
+Cargo home, their recursive includes, and configured lockfile paths invalidate
+both watch fingerprints and cached derive inventory. Press `q` or `Ctrl-C` to
+stop after active work and any already queued rerun finish. Transient Cargo
+metadata errors keep the previous build-source graph and watches active; saving
+a corrected manifest retries metadata discovery.
 
 ## Validate before committing
 

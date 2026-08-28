@@ -5037,6 +5037,7 @@ dependencies = [
 name = "es-fluent-build"
 version = "0.18.1"
 dependencies = [
+ "es-fluent-shared",
  "es-fluent-toml",
  "path-slash",
  "serial_test",
@@ -5062,6 +5063,7 @@ dependencies = [
  "colored",
  "crossbeam-channel",
  "crossterm",
+ "es-fluent-build",
  "es-fluent-generate",
  "es-fluent-runner",
  "es-fluent-shared",
@@ -5076,11 +5078,13 @@ dependencies = [
  "notify-debouncer-full",
  "path-slash",
  "predicates",
+ "proc-macro2",
  "ratatui",
  "serde",
  "serde_json",
  "serial_test",
  "similar 3.2.0",
+ "syn 3.0.3",
  "temp-env",
  "tempfile",
  "terminal-link",
@@ -5158,6 +5162,7 @@ dependencies = [
  "temp-env",
  "tempfile",
  "thiserror 2.0.20",
+ "toml 1.1.4+spec-1.1.0",
 ]
 
 [[package]]

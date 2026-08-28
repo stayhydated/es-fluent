@@ -701,6 +701,8 @@ mod tests {
             name: package("test-app"),
             manifest_dir: crate::core::ManifestDir::from_discovered(manifest_dir.clone()),
             src_dir: crate::core::SourceDir::from_discovered(src_dir),
+            library_target_path: None,
+            custom_build_target_path: None,
             i18n_config_path: crate::core::DiscoveredI18nConfigPath::from_discovered(i18n_toml),
             ftl_output_dir: crate::core::DiscoveredFtlOutputDir::from_discovered(
                 manifest_dir.join("i18n/en"),
@@ -1070,6 +1072,8 @@ mod tests {
                 name: package(name),
                 manifest_dir: crate::core::ManifestDir::from_discovered(manifest_dir.clone()),
                 src_dir: crate::core::SourceDir::from_discovered(src_dir),
+                library_target_path: None,
+                custom_build_target_path: None,
                 i18n_config_path: crate::core::DiscoveredI18nConfigPath::from_discovered(i18n_toml),
                 ftl_output_dir: crate::core::DiscoveredFtlOutputDir::from_discovered(
                     manifest_dir.join("i18n/en"),
@@ -1087,7 +1091,8 @@ mod tests {
         let krate = workspace.crates[0].clone();
 
         let temp_store = es_fluent_runner::RunnerMetadataStore::temp_for_workspace(temp.path());
-        let binary_path = crate::test_fixtures::fake_runner_binary_path(&workspace.target_dir);
+        let binary_path =
+            crate::test_fixtures::fake_runner_binary_path_for_workspace(&workspace.root_dir);
         let mut crate_hashes = indexmap::IndexMap::new();
         crate_hashes.insert(
             krate.name.clone(),
@@ -1095,7 +1100,9 @@ mod tests {
                 &krate.manifest_dir,
                 &krate.src_dir,
                 Some(&krate.i18n_config_path),
-            ),
+                krate.custom_build_target_path.as_deref(),
+            )
+            .expect("test fixture has a determinate source graph"),
         );
         crate::test_fixtures::install_fake_runner_with_cache(
             &binary_path,
@@ -1171,6 +1178,8 @@ mod tests {
                 name: package(name),
                 manifest_dir: crate::core::ManifestDir::from_discovered(manifest_dir.clone()),
                 src_dir: crate::core::SourceDir::from_discovered(src_dir),
+                library_target_path: None,
+                custom_build_target_path: None,
                 i18n_config_path: crate::core::DiscoveredI18nConfigPath::from_discovered(i18n_toml),
                 ftl_output_dir: crate::core::DiscoveredFtlOutputDir::from_discovered(
                     manifest_dir.join("i18n/en"),
@@ -1219,7 +1228,8 @@ mod tests {
                 .expect("write runner result");
         }
 
-        let binary_path = crate::test_fixtures::fake_runner_binary_path(&workspace.target_dir);
+        let binary_path =
+            crate::test_fixtures::fake_runner_binary_path_for_workspace(&workspace.root_dir);
         let crate_hashes = workspace
             .crates
             .iter()
@@ -1230,7 +1240,9 @@ mod tests {
                         &krate.manifest_dir,
                         &krate.src_dir,
                         Some(&krate.i18n_config_path),
-                    ),
+                        krate.custom_build_target_path.as_deref(),
+                    )
+                    .expect("test fixture has a determinate source graph"),
                 )
             })
             .collect();
@@ -1285,6 +1297,8 @@ mod tests {
                 .expect("valid package name"),
             manifest_dir: crate::core::ManifestDir::from_discovered(PathBuf::from("/tmp/test")),
             src_dir: crate::core::SourceDir::from_discovered(PathBuf::from("/tmp/test/src")),
+            library_target_path: None,
+            custom_build_target_path: None,
             i18n_config_path: crate::core::DiscoveredI18nConfigPath::from_discovered(
                 PathBuf::from("/tmp/test/i18n.toml"),
             ),
@@ -1315,6 +1329,8 @@ mod tests {
             name: es_fluent_runner::PackageName::try_new("broken").expect("valid package name"),
             manifest_dir: crate::core::ManifestDir::from_discovered(PathBuf::from("/dev/null")),
             src_dir: crate::core::SourceDir::from_discovered(PathBuf::from("/dev/null/src")),
+            library_target_path: None,
+            custom_build_target_path: None,
             i18n_config_path: crate::core::DiscoveredI18nConfigPath::from_discovered(
                 PathBuf::from("/dev/null/i18n.toml"),
             ),

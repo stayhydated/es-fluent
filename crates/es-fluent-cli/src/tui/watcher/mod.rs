@@ -7,7 +7,7 @@ mod runtime;
 #[cfg(test)]
 mod tests;
 
-use self::runtime::WatchRuntime;
+use self::runtime::{BuildSourceWatchUpdate, WatchRuntime};
 use crate::core::{CrateInfo, FluentParseMode, WorkspaceInfo};
 use crate::tui::{self, TuiApp};
 use anyhow::{Context as _, Result};
@@ -15,7 +15,10 @@ use crossbeam_channel::{Receiver, RecvTimeoutError};
 use notify::{RecommendedWatcher, RecursiveMode};
 use notify_debouncer_full::{DebounceEventResult, RecommendedCache};
 use ratatui::{Terminal, backend::Backend};
+use std::collections::BTreeMap;
 use std::time::Duration;
+
+type FileDebouncer = notify_debouncer_full::Debouncer<RecommendedWatcher, RecommendedCache>;
 
 /// Watch for changes and regenerate FTL files for all discovered crates.
 pub fn watch_all(
@@ -95,13 +98,15 @@ fn run_watch_loop_with_poll<B: Backend>(
 ) -> Result<()> {
     let mut app = TuiApp::new(crates);
     let mut runtime = WatchRuntime::new(crates, workspace, mode);
-    let (_debouncer, file_rx) =
-        configure_file_watcher(runtime.valid_crates(), &workspace.root_dir)?;
+    let valid_crates = runtime.valid_crates();
+    let (mut debouncer, file_rx) =
+        configure_file_watcher(&valid_crates, &workspace.root_dir, &workspace.target_dir)?;
     run_watch_loop_with_runtime(
         terminal,
         &mut app,
         &mut runtime,
         file_rx,
+        Some(&mut debouncer),
         poll_quit,
         max_iterations,
     )
@@ -124,6 +129,7 @@ fn run_watch_loop_with_file_rx<B: Backend>(
         &mut app,
         &mut runtime,
         file_rx,
+        None,
         poll_quit,
         max_iterations,
     )
@@ -132,8 +138,9 @@ fn run_watch_loop_with_file_rx<B: Backend>(
 fn run_watch_loop_with_runtime<B: Backend>(
     terminal: &mut Terminal<B>,
     app: &mut TuiApp,
-    runtime: &mut WatchRuntime<'_>,
+    runtime: &mut WatchRuntime,
     file_rx: Receiver<DebounceEventResult>,
+    mut debouncer: Option<&mut FileDebouncer>,
     poll_quit: fn(Duration) -> std::io::Result<bool>,
     max_iterations: Option<usize>,
 ) -> Result<()> {
@@ -167,7 +174,7 @@ fn run_watch_loop_with_runtime<B: Backend>(
         runtime.handle_generation_results(app);
 
         match file_rx.recv_timeout(Duration::from_millis(16)) {
-            Ok(Ok(events)) => runtime.handle_file_events(app, &events),
+            Ok(Ok(events)) => handle_watch_events(app, runtime, &events, debouncer.as_deref_mut())?,
             Ok(Err(errors)) => {
                 for error in errors {
                     app.update(tui::Message::WatchError {
@@ -192,13 +199,40 @@ fn run_watch_loop_with_runtime<B: Backend>(
     Ok(())
 }
 
+fn handle_watch_events(
+    app: &mut TuiApp,
+    runtime: &mut WatchRuntime,
+    events: &[notify_debouncer_full::DebouncedEvent],
+    debouncer: Option<&mut FileDebouncer>,
+) -> Result<()> {
+    let mut affected_crates = runtime.affected_crates_for_events(events);
+    match runtime.refresh_build_sources_if_needed(events) {
+        Ok(Some(update)) => {
+            if let Some(debouncer) = debouncer {
+                update_custom_build_watches(debouncer, update)?;
+            }
+            affected_crates.extend(runtime.affected_crates_for_events(events));
+        },
+        Ok(None) => {},
+        Err(error) => {
+            app.update(tui::Message::WatchError {
+                error: format!(
+                    "failed to rediscover Cargo metadata; retaining previous build-source watches: {error:#}"
+                ),
+            });
+        },
+    }
+    affected_crates.sort();
+    affected_crates.dedup();
+    runtime.handle_affected_crates(app, affected_crates);
+    Ok(())
+}
+
 fn configure_file_watcher(
     valid_crates: &[&CrateInfo],
     workspace_root: &std::path::Path,
-) -> Result<(
-    notify_debouncer_full::Debouncer<RecommendedWatcher, RecommendedCache>,
-    Receiver<DebounceEventResult>,
-)> {
+    target_dir: &std::path::Path,
+) -> Result<(FileDebouncer, Receiver<DebounceEventResult>)> {
     let (file_tx, file_rx) = crossbeam_channel::unbounded();
     let mut debouncer =
         notify_debouncer_full::new_debouncer(Duration::from_millis(300), None, file_tx)
@@ -208,15 +242,43 @@ fn configure_file_watcher(
         .watch(workspace_root, RecursiveMode::NonRecursive)
         .with_context(|| format!("Failed to watch {}", workspace_root.display()))?;
 
-    for krate in valid_crates {
+    let path_to_crate = events::build_path_to_crate(valid_crates, workspace_root, target_dir);
+    for (directory, mode) in
+        runtime::watch_modes_for_crates(&path_to_crate, valid_crates.iter().copied())
+    {
         debouncer
-            .watch(&krate.src_dir, RecursiveMode::Recursive)
-            .with_context(|| format!("Failed to watch {}", krate.src_dir.display()))?;
-
-        debouncer
-            .watch(&krate.manifest_dir, RecursiveMode::NonRecursive)
-            .with_context(|| format!("Failed to watch {}", krate.manifest_dir.display()))?;
+            .watch(&directory, mode)
+            .with_context(|| format!("Failed to watch {}", directory.display()))?;
     }
 
     Ok((debouncer, file_rx))
+}
+
+fn update_custom_build_watches(
+    debouncer: &mut FileDebouncer,
+    update: BuildSourceWatchUpdate,
+) -> Result<()> {
+    for directory in update.removed {
+        if let Err(error) = debouncer.unwatch(&directory) {
+            if matches!(
+                &error.kind,
+                notify::ErrorKind::PathNotFound | notify::ErrorKind::WatchNotFound
+            ) {
+                continue;
+            }
+            return Err(error)
+                .with_context(|| format!("Failed to stop watching {}", directory.display()));
+        }
+    }
+    let directories_to_watch = update
+        .added
+        .into_iter()
+        .chain(update.rearmed)
+        .collect::<BTreeMap<_, _>>();
+    for (directory, mode) in directories_to_watch {
+        debouncer
+            .watch(&directory, mode)
+            .with_context(|| format!("Failed to watch {}", directory.display()))?;
+    }
+    Ok(())
 }

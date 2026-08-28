@@ -2,13 +2,14 @@ mod r#enum;
 mod r#struct;
 
 use es_fluent_derive_core::expansion::{EsFluentExpansion, ExpansionError};
+use es_fluent_derive_core::macro_support::FallbackValidationDerive;
 use syn::{DeriveInput, parse_macro_input};
 
 use crate::macros::utils::CodegenContext;
 
 pub fn from(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let input = parse_macro_input!(input as DeriveInput);
-    let context = CodegenContext::resolve();
+    let context = CodegenContext::resolve(&input, FallbackValidationDerive::EsFluent);
     expand_es_fluent_with_context(input, &context).into()
 }
 

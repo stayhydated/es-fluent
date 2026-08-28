@@ -58,6 +58,14 @@ typed_discovered_dir!(
     DiscoveredFtlOutputDir,
     "A fallback FTL output directory path resolved during discovery."
 );
+typed_discovered_dir!(
+    LibraryTargetPath,
+    "An exact Cargo library target source path accepted by workspace discovery."
+);
+typed_discovered_dir!(
+    CustomBuildTargetPath,
+    "An exact Cargo custom-build target source path accepted by workspace discovery."
+);
 
 /// Information about a crate that uses es-fluent.
 #[derive(Clone, Debug)]
@@ -68,6 +76,10 @@ pub struct CrateInfo {
     pub manifest_dir: ManifestDir,
     /// The path to the crate's src directory.
     pub src_dir: SourceDir,
+    /// The exact Cargo library target source path.
+    pub library_target_path: Option<LibraryTargetPath>,
+    /// The exact Cargo custom-build target source path.
+    pub custom_build_target_path: Option<CustomBuildTargetPath>,
     /// The path to the i18n.toml config file.
     pub i18n_config_path: DiscoveredI18nConfigPath,
     /// The path to the FTL output directory (e.g., assets/i18n/en).

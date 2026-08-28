@@ -45,6 +45,15 @@ welcome_message = Welcome Message { $name } { $count }
 
 Use `i18n.localize_message(&value)` through the concrete manager or integration context.
 
+Configured crates compile-check derived messages against resolvable values in
+the fallback locale catalog written by `es-fluent-build`. A missing key or an
+attribute-only message is an error under the default strict policy. Set
+`missing_message_policy = "fallback-str"` in the package's `i18n.toml` only when
+normal typed lookup should return a snake_case Rust source name after all locale
+fallback fails. Struct messages and labels use the type name, enum messages use
+the variant name, and `EsFluentVariants` messages use the source field or
+variant. The `try_localize_*` APIs continue to return `None`.
+
 ## Field and Variant Attributes
 
 Common `#[fluent(...)]` attributes:
