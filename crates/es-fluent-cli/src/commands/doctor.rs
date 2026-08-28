@@ -102,7 +102,7 @@ struct DependencySpec {
 
 #[derive(Debug, Default)]
 struct ManifestSummary {
-    build_helper: bool,
+    build_helpers: Vec<DependencySpec>,
     conditional_build_helpers: Vec<ConditionalDependency>,
     managers: Vec<DependencySpec>,
 }
@@ -235,7 +235,7 @@ fn diagnose_crate(krate: &CrateInfo, workspace_root: &Path) -> Vec<DoctorCheck> 
         },
     };
 
-    if manifest.build_helper {
+    if !manifest.build_helpers.is_empty() {
         pass(
             &mut checks,
             &package,
@@ -270,10 +270,15 @@ fn diagnose_crate(krate: &CrateInfo, workspace_root: &Path) -> Vec<DoctorCheck> 
 
     if let Some(build_target) = &krate.custom_build_target_path {
         let target_path = relative_path(build_target, workspace_root);
+        let build_helper_roots = manifest
+            .build_helpers
+            .iter()
+            .map(|dependency| dependency.alias.replace('-', "_"))
+            .collect::<Vec<_>>();
         match crate::source_inspector::inspect(
             build_target,
             &krate.manifest_dir,
-            SourceTarget::Call("track_i18n_assets"),
+            SourceTarget::build_helper_call(&build_helper_roots),
         ) {
             InspectionOutcome::Found(evidence) => pass(
                 &mut checks,
@@ -478,9 +483,11 @@ fn manifest_summary(path: &Path, workspace_root: &Path) -> Result<ManifestSummar
         .cloned()
         .collect::<Vec<_>>();
     Ok(ManifestSummary {
-        build_helper: build_dependencies
+        build_helpers: build_dependencies
             .iter()
-            .any(|dependency| dependency.package == "es-fluent-build"),
+            .filter(|dependency| dependency.package == "es-fluent-build")
+            .cloned()
+            .collect(),
         conditional_build_helpers: conditional_build_helpers
             .into_iter()
             .filter(|dependency| dependency.package == "es-fluent-build")

@@ -225,6 +225,50 @@ fn process_file_events_matches_every_owner_of_a_shared_build_helper() {
 }
 
 #[test]
+fn process_file_events_preserves_library_owner_of_shared_build_source() {
+    let temp = tempfile::tempdir().expect("tempdir");
+    let library_package = temp.path().join("library");
+    let library_src = library_package.join("src");
+    fs::create_dir_all(&library_src).expect("create library source directory");
+    let shared_source = library_src.join("shared.rs");
+    fs::write(&shared_source, "pub fn configure() {}\n").expect("write shared source");
+    let build_target = temp.path().join("build-owner.rs");
+    fs::write(
+        &build_target,
+        "#[path = \"library/src/shared.rs\"] mod shared; fn main() { shared::configure(); }\n",
+    )
+    .expect("write build target");
+
+    let mut build_owner = test_crate("build-owner", true);
+    build_owner.manifest_dir = crate::core::ManifestDir::from_discovered(temp.path().to_path_buf());
+    build_owner.src_dir = crate::core::SourceDir::from_discovered(temp.path().join("src"));
+    build_owner.custom_build_target_path = Some(
+        crate::core::CustomBuildTargetPath::from_discovered(build_target),
+    );
+
+    let mut library_owner = test_crate("library-owner", true);
+    library_owner.manifest_dir = crate::core::ManifestDir::from_discovered(library_package);
+    library_owner.src_dir = crate::core::SourceDir::from_discovered(library_src);
+
+    let path_to_crate =
+        super::events::build_path_to_crate(&[&build_owner, &library_owner], temp.path());
+    let mut affected = super::events::process_file_events(
+        &[event_with_path(
+            &shared_source
+                .canonicalize()
+                .expect("canonical shared source"),
+        )],
+        &path_to_crate,
+    );
+    affected.sort();
+
+    assert_eq!(
+        affected,
+        vec!["build-owner".to_string(), "library-owner".to_string()]
+    );
+}
+
+#[test]
 fn watcher_refreshes_custom_build_graph_and_directories_after_target_edit() {
     let temp = tempfile::tempdir().expect("tempdir");
     let src_dir = temp.path().join("src");

@@ -1008,6 +1008,119 @@ pub struct LibraryValue;
     }
 
     #[test]
+    fn configured_strict_crate_allows_test_only_derives() {
+        let temp = tempfile::tempdir().expect("tempdir");
+        let crate_dir = temp.path().join("strict-tests");
+        let src_dir = crate_dir.join("src");
+        let locale_dir = crate_dir.join("i18n/en");
+        let target_dir = temp.path().join("target");
+        let workspace_crates = Path::new(env!("CARGO_MANIFEST_DIR"))
+            .parent()
+            .expect("workspace crates directory");
+        fs::create_dir_all(&src_dir).expect("create src dir");
+        fs::create_dir_all(&locale_dir).expect("create locale dir");
+        fs::write(
+            crate_dir.join("Cargo.toml"),
+            format!(
+                "[package]\nname = \"strict-tests\"\nversion = \"0.1.0\"\nedition = \"2024\"\n\n[dependencies]\nes-fluent = {{ path = \"{}\" }}\n\n[build-dependencies]\nes-fluent-build = {{ path = \"{}\" }}\n",
+                toml_path(&workspace_crates.join("es-fluent")),
+                toml_path(Path::new(env!("CARGO_MANIFEST_DIR"))),
+            ),
+        )
+        .expect("write Cargo.toml");
+        fs::write(crate_dir.join("build.rs"), BUILD_TRACK_I18N_SOURCE).expect("write build.rs");
+        fs::write(
+            src_dir.join("lib.rs"),
+            r#"#[derive(es_fluent::EsFluent)]
+pub struct LibraryValue;
+
+#[cfg(test)]
+#[derive(es_fluent::EsFluent)]
+struct TestOnlyMessage;
+
+#[cfg(test)]
+#[derive(es_fluent::EsFluentLabel)]
+struct TestOnlyLabel;
+
+#[cfg(test)]
+mod nested_tests {
+    #[derive(es_fluent::EsFluent)]
+    struct NestedTestOnly;
+
+    #[test]
+    fn nested_test_only_derive_is_usable() {
+        let _message = NestedTestOnly;
+    }
+}
+
+#[cfg(test)]
+struct TestLocalizer;
+
+#[cfg(test)]
+impl es_fluent::FluentLocalizer for TestLocalizer {
+    fn localize<'a>(
+        &self,
+        _key: es_fluent::registry::StaticFluentMessageKey,
+        _args: Option<&'a es_fluent::FluentArgs<'a>>,
+    ) -> Option<String> {
+        Some("localized".to_string())
+    }
+}
+
+#[cfg(test)]
+#[test]
+fn test_only_derives_are_usable() {
+    use es_fluent::{FluentLabel as _, FluentLocalizerExt as _};
+
+    assert_eq!(
+        TestLocalizer.localize_message(&TestOnlyMessage),
+        "localized"
+    );
+    assert_eq!(TestOnlyLabel::localize_label(&TestLocalizer), "localized");
+}
+"#,
+        )
+        .expect("write lib.rs");
+        fs::write(
+            crate_dir.join("i18n.toml"),
+            "fallback_language = \"en\"\nassets_dir = \"i18n\"\n",
+        )
+        .expect("write i18n.toml");
+        fs::write(
+            locale_dir.join("strict-tests.ftl"),
+            "library_value = Library value\n",
+        )
+        .expect("write fallback FTL");
+
+        let output = cargo_workspace_output(&crate_dir, &target_dir, &["test", "--quiet", "--lib"]);
+        assert!(
+            output.status.success(),
+            "test-only derives should not require generated fallback inventory: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+
+        fs::write(locale_dir.join("strict-tests.ftl"), "present = Present\n")
+            .expect("remove library fallback value");
+        let missing_library =
+            cargo_workspace_output(&crate_dir, &target_dir, &["test", "--quiet", "--lib"]);
+        assert!(
+            !missing_library.status.success(),
+            "normal library derives must remain strict in test builds"
+        );
+        let stderr = String::from_utf8_lossy(&missing_library.stderr);
+        assert!(
+            stderr.contains("missing fallback Fluent message `library_value`"),
+            "strict library diagnostic should remain active: {stderr}"
+        );
+        assert!(
+            !stderr.contains("missing fallback Fluent message `test_only_message`")
+                && !stderr.contains("missing fallback Fluent message `test_only_label_label`")
+                && !stderr.contains("missing fallback Fluent message `nested_test_only`"),
+            "test-only derives should remain coverage-exempt: {stderr}"
+        );
+    }
+
+    #[test]
     fn mixed_workspace_keeps_missing_message_policy_package_local() {
         let temp = tempfile::tempdir().expect("tempdir");
         let workspace_dir = temp.path().join("mixed-policy");

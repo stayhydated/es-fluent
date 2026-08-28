@@ -653,6 +653,78 @@ fn binary_doctor_accepts_manager_registration_through_dependency_alias() {
 }
 
 #[test]
+fn binary_doctor_resolves_build_helper_calls_through_dependency_alias() {
+    let temp = fixtures::create_workspace();
+    let crates_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .expect("workspace crates directory");
+    let build_path = crates_dir
+        .join("es-fluent-build")
+        .to_string_lossy()
+        .replace('\\', "/");
+    std::fs::write(
+        temp.path().join("Cargo.toml"),
+        format!(
+            "[package]\nname = \"test-app\"\nversion = \"0.1.0\"\nedition = \"2024\"\n\n[build-dependencies]\nbuilder = {{ package = \"es-fluent-build\", path = \"{build_path}\" }}\n"
+        ),
+    )
+    .expect("write Cargo.toml");
+    std::fs::write(
+        temp.path().join("build.rs"),
+        "fn main() { builder::track_i18n_assets(); }\n",
+    )
+    .expect("write aliased build script");
+
+    let run_doctor = || {
+        Command::cargo_bin("cargo-es-fluent")
+            .expect("binary exists")
+            .args([
+                "es-fluent",
+                "doctor",
+                "--path",
+                temp.path().to_str().expect("workspace path"),
+                "--output",
+                "json",
+            ])
+            .output()
+            .expect("run doctor")
+    };
+
+    let aliased = run_doctor();
+    assert!(
+        aliased.status.success(),
+        "{}",
+        String::from_utf8_lossy(&aliased.stderr)
+    );
+    let json: Value = serde_json::from_slice(&aliased.stdout).expect("doctor JSON");
+    let checks = json["checks"].as_array().expect("checks");
+    assert!(
+        checks
+            .iter()
+            .any(|check| { check["category"] == "build_script" && check["status"] == "pass" })
+    );
+
+    std::fs::write(
+        temp.path().join("build.rs"),
+        "fn main() { es_fluent_build::track_i18n_assets(); }\n",
+    )
+    .expect("write unresolved canonical build script");
+    let canonical = run_doctor();
+    let json: Value = serde_json::from_slice(&canonical.stdout).expect("doctor JSON");
+    let checks = json["checks"].as_array().expect("checks");
+    assert!(
+        !checks
+            .iter()
+            .any(|check| { check["category"] == "build_script" && check["status"] == "pass" })
+    );
+    assert!(
+        checks
+            .iter()
+            .any(|check| { check["category"] == "build_script" && check["status"] == "warning" })
+    );
+}
+
+#[test]
 fn binary_doctor_rejects_registration_from_an_undeclared_manager() {
     let temp = fixtures::create_workspace();
     let crates_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))

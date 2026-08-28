@@ -140,31 +140,20 @@ pub(super) fn process_file_events(
                 continue;
             }
 
-            let mut matched_build_source = false;
             for crate_name in path_to_crate.match_build_sources(path) {
                 affected.insert(crate_name.to_string(), ());
-                matched_build_source = true;
-            }
-            if matched_build_source {
-                continue;
             }
 
             if let Some(crate_name) = path_to_crate.match_missing_default_build_target(path) {
                 affected.insert(crate_name.to_string(), ());
-                continue;
             }
 
-            let mut matched_build_source_dir = false;
             for crate_name in path_to_crate.match_build_source_dirs(path) {
                 affected.insert(crate_name.to_string(), ());
-                matched_build_source_dir = true;
-            }
-            if matched_build_source_dir {
-                continue;
             }
 
             if path.extension().is_some_and(|ext| ext == "rs") {
-                if let Some(crate_name) = path_to_crate.match_src_path(path) {
+                for crate_name in path_to_crate.match_src_paths(path) {
                     affected.insert(crate_name.to_string(), ());
                 }
                 continue;
@@ -269,10 +258,10 @@ impl PathToCrateMap {
             })
     }
 
-    fn match_src_path(&self, path: &Path) -> Option<&str> {
+    fn match_src_paths<'a>(&'a self, path: &'a Path) -> impl Iterator<Item = &'a str> + 'a {
         self.src_dirs
             .iter()
-            .find(|candidate| {
+            .filter(move |candidate| {
                 path.starts_with(&candidate.src_dir)
                     && !candidate.is_generated_root_source_path(path)
             })

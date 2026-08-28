@@ -173,7 +173,7 @@ impl FallbackValidation {
     }
 }
 
-pub fn fallback_validation() -> FallbackValidation {
+pub fn fallback_validation(input: &syn::DeriveInput) -> FallbackValidation {
     let Ok(package) = std::env::var("CARGO_PKG_NAME") else {
         return FallbackValidation::unconfigured();
     };
@@ -208,7 +208,8 @@ pub fn fallback_validation() -> FallbackValidation {
             },
         };
     }
-    if std::env::var_os(INVENTORY_RUNNER_ENV).is_some()
+    if derive_requires_test(input)
+        || std::env::var_os(INVENTORY_RUNNER_ENV).is_some()
         || std::env::var_os("UNSTABLE_RUSTDOC_TEST_PATH").is_some()
     {
         return FallbackValidation {
@@ -247,6 +248,155 @@ pub fn fallback_validation() -> FallbackValidation {
         },
     };
     FallbackValidation { policy, catalog }
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum TestDisabledCfg {
+    True,
+    False,
+    Unknown,
+}
+
+fn attributes_require_test(attributes: &[syn::Attribute]) -> bool {
+    attributes
+        .iter()
+        .filter(|attribute| attribute.path().is_ident("cfg"))
+        .filter_map(|attribute| attribute.parse_args::<syn::Meta>().ok())
+        .any(|predicate| cfg_with_test_disabled(&predicate) == TestDisabledCfg::False)
+}
+
+fn derive_requires_test(input: &syn::DeriveInput) -> bool {
+    if attributes_require_test(&input.attrs) {
+        return true;
+    }
+
+    // Rustc evaluates and removes an active `cfg` attribute before invoking a
+    // derive. Reparse the real source file to recover item and inline-module
+    // guards, and keep ambiguous or unavailable source evidence strict.
+    let Some(source_path) = input.ident.span().local_file() else {
+        return false;
+    };
+    let Ok(source) = std::fs::read_to_string(source_path) else {
+        return false;
+    };
+    let Ok(file) = syn::parse_file(&source) else {
+        return false;
+    };
+    source_items_require_test(&file.items, &input.ident.to_string(), false)
+}
+
+fn source_items_require_test(
+    items: &[syn::Item],
+    target_ident: &str,
+    parent_requires_test: bool,
+) -> bool {
+    let mut matching_items = Vec::new();
+    collect_matching_item_cfgs(
+        items,
+        target_ident,
+        parent_requires_test,
+        &mut matching_items,
+    );
+    !matching_items.is_empty() && matching_items.into_iter().all(std::convert::identity)
+}
+
+fn collect_matching_item_cfgs(
+    items: &[syn::Item],
+    target_ident: &str,
+    parent_requires_test: bool,
+    matching_items: &mut Vec<bool>,
+) {
+    for item in items {
+        match item {
+            syn::Item::Enum(item) if item.ident == target_ident => {
+                matching_items.push(parent_requires_test || attributes_require_test(&item.attrs))
+            },
+            syn::Item::Struct(item) if item.ident == target_ident => {
+                matching_items.push(parent_requires_test || attributes_require_test(&item.attrs))
+            },
+            syn::Item::Union(item) if item.ident == target_ident => {
+                matching_items.push(parent_requires_test || attributes_require_test(&item.attrs))
+            },
+            syn::Item::Mod(module) => {
+                if let Some((_, items)) = &module.content {
+                    collect_matching_item_cfgs(
+                        items,
+                        target_ident,
+                        parent_requires_test || attributes_require_test(&module.attrs),
+                        matching_items,
+                    );
+                }
+            },
+            _ => {},
+        }
+    }
+}
+
+fn cfg_with_test_disabled(predicate: &syn::Meta) -> TestDisabledCfg {
+    match predicate {
+        syn::Meta::Path(path) if path.is_ident("test") => TestDisabledCfg::False,
+        syn::Meta::Path(_) | syn::Meta::NameValue(_) => TestDisabledCfg::Unknown,
+        syn::Meta::List(list) if list.path.is_ident("all") => {
+            let Some(predicates) = cfg_predicates(list) else {
+                return TestDisabledCfg::Unknown;
+            };
+            if predicates
+                .iter()
+                .any(|predicate| cfg_with_test_disabled(predicate) == TestDisabledCfg::False)
+            {
+                TestDisabledCfg::False
+            } else if predicates
+                .iter()
+                .all(|predicate| cfg_with_test_disabled(predicate) == TestDisabledCfg::True)
+            {
+                TestDisabledCfg::True
+            } else {
+                TestDisabledCfg::Unknown
+            }
+        },
+        syn::Meta::List(list) if list.path.is_ident("any") => {
+            let Some(predicates) = cfg_predicates(list) else {
+                return TestDisabledCfg::Unknown;
+            };
+            if predicates
+                .iter()
+                .any(|predicate| cfg_with_test_disabled(predicate) == TestDisabledCfg::True)
+            {
+                TestDisabledCfg::True
+            } else if predicates
+                .iter()
+                .all(|predicate| cfg_with_test_disabled(predicate) == TestDisabledCfg::False)
+            {
+                TestDisabledCfg::False
+            } else {
+                TestDisabledCfg::Unknown
+            }
+        },
+        syn::Meta::List(list) if list.path.is_ident("not") => {
+            let Some(predicates) = cfg_predicates(list) else {
+                return TestDisabledCfg::Unknown;
+            };
+            let [predicate] = predicates.as_slice() else {
+                return TestDisabledCfg::Unknown;
+            };
+            match cfg_with_test_disabled(predicate) {
+                TestDisabledCfg::True => TestDisabledCfg::False,
+                TestDisabledCfg::False => TestDisabledCfg::True,
+                TestDisabledCfg::Unknown => TestDisabledCfg::Unknown,
+            }
+        },
+        syn::Meta::List(_) => TestDisabledCfg::Unknown,
+    }
+}
+
+fn cfg_predicates(list: &syn::MetaList) -> Option<Vec<syn::Meta>> {
+    use syn::parse::Parser as _;
+
+    syn::punctuated::Punctuated::<syn::Meta, syn::Token![,]>::parse_terminated
+        .parse2(list.tokens.clone())
+        .ok()
+        .map(IntoIterator::into_iter)
+        .map(Iterator::collect)
 }
 
 pub fn static_domain_tokens(
@@ -366,10 +516,61 @@ mod tests {
             ],
             || {
                 assert_eq!(
-                    fallback_validation().diagnostic(None, &id, "DoctestOnly"),
+                    fallback_validation(&syn::parse_quote!(
+                        struct DoctestOnly;
+                    ))
+                    .diagnostic(None, &id, "DoctestOnly"),
                     None
                 );
             },
         );
+    }
+
+    #[test]
+    fn cfg_predicates_only_exempt_items_that_require_test() {
+        let test_only: syn::DeriveInput = syn::parse_quote! {
+            #[cfg(all(unix, test))]
+            struct TestOnly;
+        };
+        let maybe_test: syn::DeriveInput = syn::parse_quote! {
+            #[cfg(any(unix, test))]
+            struct MaybeTest;
+        };
+        let double_negative: syn::DeriveInput = syn::parse_quote! {
+            #[cfg(not(not(test)))]
+            struct DoubleNegative;
+        };
+
+        assert!(attributes_require_test(&test_only.attrs));
+        assert!(!attributes_require_test(&maybe_test.attrs));
+        assert!(attributes_require_test(&double_negative.attrs));
+    }
+
+    #[test]
+    fn source_item_cfgs_include_inline_module_ancestors() {
+        let file = syn::parse_file(
+            r#"
+                #[cfg(test)]
+                mod tests {
+                    struct NestedTestOnly;
+                }
+
+                #[cfg(any(test, feature = "demo"))]
+                struct MaybeTest;
+
+                #[cfg(test)]
+                struct ReusedName;
+                struct ReusedName;
+            "#,
+        )
+        .expect("parse source");
+
+        assert!(source_items_require_test(
+            &file.items,
+            "NestedTestOnly",
+            false
+        ));
+        assert!(!source_items_require_test(&file.items, "MaybeTest", false));
+        assert!(!source_items_require_test(&file.items, "ReusedName", false));
     }
 }

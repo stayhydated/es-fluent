@@ -8,7 +8,7 @@ use crate::macros::utils::CodegenContext;
 
 pub fn from(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let input = parse_macro_input!(input as DeriveInput);
-    let context = CodegenContext::resolve();
+    let context = CodegenContext::resolve(&input);
     expand_es_fluent_with_context(input, &context).into()
 }
 

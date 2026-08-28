@@ -19,10 +19,10 @@ pub struct CodegenContext {
 }
 
 impl CodegenContext {
-    pub fn resolve() -> Self {
+    pub fn resolve(input: &syn::DeriveInput) -> Self {
         Self {
             facade_path: ResolvedCratePath::resolve("es-fluent", "es_fluent"),
-            fallback_validation: macro_support::fallback_validation(),
+            fallback_validation: macro_support::fallback_validation(input),
             fallback_setup_diagnostic_emitted: std::cell::Cell::new(false),
         }
     }

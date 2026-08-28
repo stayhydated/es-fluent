@@ -13,14 +13,34 @@ const MANAGER_CRATE_ROOTS: &[&str] = &[
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum SourceTarget<'a> {
     Call(&'static str),
+    CallWithRoots(&'static str, &'a [String]),
     Macro(&'static str, Option<&'a [String]>),
 }
 
-impl SourceTarget<'_> {
+impl<'a> SourceTarget<'a> {
+    pub(crate) fn build_helper_call(roots: &'a [String]) -> Self {
+        if roots == ["es_fluent_build"] {
+            Self::Call("track_i18n_assets")
+        } else {
+            Self::CallWithRoots("track_i18n_assets", roots)
+        }
+    }
+
     fn name(self) -> &'static str {
         match self {
-            Self::Call(name) | Self::Macro(name, _) => name,
+            Self::Call(name) | Self::CallWithRoots(name, _) | Self::Macro(name, _) => name,
         }
+    }
+
+    fn call_name(self) -> Option<&'static str> {
+        match self {
+            Self::Call(name) | Self::CallWithRoots(name, _) => Some(name),
+            Self::Macro(_, _) => None,
+        }
+    }
+
+    fn is_call(self) -> bool {
+        self.call_name().is_some()
     }
 
     fn is_expected_path(self, path: &syn::Path) -> bool {
@@ -44,6 +64,7 @@ impl SourceTarget<'_> {
     fn is_expected_root(self, root: &str) -> bool {
         match self {
             Self::Call(_) => root == "es_fluent_build",
+            Self::CallWithRoots(_, roots) => roots.iter().any(|expected| expected == root),
             Self::Macro(_, roots) => roots.map_or_else(
                 || MANAGER_CRATE_ROOTS.contains(&root),
                 |roots| roots.iter().any(|expected| expected == root),
@@ -319,7 +340,7 @@ fn inspect_source_graph(
         }
     }
 
-    if matches!(target, Some(SourceTarget::Call(_))) {
+    if target.is_some_and(SourceTarget::is_call) {
         let analysis = analyze_reachability(&graph.sources, entry_path);
         graph
             .indeterminate_reasons
@@ -889,24 +910,24 @@ impl<'ast> syn::visit::Visit<'ast> for EvidenceVisitor<'_> {
     }
 
     fn visit_expr_call(&mut self, call: &'ast syn::ExprCall) {
-        let direct_target_call =
-            if let (Some(SourceTarget::Call(target)), syn::Expr::Path(function)) =
-                (self.target, &*call.func)
-                && function
-                    .path
-                    .segments
-                    .last()
-                    .is_some_and(|segment| segment.ident == target)
-            {
-                self.record(
-                    &function.path,
-                    function.path.span(),
-                    self.conditional_depth > 0 || has_conditional_attr(&call.attrs),
-                );
-                true
-            } else {
-                false
-            };
+        let direct_target_call = if let (Some(target), syn::Expr::Path(function)) =
+            (self.target, &*call.func)
+            && let Some(target) = target.call_name()
+            && function
+                .path
+                .segments
+                .last()
+                .is_some_and(|segment| segment.ident == target)
+        {
+            self.record(
+                &function.path,
+                function.path.span(),
+                self.conditional_depth > 0 || has_conditional_attr(&call.attrs),
+            );
+            true
+        } else {
+            false
+        };
 
         if direct_target_call {
             for argument in &call.args {
@@ -918,7 +939,7 @@ impl<'ast> syn::visit::Visit<'ast> for EvidenceVisitor<'_> {
     }
 
     fn visit_expr_path(&mut self, expression: &'ast syn::ExprPath) {
-        if let Some(SourceTarget::Call(target)) = self.target
+        if let Some(target) = self.target.and_then(SourceTarget::call_name)
             && expression
                 .path
                 .segments
@@ -1070,7 +1091,7 @@ impl<'ast> syn::visit::Visit<'ast> for EvidenceVisitor<'_> {
             } else {
                 self.visit_stmt(statement);
             }
-            if matches!(self.target, Some(SourceTarget::Call(_)))
+            if self.target.is_some_and(SourceTarget::is_call)
                 && statement_unconditionally_terminates(statement)
             {
                 break;
@@ -1194,7 +1215,7 @@ fn imports_for_statements(
 }
 
 fn local_shadows_target(pattern: &syn::Pat, target: Option<SourceTarget<'_>>) -> bool {
-    let Some(SourceTarget::Call(target)) = target else {
+    let Some(target) = target.and_then(SourceTarget::call_name) else {
         return false;
     };
     let mut visitor = PatternBindingVisitor {
@@ -1437,7 +1458,7 @@ impl<'ast> syn::visit::Visit<'ast> for LoopExitVisitor {
 }
 
 fn item_shadows_target(item: &syn::Item, target: Option<SourceTarget<'_>>) -> bool {
-    let Some(SourceTarget::Call(target)) = target else {
+    let Some(target) = target.and_then(SourceTarget::call_name) else {
         return false;
     };
     let ident = match item {
