@@ -20,6 +20,29 @@ pub(super) fn compute_watch_inputs_hash(
     )
 }
 
+/// Compute a hash of every crate-local and workspace-level input observed by the watcher.
+pub(super) fn compute_observed_inputs_hash(
+    workspace_root: &Path,
+    manifest_dir: &Path,
+    src_dir: &Path,
+    i18n_config_path: &Path,
+    custom_build_target_path: Option<&Path>,
+) -> Option<String> {
+    let crate_hash = compute_watch_inputs_hash(
+        manifest_dir,
+        src_dir,
+        i18n_config_path,
+        custom_build_target_path,
+    )?;
+    let workspace_hash = crate::generation::cache::compute_workspace_inputs_hash(workspace_root);
+    let mut hasher = blake3::Hasher::new();
+    hasher.update(b"crate-inputs\0");
+    hasher.update(crate_hash.as_bytes());
+    hasher.update(b"workspace-inputs\0");
+    hasher.update(workspace_hash.as_bytes());
+    Some(hasher.finalize().to_hex().to_string())
+}
+
 /// Spawn a thread to generate for a single crate using the monolithic approach.
 pub(super) fn spawn_generation(
     krate: CrateInfo,

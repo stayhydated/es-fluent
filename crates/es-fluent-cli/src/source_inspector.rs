@@ -95,6 +95,8 @@ pub(crate) enum InspectionOutcome {
 #[derive(Debug, Default)]
 pub(crate) struct SourceGraph {
     pub(crate) paths: Vec<PathBuf>,
+    pub(crate) lexical_paths: Vec<PathBuf>,
+    pub(crate) watch_dirs: Vec<PathBuf>,
     pub(crate) indeterminate_reasons: Vec<String>,
     evidence: Option<MatchedEvidence>,
     sources: Vec<ParsedSource>,
@@ -126,6 +128,14 @@ struct PendingSource {
     module_dir: PathBuf,
     module_path: Vec<String>,
     conditional: bool,
+    allowed_root: PathBuf,
+    explicit_path: bool,
+}
+
+struct ModuleCollector<'a> {
+    allowed_root: &'a Path,
+    pending: &'a mut Vec<PendingSource>,
+    reasons: &'a mut Vec<String>,
 }
 
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
@@ -240,14 +250,22 @@ fn inspect_source_graph(
         module_dir,
         module_path: Vec::new(),
         conditional: false,
+        allowed_root: source_root,
+        explicit_path: false,
     }];
     let mut visited = HashSet::new();
     let mut graph = SourceGraph::default();
 
     while let Some(source) = pending.pop() {
+        graph.lexical_paths.push(source.path.clone());
         let canonical = match std::fs::canonicalize(&source.path) {
             Ok(path) => path,
             Err(error) => {
+                if source.explicit_path
+                    && let Some(directory) = nearest_existing_directory(&source.path)
+                {
+                    graph.watch_dirs.push(directory);
+                }
                 graph.indeterminate_reasons.push(format!(
                     "failed to resolve {}: {error}",
                     source.path.display()
@@ -255,11 +273,14 @@ fn inspect_source_graph(
                 continue;
             },
         };
-        if !canonical.starts_with(&source_root) {
+        if !canonical.starts_with(&source.allowed_root) && !source.explicit_path {
+            if let Some(directory) = canonical.parent() {
+                graph.watch_dirs.push(directory.to_path_buf());
+            }
             graph.indeterminate_reasons.push(format!(
                 "{} resolves outside {}",
                 source.path.display(),
-                source_root.display()
+                source.allowed_root.display()
             ));
             continue;
         }
@@ -306,17 +327,32 @@ fn inspect_source_graph(
             .indeterminate_reasons
             .extend(visitor.indeterminate_reasons);
 
-        collect_pending_modules(
-            &file.items,
-            &canonical,
-            &source.module_dir,
-            &source.module_path,
-            source.conditional,
-            &mut pending,
-            &mut graph.indeterminate_reasons,
-        );
+        let traversal_root = if source.explicit_path && !canonical.starts_with(&source.allowed_root)
+        {
+            canonical
+                .parent()
+                .map(Path::to_path_buf)
+                .unwrap_or_else(|| source.allowed_root.clone())
+        } else {
+            source.allowed_root.clone()
+        };
+        {
+            let mut collector = ModuleCollector {
+                allowed_root: &traversal_root,
+                pending: &mut pending,
+                reasons: &mut graph.indeterminate_reasons,
+            };
+            collect_pending_modules(
+                &file.items,
+                &canonical,
+                &source.module_dir,
+                &source.module_path,
+                source.conditional,
+                &mut collector,
+            );
+        }
         for include in visitor.includes {
-            let Some(parent) = canonical.parent() else {
+            let Some(parent) = source.path.parent() else {
                 graph.indeterminate_reasons.push(format!(
                     "could not resolve include from {}",
                     canonical.display()
@@ -332,6 +368,8 @@ fn inspect_source_graph(
                         module_dir,
                         module_path: source.module_path.clone(),
                         conditional: include.conditional,
+                        allowed_root: traversal_root.clone(),
+                        explicit_path: true,
                     });
                 },
                 None => graph.indeterminate_reasons.push(format!(
@@ -370,9 +408,23 @@ fn inspect_source_graph(
 
     graph.paths.sort();
     graph.paths.dedup();
+    graph.lexical_paths.sort();
+    graph.lexical_paths.dedup();
+    graph.watch_dirs.sort();
+    graph.watch_dirs.dedup();
     graph.indeterminate_reasons.sort();
     graph.indeterminate_reasons.dedup();
     graph
+}
+
+fn nearest_existing_directory(path: &Path) -> Option<PathBuf> {
+    path.ancestors()
+        .filter(|ancestor| ancestor.parent().is_some())
+        .find_map(|ancestor| {
+            std::fs::canonicalize(ancestor)
+                .ok()
+                .filter(|path| path.is_dir())
+        })
 }
 
 fn collect_pending_modules(
@@ -381,8 +433,7 @@ fn collect_pending_modules(
     module_dir: &Path,
     module_path: &[String],
     inherited_conditional: bool,
-    pending: &mut Vec<PendingSource>,
-    reasons: &mut Vec<String>,
+    collector: &mut ModuleCollector<'_>,
 ) {
     for item in items {
         let syn::Item::Mod(module) = item else {
@@ -399,8 +450,7 @@ fn collect_pending_modules(
                 &child_module_dir,
                 &child_module_path,
                 conditional,
-                pending,
-                reasons,
+                collector,
             );
             continue;
         }
@@ -427,7 +477,7 @@ fn collect_pending_modules(
                 (true, false) => Some(flat),
                 (false, true) => Some(nested),
                 (true, true) => {
-                    reasons.push(format!(
+                    collector.reasons.push(format!(
                         "module `{}` from {} has both conventional source paths",
                         module.ident,
                         current_file.display()
@@ -439,7 +489,7 @@ fn collect_pending_modules(
         };
 
         let Some(path) = resolved else {
-            reasons.push(format!(
+            collector.reasons.push(format!(
                 "could not resolve module `{}` declared in {}:{}",
                 module.ident,
                 current_file.display(),
@@ -455,11 +505,13 @@ fn collect_pending_modules(
             } else {
                 child_module_dir
             };
-        pending.push(PendingSource {
+        collector.pending.push(PendingSource {
             path,
             module_dir: next_module_dir,
             module_path: child_module_path,
             conditional,
+            allowed_root: collector.allowed_root.to_path_buf(),
+            explicit_path: explicit_path.is_some(),
         });
     }
 }
@@ -1601,11 +1653,14 @@ impl<'ast> syn::visit::Visit<'ast> for PatternBindingVisitor<'_> {
 }
 
 fn statement_unconditionally_terminates(statement: &syn::Stmt) -> bool {
-    let syn::Stmt::Expr(expression, _) = statement else {
-        return false;
-    };
-
-    expression_unconditionally_terminates(expression)
+    match statement {
+        syn::Stmt::Local(local) => local
+            .init
+            .as_ref()
+            .is_some_and(|init| expression_unconditionally_terminates(&init.expr)),
+        syn::Stmt::Expr(expression, _) => expression_unconditionally_terminates(expression),
+        syn::Stmt::Item(_) | syn::Stmt::Macro(_) => false,
+    }
 }
 
 fn statement_may_skip_following(
@@ -1695,6 +1750,7 @@ impl<'ast> syn::visit::Visit<'ast> for FollowingStatementExitVisitor<'_> {
     }
 
     fn visit_expr_loop(&mut self, expression: &'ast syn::ExprLoop) {
+        self.found |= !loop_definitely_exits(expression);
         self.nested_loop_depth += 1;
         syn::visit::visit_expr_loop(self, expression);
         self.nested_loop_depth -= 1;
@@ -1770,17 +1826,87 @@ fn diverging_function_names(file: &syn::File) -> HashSet<String> {
 
 fn expression_unconditionally_terminates(expression: &syn::Expr) -> bool {
     match expression {
+        syn::Expr::Array(array) => expressions_unconditionally_terminate(&array.elems),
+        syn::Expr::Assign(assign) => {
+            expression_unconditionally_terminates(&assign.left)
+                || expression_unconditionally_terminates(&assign.right)
+        },
+        syn::Expr::Await(await_) => expression_unconditionally_terminates(&await_.base),
+        syn::Expr::Binary(binary) => {
+            expression_unconditionally_terminates(&binary.left)
+                || (!matches!(binary.op, syn::BinOp::And(_) | syn::BinOp::Or(_))
+                    && expression_unconditionally_terminates(&binary.right))
+        },
         syn::Expr::Break(_) | syn::Expr::Continue(_) | syn::Expr::Return(_) => true,
-        syn::Expr::Block(block) => block
-            .block
-            .stmts
-            .iter()
-            .any(statement_unconditionally_terminates),
+        syn::Expr::Block(block) => block_unconditionally_terminates(&block.block),
+        syn::Expr::Call(call) => {
+            expression_unconditionally_terminates(&call.func)
+                || expressions_unconditionally_terminate(&call.args)
+        },
+        syn::Expr::Cast(cast) => expression_unconditionally_terminates(&cast.expr),
+        syn::Expr::Field(field) => expression_unconditionally_terminates(&field.base),
+        syn::Expr::ForLoop(for_loop) => expression_unconditionally_terminates(&for_loop.expr),
         syn::Expr::Group(group) => expression_unconditionally_terminates(&group.expr),
+        syn::Expr::If(if_) => expression_unconditionally_terminates(&if_.cond),
+        syn::Expr::Index(index) => {
+            expression_unconditionally_terminates(&index.expr)
+                || expression_unconditionally_terminates(&index.index)
+        },
+        syn::Expr::Let(let_) => expression_unconditionally_terminates(&let_.expr),
         syn::Expr::Loop(expression) => !loop_can_reach_following(expression),
+        syn::Expr::Match(match_) => expression_unconditionally_terminates(&match_.expr),
+        syn::Expr::MethodCall(call) => {
+            expression_unconditionally_terminates(&call.receiver)
+                || expressions_unconditionally_terminate(&call.args)
+        },
         syn::Expr::Paren(paren) => expression_unconditionally_terminates(&paren.expr),
+        syn::Expr::Range(range) => {
+            range
+                .start
+                .as_deref()
+                .is_some_and(expression_unconditionally_terminates)
+                || range
+                    .end
+                    .as_deref()
+                    .is_some_and(expression_unconditionally_terminates)
+        },
+        syn::Expr::RawAddr(address) => expression_unconditionally_terminates(&address.expr),
+        syn::Expr::Reference(reference) => expression_unconditionally_terminates(&reference.expr),
+        syn::Expr::Repeat(repeat) => expression_unconditionally_terminates(&repeat.expr),
+        syn::Expr::Struct(struct_) => {
+            struct_
+                .fields
+                .iter()
+                .any(|field| expression_unconditionally_terminates(&field.expr))
+                || struct_
+                    .rest
+                    .as_deref()
+                    .is_some_and(expression_unconditionally_terminates)
+        },
+        syn::Expr::Try(try_) => expression_unconditionally_terminates(&try_.expr),
+        syn::Expr::TryBlock(try_block) => block_unconditionally_terminates(&try_block.block),
+        syn::Expr::Tuple(tuple) => expressions_unconditionally_terminate(&tuple.elems),
+        syn::Expr::Unary(unary) => expression_unconditionally_terminates(&unary.expr),
+        syn::Expr::Unsafe(unsafe_) => block_unconditionally_terminates(&unsafe_.block),
+        syn::Expr::While(while_) => expression_unconditionally_terminates(&while_.cond),
+        syn::Expr::Yield(yield_) => yield_
+            .expr
+            .as_deref()
+            .is_some_and(expression_unconditionally_terminates),
         _ => false,
     }
+}
+
+fn block_unconditionally_terminates(block: &syn::Block) -> bool {
+    block.stmts.iter().any(statement_unconditionally_terminates)
+}
+
+fn expressions_unconditionally_terminate(
+    expressions: &syn::punctuated::Punctuated<syn::Expr, syn::Token![,]>,
+) -> bool {
+    expressions
+        .iter()
+        .any(expression_unconditionally_terminates)
 }
 
 fn loop_can_reach_following(expression: &syn::ExprLoop) -> bool {
@@ -2419,6 +2545,149 @@ mod tests {
     }
 
     #[test]
+    fn explicit_path_modules_may_resolve_beside_the_package() {
+        let temp = tempfile::tempdir().expect("tempdir");
+        let package = temp.path().join("app");
+        let shared = temp.path().join("shared");
+        fs::create_dir_all(&package).expect("create package directory");
+        fs::create_dir_all(&shared).expect("create shared directory");
+        let entry = package.join("build.rs");
+        fs::write(
+            &entry,
+            "#[path = \"../shared/helper.rs\"] mod helper; fn main() { helper::run(); }\n",
+        )
+        .expect("write build target");
+        let helper = shared.join("helper.rs");
+        fs::write(
+            &helper,
+            "mod nested; pub fn run() { nested::configure(); }\n",
+        )
+        .expect("write shared helper");
+        let nested = shared.join("nested.rs");
+        fs::write(
+            &nested,
+            "pub fn configure() { es_fluent_build::track_i18n_assets(); }\n",
+        )
+        .expect("write nested shared helper");
+
+        let graph = reachable_source_graph(&entry, &package);
+
+        assert!(
+            graph.indeterminate_reasons.is_empty(),
+            "literal external module should be determinate: {:?}",
+            graph.indeterminate_reasons
+        );
+        assert!(
+            graph
+                .paths
+                .contains(&helper.canonicalize().expect("canonical shared helper"))
+        );
+        assert!(
+            graph
+                .paths
+                .contains(&nested.canonicalize().expect("canonical nested helper"))
+        );
+        assert!(matches!(
+            inspect(&entry, &package, SourceTarget::Call("track_i18n_assets")),
+            InspectionOutcome::Found(_)
+        ));
+    }
+
+    #[test]
+    fn unresolved_external_explicit_path_records_nearest_watch_directory() {
+        let temp = tempfile::tempdir().expect("tempdir");
+        let package = temp.path().join("app");
+        let shared = temp.path().join("shared");
+        fs::create_dir_all(&package).expect("create package directory");
+        fs::create_dir_all(&shared).expect("create shared directory");
+        let entry = package.join("build.rs");
+        fs::write(
+            &entry,
+            "#[path = \"../shared/missing.rs\"] mod helper; fn main() {}\n",
+        )
+        .expect("write build target");
+
+        let graph = reachable_source_graph(&entry, &package);
+
+        assert!(!graph.indeterminate_reasons.is_empty());
+        assert_eq!(graph.watch_dirs, vec![shared]);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn explicit_path_symlinks_preserve_lexical_and_canonical_sources() {
+        use std::os::unix::fs::symlink;
+
+        let temp = tempfile::tempdir().expect("tempdir");
+        let package = temp.path().join("app");
+        let shared = temp.path().join("shared");
+        fs::create_dir_all(&package).expect("create package directory");
+        fs::create_dir_all(&shared).expect("create shared directory");
+        let entry = package.join("build.rs");
+        fs::write(
+            &entry,
+            "#[path = \"helper.rs\"] mod helper; fn main() { helper::run(); }\n",
+        )
+        .expect("write build target");
+        let target = shared.join("helper.rs");
+        fs::write(
+            &target,
+            "include!(\"nested.rs\"); pub fn run() { configure(); }\n",
+        )
+        .expect("write helper target");
+        let lexical_include = package.join("nested.rs");
+        fs::write(
+            &lexical_include,
+            "fn configure() { es_fluent_build::track_i18n_assets(); }\n",
+        )
+        .expect("write lexical include");
+        let canonical_sibling = shared.join("nested.rs");
+        fs::write(&canonical_sibling, "fn configure() {}\n")
+            .expect("write canonical target sibling");
+        let lexical = package.join("helper.rs");
+        symlink(&target, &lexical).expect("link helper");
+
+        let graph = reachable_source_graph(&entry, &package);
+
+        assert!(
+            graph.indeterminate_reasons.is_empty(),
+            "symlinked explicit module graph should be determinate: {:?}",
+            graph.indeterminate_reasons
+        );
+        assert!(graph.lexical_paths.contains(&lexical));
+        assert!(graph.lexical_paths.contains(&lexical_include));
+        assert!(
+            graph
+                .paths
+                .contains(&target.canonicalize().expect("canonical helper target"))
+        );
+        assert!(
+            graph.paths.contains(
+                &lexical_include
+                    .canonicalize()
+                    .expect("canonical lexical include")
+            )
+        );
+        assert!(
+            !graph.paths.contains(
+                &canonical_sibling
+                    .canonicalize()
+                    .expect("canonical target sibling")
+            )
+        );
+        assert!(matches!(
+            inspect(&entry, &package, SourceTarget::Call("track_i18n_assets")),
+            InspectionOutcome::Found(_)
+        ));
+
+        fs::remove_file(&lexical).expect("remove helper link");
+        let missing_graph = reachable_source_graph(&entry, &package);
+        assert!(missing_graph.lexical_paths.contains(&lexical));
+        assert!(!missing_graph.indeterminate_reasons.is_empty());
+        assert_eq!(missing_graph.watch_dirs, vec![package]);
+    }
+
+    #[test]
     fn included_submodules_resolve_from_the_include_directory() {
         let temp = tempfile::tempdir().expect("tempdir");
         let support = temp.path().join("support");
@@ -2831,12 +3100,29 @@ mod tests {
     }
 
     #[test]
-    fn build_helper_calls_after_loops_with_breaks_are_found() {
+    fn build_helper_calls_after_wrapped_diverging_loops_do_not_pass() {
+        for source in [
+            "fn main() { let _never = loop {}; es_fluent_build::track_i18n_assets(); }",
+            "fn main() { let mut value = (); value = { loop {} }; es_fluent_build::track_i18n_assets(); }",
+        ] {
+            assert_eq!(
+                inspect_fixture(
+                    &[("build.rs", source)],
+                    "build.rs",
+                    SourceTarget::Call("track_i18n_assets")
+                ),
+                InspectionOutcome::NotFound
+            );
+        }
+    }
+
+    #[test]
+    fn loops_in_deferred_or_item_bodies_do_not_hide_following_build_helpers() {
         assert!(matches!(
             inspect_fixture(
                 &[(
                     "build.rs",
-                    "fn main() { loop { break; } es_fluent_build::track_i18n_assets(); }"
+                    "fn main() { let _closure = || loop {}; let _future = async { loop {} }; fn stop() { loop {} } es_fluent_build::track_i18n_assets(); }"
                 )],
                 "build.rs",
                 SourceTarget::Call("track_i18n_assets")
@@ -2846,10 +3132,29 @@ mod tests {
     }
 
     #[test]
+    fn build_helper_calls_after_loops_with_breaks_are_found() {
+        for source in [
+            "fn main() { loop { break; } es_fluent_build::track_i18n_assets(); }",
+            "fn main() { let _value = loop { break; }; es_fluent_build::track_i18n_assets(); }",
+            "fn main() { let mut value = (); value = loop { break; }; es_fluent_build::track_i18n_assets(); }",
+        ] {
+            assert!(matches!(
+                inspect_fixture(
+                    &[("build.rs", source)],
+                    "build.rs",
+                    SourceTarget::Call("track_i18n_assets")
+                ),
+                InspectionOutcome::Found(_)
+            ));
+        }
+    }
+
+    #[test]
     fn build_helper_calls_after_conditionally_breaking_loops_are_indeterminate() {
         for source in [
             "fn main() { loop { if runtime_condition() { break; } } es_fluent_build::track_i18n_assets(); }",
             "fn main() { loop { if runtime_condition() { continue; } break; } es_fluent_build::track_i18n_assets(); }",
+            "fn main() { let _value = loop { if runtime_condition() { break; } }; es_fluent_build::track_i18n_assets(); }",
         ] {
             assert!(matches!(
                 inspect_fixture(

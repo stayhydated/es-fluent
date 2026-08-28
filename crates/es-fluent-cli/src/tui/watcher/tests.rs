@@ -183,6 +183,277 @@ fn process_file_events_matches_custom_build_target_outside_package_root() {
 }
 
 #[test]
+fn sibling_explicit_build_helper_is_watched_mapped_and_hashed() {
+    let temp = tempfile::tempdir().expect("tempdir");
+    let package = temp.path().join("app");
+    let src_dir = package.join("src");
+    let shared = temp.path().join("shared");
+    fs::create_dir_all(&src_dir).expect("create package sources");
+    fs::create_dir_all(&shared).expect("create shared sources");
+    fs::write(src_dir.join("lib.rs"), "pub struct App;\n").expect("write library source");
+    let build_target = package.join("build.rs");
+    fs::write(
+        &build_target,
+        "#[path = \"../shared/helper.rs\"] mod helper; fn main() { helper::run(); }\n",
+    )
+    .expect("write build target");
+    let helper = shared.join("helper.rs");
+    fs::write(&helper, "pub fn run() {}\n").expect("write shared helper");
+
+    let mut krate = test_crate("sibling-build-helper", true);
+    krate.manifest_dir = crate::core::ManifestDir::from_discovered(package.clone());
+    krate.src_dir = crate::core::SourceDir::from_discovered(src_dir.clone());
+    krate.custom_build_target_path = Some(crate::core::CustomBuildTargetPath::from_discovered(
+        build_target,
+    ));
+    let path_to_crate =
+        super::events::build_path_to_crate(&[&krate], temp.path(), &temp.path().join("target"));
+
+    assert!(path_to_crate.build_source_watch_dirs().contains(&shared));
+    let helper = helper.canonicalize().expect("canonical shared helper");
+    assert_eq!(
+        super::events::process_file_events(&[event_with_path(&helper)], &path_to_crate),
+        vec!["sibling-build-helper".to_string()]
+    );
+    assert!(path_to_crate.should_refresh_build_sources(&[event_with_path(&helper)]));
+
+    let first = super::generation::compute_watch_inputs_hash(
+        &package,
+        &src_dir,
+        &krate.i18n_config_path,
+        krate.custom_build_target_path.as_deref(),
+    )
+    .expect("determinate source graph");
+    fs::write(&helper, "pub fn run() { let _changed = true; }\n").expect("change shared helper");
+    let second = super::generation::compute_watch_inputs_hash(
+        &package,
+        &src_dir,
+        &krate.i18n_config_path,
+        krate.custom_build_target_path.as_deref(),
+    )
+    .expect("determinate changed source graph");
+    assert_ne!(first, second);
+}
+
+#[cfg(unix)]
+#[test]
+fn symlinked_explicit_helper_retargets_and_recovers_through_its_lexical_path() {
+    use std::os::unix::fs::symlink;
+
+    let temp = tempfile::tempdir().expect("tempdir");
+    let package = temp.path().join("app");
+    let src_dir = package.join("src");
+    let first_dir = temp.path().join("first");
+    let second_dir = temp.path().join("second");
+    fs::create_dir_all(&src_dir).expect("create package sources");
+    fs::create_dir_all(&first_dir).expect("create first target directory");
+    fs::create_dir_all(&second_dir).expect("create second target directory");
+    fs::write(src_dir.join("lib.rs"), "pub struct App;\n").expect("write library source");
+    let build_target = package.join("build.rs");
+    fs::write(
+        &build_target,
+        "#[path = \"helper.rs\"] mod helper; fn main() { helper::run(); }\n",
+    )
+    .expect("write build target");
+    let first_target = first_dir.join("helper.rs");
+    let second_target = second_dir.join("helper.rs");
+    fs::write(
+        &first_target,
+        "include!(\"nested.rs\"); pub fn run() { nested(); let _version = 1; }\n",
+    )
+    .expect("write first helper target");
+    fs::write(
+        &second_target,
+        "include!(\"nested.rs\"); pub fn run() { nested(); let _version = 2; }\n",
+    )
+    .expect("write second helper target");
+    let lexical_include = package.join("nested.rs");
+    fs::write(&lexical_include, "fn nested() { let _source = 1; }\n")
+        .expect("write lexical include");
+    let canonical_sibling = first_dir.join("nested.rs");
+    fs::write(&canonical_sibling, "fn nested() { let _wrong = 1; }\n")
+        .expect("write canonical target sibling");
+    let helper_link = package.join("helper.rs");
+    symlink(&first_target, &helper_link).expect("link first helper target");
+
+    let i18n_toml = package.join("i18n.toml");
+    crate::test_fixtures::toml_helpers::write_toml(&i18n_toml, &i18n_config("en", None, None));
+    let krate = CrateInfo {
+        name: es_fluent_runner::PackageName::try_new("symlink-helper").expect("valid package name"),
+        manifest_dir: crate::core::ManifestDir::from_discovered(package.clone()),
+        src_dir: crate::core::SourceDir::from_discovered(src_dir.clone()),
+        library_target_path: None,
+        custom_build_target_path: Some(crate::core::CustomBuildTargetPath::from_discovered(
+            build_target.clone(),
+        )),
+        i18n_config_path: crate::core::DiscoveredI18nConfigPath::from_discovered(i18n_toml.clone()),
+        ftl_output_dir: crate::core::DiscoveredFtlOutputDir::from_discovered(
+            package.join("i18n/en"),
+        ),
+        has_lib_rs: true,
+        fluent_features: Vec::new(),
+    };
+    let workspace = WorkspaceInfo {
+        root_dir: temp.path().to_path_buf(),
+        target_dir: temp.path().join("target"),
+        crates: vec![krate.clone()],
+    };
+    let mut runtime = super::runtime::WatchRuntime::new(
+        std::slice::from_ref(&krate),
+        &workspace,
+        &FluentParseMode::default(),
+    );
+    let lexical_event = event_with_path(&helper_link);
+
+    assert_eq!(
+        runtime.affected_crates_for_events(std::slice::from_ref(&lexical_event)),
+        vec!["symlink-helper".to_string()]
+    );
+    let initial_hash = super::generation::compute_watch_inputs_hash(
+        &package,
+        &src_dir,
+        &i18n_toml,
+        Some(&build_target),
+    )
+    .expect("initial graph hash");
+    fs::write(&canonical_sibling, "fn nested() { let _wrong = 2; }\n")
+        .expect("change canonical target sibling");
+    assert_eq!(
+        super::generation::compute_watch_inputs_hash(
+            &package,
+            &src_dir,
+            &i18n_toml,
+            Some(&build_target),
+        ),
+        Some(initial_hash.clone()),
+        "the hash should ignore includes beside the canonical symlink target"
+    );
+    fs::write(&lexical_include, "fn nested() { let _source = 2; }\n")
+        .expect("change lexical include");
+    assert_ne!(
+        super::generation::compute_watch_inputs_hash(
+            &package,
+            &src_dir,
+            &i18n_toml,
+            Some(&build_target),
+        ),
+        Some(initial_hash.clone()),
+        "the hash should follow includes beside the lexical module path"
+    );
+    fs::write(&lexical_include, "fn nested() { let _source = 1; }\n")
+        .expect("restore lexical include");
+
+    fs::remove_file(&helper_link).expect("unlink first helper target");
+    symlink(&second_target, &helper_link).expect("link second helper target");
+    let retarget_update = runtime
+        .refresh_build_sources_if_needed(std::slice::from_ref(&lexical_event))
+        .expect("refresh retargeted helper")
+        .expect("the lexical helper event should refresh the source graph");
+    assert_eq!(
+        retarget_update.added.get(&second_dir),
+        Some(&RecursiveMode::Recursive)
+    );
+    assert!(retarget_update.removed.contains(&first_dir));
+    assert_eq!(
+        runtime.affected_crates_for_events(std::slice::from_ref(&lexical_event)),
+        vec!["symlink-helper".to_string()],
+        "the refreshed map should retain the lexical module path"
+    );
+    let retargeted_hash = super::generation::compute_watch_inputs_hash(
+        &package,
+        &src_dir,
+        &i18n_toml,
+        Some(&build_target),
+    )
+    .expect("retargeted graph hash");
+    assert_ne!(initial_hash, retargeted_hash);
+
+    fs::remove_file(&helper_link).expect("remove helper link");
+    let deletion_update = runtime
+        .refresh_build_sources_if_needed(std::slice::from_ref(&lexical_event))
+        .expect("refresh deleted helper")
+        .expect("helper deletion should refresh the source graph");
+    assert!(deletion_update.removed.contains(&second_dir));
+    assert_eq!(
+        deletion_update.rearmed.get(&package),
+        Some(&RecursiveMode::Recursive),
+        "the package directory should conservatively cover link recovery"
+    );
+    assert_eq!(
+        runtime.affected_crates_for_events(std::slice::from_ref(&lexical_event)),
+        vec!["symlink-helper".to_string()],
+        "the unresolved graph should keep mapping the missing lexical path"
+    );
+    assert!(
+        super::generation::compute_watch_inputs_hash(
+            &package,
+            &src_dir,
+            &i18n_toml,
+            Some(&build_target),
+        )
+        .is_none(),
+        "a deleted reachable link should invalidate the watch hash"
+    );
+
+    symlink(&first_target, &helper_link).expect("restore first helper target");
+    let recovery_update = runtime
+        .refresh_build_sources_if_needed(std::slice::from_ref(&lexical_event))
+        .expect("refresh restored helper")
+        .expect("helper recovery should refresh the source graph");
+    assert_eq!(
+        recovery_update.added.get(&first_dir),
+        Some(&RecursiveMode::Recursive)
+    );
+    assert_eq!(
+        recovery_update.rearmed.get(&package),
+        Some(&RecursiveMode::NonRecursive)
+    );
+    assert_eq!(
+        super::generation::compute_watch_inputs_hash(
+            &package,
+            &src_dir,
+            &i18n_toml,
+            Some(&build_target),
+        ),
+        Some(initial_hash)
+    );
+}
+
+#[test]
+fn unresolved_sibling_explicit_build_helper_uses_shared_directory_fallback() {
+    let temp = tempfile::tempdir().expect("tempdir");
+    let package = temp.path().join("app");
+    let src_dir = package.join("src");
+    let shared = temp.path().join("shared");
+    fs::create_dir_all(&src_dir).expect("create package sources");
+    fs::create_dir_all(&shared).expect("create shared sources");
+    fs::write(src_dir.join("lib.rs"), "pub struct App;\n").expect("write library source");
+    let build_target = package.join("build.rs");
+    fs::write(
+        &build_target,
+        "#[path = \"../shared/helper.rs\"] mod helper; fn main() {}\n",
+    )
+    .expect("write build target");
+
+    let mut krate = test_crate("missing-sibling-build-helper", true);
+    krate.manifest_dir = crate::core::ManifestDir::from_discovered(package);
+    krate.src_dir = crate::core::SourceDir::from_discovered(src_dir);
+    krate.custom_build_target_path = Some(crate::core::CustomBuildTargetPath::from_discovered(
+        build_target,
+    ));
+    let path_to_crate =
+        super::events::build_path_to_crate(&[&krate], temp.path(), &temp.path().join("target"));
+    let missing_helper = shared.join("helper.rs");
+
+    assert!(path_to_crate.build_source_watch_dirs().contains(&shared));
+    assert_eq!(
+        super::events::process_file_events(&[event_with_path(&missing_helper)], &path_to_crate),
+        vec!["missing-sibling-build-helper".to_string()]
+    );
+    assert!(path_to_crate.should_refresh_build_sources(&[event_with_path(&missing_helper)]));
+}
+
+#[test]
 fn process_file_events_matches_every_owner_of_a_shared_build_helper() {
     let temp = tempfile::tempdir().expect("tempdir");
     let nested = temp.path().join("nested");
@@ -1301,9 +1572,9 @@ fn watcher_classifies_deleted_helper_and_keeps_indeterminate_graph_conservative(
         "a determinate graph should restore the baseline manifest watch mode"
     );
     assert_eq!(
-        recovery_update.added.get(&support_dir),
+        recovery_update.rearmed.get(&support_dir),
         Some(&RecursiveMode::Recursive),
-        "the restored helper directory should regain its recursive watch"
+        "the helper directory fallback watch should remain recursive after recovery"
     );
 }
 

@@ -155,25 +155,39 @@ fn build_source_entries(
 
         if !graph.indeterminate_reasons.is_empty() {
             build_source_dirs.push((krate.manifest_dir.to_path_buf(), crate_name.clone()));
+            build_source_dirs.extend(
+                graph
+                    .watch_dirs
+                    .iter()
+                    .cloned()
+                    .map(|directory| (directory, crate_name.clone())),
+            );
         }
 
         build_sources.extend(
             graph
                 .paths
                 .iter()
+                .chain(&graph.lexical_paths)
                 .cloned()
                 .map(|path| (path, crate_name.clone())),
         );
-        build_source_dirs.extend(graph.paths.into_iter().filter_map(|source| {
-            if source.starts_with(&krate.src_dir)
-                || source.parent() == Some(krate.manifest_dir.as_path())
-            {
-                return None;
-            }
-            source
-                .parent()
-                .map(|parent| (parent.to_path_buf(), crate_name.clone()))
-        }));
+        build_source_dirs.extend(
+            graph
+                .paths
+                .into_iter()
+                .chain(graph.lexical_paths)
+                .filter_map(|source| {
+                    if source.starts_with(&krate.src_dir)
+                        || source.parent() == Some(krate.manifest_dir.as_path())
+                    {
+                        return None;
+                    }
+                    source
+                        .parent()
+                        .map(|parent| (parent.to_path_buf(), crate_name.clone()))
+                }),
+        );
     }
 
     (build_sources, build_source_dirs)
