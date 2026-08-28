@@ -2,16 +2,17 @@ use super::events::PathToCrateMap;
 use crate::core::{CrateInfo, CrateState, FluentParseMode, GenerateResult, WorkspaceInfo};
 use crate::tui::{Message, TuiApp};
 use crossbeam_channel::{Receiver, Sender};
+use notify::RecursiveMode;
 use notify_debouncer_full::DebouncedEvent;
-use std::collections::{BTreeSet, HashMap, HashSet};
+use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::thread::JoinHandle;
 
 #[derive(Debug, Default, Eq, PartialEq)]
 pub(super) struct BuildSourceWatchUpdate {
-    pub(super) added: Vec<PathBuf>,
-    pub(super) rearmed: Vec<PathBuf>,
+    pub(super) added: BTreeMap<PathBuf, RecursiveMode>,
+    pub(super) rearmed: BTreeMap<PathBuf, RecursiveMode>,
     pub(super) removed: Vec<PathBuf>,
 }
 
@@ -21,7 +22,7 @@ pub(super) struct WatchRuntime {
     valid_crates: Vec<CrateInfo>,
     crates_by_name: HashMap<String, CrateInfo>,
     path_to_crate: PathToCrateMap,
-    watched_dirs: BTreeSet<PathBuf>,
+    watched_dirs: BTreeMap<PathBuf, RecursiveMode>,
     observed_hashes: HashMap<String, Option<String>>,
     active_generation_hashes: HashMap<String, Option<String>>,
     dirty_generating_crates: HashSet<String>,
@@ -30,14 +31,19 @@ pub(super) struct WatchRuntime {
     result_rx: Receiver<GenerateResult>,
 }
 
-fn watch_dirs_for_crates(
+pub(super) fn watch_modes_for_crates<'a>(
     path_to_crate: &PathToCrateMap,
-    crates: &[CrateInfo],
-) -> BTreeSet<PathBuf> {
-    let mut directories = path_to_crate.build_source_watch_dirs();
+    crates: impl IntoIterator<Item = &'a CrateInfo>,
+) -> BTreeMap<PathBuf, RecursiveMode> {
+    let mut directories = BTreeMap::new();
+    for directory in path_to_crate.build_source_watch_dirs() {
+        directories.insert(directory, RecursiveMode::Recursive);
+    }
     for krate in crates {
-        directories.insert(krate.manifest_dir.to_path_buf());
-        directories.insert(krate.src_dir.to_path_buf());
+        directories
+            .entry(krate.manifest_dir.to_path_buf())
+            .or_insert(RecursiveMode::NonRecursive);
+        directories.insert(krate.src_dir.to_path_buf(), RecursiveMode::Recursive);
     }
     directories
 }
@@ -56,7 +62,7 @@ impl WatchRuntime {
         let valid_crate_refs = valid_crates.iter().collect::<Vec<_>>();
         let path_to_crate =
             super::events::build_path_to_crate(&valid_crate_refs, &workspace.root_dir);
-        let watched_dirs = watch_dirs_for_crates(&path_to_crate, &valid_crates);
+        let watched_dirs = watch_modes_for_crates(&path_to_crate, &valid_crates);
         let mut crates_by_name = HashMap::new();
         let mut observed_hashes = HashMap::new();
 
@@ -110,21 +116,27 @@ impl WatchRuntime {
         }
         let valid_crate_refs = self.valid_crates.iter().collect::<Vec<_>>();
         self.path_to_crate.refresh_for_crates(&valid_crate_refs);
-        let refreshed_dirs = watch_dirs_for_crates(&self.path_to_crate, &self.valid_crates);
+        let refreshed_dirs = watch_modes_for_crates(&self.path_to_crate, &self.valid_crates);
         let removed = self
             .watched_dirs
-            .difference(&refreshed_dirs)
-            .cloned()
+            .iter()
+            .filter(|(directory, mode)| refreshed_dirs.get(*directory) != Some(*mode))
+            .map(|(directory, _)| directory.clone())
             .collect::<BTreeSet<_>>();
         let update = BuildSourceWatchUpdate {
             added: refreshed_dirs
-                .difference(&previous_watched_dirs)
-                .cloned()
+                .iter()
+                .filter(|(directory, _)| !previous_watched_dirs.contains_key(*directory))
+                .map(|(directory, mode)| (directory.clone(), *mode))
                 .collect(),
             rearmed: refreshed_dirs
                 .iter()
-                .filter(|directory| removed.iter().any(|removed| directory.starts_with(removed)))
-                .cloned()
+                .filter(|(directory, mode)| {
+                    previous_watched_dirs.contains_key(*directory)
+                        && (previous_watched_dirs.get(*directory) != Some(*mode)
+                            || removed.iter().any(|removed| directory.starts_with(removed)))
+                })
+                .map(|(directory, mode)| (directory.clone(), *mode))
                 .collect(),
             removed: removed.into_iter().collect(),
         };

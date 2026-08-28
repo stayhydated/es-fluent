@@ -200,6 +200,9 @@ pub(crate) fn inspect(
                 target.name()
             ));
         }
+        if !graph.indeterminate_reasons.is_empty() {
+            return InspectionOutcome::Indeterminate(graph.indeterminate_reasons.join("; "));
+        }
         return InspectionOutcome::Found(evidence.location);
     }
     if graph.indeterminate_reasons.is_empty() {
@@ -896,6 +899,18 @@ impl<'a> EvidenceVisitor<'a> {
         visit(self);
         self.execution_uncertain_depth -= 1;
     }
+
+    fn is_target_macro(&self, invocation: &syn::Macro) -> bool {
+        self.target
+            .filter(|target| matches!(target, SourceTarget::Macro(_, _)))
+            .is_some_and(|target| {
+                invocation
+                    .path
+                    .segments
+                    .last()
+                    .is_some_and(|segment| segment.ident == target.name())
+            })
+    }
 }
 
 impl<'ast> syn::visit::Visit<'ast> for EvidenceVisitor<'_> {
@@ -1130,7 +1145,7 @@ impl<'ast> syn::visit::Visit<'ast> for EvidenceVisitor<'_> {
                         item.mac.path.span().start().line
                     ));
                 }
-            } else if !item.mac.path.is_ident("include") {
+            } else if !item.mac.path.is_ident("include") && !visitor.is_target_macro(&item.mac) {
                 visitor.indeterminate_reasons.push(format!(
                     "opaque item macro expansion at {}:{}",
                     visitor.current_file.display(),
@@ -1143,7 +1158,8 @@ impl<'ast> syn::visit::Visit<'ast> for EvidenceVisitor<'_> {
 
     fn visit_expr_macro(&mut self, expression: &'ast syn::ExprMacro) {
         self.visit_with_attributes(&expression.attrs, |visitor| {
-            if !expression.mac.path.is_ident("include") {
+            if !expression.mac.path.is_ident("include") && !visitor.is_target_macro(&expression.mac)
+            {
                 visitor.indeterminate_reasons.push(format!(
                     "opaque expression macro expansion at {}:{}",
                     visitor.current_file.display(),
@@ -1156,7 +1172,7 @@ impl<'ast> syn::visit::Visit<'ast> for EvidenceVisitor<'_> {
 
     fn visit_stmt_macro(&mut self, statement: &'ast syn::StmtMacro) {
         self.visit_with_attributes(&statement.attrs, |visitor| {
-            if !statement.mac.path.is_ident("include") {
+            if !statement.mac.path.is_ident("include") && !visitor.is_target_macro(&statement.mac) {
                 visitor.indeterminate_reasons.push(format!(
                     "opaque statement macro expansion at {}:{}",
                     visitor.current_file.display(),
@@ -2297,6 +2313,31 @@ mod tests {
         assert!(matches!(
             inspect_fixture(
                 &[("build.rs", "configure_i18n!(); fn main() {}")],
+                "build.rs",
+                SourceTarget::Call("track_i18n_assets")
+            ),
+            InspectionOutcome::Indeterminate(reason)
+                if reason.contains("opaque item macro expansion")
+        ));
+    }
+
+    #[test]
+    fn verified_calls_with_opaque_item_macro_expansions_are_indeterminate() {
+        assert!(matches!(
+            inspect_fixture(
+                &[(
+                    "build.rs",
+                    r#"macro_rules! define_local_helper {
+    () => {
+        mod es_fluent_build {
+            pub fn track_i18n_assets() {}
+        }
+    };
+}
+define_local_helper!();
+fn main() { es_fluent_build::track_i18n_assets(); }
+"#
+                )],
                 "build.rs",
                 SourceTarget::Call("track_i18n_assets")
             ),

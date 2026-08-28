@@ -1151,6 +1151,16 @@ fn test_only_derives_are_usable() {
     };
     let _choice = CfgAttrChoiceOnly::Value;
 }
+
+#[test]
+fn block_local_test_derive_is_usable() {
+    if true {
+        #[derive(es_fluent::EsFluent)]
+        struct BlockLocalTestOnly;
+
+        let _message = BlockLocalTestOnly;
+    }
+}
 "#,
         )
         .expect("write lib.rs");
@@ -1262,7 +1272,8 @@ fn custom_integration_derive_is_usable() {
                 && !stderr.contains("missing fallback Fluent message `mixed_derive_policy_label`")
                 && !stderr.contains("cfg_attr_variants_only_variants")
                 && !stderr.contains("macro_generated_test_only")
-                && !stderr.contains("integration_macro_only"),
+                && !stderr.contains("integration_macro_only")
+                && !stderr.contains("block_local_test_only"),
             "test-only derives should remain coverage-exempt: {stderr}"
         );
 

@@ -15,7 +15,7 @@ use crossbeam_channel::{Receiver, RecvTimeoutError};
 use notify::{RecommendedWatcher, RecursiveMode};
 use notify_debouncer_full::{DebounceEventResult, RecommendedCache};
 use ratatui::{Terminal, backend::Backend};
-use std::collections::BTreeSet;
+use std::collections::BTreeMap;
 use std::time::Duration;
 
 type FileDebouncer = notify_debouncer_full::Debouncer<RecommendedWatcher, RecommendedCache>;
@@ -241,32 +241,11 @@ fn configure_file_watcher(
         .with_context(|| format!("Failed to watch {}", workspace_root.display()))?;
 
     let path_to_crate = events::build_path_to_crate(valid_crates, workspace_root);
-    let custom_build_dirs = path_to_crate.build_source_watch_dirs();
-    for krate in valid_crates {
+    for (directory, mode) in
+        runtime::watch_modes_for_crates(&path_to_crate, valid_crates.iter().copied())
+    {
         debouncer
-            .watch(&krate.src_dir, RecursiveMode::Recursive)
-            .with_context(|| format!("Failed to watch {}", krate.src_dir.display()))?;
-
-        debouncer
-            .watch(
-                &krate.manifest_dir,
-                if custom_build_dirs.contains(krate.manifest_dir.as_path()) {
-                    RecursiveMode::Recursive
-                } else {
-                    RecursiveMode::NonRecursive
-                },
-            )
-            .with_context(|| format!("Failed to watch {}", krate.manifest_dir.display()))?;
-    }
-    for directory in custom_build_dirs {
-        if valid_crates
-            .iter()
-            .any(|krate| krate.manifest_dir.as_path() == directory)
-        {
-            continue;
-        }
-        debouncer
-            .watch(&directory, RecursiveMode::Recursive)
+            .watch(&directory, mode)
             .with_context(|| format!("Failed to watch {}", directory.display()))?;
     }
 
@@ -293,10 +272,10 @@ fn update_custom_build_watches(
         .added
         .into_iter()
         .chain(update.rearmed)
-        .collect::<BTreeSet<_>>();
-    for directory in directories_to_watch {
+        .collect::<BTreeMap<_, _>>();
+    for (directory, mode) in directories_to_watch {
         debouncer
-            .watch(&directory, RecursiveMode::Recursive)
+            .watch(&directory, mode)
             .with_context(|| format!("Failed to watch {}", directory.display()))?;
     }
     Ok(())

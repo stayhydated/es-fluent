@@ -1169,6 +1169,10 @@ fn binary_doctor_warns_for_opaque_macro_build_integrations() {
             "fn main() { let _configuration = configure_i18n!(); }\n",
             "opaque expression macro expansion",
         ),
+        (
+            "macro_rules! define_local_helper { () => { mod es_fluent_build { pub fn track_i18n_assets() {} } }; }\ndefine_local_helper!();\nfn main() { es_fluent_build::track_i18n_assets(); }\n",
+            "opaque item macro expansion",
+        ),
     ] {
         let temp = fixtures::create_workspace();
         std::fs::write(

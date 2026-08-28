@@ -12,6 +12,7 @@ use proc_macro2::TokenStream;
 use quote::{format_ident, quote, quote_spanned};
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
+use syn::visit::Visit as _;
 
 #[derive(Clone, Debug)]
 pub struct ResolvedCratePath {
@@ -302,6 +303,13 @@ fn attributes_require_test(attributes: &[syn::Attribute]) -> bool {
         .any(|predicate| cfg_with_test_disabled(&predicate) == TestDisabledCfg::False)
 }
 
+fn attributes_create_test_context(attributes: &[syn::Attribute]) -> bool {
+    attributes_require_test(attributes)
+        || attributes
+            .iter()
+            .any(|attribute| attribute.path().is_ident("test"))
+}
+
 fn attributes_enable_test_only_derive(
     attributes: &[syn::Attribute],
     derive: Option<FallbackValidationDerive>,
@@ -550,6 +558,17 @@ fn collect_item_evidence(
             );
         }
 
+        if let syn::Item::Fn(function) = item {
+            let mut visitor = LocalItemEvidenceVisitor {
+                current_file,
+                parent_requires_test,
+                target,
+                derive,
+                evidence,
+            };
+            visitor.visit_item_fn(function);
+        }
+
         let syn::Item::Mod(module) = item else {
             continue;
         };
@@ -582,6 +601,75 @@ fn collect_item_evidence(
                 );
             }
         }
+    }
+}
+
+struct LocalItemEvidenceVisitor<'a> {
+    current_file: &'a Path,
+    parent_requires_test: bool,
+    target: &'a SourceDeclaration,
+    derive: Option<FallbackValidationDerive>,
+    evidence: &'a mut Vec<bool>,
+}
+
+impl LocalItemEvidenceVisitor<'_> {
+    fn record_declaration(&mut self, ident: &syn::Ident, attributes: &[syn::Attribute]) {
+        if self.current_file == self.target.path && ident == self.target.marker_ident.as_str() {
+            self.evidence.push(
+                self.parent_requires_test
+                    || attributes_require_test(attributes)
+                    || attributes_enable_test_only_derive(attributes, self.derive),
+            );
+        }
+    }
+
+    fn with_test_context(&mut self, attributes: &[syn::Attribute], visit: impl FnOnce(&mut Self)) {
+        let parent_requires_test = self.parent_requires_test;
+        self.parent_requires_test |= attributes_create_test_context(attributes);
+        visit(self);
+        self.parent_requires_test = parent_requires_test;
+    }
+}
+
+impl<'ast> syn::visit::Visit<'ast> for LocalItemEvidenceVisitor<'_> {
+    fn visit_item_enum(&mut self, item: &'ast syn::ItemEnum) {
+        self.record_declaration(&item.ident, &item.attrs);
+        syn::visit::visit_item_enum(self, item);
+    }
+
+    fn visit_item_fn(&mut self, item: &'ast syn::ItemFn) {
+        self.with_test_context(&item.attrs, |visitor| {
+            syn::visit::visit_item_fn(visitor, item);
+        });
+    }
+
+    fn visit_item_macro(&mut self, item: &'ast syn::ItemMacro) {
+        if self.current_file == self.target.path
+            && token_stream_contains_ident(&item.mac.tokens, &self.target.marker_ident)
+        {
+            self.evidence.push(
+                self.parent_requires_test
+                    || attributes_require_test(&item.attrs)
+                    || attributes_enable_test_only_derive(&item.attrs, self.derive),
+            );
+        }
+        syn::visit::visit_item_macro(self, item);
+    }
+
+    fn visit_item_mod(&mut self, item: &'ast syn::ItemMod) {
+        self.with_test_context(&item.attrs, |visitor| {
+            syn::visit::visit_item_mod(visitor, item);
+        });
+    }
+
+    fn visit_item_struct(&mut self, item: &'ast syn::ItemStruct) {
+        self.record_declaration(&item.ident, &item.attrs);
+        syn::visit::visit_item_struct(self, item);
+    }
+
+    fn visit_item_union(&mut self, item: &'ast syn::ItemUnion) {
+        self.record_declaration(&item.ident, &item.attrs);
+        syn::visit::visit_item_union(self, item);
     }
 }
 

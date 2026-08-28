@@ -2,11 +2,12 @@ use crate::core::{CrateInfo, FluentParseMode, WorkspaceInfo};
 use crate::test_fixtures::FakeRunnerBehavior;
 use fs_err as fs;
 use notify::{
-    Event,
+    Event, RecursiveMode,
     event::{EventKind, ModifyKind},
 };
 use notify_debouncer_full::DebouncedEvent;
 use ratatui::{Terminal, backend::TestBackend};
+use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -321,7 +322,10 @@ fn watcher_refreshes_custom_build_graph_and_directories_after_target_edit() {
         .refresh_build_sources_if_needed(&[event_with_path(&build_target)])
         .expect("refresh build source graph")
         .expect("build target edits should refresh the source graph");
-    assert_eq!(update.added, vec![support_dir]);
+    assert_eq!(
+        update.added,
+        BTreeMap::from([(support_dir, RecursiveMode::Recursive)])
+    );
     assert!(update.removed.is_empty());
 
     let helper = helper.canonicalize().expect("canonical helper");
@@ -382,7 +386,10 @@ fn watcher_rediscovers_new_default_build_target() {
         .expect("default build target creation should refresh the source graph");
     assert_eq!(
         update.added,
-        vec![support_dir.canonicalize().expect("canonical support dir")]
+        BTreeMap::from([(
+            support_dir.canonicalize().expect("canonical support dir"),
+            RecursiveMode::Recursive,
+        )])
     );
     assert_eq!(
         runtime.affected_crates_for_events(&[event_with_path(
@@ -437,7 +444,10 @@ fn watcher_rediscovers_custom_build_target_after_manifest_edit() {
         .expect("manifest edit should refresh build sources");
     assert_eq!(
         update.added,
-        vec![new_dir.canonicalize().expect("canonical new build dir")]
+        BTreeMap::from([(
+            new_dir.canonicalize().expect("canonical new build dir"),
+            RecursiveMode::Recursive,
+        )])
     );
     assert_eq!(
         update.removed,
@@ -523,7 +533,10 @@ fn watcher_rediscovers_library_target_and_watches_new_source_directory() {
             .as_path(),
         new_library.as_path()
     );
-    assert!(update.added.contains(&new_source));
+    assert_eq!(
+        update.added.get(&new_source),
+        Some(&RecursiveMode::Recursive)
+    );
     assert!(update.removed.contains(&old_source));
     assert_eq!(
         runtime.affected_crates_for_events(&[event_with_path(&new_library)]),
@@ -761,10 +774,13 @@ fn watcher_classifies_deleted_helper_and_keeps_indeterminate_graph_conservative(
 
     let support_dir = temp.path().join("support");
     fs::create_dir_all(&support_dir).expect("create support directory");
-    let build_target = support_dir.join("i18n.rs");
+    let build_target = temp.path().join("build.rs");
     let helper = support_dir.join("helper.rs");
-    fs::write(&build_target, "mod helper; fn main() { helper::run(); }\n")
-        .expect("write build target");
+    fs::write(
+        &build_target,
+        "#[path = \"support/helper.rs\"] mod helper; fn main() { helper::run(); }\n",
+    )
+    .expect("write build target");
     fs::write(&helper, "pub fn run() {}\n").expect("write helper");
 
     let i18n_toml = temp.path().join("i18n.toml");
@@ -807,6 +823,20 @@ fn watcher_classifies_deleted_helper_and_keeps_indeterminate_graph_conservative(
     );
     fs::remove_file(&helper).expect("remove helper");
 
+    let watch_update = runtime
+        .refresh_build_sources_if_needed(std::slice::from_ref(&helper_event))
+        .expect("refresh graph after deleting helper")
+        .expect("reachable helper deletion should refresh source watches");
+    assert!(
+        watch_update.removed.contains(&temp.path().to_path_buf()),
+        "changing the manifest watch mode should first remove its baseline watch"
+    );
+    assert_eq!(
+        watch_update.rearmed.get(temp.path()),
+        Some(&RecursiveMode::Recursive),
+        "an indeterminate graph should rearm the manifest directory recursively"
+    );
+
     let mut app = crate::tui::TuiApp::new(std::slice::from_ref(&krate));
     super::handle_watch_events(
         &mut app,
@@ -827,6 +857,22 @@ fn watcher_classifies_deleted_helper_and_keeps_indeterminate_graph_conservative(
     runtime
         .finish_pending_generations(&mut app)
         .expect("join generation triggered by the deleted helper");
+
+    fs::write(&helper, "pub fn run() {}\n").expect("recreate helper");
+    let recovery_update = runtime
+        .refresh_build_sources_if_needed(&[event_with_path(&helper)])
+        .expect("refresh graph after recreating helper")
+        .expect("recreated helper should restore the reachable source graph");
+    assert_eq!(
+        recovery_update.rearmed.get(temp.path()),
+        Some(&RecursiveMode::NonRecursive),
+        "a determinate graph should restore the baseline manifest watch mode"
+    );
+    assert_eq!(
+        recovery_update.added.get(&support_dir),
+        Some(&RecursiveMode::Recursive),
+        "the restored helper directory should regain its recursive watch"
+    );
 }
 
 #[test]
