@@ -37,15 +37,39 @@ pub(super) fn watch_modes_for_crates<'a>(
 ) -> BTreeMap<PathBuf, RecursiveMode> {
     let mut directories = BTreeMap::new();
     for directory in path_to_crate.build_source_watch_dirs() {
-        directories.insert(directory, RecursiveMode::Recursive);
+        insert_watch_mode(&mut directories, directory, RecursiveMode::Recursive);
+    }
+    for directory in path_to_crate.cargo_config_watch_dirs() {
+        insert_watch_mode(&mut directories, directory, RecursiveMode::NonRecursive);
     }
     for krate in crates {
-        directories
-            .entry(krate.manifest_dir.to_path_buf())
-            .or_insert(RecursiveMode::NonRecursive);
-        directories.insert(krate.src_dir.to_path_buf(), RecursiveMode::Recursive);
+        insert_watch_mode(
+            &mut directories,
+            krate.manifest_dir.to_path_buf(),
+            RecursiveMode::NonRecursive,
+        );
+        insert_watch_mode(
+            &mut directories,
+            krate.src_dir.to_path_buf(),
+            RecursiveMode::Recursive,
+        );
     }
     directories
+}
+
+fn insert_watch_mode(
+    directories: &mut BTreeMap<PathBuf, RecursiveMode>,
+    directory: PathBuf,
+    mode: RecursiveMode,
+) {
+    directories
+        .entry(directory)
+        .and_modify(|current| {
+            if mode == RecursiveMode::Recursive {
+                *current = RecursiveMode::Recursive;
+            }
+        })
+        .or_insert(mode);
 }
 
 impl WatchRuntime {
@@ -60,8 +84,11 @@ impl WatchRuntime {
             .cloned()
             .collect::<Vec<_>>();
         let valid_crate_refs = valid_crates.iter().collect::<Vec<_>>();
-        let path_to_crate =
-            super::events::build_path_to_crate(&valid_crate_refs, &workspace.root_dir);
+        let path_to_crate = super::events::build_path_to_crate(
+            &valid_crate_refs,
+            &workspace.root_dir,
+            &workspace.target_dir,
+        );
         let watched_dirs = watch_modes_for_crates(&path_to_crate, &valid_crates);
         let mut crates_by_name = HashMap::new();
         let mut observed_hashes = HashMap::new();
@@ -115,7 +142,8 @@ impl WatchRuntime {
             self.rediscover_crate_targets()?;
         }
         let valid_crate_refs = self.valid_crates.iter().collect::<Vec<_>>();
-        self.path_to_crate.refresh_for_crates(&valid_crate_refs);
+        self.path_to_crate
+            .refresh_for_crates(&valid_crate_refs, &self.workspace.target_dir);
         let refreshed_dirs = watch_modes_for_crates(&self.path_to_crate, &self.valid_crates);
         let removed = self
             .watched_dirs

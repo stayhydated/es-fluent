@@ -470,11 +470,20 @@ fn analyze_reachability(sources: &[ParsedSource], entry_path: &Path) -> Reachabi
         .flat_map(|source| diverging_function_names(&source.file))
         .collect::<HashSet<_>>();
     let mut definitions = Vec::new();
+    let mut module_imports = HashMap::<Vec<String>, FunctionImports>::new();
+    for source in sources {
+        collect_module_function_imports(
+            &source.file.items,
+            &source.module_path,
+            &mut module_imports,
+        );
+    }
     for source in sources {
         collect_function_definitions(
             &source.file.items,
             &source.path,
             &source.module_path,
+            &module_imports,
             &diverging_functions,
             &mut definitions,
         );
@@ -570,6 +579,7 @@ fn collect_function_definitions(
     items: &[syn::Item],
     path: &Path,
     module_path: &[String],
+    module_imports: &HashMap<Vec<String>, FunctionImports>,
     diverging_functions: &HashSet<String>,
     definitions: &mut Vec<FunctionDefinition>,
 ) {
@@ -580,6 +590,7 @@ fn collect_function_definitions(
                     function,
                     path,
                     module_path,
+                    module_imports.get(module_path).cloned().unwrap_or_default(),
                     diverging_functions,
                     definitions,
                 );
@@ -594,6 +605,7 @@ fn collect_function_definitions(
                     items,
                     path,
                     &nested_module_path,
+                    module_imports,
                     diverging_functions,
                     definitions,
                 );
@@ -607,14 +619,41 @@ fn add_function_definition(
     function: &syn::ItemFn,
     path: &Path,
     module_path: &[String],
+    imports: FunctionImports,
     diverging_functions: &HashSet<String>,
     definitions: &mut Vec<FunctionDefinition>,
 ) {
     let mut calls = Vec::new();
+    let parameter_bindings = function
+        .sig
+        .inputs
+        .iter()
+        .filter_map(|argument| match argument {
+            syn::FnArg::Typed(argument) => Some(&*argument.pat),
+            syn::FnArg::Receiver(_) => None,
+        })
+        .fold(HashSet::new(), |mut bindings, pattern| {
+            collect_pattern_bindings(pattern, &mut bindings);
+            bindings
+        });
+    let generic_path_bindings = function
+        .sig
+        .generics
+        .params
+        .iter()
+        .filter_map(|parameter| match parameter {
+            syn::GenericParam::Type(parameter) => Some(parameter.ident.to_string()),
+            syn::GenericParam::Const(_) | syn::GenericParam::Lifetime(_) => None,
+        })
+        .collect();
     let mut visitor = FunctionCallVisitor {
         calls: &mut calls,
         execution_uncertain_depth: 0,
         diverging_functions,
+        import_scopes: vec![imports],
+        local_function_scopes: Vec::new(),
+        local_value_scopes: vec![parameter_bindings],
+        path_prefix_scopes: vec![generic_path_bindings],
     };
     visitor.visit_block(&function.block);
     definitions.push(FunctionDefinition {
@@ -633,6 +672,10 @@ struct FunctionCallVisitor<'a> {
     calls: &'a mut Vec<FunctionCall>,
     execution_uncertain_depth: usize,
     diverging_functions: &'a HashSet<String>,
+    import_scopes: Vec<FunctionImports>,
+    local_function_scopes: Vec<HashSet<String>>,
+    local_value_scopes: Vec<HashSet<String>>,
+    path_prefix_scopes: Vec<HashSet<String>>,
 }
 
 impl FunctionCallVisitor<'_> {
@@ -641,18 +684,115 @@ impl FunctionCallVisitor<'_> {
         visit(self);
         self.execution_uncertain_depth -= 1;
     }
+
+    fn resolve_call_path(&self, path: &syn::Path) -> Option<Vec<String>> {
+        let mut segments = path
+            .segments
+            .iter()
+            .map(|segment| segment.ident.to_string())
+            .collect::<Vec<_>>();
+        if path.leading_colon.is_some() {
+            return None;
+        }
+
+        let name = &segments[0];
+        if segments.len() == 1
+            && (self
+                .local_function_scopes
+                .iter()
+                .rev()
+                .any(|scope| scope.contains(name))
+                || self
+                    .local_value_scopes
+                    .iter()
+                    .rev()
+                    .any(|scope| scope.contains(name)))
+        {
+            return None;
+        }
+        if segments.len() > 1
+            && self
+                .path_prefix_scopes
+                .iter()
+                .rev()
+                .any(|scope| scope.contains(name))
+        {
+            return None;
+        }
+        for scope in self.import_scopes.iter().rev() {
+            if scope.uncertain_names.contains(name) {
+                return None;
+            }
+            if let Some(imported) = scope.resolved.get(name) {
+                let mut resolved = imported.clone();
+                resolved.extend(segments.into_iter().skip(1));
+                segments = resolved;
+                break;
+            }
+            if scope.has_glob {
+                return None;
+            }
+        }
+        Some(segments)
+    }
+
+    fn with_local_value_bindings(
+        &mut self,
+        bindings: HashSet<String>,
+        visit: impl FnOnce(&mut Self),
+    ) {
+        self.local_value_scopes.push(bindings);
+        visit(self);
+        self.local_value_scopes.pop();
+    }
+
+    fn visit_condition_and_collect_bindings(&mut self, expression: &syn::Expr) -> HashSet<String> {
+        match expression {
+            syn::Expr::Binary(binary) if matches!(binary.op, syn::BinOp::And(_)) => {
+                let mut bindings = self.visit_condition_and_collect_bindings(&binary.left);
+                let visible = bindings.clone();
+                let mut right_bindings = HashSet::new();
+                self.visit_execution_uncertain(|visitor| {
+                    if visible.is_empty() {
+                        right_bindings =
+                            visitor.visit_condition_and_collect_bindings(&binary.right);
+                    } else {
+                        visitor.with_local_value_bindings(visible, |visitor| {
+                            right_bindings =
+                                visitor.visit_condition_and_collect_bindings(&binary.right);
+                        });
+                    }
+                });
+                bindings.extend(right_bindings);
+                bindings
+            },
+            syn::Expr::Let(expression) => {
+                self.visit_expr(&expression.expr);
+                let mut bindings = HashSet::new();
+                collect_pattern_bindings(&expression.pat, &mut bindings);
+                bindings
+            },
+            syn::Expr::Group(expression) => {
+                self.visit_condition_and_collect_bindings(&expression.expr)
+            },
+            syn::Expr::Paren(expression) => {
+                self.visit_condition_and_collect_bindings(&expression.expr)
+            },
+            _ => {
+                self.visit_expr(expression);
+                HashSet::new()
+            },
+        }
+    }
 }
 
 impl<'ast> syn::visit::Visit<'ast> for FunctionCallVisitor<'_> {
     fn visit_expr_call(&mut self, call: &'ast syn::ExprCall) {
-        if let syn::Expr::Path(function) = &*call.func {
+        if let syn::Expr::Path(function) = &*call.func
+            && let Some(path) = self.resolve_call_path(&function.path)
+        {
             self.calls.push(FunctionCall {
-                path: function
-                    .path
-                    .segments
-                    .iter()
-                    .map(|segment| segment.ident.to_string())
-                    .collect(),
+                path,
                 execution_uncertain: self.execution_uncertain_depth > 0
                     || has_conditional_attr(&call.attrs),
             });
@@ -661,9 +801,11 @@ impl<'ast> syn::visit::Visit<'ast> for FunctionCallVisitor<'_> {
     }
 
     fn visit_expr_if(&mut self, expression: &'ast syn::ExprIf) {
-        self.visit_expr(&expression.cond);
+        let bindings = self.visit_condition_and_collect_bindings(&expression.cond);
         self.visit_execution_uncertain(|visitor| {
-            visitor.visit_block(&expression.then_branch);
+            visitor.with_local_value_bindings(bindings, |visitor| {
+                visitor.visit_block(&expression.then_branch);
+            });
         });
         if let Some((_, else_branch)) = &expression.else_branch {
             self.visit_execution_uncertain(|visitor| {
@@ -675,24 +817,40 @@ impl<'ast> syn::visit::Visit<'ast> for FunctionCallVisitor<'_> {
     fn visit_expr_match(&mut self, expression: &'ast syn::ExprMatch) {
         self.visit_expr(&expression.expr);
         for arm in &expression.arms {
+            let (pattern, guard) = match &arm.pat {
+                syn::Pat::Guard(guard) => (&*guard.pat, Some(&*guard.guard)),
+                pattern => (pattern, None),
+            };
+            let mut bindings = HashSet::new();
+            collect_pattern_bindings(pattern, &mut bindings);
             self.visit_execution_uncertain(|visitor| {
-                visitor.visit_pat(&arm.pat);
-                visitor.visit_expr(&arm.body);
+                visitor.with_local_value_bindings(bindings, |visitor| {
+                    if let Some(guard) = guard {
+                        visitor.visit_expr(guard);
+                    }
+                    visitor.visit_expr(&arm.body);
+                });
             });
         }
     }
 
     fn visit_expr_while(&mut self, expression: &'ast syn::ExprWhile) {
-        self.visit_expr(&expression.cond);
+        let bindings = self.visit_condition_and_collect_bindings(&expression.cond);
         self.visit_execution_uncertain(|visitor| {
-            visitor.visit_block(&expression.body);
+            visitor.with_local_value_bindings(bindings, |visitor| {
+                visitor.visit_block(&expression.body);
+            });
         });
     }
 
     fn visit_expr_for_loop(&mut self, expression: &'ast syn::ExprForLoop) {
         self.visit_expr(&expression.expr);
+        let mut bindings = HashSet::new();
+        collect_pattern_bindings(&expression.pat, &mut bindings);
         self.visit_execution_uncertain(|visitor| {
-            visitor.visit_block(&expression.body);
+            visitor.with_local_value_bindings(bindings, |visitor| {
+                visitor.visit_block(&expression.body);
+            });
         });
     }
 
@@ -708,6 +866,45 @@ impl<'ast> syn::visit::Visit<'ast> for FunctionCallVisitor<'_> {
     }
 
     fn visit_block(&mut self, block: &'ast syn::Block) {
+        let imports = block
+            .stmts
+            .iter()
+            .filter_map(|statement| match statement {
+                syn::Stmt::Item(syn::Item::Use(item)) => Some(item),
+                _ => None,
+            })
+            .fold(FunctionImports::default(), |mut imports, item| {
+                collect_function_imports(item, &mut imports);
+                imports
+            });
+        let local_functions = block
+            .stmts
+            .iter()
+            .filter_map(|statement| match statement {
+                syn::Stmt::Item(syn::Item::Fn(function)) => Some(function.sig.ident.to_string()),
+                _ => None,
+            })
+            .collect();
+        let local_value_items = block
+            .stmts
+            .iter()
+            .filter_map(|statement| match statement {
+                syn::Stmt::Item(item) => callable_value_item_name(item),
+                _ => None,
+            })
+            .collect();
+        let path_prefix_items = block
+            .stmts
+            .iter()
+            .filter_map(|statement| match statement {
+                syn::Stmt::Item(item) => path_prefix_item_name(item),
+                _ => None,
+            })
+            .collect();
+        self.import_scopes.push(imports);
+        self.local_function_scopes.push(local_functions);
+        self.local_value_scopes.push(local_value_items);
+        self.path_prefix_scopes.push(path_prefix_items);
         let mut following_execution_uncertain = false;
         for statement in &block.stmts {
             if following_execution_uncertain {
@@ -720,7 +917,19 @@ impl<'ast> syn::visit::Visit<'ast> for FunctionCallVisitor<'_> {
             }
             following_execution_uncertain |=
                 statement_may_skip_following(statement, self.diverging_functions);
+            if let syn::Stmt::Local(local) = statement {
+                collect_pattern_bindings(
+                    &local.pat,
+                    self.local_value_scopes
+                        .last_mut()
+                        .expect("block value scope was just pushed"),
+                );
+            }
         }
+        self.path_prefix_scopes.pop();
+        self.local_value_scopes.pop();
+        self.local_function_scopes.pop();
+        self.import_scopes.pop();
     }
 
     fn visit_item_fn(&mut self, _function: &'ast syn::ItemFn) {}
@@ -728,6 +937,139 @@ impl<'ast> syn::visit::Visit<'ast> for FunctionCallVisitor<'_> {
     fn visit_expr_closure(&mut self, _closure: &'ast syn::ExprClosure) {}
 
     fn visit_expr_async(&mut self, _expression: &'ast syn::ExprAsync) {}
+}
+
+fn collect_pattern_bindings(pattern: &syn::Pat, bindings: &mut HashSet<String>) {
+    struct Visitor<'a> {
+        bindings: &'a mut HashSet<String>,
+    }
+
+    impl<'ast> syn::visit::Visit<'ast> for Visitor<'_> {
+        fn visit_pat_ident(&mut self, pattern: &'ast syn::PatIdent) {
+            self.bindings.insert(pattern.ident.to_string());
+            syn::visit::visit_pat_ident(self, pattern);
+        }
+    }
+
+    Visitor { bindings }.visit_pat(pattern);
+}
+
+fn callable_value_item_name(item: &syn::Item) -> Option<String> {
+    match item {
+        syn::Item::Const(item) => Some(item.ident.to_string()),
+        syn::Item::Static(item) => Some(item.ident.to_string()),
+        syn::Item::Struct(item) if !matches!(item.fields, syn::Fields::Named(_)) => {
+            Some(item.ident.to_string())
+        },
+        _ => None,
+    }
+}
+
+fn path_prefix_item_name(item: &syn::Item) -> Option<String> {
+    let ident = match item {
+        syn::Item::Enum(item) => &item.ident,
+        syn::Item::ExternCrate(item) => item
+            .rename
+            .as_ref()
+            .map_or(&item.ident, |(_, rename)| rename),
+        syn::Item::Mod(item) => &item.ident,
+        syn::Item::Struct(item) => &item.ident,
+        syn::Item::Trait(item) => &item.ident,
+        syn::Item::TraitAlias(item) => &item.ident,
+        syn::Item::Type(item) => &item.ident,
+        syn::Item::Union(item) => &item.ident,
+        _ => return None,
+    };
+    Some(ident.to_string())
+}
+
+#[derive(Clone, Debug, Default)]
+struct FunctionImports {
+    resolved: HashMap<String, Vec<String>>,
+    uncertain_names: HashSet<String>,
+    has_glob: bool,
+}
+
+fn collect_module_function_imports(
+    items: &[syn::Item],
+    module_path: &[String],
+    imports_by_module: &mut HashMap<Vec<String>, FunctionImports>,
+) {
+    let imports = imports_by_module.entry(module_path.to_vec()).or_default();
+    for item in items {
+        if let syn::Item::Use(item) = item {
+            collect_function_imports(item, imports);
+        }
+    }
+
+    for item in items {
+        let syn::Item::Mod(module) = item else {
+            continue;
+        };
+        let Some((_, nested_items)) = &module.content else {
+            continue;
+        };
+        let mut nested_module_path = module_path.to_vec();
+        nested_module_path.push(module.ident.to_string());
+        collect_module_function_imports(nested_items, &nested_module_path, imports_by_module);
+    }
+}
+
+fn collect_function_imports(item: &syn::ItemUse, imports: &mut FunctionImports) {
+    let uncertain = item.leading_colon.is_some() || has_conditional_attr(&item.attrs);
+    collect_function_use_tree(&item.tree, &mut Vec::new(), imports, uncertain);
+}
+
+fn collect_function_use_tree(
+    tree: &syn::UseTree,
+    prefix: &mut Vec<String>,
+    imports: &mut FunctionImports,
+    uncertain: bool,
+) {
+    match tree {
+        syn::UseTree::Path(path) => {
+            prefix.push(path.ident.to_string());
+            collect_function_use_tree(&path.tree, prefix, imports, uncertain);
+            prefix.pop();
+        },
+        syn::UseTree::Name(name) if name.ident == "self" => {
+            if let Some(bound) = prefix.last() {
+                record_function_import(imports, bound.clone(), prefix.clone(), uncertain);
+            }
+        },
+        syn::UseTree::Name(name) => {
+            let bound = name.ident.to_string();
+            let mut path = prefix.clone();
+            path.push(bound.clone());
+            record_function_import(imports, bound, path, uncertain);
+        },
+        syn::UseTree::Rename(rename) => {
+            let mut path = prefix.clone();
+            if rename.ident != "self" {
+                path.push(rename.ident.to_string());
+            }
+            record_function_import(imports, rename.rename.to_string(), path, uncertain);
+        },
+        syn::UseTree::Group(group) => {
+            for tree in &group.items {
+                collect_function_use_tree(tree, prefix, imports, uncertain);
+            }
+        },
+        syn::UseTree::Glob(_) => imports.has_glob = true,
+    }
+}
+
+fn record_function_import(
+    imports: &mut FunctionImports,
+    bound: String,
+    path: Vec<String>,
+    uncertain: bool,
+) {
+    if uncertain {
+        imports.uncertain_names.insert(bound);
+    } else {
+        imports.resolved.insert(bound, path);
+    }
 }
 
 fn resolve_local_functions(
@@ -750,9 +1092,13 @@ fn resolve_local_functions(
         relative = &call[1..];
     } else if call.first().is_some_and(|segment| segment == "self") {
         relative = &call[1..];
-    } else if call.first().is_some_and(|segment| segment == "super") {
-        module_path.pop();
-        relative = &call[1..];
+    } else {
+        while relative.first().is_some_and(|segment| segment == "super") {
+            if module_path.pop().is_none() {
+                return Vec::new();
+            }
+            relative = &relative[1..];
+        }
     }
     if relative.len() > 1 {
         module_path.extend(relative[..relative.len() - 1].iter().cloned());
@@ -1694,6 +2040,205 @@ mod tests {
     }
 
     #[test]
+    fn build_helper_wrappers_imported_from_modules_are_reachable() {
+        for import_and_call in [
+            "use helper::setup; fn main() { setup(); }",
+            "use helper::setup as configure; fn main() { configure(); }",
+            "fn main() { use helper::setup as configure; configure(); }",
+        ] {
+            assert!(matches!(
+                inspect_fixture(
+                    &[
+                        ("build.rs", &format!("mod helper; {import_and_call}")),
+                        (
+                            "helper.rs",
+                            "pub fn setup() { es_fluent_build::track_i18n_assets(); }",
+                        ),
+                    ],
+                    "build.rs",
+                    SourceTarget::Call("track_i18n_assets")
+                ),
+                InspectionOutcome::Found(_)
+            ));
+        }
+    }
+
+    #[test]
+    fn qualified_calls_through_imported_module_bindings_are_reachable() {
+        for import_and_call in [
+            "use crate::helper as h; pub fn configure() { h::setup(); }",
+            "use crate::helper; pub fn configure() { helper::setup(); }",
+        ] {
+            assert!(matches!(
+                inspect_fixture(
+                    &[
+                        (
+                            "build.rs",
+                            "mod helper; mod nested; fn main() { nested::configure(); }",
+                        ),
+                        (
+                            "helper.rs",
+                            "pub fn setup() { es_fluent_build::track_i18n_assets(); }",
+                        ),
+                        ("nested.rs", import_and_call),
+                    ],
+                    "build.rs",
+                    SourceTarget::Call("track_i18n_assets")
+                ),
+                InspectionOutcome::Found(_)
+            ));
+        }
+    }
+
+    #[test]
+    fn path_namespace_bindings_shadow_qualified_import_prefixes() {
+        for (main_call, nested_source) in [
+            (
+                "nested::configure();",
+                concat!(
+                    "use crate::helper as h; ",
+                    "pub fn configure() { ",
+                    "struct h; impl h { fn setup() {} } h::setup(); ",
+                    "}",
+                ),
+            ),
+            (
+                "nested::configure();",
+                concat!(
+                    "use crate::helper as h; ",
+                    "pub fn configure() { ",
+                    "h::setup(); struct h; impl h { fn setup() {} } ",
+                    "}",
+                ),
+            ),
+            (
+                "nested::configure();",
+                concat!(
+                    "use crate::helper as h; ",
+                    "pub fn configure() { ",
+                    "mod h { pub fn setup() {} } h::setup(); ",
+                    "}",
+                ),
+            ),
+            (
+                "nested::configure();",
+                concat!(
+                    "use crate::helper as h; ",
+                    "struct Local; impl Local { fn setup() {} } ",
+                    "pub fn configure() { type h = Local; h::setup(); }",
+                ),
+            ),
+            (
+                "nested::configure::<nested::Local>();",
+                concat!(
+                    "use crate::helper as h; ",
+                    "pub trait Setup { fn setup(); } ",
+                    "pub struct Local; impl Setup for Local { fn setup() {} } ",
+                    "pub fn configure<h: Setup>() { h::setup(); }",
+                ),
+            ),
+        ] {
+            let outcome = inspect_fixture(
+                &[
+                    (
+                        "build.rs",
+                        &format!("mod helper; mod nested; fn main() {{ {main_call} }}"),
+                    ),
+                    (
+                        "helper.rs",
+                        "pub fn setup() { es_fluent_build::track_i18n_assets(); }",
+                    ),
+                    ("nested.rs", nested_source),
+                ],
+                "build.rs",
+                SourceTarget::Call("track_i18n_assets"),
+            );
+
+            assert!(matches!(outcome, InspectionOutcome::Indeterminate(_)));
+        }
+    }
+
+    #[test]
+    fn value_namespace_bindings_do_not_shadow_qualified_import_prefixes() {
+        for (main_call, nested_source) in [
+            (
+                "nested::configure();",
+                "use crate::helper as h; pub fn configure() { let h = (); h::setup(); }",
+            ),
+            (
+                "nested::configure::<0>();",
+                "use crate::helper as h; pub fn configure<const h: usize>() { h::setup(); }",
+            ),
+        ] {
+            assert!(matches!(
+                inspect_fixture(
+                    &[
+                        (
+                            "build.rs",
+                            &format!("mod helper; mod nested; fn main() {{ {main_call} }}"),
+                        ),
+                        (
+                            "helper.rs",
+                            "pub fn setup() { es_fluent_build::track_i18n_assets(); }",
+                        ),
+                        ("nested.rs", nested_source),
+                    ],
+                    "build.rs",
+                    SourceTarget::Call("track_i18n_assets")
+                ),
+                InspectionOutcome::Found(_)
+            ));
+        }
+    }
+
+    #[test]
+    fn grouped_self_aliases_and_repeated_super_imports_are_reachable() {
+        for (build_source, outer_source) in [
+            (
+                "mod helper; mod outer; fn main() { outer::configure(); }",
+                "use crate::helper::{self as h}; pub fn configure() { h::setup(); }",
+            ),
+            (
+                "mod helper; mod outer; fn main() { outer::nested::configure(); }",
+                "pub mod nested { use super::super::helper::setup; pub fn configure() { setup(); } }",
+            ),
+        ] {
+            assert!(matches!(
+                inspect_fixture(
+                    &[
+                        ("build.rs", build_source),
+                        (
+                            "helper.rs",
+                            "pub fn setup() { es_fluent_build::track_i18n_assets(); }",
+                        ),
+                        ("outer.rs", outer_source),
+                    ],
+                    "build.rs",
+                    SourceTarget::Call("track_i18n_assets")
+                ),
+                InspectionOutcome::Found(_)
+            ));
+        }
+    }
+
+    #[test]
+    fn leading_absolute_calls_do_not_resolve_to_local_modules() {
+        let outcome = inspect_fixture(
+            &[
+                ("build.rs", "mod helper; fn main() { ::helper::setup(); }"),
+                (
+                    "helper.rs",
+                    "pub fn setup() { es_fluent_build::track_i18n_assets(); }",
+                ),
+            ],
+            "build.rs",
+            SourceTarget::Call("track_i18n_assets"),
+        );
+
+        assert!(matches!(outcome, InspectionOutcome::Indeterminate(_)));
+    }
+
+    #[test]
     fn qualified_and_imported_macros_are_found() {
         for source in [
             "es_fluent_manager_embedded::define_i18n_module!();",
@@ -1969,6 +2514,133 @@ mod tests {
             InspectionOutcome::Indeterminate(reason)
                 if reason.contains("could not be proven reachable")
         ));
+    }
+
+    #[test]
+    fn block_local_wrapper_shadowing_does_not_make_outer_helper_reachable() {
+        let outcome = inspect_fixture(
+            &[(
+                "build.rs",
+                "fn setup() { es_fluent_build::track_i18n_assets(); } fn main() { fn setup() {} setup(); }",
+            )],
+            "build.rs",
+            SourceTarget::Call("track_i18n_assets"),
+        );
+
+        assert!(matches!(outcome, InspectionOutcome::Indeterminate(_)));
+    }
+
+    #[test]
+    fn local_value_bindings_do_not_make_outer_helpers_reachable() {
+        for source in [
+            "fn setup() { es_fluent_build::track_i18n_assets(); } fn main() { let setup = || {}; setup(); }",
+            "fn setup() { es_fluent_build::track_i18n_assets(); } fn run(setup: impl Fn()) { setup(); } fn main() { run(|| {}); }",
+            "fn setup() { es_fluent_build::track_i18n_assets(); } fn main() { let (setup, _) = (|| {}, 0); setup(); }",
+        ] {
+            assert!(matches!(
+                inspect_fixture(
+                    &[("build.rs", source)],
+                    "build.rs",
+                    SourceTarget::Call("track_i18n_assets"),
+                ),
+                InspectionOutcome::Indeterminate(_)
+            ));
+        }
+    }
+
+    #[test]
+    fn control_flow_pattern_bindings_shadow_imported_helpers_lexically() {
+        let imported_helper = "mod helper { pub fn setup() { es_fluent_build::track_i18n_assets(); } } use helper::setup;";
+        for body in [
+            "fn main() { for setup in [|| {}] { setup(); } }",
+            "fn main() { match Some(|| {}) { Some(setup) if { setup(); true } => setup(), _ => {} } }",
+            "fn main() { if let Some(setup) = Some(|| {}) { setup(); } }",
+            "fn main() { while let Some(setup) = Some(|| {}) { setup(); break; } }",
+            "fn main() { if let Some(setup) = Some(|| {}) && { setup(); true } { setup(); } }",
+            "fn main() { while let Some(setup) = Some(|| {}) && { setup(); true } { setup(); break; } }",
+        ] {
+            let source = format!("{imported_helper} {body}");
+            assert!(matches!(
+                inspect_fixture(
+                    &[("build.rs", &source)],
+                    "build.rs",
+                    SourceTarget::Call("track_i18n_assets"),
+                ),
+                InspectionOutcome::Indeterminate(reason)
+                    if reason.contains("could not be proven reachable")
+            ));
+        }
+
+        for body in [
+            "fn main() { for setup in [setup()] { let _ = setup; } }",
+            "fn main() { match setup() { setup => { let _ = setup; } } }",
+            "fn main() { if let Some(setup) = setup() { let _ = setup; } }",
+        ] {
+            let source = format!("{imported_helper} {body}");
+            assert!(matches!(
+                inspect_fixture(
+                    &[("build.rs", &source)],
+                    "build.rs",
+                    SourceTarget::Call("track_i18n_assets"),
+                ),
+                InspectionOutcome::Found(_)
+            ));
+        }
+
+        let else_body =
+            "fn main() { if let Some(setup) = Some(|| {}) { setup(); } else { setup(); } }";
+        let source = format!("{imported_helper} {else_body}");
+        assert!(matches!(
+            inspect_fixture(
+                &[("build.rs", &source)],
+                "build.rs",
+                SourceTarget::Call("track_i18n_assets"),
+            ),
+            InspectionOutcome::Indeterminate(reason)
+                if reason.contains("control flow")
+        ));
+    }
+
+    #[test]
+    fn unsupported_block_imports_do_not_make_outer_helpers_reachable() {
+        for import in [
+            "use ::external_crate::setup;",
+            "#[cfg(feature = \"external\")] use external_crate::setup;",
+            "use external_crate::*;",
+        ] {
+            let source = format!(
+                "fn setup() {{ es_fluent_build::track_i18n_assets(); }} fn main() {{ {import} setup(); }}"
+            );
+            assert!(matches!(
+                inspect_fixture(
+                    &[("build.rs", &source)],
+                    "build.rs",
+                    SourceTarget::Call("track_i18n_assets"),
+                ),
+                InspectionOutcome::Indeterminate(_)
+            ));
+        }
+    }
+
+    #[test]
+    fn block_local_callable_items_do_not_make_outer_helpers_reachable() {
+        for local_item in [
+            "const setup: fn() = noop;",
+            "static setup: fn() = noop;",
+            "struct setup();",
+        ] {
+            let source = format!(
+                "fn setup() {{ es_fluent_build::track_i18n_assets(); }} fn noop() {{}} fn main() {{ {local_item} setup(); }}"
+            );
+            assert!(matches!(
+                inspect_fixture(
+                    &[("build.rs", &source)],
+                    "build.rs",
+                    SourceTarget::Call("track_i18n_assets"),
+                ),
+                InspectionOutcome::Indeterminate(_)
+            ));
+        }
     }
 
     #[test]

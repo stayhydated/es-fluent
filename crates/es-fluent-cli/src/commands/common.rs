@@ -1091,7 +1091,8 @@ mod tests {
         let krate = workspace.crates[0].clone();
 
         let temp_store = es_fluent_runner::RunnerMetadataStore::temp_for_workspace(temp.path());
-        let binary_path = crate::test_fixtures::fake_runner_binary_path(&workspace.target_dir);
+        let binary_path =
+            crate::test_fixtures::fake_runner_binary_path_for_workspace(&workspace.root_dir);
         let mut crate_hashes = indexmap::IndexMap::new();
         crate_hashes.insert(
             krate.name.clone(),
@@ -1227,7 +1228,8 @@ mod tests {
                 .expect("write runner result");
         }
 
-        let binary_path = crate::test_fixtures::fake_runner_binary_path(&workspace.target_dir);
+        let binary_path =
+            crate::test_fixtures::fake_runner_binary_path_for_workspace(&workspace.root_dir);
         let crate_hashes = workspace
             .crates
             .iter()

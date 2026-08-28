@@ -90,8 +90,11 @@ fn compute_src_hash_changes_when_i18n_changes() {
 #[test]
 fn process_file_events_filters_and_deduplicates_expected_paths() {
     let valid_crate = test_crate("crate-a", true);
-    let path_to_crate =
-        super::events::build_path_to_crate(&[&valid_crate], &valid_crate.manifest_dir);
+    let path_to_crate = super::events::build_path_to_crate(
+        &[&valid_crate],
+        &valid_crate.manifest_dir,
+        &valid_crate.manifest_dir.join("target"),
+    );
     let src_dir = valid_crate.src_dir;
 
     let events = vec![
@@ -127,7 +130,8 @@ fn process_file_events_matches_custom_build_target_and_reachable_module() {
     krate.custom_build_target_path = Some(crate::core::CustomBuildTargetPath::from_discovered(
         support.join("i18n.rs"),
     ));
-    let path_to_crate = super::events::build_path_to_crate(&[&krate], temp.path());
+    let path_to_crate =
+        super::events::build_path_to_crate(&[&krate], temp.path(), &temp.path().join("target"));
 
     for path in [support.join("i18n.rs"), support.join("helper.rs")] {
         let canonical = path.canonicalize().expect("canonical source");
@@ -160,7 +164,8 @@ fn process_file_events_matches_custom_build_target_outside_package_root() {
     krate.custom_build_target_path = Some(crate::core::CustomBuildTargetPath::from_discovered(
         build_target.clone(),
     ));
-    let path_to_crate = super::events::build_path_to_crate(&[&krate], temp.path());
+    let path_to_crate =
+        super::events::build_path_to_crate(&[&krate], temp.path(), &temp.path().join("target"));
 
     assert!(
         path_to_crate
@@ -211,7 +216,11 @@ fn process_file_events_matches_every_owner_of_a_shared_build_helper() {
         inner_build_target,
     ));
 
-    let path_to_crate = super::events::build_path_to_crate(&[&outer, &inner], temp.path());
+    let path_to_crate = super::events::build_path_to_crate(
+        &[&outer, &inner],
+        temp.path(),
+        &temp.path().join("target"),
+    );
     let mut affected = super::events::process_file_events(
         &[event_with_path(
             &shared_build_helper
@@ -251,8 +260,11 @@ fn process_file_events_preserves_library_owner_of_shared_build_source() {
     library_owner.manifest_dir = crate::core::ManifestDir::from_discovered(library_package);
     library_owner.src_dir = crate::core::SourceDir::from_discovered(library_src);
 
-    let path_to_crate =
-        super::events::build_path_to_crate(&[&build_owner, &library_owner], temp.path());
+    let path_to_crate = super::events::build_path_to_crate(
+        &[&build_owner, &library_owner],
+        temp.path(),
+        &temp.path().join("target"),
+    );
     let mut affected = super::events::process_file_events(
         &[event_with_path(
             &shared_source
@@ -728,7 +740,8 @@ fn watcher_conservatively_maps_indeterminate_build_graph_inputs() {
     krate.custom_build_target_path = Some(crate::core::CustomBuildTargetPath::from_discovered(
         build_target,
     ));
-    let path_to_crate = super::events::build_path_to_crate(&[&krate], temp.path());
+    let path_to_crate =
+        super::events::build_path_to_crate(&[&krate], temp.path(), &temp.path().join("target"));
 
     assert!(
         path_to_crate
@@ -746,7 +759,8 @@ fn watcher_conservatively_maps_indeterminate_build_graph_inputs() {
     );
     for generated in [
         temp.path().join("target/debug/build/generated.rs"),
-        temp.path().join(".es-fluent/runner-output.rs"),
+        temp.path()
+            .join(".es-fluent/target/debug/build/demo/out/generated.rs"),
     ] {
         assert!(
             !path_to_crate.should_refresh_build_sources(&[event_with_path(&generated)]),
@@ -762,6 +776,424 @@ fn watcher_conservatively_maps_indeterminate_build_graph_inputs() {
             krate.custom_build_target_path.as_deref(),
         ),
         None
+    );
+}
+
+#[test]
+fn conservative_build_sources_survive_ancestor_and_equal_target_dirs() {
+    let temp = tempfile::tempdir().expect("tempdir");
+    let manifest_dir = temp.path().join("app");
+    let src_dir = manifest_dir.join("src");
+    fs::create_dir_all(&src_dir).expect("create src");
+    fs::write(src_dir.join("lib.rs"), "pub struct Demo;\n").expect("write lib");
+    let build_target = manifest_dir.join("debug/build/demo/out/build.rs");
+    fs::create_dir_all(build_target.parent().expect("build target parent"))
+        .expect("create build target directory");
+    fs::write(
+        &build_target,
+        "include!(concat!(env!(\"CARGO_MANIFEST_DIR\"), \"/helper.inc\")); fn main() {}\n",
+    )
+    .expect("write build target");
+    let support = manifest_dir.join("helper.inc");
+    fs::write(&support, "pub fn configure() {}\n").expect("write support");
+
+    let mut krate = test_crate("watch-target-layout", true);
+    krate.manifest_dir = crate::core::ManifestDir::from_discovered(manifest_dir.clone());
+    krate.src_dir = crate::core::SourceDir::from_discovered(src_dir);
+    krate.custom_build_target_path = Some(crate::core::CustomBuildTargetPath::from_discovered(
+        build_target.clone(),
+    ));
+
+    for target_dir in [temp.path(), manifest_dir.as_path()] {
+        let path_to_crate = super::events::build_path_to_crate(&[&krate], temp.path(), target_dir);
+        assert!(
+            path_to_crate
+                .build_source_watch_dirs()
+                .contains(&manifest_dir),
+            "the indeterminate graph should conservatively watch the manifest directory"
+        );
+        assert_eq!(
+            super::events::process_file_events(&[event_with_path(&support)], &path_to_crate),
+            vec!["watch-target-layout".to_string()],
+            "a target directory that is equal to or above the build-source directory must not hide build inputs: {}",
+            target_dir.display()
+        );
+        assert!(
+            path_to_crate.should_refresh_build_sources(&[event_with_path(&support)]),
+            "a conservative build input should refresh discovery when the target directory is {}",
+            target_dir.display()
+        );
+        assert_eq!(
+            super::events::process_file_events(&[event_with_path(&build_target)], &path_to_crate),
+            vec!["watch-target-layout".to_string()],
+            "an exact known build input must take precedence over artifact topology"
+        );
+        let legitimate_input = manifest_dir.join("foo/build/bar/out/generated.rs");
+        assert_eq!(
+            super::events::process_file_events(
+                &[event_with_path(&legitimate_input)],
+                &path_to_crate,
+            ),
+            vec!["watch-target-layout".to_string()],
+            "Cargo-like paths outside the reserved runner subtree remain conservative inputs: {}",
+            target_dir.display()
+        );
+        assert!(path_to_crate.should_refresh_build_sources(&[event_with_path(&legitimate_input)]));
+    }
+
+    let nested_target = manifest_dir.join("target");
+    let path_to_crate = super::events::build_path_to_crate(&[&krate], temp.path(), &nested_target);
+    let generated = nested_target.join("debug/build/demo/out/generated.rs");
+    assert!(
+        super::events::process_file_events(&[event_with_path(&generated)], &path_to_crate)
+            .is_empty(),
+        "a target directory nested in a broad build-source directory should remain excluded"
+    );
+    assert!(!path_to_crate.should_refresh_build_sources(&[event_with_path(&generated)]));
+}
+
+#[test]
+fn watcher_ignores_workspace_target_events_from_external_indeterminate_build_graph() {
+    let temp = tempfile::tempdir().expect("tempdir");
+    let manifest_dir = temp.path().join("app");
+    let src_dir = manifest_dir.join("src");
+    let target_dir = temp.path().join("target");
+    fs::create_dir_all(&src_dir).expect("create member source directory");
+    fs::write(src_dir.join("lib.rs"), "pub struct Demo;\n").expect("write library target");
+    let i18n_toml = manifest_dir.join("i18n.toml");
+    crate::test_fixtures::toml_helpers::write_toml(&i18n_toml, &i18n_config("en", None, None));
+
+    let build_target = temp.path().join("build.rs");
+    fs::write(
+        &build_target,
+        "include!(concat!(env!(\"CARGO_MANIFEST_DIR\"), \"/generated.rs\")); fn main() {}\n",
+    )
+    .expect("write external indeterminate build target");
+    let krate = CrateInfo {
+        name: es_fluent_runner::PackageName::try_new("external-build-app")
+            .expect("valid package name"),
+        manifest_dir: crate::core::ManifestDir::from_discovered(manifest_dir.clone()),
+        src_dir: crate::core::SourceDir::from_discovered(src_dir),
+        library_target_path: None,
+        custom_build_target_path: Some(crate::core::CustomBuildTargetPath::from_discovered(
+            build_target.clone(),
+        )),
+        i18n_config_path: crate::core::DiscoveredI18nConfigPath::from_discovered(i18n_toml),
+        ftl_output_dir: crate::core::DiscoveredFtlOutputDir::from_discovered(
+            manifest_dir.join("i18n/en"),
+        ),
+        has_lib_rs: true,
+        fluent_features: Vec::new(),
+    };
+    let workspace = WorkspaceInfo {
+        root_dir: temp.path().to_path_buf(),
+        target_dir: target_dir.clone(),
+        crates: vec![krate.clone()],
+    };
+    let path_to_crate = super::events::build_path_to_crate(&[&krate], temp.path(), &target_dir);
+
+    assert!(
+        path_to_crate
+            .build_source_watch_dirs()
+            .contains(temp.path()),
+        "the external build target requires a broad workspace-root watch"
+    );
+    assert_eq!(
+        super::events::process_file_events(
+            &[event_with_path(
+                &build_target.canonicalize().expect("canonical build target")
+            )],
+            &path_to_crate,
+        ),
+        vec!["external-build-app".to_string()],
+        "the target-dir exclusion must not hide an exact external build input"
+    );
+    assert_eq!(
+        super::generation::compute_watch_inputs_hash(
+            &krate.manifest_dir,
+            &krate.src_dir,
+            &krate.i18n_config_path,
+            krate.custom_build_target_path.as_deref(),
+        ),
+        None,
+        "the regression requires the conservative uncacheable path"
+    );
+
+    let cargo_output = target_dir.join("debug/build/demo/out/generated.rs");
+    let target_event = event_with_path(&cargo_output);
+    assert!(
+        super::events::process_file_events(std::slice::from_ref(&target_event), &path_to_crate)
+            .is_empty(),
+        "Cargo target output must not map back to the watched crate"
+    );
+    assert!(
+        !path_to_crate.should_refresh_build_sources(std::slice::from_ref(&target_event)),
+        "Cargo target output must not refresh an indeterminate build graph"
+    );
+    let runner_event = event_with_path(
+        &temp
+            .path()
+            .join(".es-fluent/target/debug/deps/libdependency.rlib"),
+    );
+    assert!(
+        !path_to_crate.should_refresh_build_sources(std::slice::from_ref(&runner_event)),
+        "workspace runner output must remain excluded from a broad external build-source root"
+    );
+
+    let mut runtime = super::runtime::WatchRuntime::new(
+        std::slice::from_ref(&krate),
+        &workspace,
+        &FluentParseMode::default(),
+    );
+    let mut app = crate::tui::TuiApp::new(std::slice::from_ref(&krate));
+    app.set_state(
+        krate.name.as_str(),
+        crate::core::CrateState::Watching { resource_count: 0 },
+    );
+    super::handle_watch_events(
+        &mut app,
+        &mut runtime,
+        std::slice::from_ref(&target_event),
+        None,
+    )
+    .expect("ignore Cargo target event");
+    assert!(matches!(
+        app.states.get(krate.name.as_str()),
+        Some(crate::core::CrateState::Watching { .. })
+    ));
+}
+
+#[test]
+fn watcher_rediscovers_authoritative_target_dir_after_cargo_config_edit() {
+    let temp = tempfile::tempdir().expect("tempdir");
+    let src_dir = temp.path().join("src");
+    let cargo_dir = temp.path().join(".cargo");
+    fs::create_dir_all(&src_dir).expect("create source directory");
+    fs::create_dir_all(&cargo_dir).expect("create Cargo config directory");
+    fs::write(src_dir.join("lib.rs"), "pub struct Demo;\n").expect("write library target");
+    fs::write(
+        temp.path().join("Cargo.toml"),
+        "[package]\nname = \"config-target-app\"\nversion = \"0.1.0\"\nedition = \"2024\"\n",
+    )
+    .expect("write manifest");
+    fs::write(
+        temp.path().join("i18n.toml"),
+        "fallback_language = \"en\"\nassets_dir = \"i18n\"\n",
+    )
+    .expect("write i18n config");
+    fs::write(
+        temp.path().join("build.rs"),
+        "include!(concat!(env!(\"CARGO_MANIFEST_DIR\"), \"/support.rs\")); fn main() {}\n",
+    )
+    .expect("write indeterminate build target");
+    let config_path = cargo_dir.join("config.toml");
+    fs::write(&config_path, "[build]\ntarget-dir = \"target-a\"\n")
+        .expect("write initial Cargo config");
+
+    let workspace =
+        crate::utils::discover_workspace_scoped(temp.path(), crate::utils::DiscoveryScope::All)
+            .expect("discover initial workspace");
+    assert!(workspace.target_dir.ends_with("target-a"));
+    let krate = workspace.crates[0].clone();
+    let initial_map =
+        super::events::build_path_to_crate(&[&krate], &workspace.root_dir, &workspace.target_dir);
+    assert!(
+        super::runtime::watch_modes_for_crates(&initial_map, [&krate]).get(&cargo_dir)
+            == Some(&RecursiveMode::NonRecursive),
+        "the applicable workspace Cargo config directory must be watched explicitly"
+    );
+    let mut runtime = super::runtime::WatchRuntime::new(
+        std::slice::from_ref(&krate),
+        &workspace,
+        &FluentParseMode::default(),
+    );
+
+    fs::write(&config_path, "[build]\ntarget-dir = \"target-b\"\n")
+        .expect("change Cargo target dir");
+    let update = runtime
+        .refresh_build_sources_if_needed(&[event_with_path(&config_path)])
+        .expect("rediscover Cargo metadata")
+        .expect("Cargo config changes should refresh watcher metadata");
+    assert!(update.removed.is_empty());
+
+    assert!(
+        runtime
+            .affected_crates_for_events(&[event_with_path(
+                &workspace
+                    .root_dir
+                    .join("target-b/debug/build/demo/out/generated.rs")
+            )])
+            .is_empty(),
+        "outputs under the refreshed authoritative target dir must be ignored"
+    );
+    assert_eq!(
+        runtime.affected_crates_for_events(&[event_with_path(
+            &workspace.root_dir.join("target-a/support.rs")
+        )]),
+        vec!["config-target-app".to_string()],
+        "the stale target path must stop being treated as generated output"
+    );
+}
+
+#[test]
+fn watcher_keeps_manifest_target_input_when_authoritative_target_dir_is_external() {
+    let temp = tempfile::tempdir().expect("tempdir");
+    let manifest_dir = temp.path().join("app");
+    let src_dir = manifest_dir.join("src");
+    let support_dir = manifest_dir.join("target");
+    let authoritative_target = temp.path().join("cargo-output");
+    fs::create_dir_all(&src_dir).expect("create source directory");
+    fs::create_dir_all(&support_dir).expect("create support directory");
+    fs::write(src_dir.join("lib.rs"), "pub struct Demo;\n").expect("write library target");
+    let build_target = manifest_dir.join("build.rs");
+    fs::write(
+        &build_target,
+        "include!(concat!(env!(\"CARGO_MANIFEST_DIR\"), \"/target/config.rs\")); fn main() {}\n",
+    )
+    .expect("write indeterminate build target");
+    let i18n_toml = manifest_dir.join("i18n.toml");
+    crate::test_fixtures::toml_helpers::write_toml(&i18n_toml, &i18n_config("en", None, None));
+    let krate = CrateInfo {
+        name: es_fluent_runner::PackageName::try_new("manifest-target-input")
+            .expect("valid package name"),
+        manifest_dir: crate::core::ManifestDir::from_discovered(manifest_dir.clone()),
+        src_dir: crate::core::SourceDir::from_discovered(src_dir),
+        library_target_path: None,
+        custom_build_target_path: Some(crate::core::CustomBuildTargetPath::from_discovered(
+            build_target,
+        )),
+        i18n_config_path: crate::core::DiscoveredI18nConfigPath::from_discovered(i18n_toml),
+        ftl_output_dir: crate::core::DiscoveredFtlOutputDir::from_discovered(
+            manifest_dir.join("i18n/en"),
+        ),
+        has_lib_rs: true,
+        fluent_features: Vec::new(),
+    };
+    let path_to_crate =
+        super::events::build_path_to_crate(&[&krate], temp.path(), &authoritative_target);
+
+    assert_eq!(
+        super::events::process_file_events(
+            &[event_with_path(&support_dir.join("config.rs"))],
+            &path_to_crate,
+        ),
+        vec!["manifest-target-input".to_string()],
+        "a conventional target path is not generated when Cargo metadata selects another target dir"
+    );
+    assert!(
+        super::events::process_file_events(
+            &[event_with_path(
+                &authoritative_target.join("debug/build/demo/out/generated.rs")
+            )],
+            &path_to_crate,
+        )
+        .is_empty(),
+        "the authoritative Cargo target dir must remain excluded"
+    );
+}
+
+#[test]
+fn watcher_resolves_relative_cargo_home_from_workspace_root_non_recursively() {
+    let temp = tempfile::tempdir().expect("tempdir");
+    let workspace_root = temp.path().join("workspace");
+    let cargo_home = workspace_root.join("relative-cargo-home");
+    fs::create_dir_all(workspace_root.join("src")).expect("create source directory");
+    fs::create_dir_all(&cargo_home).expect("create relative Cargo home");
+    let mut krate = test_crate("relative-cargo-home", true);
+    krate.manifest_dir = crate::core::ManifestDir::from_discovered(workspace_root.clone());
+    krate.src_dir = crate::core::SourceDir::from_discovered(workspace_root.join("src"));
+    krate.i18n_config_path =
+        crate::core::DiscoveredI18nConfigPath::from_discovered(workspace_root.join("i18n.toml"));
+
+    let path_to_crate = super::events::build_path_to_crate_with_cargo_home(
+        &[&krate],
+        &workspace_root,
+        &workspace_root.join("target"),
+        Some(PathBuf::from("relative-cargo-home")),
+    );
+    let modes = super::runtime::watch_modes_for_crates(&path_to_crate, [&krate]);
+
+    assert_eq!(modes.get(&cargo_home), Some(&RecursiveMode::NonRecursive));
+}
+
+#[test]
+fn watcher_tracks_ancestor_cargo_config_directory_creation_and_removal() {
+    let temp = tempfile::tempdir().expect("tempdir");
+    let ancestor = temp.path().join("ancestor");
+    let workspace_root = ancestor.join("workspace");
+    let src_dir = workspace_root.join("src");
+    fs::create_dir_all(&src_dir).expect("create workspace source directory");
+    let mut krate = test_crate("ancestor-config", true);
+    krate.manifest_dir = crate::core::ManifestDir::from_discovered(workspace_root.clone());
+    krate.src_dir = crate::core::SourceDir::from_discovered(src_dir);
+    krate.i18n_config_path =
+        crate::core::DiscoveredI18nConfigPath::from_discovered(workspace_root.join("i18n.toml"));
+    let cargo_dir = ancestor.join(".cargo");
+
+    let before = super::events::build_path_to_crate_with_cargo_home(
+        &[&krate],
+        &workspace_root,
+        &workspace_root.join("target"),
+        None,
+    );
+    let before_modes = super::runtime::watch_modes_for_crates(&before, [&krate]);
+    assert_eq!(
+        before_modes.get(&ancestor),
+        Some(&RecursiveMode::NonRecursive),
+        "the ancestor itself must be watched for .cargo creation"
+    );
+    assert_eq!(
+        super::events::process_file_events(&[event_with_path(&cargo_dir)], &before),
+        vec!["ancestor-config".to_string()]
+    );
+
+    fs::create_dir_all(&cargo_dir).expect("create ancestor Cargo config directory");
+    let after = super::events::build_path_to_crate_with_cargo_home(
+        &[&krate],
+        &workspace_root,
+        &workspace_root.join("target"),
+        None,
+    );
+    let after_modes = super::runtime::watch_modes_for_crates(&after, [&krate]);
+    assert_eq!(
+        after_modes.get(&cargo_dir),
+        Some(&RecursiveMode::NonRecursive),
+        "Cargo config contents need only a non-recursive watch"
+    );
+    assert_eq!(
+        super::events::process_file_events(&[event_with_path(&cargo_dir)], &after),
+        vec!["ancestor-config".to_string()],
+        "directory-level removal or rename events must trigger rediscovery"
+    );
+}
+
+#[test]
+fn recursive_build_source_mode_wins_over_config_topology_mode() {
+    let temp = tempfile::tempdir().expect("tempdir");
+    let src_dir = temp.path().join("src");
+    fs::create_dir_all(&src_dir).expect("create source directory");
+    let build_target = temp.path().join("build.rs");
+    fs::write(
+        &build_target,
+        "include!(concat!(env!(\"CARGO_MANIFEST_DIR\"), \"/generated.rs\")); fn main() {}\n",
+    )
+    .expect("write indeterminate build target");
+    let mut krate = test_crate("watch-mode-merge", true);
+    krate.manifest_dir = crate::core::ManifestDir::from_discovered(temp.path().to_path_buf());
+    krate.src_dir = crate::core::SourceDir::from_discovered(src_dir);
+    krate.custom_build_target_path = Some(crate::core::CustomBuildTargetPath::from_discovered(
+        build_target,
+    ));
+    krate.i18n_config_path =
+        crate::core::DiscoveredI18nConfigPath::from_discovered(temp.path().join("i18n.toml"));
+    let map =
+        super::events::build_path_to_crate(&[&krate], temp.path(), &temp.path().join("target"));
+    let modes = super::runtime::watch_modes_for_crates(&map, [&krate]);
+
+    assert_eq!(
+        modes.get(temp.path()),
+        Some(&RecursiveMode::Recursive),
+        "an indeterminate build graph requires the stronger recursive mode"
     );
 }
 
@@ -894,8 +1326,11 @@ fn process_file_events_ignores_cargo_target_for_root_source_crates() {
         has_lib_rs: true,
         fluent_features: Vec::new(),
     };
-    let path_to_crate =
-        super::events::build_path_to_crate(&[&root_source_crate], &root_source_crate.manifest_dir);
+    let path_to_crate = super::events::build_path_to_crate(
+        &[&root_source_crate],
+        &root_source_crate.manifest_dir,
+        &root_source_crate.manifest_dir.join("target"),
+    );
 
     let affected = super::events::process_file_events(
         &[event_with_path(Path::new(
@@ -915,10 +1350,60 @@ fn process_file_events_ignores_cargo_target_for_root_source_crates() {
 }
 
 #[test]
+fn process_file_events_keeps_sources_under_ancestor_and_equal_target_dirs() {
+    let source_crate = CrateInfo {
+        name: es_fluent_runner::PackageName::try_new("target-layout").expect("valid package name"),
+        manifest_dir: crate::core::ManifestDir::from_discovered(PathBuf::from("/tmp/ws/app")),
+        src_dir: crate::core::SourceDir::from_discovered(PathBuf::from("/tmp/ws/app/src")),
+        library_target_path: None,
+        custom_build_target_path: None,
+        i18n_config_path: crate::core::DiscoveredI18nConfigPath::from_discovered(PathBuf::from(
+            "/tmp/ws/app/i18n.toml",
+        )),
+        ftl_output_dir: crate::core::DiscoveredFtlOutputDir::from_discovered(PathBuf::from(
+            "/tmp/ws/app/i18n/en",
+        )),
+        has_lib_rs: true,
+        fluent_features: Vec::new(),
+    };
+    let source = source_crate.src_dir.join("module.rs");
+
+    for target_dir in [Path::new("/tmp/ws"), source_crate.src_dir.as_path()] {
+        let path_to_crate = super::events::build_path_to_crate(
+            &[&source_crate],
+            &source_crate.manifest_dir,
+            target_dir,
+        );
+        assert_eq!(
+            super::events::process_file_events(&[event_with_path(&source)], &path_to_crate),
+            vec!["target-layout".to_string()],
+            "a target directory that is equal to or above src must not hide package source: {}",
+            target_dir.display()
+        );
+    }
+
+    let nested_target = source_crate.src_dir.join("target");
+    let generated = nested_target.join("debug/build/demo/out/generated.rs");
+    let path_to_crate = super::events::build_path_to_crate(
+        &[&source_crate],
+        &source_crate.manifest_dir,
+        &nested_target,
+    );
+    assert!(
+        super::events::process_file_events(&[event_with_path(&generated)], &path_to_crate)
+            .is_empty(),
+        "a target directory nested in src should remain excluded"
+    );
+}
+
+#[test]
 fn process_file_events_keeps_target_module_under_conventional_src_dir() {
     let valid_crate = test_crate("crate-a", true);
-    let path_to_crate =
-        super::events::build_path_to_crate(&[&valid_crate], &valid_crate.manifest_dir);
+    let path_to_crate = super::events::build_path_to_crate(
+        &[&valid_crate],
+        &valid_crate.manifest_dir,
+        &valid_crate.manifest_dir.join("target"),
+    );
 
     let affected = super::events::process_file_events(
         &[event_with_path(&valid_crate.src_dir.join("target/mod.rs"))],
@@ -996,8 +1481,11 @@ fn process_file_events_matches_i18n_toml_to_exact_owning_crate() {
         has_lib_rs: true,
         fluent_features: Vec::new(),
     };
-    let path_to_crate =
-        super::events::build_path_to_crate(&[&crate_a, &crate_b], Path::new("/tmp/ws"));
+    let path_to_crate = super::events::build_path_to_crate(
+        &[&crate_a, &crate_b],
+        Path::new("/tmp/ws"),
+        Path::new("/tmp/ws/target"),
+    );
 
     let mut affected = super::events::process_file_events(
         &[event_with_path(&crate_b.i18n_config_path)],
@@ -1048,8 +1536,11 @@ fn process_file_events_maps_workspace_root_files_to_all_watched_crates() {
         has_lib_rs: true,
         fluent_features: Vec::new(),
     };
-    let path_to_crate =
-        super::events::build_path_to_crate(&[&crate_a, &crate_b], Path::new("/tmp/ws"));
+    let path_to_crate = super::events::build_path_to_crate(
+        &[&crate_a, &crate_b],
+        Path::new("/tmp/ws"),
+        Path::new("/tmp/ws/target"),
+    );
 
     let mut affected = super::events::process_file_events(
         &[
@@ -1155,7 +1646,8 @@ fn create_valid_workspace_with_fake_runner_behavior(
         crates: vec![krate.clone()],
     };
 
-    let binary_path = crate::test_fixtures::fake_runner_binary_path(&workspace.target_dir);
+    let binary_path =
+        crate::test_fixtures::fake_runner_binary_path_for_workspace(&workspace.root_dir);
     let hash = crate::generation::cache::compute_crate_inputs_hash(
         temp.path(),
         &src_dir,
@@ -1333,7 +1825,7 @@ fn configure_file_watcher_reports_invalid_watch_roots() {
         fluent_features: Vec::new(),
     };
 
-    let err = super::configure_file_watcher(&[&krate], temp.path())
+    let err = super::configure_file_watcher(&[&krate], temp.path(), &temp.path().join("target"))
         .expect_err("missing watch roots should fail watcher setup");
     assert!(err.to_string().contains("Failed to watch"));
 }
@@ -1361,8 +1853,9 @@ fn configure_file_watcher_reports_invalid_workspace_watch_root() {
         fluent_features: Vec::new(),
     };
 
-    let err = super::configure_file_watcher(&[&krate], &workspace_root)
-        .expect_err("invalid workspace root should fail watcher setup");
+    let err =
+        super::configure_file_watcher(&[&krate], &workspace_root, &workspace_root.join("target"))
+            .expect_err("invalid workspace root should fail watcher setup");
     assert!(err.to_string().contains("Failed to watch"));
 }
 
@@ -1390,7 +1883,7 @@ fn configure_file_watcher_reports_invalid_manifest_watch_root() {
         fluent_features: Vec::new(),
     };
 
-    let err = super::configure_file_watcher(&[&krate], temp.path())
+    let err = super::configure_file_watcher(&[&krate], temp.path(), &temp.path().join("target"))
         .expect_err("missing manifest watch root should fail watcher setup");
     assert!(err.to_string().contains("Failed to watch"));
 }
@@ -1669,7 +2162,8 @@ fn watch_all_links_only_watched_crates() {
     let watched_crate = workspace.crates[0].clone();
 
     let temp_store = es_fluent_runner::RunnerMetadataStore::temp_for_workspace(temp.path());
-    let binary_path = crate::test_fixtures::fake_runner_binary_path(&workspace.target_dir);
+    let binary_path =
+        crate::test_fixtures::fake_runner_binary_path_for_workspace(&workspace.root_dir);
     let mut crate_hashes = indexmap::IndexMap::new();
     crate_hashes.insert(
         watched_crate.name.clone(),

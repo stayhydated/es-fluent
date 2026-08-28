@@ -93,8 +93,6 @@ pub struct MetadataCache {
     pub es_fluent_dep: cargo_manifest::Dependency,
     /// Extracted es-fluent-cli-helpers dependency spec
     pub es_fluent_cli_helpers_dep: cargo_manifest::Dependency,
-    /// Target directory
-    pub target_dir: String,
 }
 
 impl MetadataCache {
@@ -678,9 +676,17 @@ mod tests {
                     ..Default::default()
                 },
             ),
-            target_dir: "target".to_string(),
         };
         cache.save(temp_dir.path()).unwrap();
+
+        let cache_path = temp_dir.path().join(MetadataCache::CACHE_FILE);
+        let mut legacy_cache: serde_json::Value =
+            serde_json::from_str(&fs::read_to_string(&cache_path).unwrap()).unwrap();
+        legacy_cache.as_object_mut().unwrap().insert(
+            "target_dir".to_string(),
+            serde_json::json!("obsolete-target"),
+        );
+        fs::write(&cache_path, serde_json::to_vec(&legacy_cache).unwrap()).unwrap();
 
         let loaded = MetadataCache::load(temp_dir.path()).unwrap();
         assert_eq!(loaded.es_fluent_dep, cache.es_fluent_dep);

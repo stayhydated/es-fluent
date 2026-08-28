@@ -1045,6 +1045,18 @@ macro_rules! define_message {
 
 define_message!(MacroGenerated);
 
+include!("included_production.rs");
+
+pub fn production_block_include() {
+    include!("included_production_block.rs");
+}
+
+pub fn production_expression_include() {
+    let _message = include!("included_production_expression.rs");
+}
+
+include!("included_nested_production/items.rs");
+
 #[cfg(test)]
 mod macro_name_decoy {
     pub struct MacroGenerated;
@@ -1058,6 +1070,16 @@ mod macro_generated_tests {
     fn generated_test_only_message_is_usable() {
         let _message = MacroGeneratedTestOnly;
     }
+}
+
+#[cfg(test)]
+mod included_tests {
+    include!("included_tests.rs");
+}
+
+#[cfg(test)]
+mod included_nested_tests {
+    include!("included_nested_tests/items.rs");
 }
 
 #[cfg(test)]
@@ -1161,6 +1183,16 @@ fn block_local_test_derive_is_usable() {
         let _message = BlockLocalTestOnly;
     }
 }
+
+#[test]
+fn block_local_included_test_derive_is_usable() {
+    include!("included_block_test.rs");
+}
+
+#[test]
+fn expression_included_test_derive_is_usable() {
+    let _message = include!("included_expression_test.rs");
+}
 "#,
         )
         .expect("write lib.rs");
@@ -1176,6 +1208,91 @@ fn out_of_line_derive_is_usable() {
 "#,
         )
         .expect("write out-of-line test module");
+        fs::write(
+            src_dir.join("included_tests.rs"),
+            r#"#[derive(es_fluent::EsFluent)]
+struct IncludedTestOnly;
+
+#[test]
+fn included_test_only_derive_is_usable() {
+    let _message = IncludedTestOnly;
+}
+"#,
+        )
+        .expect("write included test source");
+        fs::write(
+            src_dir.join("included_production.rs"),
+            "#[derive(es_fluent::EsFluent)]\npub struct IncludedProduction;\n",
+        )
+        .expect("write included production source");
+        fs::write(
+            src_dir.join("included_block_test.rs"),
+            r#"{
+#[derive(es_fluent::EsFluent)]
+struct IncludedBlockTestOnly;
+
+let _message = IncludedBlockTestOnly;
+}
+"#,
+        )
+        .expect("write block-included test source");
+        fs::write(
+            src_dir.join("included_production_block.rs"),
+            r#"{
+#[derive(es_fluent::EsFluent)]
+struct IncludedProductionBlock;
+
+let _message = IncludedProductionBlock;
+}
+"#,
+        )
+        .expect("write block-included production source");
+        fs::write(
+            src_dir.join("included_production_expression.rs"),
+            r#"{
+#[derive(es_fluent::EsFluent)]
+struct IncludedProductionExpression;
+
+IncludedProductionExpression
+}
+"#,
+        )
+        .expect("write expression-included production source");
+        fs::write(
+            src_dir.join("included_expression_test.rs"),
+            r#"{
+#[derive(es_fluent::EsFluent)]
+struct IncludedExpressionTestOnly;
+
+IncludedExpressionTestOnly
+}
+"#,
+        )
+        .expect("write expression-included test source");
+        fs::create_dir_all(src_dir.join("included_nested_tests"))
+            .expect("create nested included test directory");
+        fs::write(
+            src_dir.join("included_nested_tests/items.rs"),
+            "mod messages;\n",
+        )
+        .expect("write nested included test items");
+        fs::write(
+            src_dir.join("included_nested_tests/messages.rs"),
+            "#[derive(es_fluent::EsFluent)]\nstruct IncludedNestedTestOnly;\n",
+        )
+        .expect("write nested included test module");
+        fs::create_dir_all(src_dir.join("included_nested_production"))
+            .expect("create nested included production directory");
+        fs::write(
+            src_dir.join("included_nested_production/items.rs"),
+            "mod messages;\n",
+        )
+        .expect("write nested included production items");
+        fs::write(
+            src_dir.join("included_nested_production/messages.rs"),
+            "#[derive(es_fluent::EsFluent)]\npub struct IncludedNestedProduction;\n",
+        )
+        .expect("write nested included production module");
         fs::write(
             crate_dir.join("tests/integration.rs"),
             r#"macro_rules! define_message {
@@ -1222,7 +1339,7 @@ fn custom_integration_derive_is_usable() {
         .expect("write i18n.toml");
         fs::write(
             locale_dir.join("strict-tests.ftl"),
-            "library_value = Library value\nmacro_generated = Macro generated\nmixed_derive_policy = Mixed derive policy\nproduction_shared = Production shared\n",
+            "library_value = Library value\nmacro_generated = Macro generated\nincluded_production = Included production\nincluded_production_block = Included production block\nincluded_production_expression = Included production expression\nincluded_nested_production = Included nested production\nmixed_derive_policy = Mixed derive policy\nproduction_shared = Production shared\n",
         )
         .expect("write fallback FTL");
 
@@ -1248,7 +1365,7 @@ fn custom_integration_derive_is_usable() {
 
         fs::write(
             locale_dir.join("strict-tests.ftl"),
-            "macro_generated = Macro generated\nmixed_derive_policy = Mixed derive policy\nproduction_shared = Production shared\n",
+            "macro_generated = Macro generated\nincluded_production = Included production\nincluded_production_block = Included production block\nincluded_production_expression = Included production expression\nincluded_nested_production = Included nested production\nmixed_derive_policy = Mixed derive policy\nproduction_shared = Production shared\n",
         )
         .expect("remove library fallback value");
         let missing_library =
@@ -1272,6 +1389,10 @@ fn custom_integration_derive_is_usable() {
                 && !stderr.contains("missing fallback Fluent message `mixed_derive_policy_label`")
                 && !stderr.contains("cfg_attr_variants_only_variants")
                 && !stderr.contains("macro_generated_test_only")
+                && !stderr.contains("included_test_only")
+                && !stderr.contains("included_block_test_only")
+                && !stderr.contains("included_expression_test_only")
+                && !stderr.contains("included_nested_test_only")
                 && !stderr.contains("integration_macro_only")
                 && !stderr.contains("block_local_test_only"),
             "test-only derives should remain coverage-exempt: {stderr}"
@@ -1296,6 +1417,22 @@ fn custom_integration_derive_is_usable() {
         assert!(
             stderr.contains("missing fallback Fluent message `production_shared`"),
             "a production module under tests/ must remain strict: {stderr}"
+        );
+        assert!(
+            stderr.contains("missing fallback Fluent message `included_production`"),
+            "a production literal include must remain strict: {stderr}"
+        );
+        assert!(
+            stderr.contains("missing fallback Fluent message `included_production_block`"),
+            "a production block-local literal include must remain strict: {stderr}"
+        );
+        assert!(
+            stderr.contains("missing fallback Fluent message `included_production_expression`"),
+            "a production expression literal include must remain strict: {stderr}"
+        );
+        assert!(
+            stderr.contains("missing fallback Fluent message `included_nested_production`"),
+            "an out-of-line module below a production literal include must remain strict: {stderr}"
         );
     }
 

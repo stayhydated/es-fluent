@@ -548,6 +548,22 @@ fn collect_item_evidence(
         }
 
         if let syn::Item::Macro(item_macro) = item
+            && let Some(include_path) = literal_include_path(&item_macro.mac, current_file)
+        {
+            let include_requires_test =
+                parent_requires_test || attributes_require_test(&item_macro.attrs);
+            collect_source_evidence(
+                &include_path,
+                include_path.parent().unwrap_or(Path::new("")),
+                include_requires_test,
+                target,
+                derive,
+                visited,
+                evidence,
+            );
+        }
+
+        if let syn::Item::Macro(item_macro) = item
             && current_file == target.path
             && token_stream_contains_ident(&item_macro.mac.tokens, &target.marker_ident)
         {
@@ -561,9 +577,11 @@ fn collect_item_evidence(
         if let syn::Item::Fn(function) = item {
             let mut visitor = LocalItemEvidenceVisitor {
                 current_file,
+                module_dir: module_dir.to_path_buf(),
                 parent_requires_test,
                 target,
                 derive,
+                visited,
                 evidence,
             };
             visitor.visit_item_fn(function);
@@ -604,11 +622,24 @@ fn collect_item_evidence(
     }
 }
 
+fn literal_include_path(include_macro: &syn::Macro, current_file: &Path) -> Option<PathBuf> {
+    if !include_macro.path.is_ident("include") {
+        return None;
+    }
+
+    let path = syn::parse2::<syn::LitStr>(include_macro.tokens.clone()).ok()?;
+    let parent = current_file.parent().unwrap_or(Path::new(""));
+    let path = canonical_path(&parent.join(path.value()));
+    path.is_file().then_some(path)
+}
+
 struct LocalItemEvidenceVisitor<'a> {
     current_file: &'a Path,
+    module_dir: PathBuf,
     parent_requires_test: bool,
     target: &'a SourceDeclaration,
     derive: Option<FallbackValidationDerive>,
+    visited: &'a mut HashSet<(PathBuf, PathBuf, bool)>,
     evidence: &'a mut Vec<bool>,
 }
 
@@ -629,6 +660,73 @@ impl LocalItemEvidenceVisitor<'_> {
         visit(self);
         self.parent_requires_test = parent_requires_test;
     }
+
+    fn collect_literal_include(
+        &mut self,
+        include_macro: &syn::Macro,
+        attributes: &[syn::Attribute],
+    ) {
+        let Some(include_path) = literal_include_path(include_macro, self.current_file) else {
+            return;
+        };
+        let include_requires_test =
+            self.parent_requires_test || attributes_require_test(attributes);
+        collect_source_evidence(
+            &include_path,
+            include_path.parent().unwrap_or(Path::new("")),
+            include_requires_test,
+            self.target,
+            self.derive,
+            self.visited,
+            self.evidence,
+        );
+    }
+
+    fn collect_literal_statement_include(
+        &mut self,
+        include_macro: &syn::Macro,
+        attributes: &[syn::Attribute],
+    ) {
+        let Some(include_path) = literal_include_path(include_macro, self.current_file) else {
+            return;
+        };
+        let include_requires_test =
+            self.parent_requires_test || attributes_require_test(attributes);
+        if !self.visited.insert((
+            include_path.clone(),
+            include_path
+                .parent()
+                .map(Path::to_path_buf)
+                .unwrap_or_default(),
+            include_requires_test,
+        )) {
+            return;
+        }
+        let source = if include_path == self.target.path {
+            self.target.marked_source.clone()
+        } else {
+            let Ok(source) = std::fs::read_to_string(&include_path) else {
+                return;
+            };
+            source
+        };
+        let Ok(expression) = syn::parse_str::<syn::Expr>(&source) else {
+            return;
+        };
+        let mut visitor = LocalItemEvidenceVisitor {
+            current_file: &include_path,
+            module_dir: include_path
+                .parent()
+                .map(Path::to_path_buf)
+                .unwrap_or_default(),
+            parent_requires_test: include_requires_test,
+            target: self.target,
+            derive: self.derive,
+            visited: self.visited,
+            evidence: self.evidence,
+        };
+        visitor.visit_expr(&expression);
+    }
 }
 
 impl<'ast> syn::visit::Visit<'ast> for LocalItemEvidenceVisitor<'_> {
@@ -644,6 +742,7 @@ impl<'ast> syn::visit::Visit<'ast> for LocalItemEvidenceVisitor<'_> {
     }
 
     fn visit_item_macro(&mut self, item: &'ast syn::ItemMacro) {
+        self.collect_literal_include(&item.mac, &item.attrs);
         if self.current_file == self.target.path
             && token_stream_contains_ident(&item.mac.tokens, &self.target.marker_ident)
         {
@@ -656,9 +755,43 @@ impl<'ast> syn::visit::Visit<'ast> for LocalItemEvidenceVisitor<'_> {
         syn::visit::visit_item_macro(self, item);
     }
 
+    fn visit_stmt_macro(&mut self, statement: &'ast syn::StmtMacro) {
+        self.collect_literal_statement_include(&statement.mac, &statement.attrs);
+        syn::visit::visit_stmt_macro(self, statement);
+    }
+
+    fn visit_expr_macro(&mut self, expression: &'ast syn::ExprMacro) {
+        self.collect_literal_statement_include(&expression.mac, &expression.attrs);
+        syn::visit::visit_expr_macro(self, expression);
+    }
+
     fn visit_item_mod(&mut self, item: &'ast syn::ItemMod) {
         self.with_test_context(&item.attrs, |visitor| {
-            syn::visit::visit_item_mod(visitor, item);
+            if let Some((_, items)) = &item.content {
+                let child_module_dir = visitor.module_dir.join(item.ident.to_string());
+                let previous_module_dir =
+                    std::mem::replace(&mut visitor.module_dir, child_module_dir);
+                for item in items {
+                    visitor.visit_item(item);
+                }
+                visitor.module_dir = previous_module_dir;
+                return;
+            }
+
+            for (child_path, child_dir) in resolve_module_paths(item, &visitor.module_dir) {
+                if child_path == visitor.target.path || visitor.target.path.starts_with(&child_dir)
+                {
+                    collect_source_evidence(
+                        &child_path,
+                        &child_dir,
+                        visitor.parent_requires_test,
+                        visitor.target,
+                        visitor.derive,
+                        visitor.visited,
+                        visitor.evidence,
+                    );
+                }
+            }
         });
     }
 
@@ -1110,6 +1243,76 @@ pub fn core_error_to_compile_error(error: EsFluentCoreError) -> TokenStream {
 mod tests {
     use super::*;
     use std::ffi::OsStr;
+
+    #[test]
+    fn literal_include_path_rejects_dynamic_and_missing_inputs() {
+        let temp = tempfile::tempdir().expect("tempdir");
+        let current_file = temp.path().join("lib.rs");
+        let included_file = temp.path().join("included.rs");
+        std::fs::write(&included_file, "struct Included;").expect("write included source");
+
+        let literal: syn::ItemMacro = syn::parse_quote!(include!("included.rs"););
+        let dynamic: syn::ItemMacro = syn::parse_quote!(include!(concat!("included", ".rs")););
+        let missing: syn::ItemMacro = syn::parse_quote!(include!("missing.rs"););
+
+        assert_eq!(
+            literal_include_path(&literal.mac, &current_file),
+            Some(
+                included_file
+                    .canonicalize()
+                    .expect("canonical included path")
+            )
+        );
+        assert_eq!(literal_include_path(&dynamic.mac, &current_file), None);
+        assert_eq!(literal_include_path(&missing.mac, &current_file), None);
+    }
+
+    #[test]
+    fn literal_includes_preserve_expression_and_nested_module_test_context() {
+        let temp = tempfile::tempdir().expect("tempdir");
+        let nested_dir = temp.path().join("nested");
+        std::fs::create_dir_all(&nested_dir).expect("create nested include directory");
+
+        let root = temp.path().join("lib.rs");
+        let expression = temp.path().join("expression.rs");
+        std::fs::write(
+            &root,
+            "#[test]\nfn expression_case() { let _value = include!(\"expression.rs\"); }\n#[cfg(test)]\nmod nested_case { include!(\"nested/items.rs\"); }\n",
+        )
+        .expect("write root source");
+        std::fs::write(
+            &expression,
+            "{ struct ExpressionTarget; ExpressionTarget }\n",
+        )
+        .expect("write included expression");
+        std::fs::write(nested_dir.join("items.rs"), "mod messages;\n")
+            .expect("write included items");
+        let nested_target = nested_dir.join("messages.rs");
+        std::fs::write(&nested_target, "struct NestedTarget;\n").expect("write nested module");
+
+        for (path, marker) in [
+            (expression, "ExpressionTarget"),
+            (nested_target, "NestedTarget"),
+        ] {
+            let target = SourceDeclaration {
+                path: path.canonicalize().expect("canonical target"),
+                marked_source: std::fs::read_to_string(&path).expect("read target source"),
+                marker_ident: marker.to_string(),
+            };
+            let mut visited = HashSet::new();
+            let mut evidence = Vec::new();
+            collect_source_evidence(
+                &root,
+                temp.path(),
+                false,
+                &target,
+                Some(FallbackValidationDerive::EsFluent),
+                &mut visited,
+                &mut evidence,
+            );
+            assert_eq!(evidence, vec![true], "{marker} should inherit test context");
+        }
+    }
 
     #[test]
     fn rustdoc_synthetic_crate_bypasses_strict_fallback_coverage() {

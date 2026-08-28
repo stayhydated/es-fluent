@@ -99,7 +99,8 @@ fn run_watch_loop_with_poll<B: Backend>(
     let mut app = TuiApp::new(crates);
     let mut runtime = WatchRuntime::new(crates, workspace, mode);
     let valid_crates = runtime.valid_crates();
-    let (mut debouncer, file_rx) = configure_file_watcher(&valid_crates, &workspace.root_dir)?;
+    let (mut debouncer, file_rx) =
+        configure_file_watcher(&valid_crates, &workspace.root_dir, &workspace.target_dir)?;
     run_watch_loop_with_runtime(
         terminal,
         &mut app,
@@ -230,6 +231,7 @@ fn handle_watch_events(
 fn configure_file_watcher(
     valid_crates: &[&CrateInfo],
     workspace_root: &std::path::Path,
+    target_dir: &std::path::Path,
 ) -> Result<(FileDebouncer, Receiver<DebounceEventResult>)> {
     let (file_tx, file_rx) = crossbeam_channel::unbounded();
     let mut debouncer =
@@ -240,7 +242,7 @@ fn configure_file_watcher(
         .watch(workspace_root, RecursiveMode::NonRecursive)
         .with_context(|| format!("Failed to watch {}", workspace_root.display()))?;
 
-    let path_to_crate = events::build_path_to_crate(valid_crates, workspace_root);
+    let path_to_crate = events::build_path_to_crate(valid_crates, workspace_root, target_dir);
     for (directory, mode) in
         runtime::watch_modes_for_crates(&path_to_crate, valid_crates.iter().copied())
     {
