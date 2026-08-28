@@ -138,6 +138,45 @@ fn process_file_events_matches_custom_build_target_and_reachable_module() {
 }
 
 #[test]
+fn process_file_events_matches_custom_build_target_outside_package_root() {
+    let temp = tempfile::tempdir().expect("tempdir");
+    let package = temp.path().join("app");
+    let src_dir = package.join("src");
+    fs::create_dir_all(&src_dir).expect("create package sources");
+    fs::write(src_dir.join("lib.rs"), "pub struct App;\n").expect("write library source");
+    let build_target = temp.path().join("shared-build.rs");
+    let helper = temp.path().join("shared_helper.rs");
+    fs::write(
+        &build_target,
+        "mod shared_helper; fn main() { shared_helper::run(); }\n",
+    )
+    .expect("write shared build target");
+    fs::write(&helper, "pub fn run() {}\n").expect("write shared helper");
+
+    let mut krate = test_crate("outside-build-target", true);
+    krate.manifest_dir = crate::core::ManifestDir::from_discovered(package);
+    krate.src_dir = crate::core::SourceDir::from_discovered(src_dir);
+    krate.custom_build_target_path = Some(crate::core::CustomBuildTargetPath::from_discovered(
+        build_target.clone(),
+    ));
+    let path_to_crate = super::events::build_path_to_crate(&[&krate], temp.path());
+
+    assert!(
+        path_to_crate
+            .build_source_watch_dirs()
+            .contains(temp.path()),
+        "the external target directory should be watched"
+    );
+    for path in [build_target, helper] {
+        let canonical = path.canonicalize().expect("canonical build source");
+        assert_eq!(
+            super::events::process_file_events(&[event_with_path(&canonical)], &path_to_crate),
+            vec!["outside-build-target".to_string()]
+        );
+    }
+}
+
+#[test]
 fn process_file_events_matches_every_owner_of_a_shared_build_helper() {
     let temp = tempfile::tempdir().expect("tempdir");
     let nested = temp.path().join("nested");

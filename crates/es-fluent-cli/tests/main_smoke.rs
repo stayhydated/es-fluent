@@ -1208,6 +1208,8 @@ fn binary_doctor_warns_for_indeterminate_build_helper_calls() {
         "fn main() { let _future = async { es_fluent_build::track_i18n_assets(); }; }\n",
         "use es_fluent_build::track_i18n_assets;\nfn main() { let f: fn() = track_i18n_assets; f(); }\n",
         "fn main() { panic!(\"stop\"); es_fluent_build::track_i18n_assets(); }\n",
+        "fn main() { std::process::exit(0); es_fluent_build::track_i18n_assets(); }\n",
+        "fn stop() -> ! { loop {} }\nfn main() { stop(); es_fluent_build::track_i18n_assets(); }\n",
     ] {
         let temp = fixtures::create_workspace();
         std::fs::write(

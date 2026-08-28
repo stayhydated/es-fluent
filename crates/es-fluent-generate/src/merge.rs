@@ -90,8 +90,19 @@ pub(crate) fn smart_merge(
             ast::Entry::Comment(_) => {
                 pending_comments.push(entry);
             },
-            ast::Entry::Message(msg) => {
+            ast::Entry::Message(mut msg) => {
                 let key = msg.id.name.clone();
+                if matches!(behavior, MergeBehavior::Append)
+                    && msg.value.is_none()
+                    && let Some(variant) = item_map
+                        .values()
+                        .flat_map(|info| &info.variants)
+                        .find(|variant| variant.entry_id().as_str() == key)
+                    && let ast::Entry::Message(generated) =
+                        crate::ast_build::create_message_entry(variant)
+                {
+                    msg.value = generated.value;
+                }
                 let mut bundle = std::mem::take(&mut pending_comments);
                 bundle.push(ast::Entry::Message(msg));
                 let mut context = BundleProcessingContext {

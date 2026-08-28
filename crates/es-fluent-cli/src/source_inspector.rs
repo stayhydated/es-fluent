@@ -144,10 +144,10 @@ struct FunctionCall {
 
 pub(crate) fn inspect(
     entry_path: &Path,
-    allowed_root: &Path,
+    package_root: &Path,
     target: SourceTarget<'_>,
 ) -> InspectionOutcome {
-    let graph = inspect_source_graph(entry_path, allowed_root, Some(target));
+    let graph = inspect_source_graph(entry_path, package_root, Some(target));
     if let Some(evidence) = graph.evidence {
         if evidence.execution_uncertain {
             return InspectionOutcome::Indeterminate(format!(
@@ -188,16 +188,25 @@ pub(crate) fn inspect(
     }
 }
 
-pub(crate) fn reachable_source_graph(entry_path: &Path, allowed_root: &Path) -> SourceGraph {
-    inspect_source_graph(entry_path, allowed_root, None)
+pub(crate) fn reachable_source_graph(entry_path: &Path, package_root: &Path) -> SourceGraph {
+    inspect_source_graph(entry_path, package_root, None)
 }
 
 fn inspect_source_graph(
     entry_path: &Path,
-    allowed_root: &Path,
+    package_root: &Path,
     target: Option<SourceTarget<'_>>,
 ) -> SourceGraph {
-    let root = std::fs::canonicalize(allowed_root).unwrap_or_else(|_| allowed_root.to_path_buf());
+    let package_root =
+        std::fs::canonicalize(package_root).unwrap_or_else(|_| package_root.to_path_buf());
+    let canonical_entry =
+        std::fs::canonicalize(entry_path).unwrap_or_else(|_| entry_path.to_path_buf());
+    let source_root = package_root
+        .ancestors()
+        .find(|ancestor| canonical_entry.starts_with(ancestor))
+        .map(Path::to_path_buf)
+        .or_else(|| canonical_entry.parent().map(Path::to_path_buf))
+        .unwrap_or_else(|| package_root.clone());
     let module_dir = entry_path
         .parent()
         .map(Path::to_path_buf)
@@ -222,11 +231,11 @@ fn inspect_source_graph(
                 continue;
             },
         };
-        if !canonical.starts_with(&root) {
+        if !canonical.starts_with(&source_root) {
             graph.indeterminate_reasons.push(format!(
                 "{} resolves outside {}",
                 source.path.display(),
-                allowed_root.display()
+                source_root.display()
             ));
             continue;
         }
@@ -261,7 +270,12 @@ fn inspect_source_graph(
         });
         let file = &graph.sources.last().expect("just-pushed source").file;
 
-        let mut visitor = EvidenceVisitor::new(target, &canonical, source.conditional);
+        let mut visitor = EvidenceVisitor::new(
+            target,
+            &canonical,
+            source.conditional,
+            diverging_function_names(file),
+        );
         visitor.visit_file(file);
         graph.evidences.extend(visitor.evidences);
         graph
@@ -286,12 +300,16 @@ fn inspect_source_graph(
                 continue;
             };
             match include.path {
-                Some(path) => pending.push(PendingSource {
-                    path: parent.join(path),
-                    module_dir: source.module_dir.clone(),
-                    module_path: source.module_path.clone(),
-                    conditional: include.conditional,
-                }),
+                Some(path) => {
+                    let path = parent.join(path);
+                    let module_dir = path.parent().map(Path::to_path_buf).unwrap_or_default();
+                    pending.push(PendingSource {
+                        path,
+                        module_dir,
+                        module_path: source.module_path.clone(),
+                        conditional: include.conditional,
+                    });
+                },
                 None => graph.indeterminate_reasons.push(format!(
                     "non-literal include! at {}:{}",
                     canonical.display(),
@@ -405,21 +423,14 @@ fn collect_pending_modules(
             ));
             continue;
         };
-        let next_module_dir = if path.file_name().is_some_and(|name| name == "mod.rs") {
-            path.parent()
-                .map(Path::to_path_buf)
-                .unwrap_or(child_module_dir)
-        } else if explicit_path.is_some() {
-            let stem = path
-                .file_stem()
-                .map(std::ffi::OsStr::to_os_string)
-                .unwrap_or_else(|| module.ident.to_string().into());
-            path.parent()
-                .map(|parent| parent.join(stem))
-                .unwrap_or(child_module_dir)
-        } else {
-            child_module_dir
-        };
+        let next_module_dir =
+            if explicit_path.is_some() || path.file_name().is_some_and(|name| name == "mod.rs") {
+                path.parent()
+                    .map(Path::to_path_buf)
+                    .unwrap_or(child_module_dir)
+            } else {
+                child_module_dir
+            };
         pending.push(PendingSource {
             path,
             module_dir: next_module_dir,
@@ -430,12 +441,17 @@ fn collect_pending_modules(
 }
 
 fn analyze_reachability(sources: &[ParsedSource], entry_path: &Path) -> ReachabilityAnalysis {
+    let diverging_functions = sources
+        .iter()
+        .flat_map(|source| diverging_function_names(&source.file))
+        .collect::<HashSet<_>>();
     let mut definitions = Vec::new();
     for source in sources {
         collect_function_definitions(
             &source.file.items,
             &source.path,
             &source.module_path,
+            &diverging_functions,
             &mut definitions,
         );
     }
@@ -530,12 +546,19 @@ fn collect_function_definitions(
     items: &[syn::Item],
     path: &Path,
     module_path: &[String],
+    diverging_functions: &HashSet<String>,
     definitions: &mut Vec<FunctionDefinition>,
 ) {
     for item in items {
         match item {
             syn::Item::Fn(function) => {
-                add_function_definition(function, path, module_path, definitions);
+                add_function_definition(
+                    function,
+                    path,
+                    module_path,
+                    diverging_functions,
+                    definitions,
+                );
             },
             syn::Item::Mod(module) => {
                 let Some((_, items)) = &module.content else {
@@ -543,7 +566,13 @@ fn collect_function_definitions(
                 };
                 let mut nested_module_path = module_path.to_vec();
                 nested_module_path.push(module.ident.to_string());
-                collect_function_definitions(items, path, &nested_module_path, definitions);
+                collect_function_definitions(
+                    items,
+                    path,
+                    &nested_module_path,
+                    diverging_functions,
+                    definitions,
+                );
             },
             _ => {},
         }
@@ -554,12 +583,14 @@ fn add_function_definition(
     function: &syn::ItemFn,
     path: &Path,
     module_path: &[String],
+    diverging_functions: &HashSet<String>,
     definitions: &mut Vec<FunctionDefinition>,
 ) {
     let mut calls = Vec::new();
     let mut visitor = FunctionCallVisitor {
         calls: &mut calls,
         execution_uncertain_depth: 0,
+        diverging_functions,
     };
     visitor.visit_block(&function.block);
     definitions.push(FunctionDefinition {
@@ -577,6 +608,7 @@ fn add_function_definition(
 struct FunctionCallVisitor<'a> {
     calls: &'a mut Vec<FunctionCall>,
     execution_uncertain_depth: usize,
+    diverging_functions: &'a HashSet<String>,
 }
 
 impl FunctionCallVisitor<'_> {
@@ -662,7 +694,8 @@ impl<'ast> syn::visit::Visit<'ast> for FunctionCallVisitor<'_> {
             if statement_unconditionally_terminates(statement) {
                 break;
             }
-            following_execution_uncertain |= statement_may_skip_following(statement);
+            following_execution_uncertain |=
+                statement_may_skip_following(statement, self.diverging_functions);
         }
     }
 
@@ -749,6 +782,7 @@ struct EvidenceVisitor<'a> {
     conditional_depth: usize,
     current_function: Option<FunctionLocation>,
     execution_uncertain_depth: usize,
+    diverging_functions: HashSet<String>,
     evidences: Vec<MatchedEvidence>,
     includes: Vec<IncludeSource>,
     scopes: Vec<ImportResolution>,
@@ -756,13 +790,19 @@ struct EvidenceVisitor<'a> {
 }
 
 impl<'a> EvidenceVisitor<'a> {
-    fn new(target: Option<SourceTarget<'a>>, current_file: &'a Path, conditional: bool) -> Self {
+    fn new(
+        target: Option<SourceTarget<'a>>,
+        current_file: &'a Path,
+        conditional: bool,
+        diverging_functions: HashSet<String>,
+    ) -> Self {
         Self {
             target,
             current_file,
             conditional_depth: usize::from(conditional),
             current_function: None,
             execution_uncertain_depth: 0,
+            diverging_functions,
             evidences: Vec::new(),
             includes: Vec::new(),
             scopes: Vec::new(),
@@ -1035,7 +1075,8 @@ impl<'ast> syn::visit::Visit<'ast> for EvidenceVisitor<'_> {
             {
                 break;
             }
-            following_execution_uncertain |= statement_may_skip_following(statement);
+            following_execution_uncertain |=
+                statement_may_skip_following(statement, &self.diverging_functions);
             if let syn::Stmt::Local(local) = statement
                 && local_shadows_target(&local.pat, self.target)
             {
@@ -1184,20 +1225,33 @@ fn statement_unconditionally_terminates(statement: &syn::Stmt) -> bool {
     expression_unconditionally_terminates(expression)
 }
 
-fn statement_may_skip_following(statement: &syn::Stmt) -> bool {
-    let mut visitor = FollowingStatementExitVisitor::default();
+fn statement_may_skip_following(
+    statement: &syn::Stmt,
+    diverging_functions: &HashSet<String>,
+) -> bool {
+    let mut visitor = FollowingStatementExitVisitor {
+        found: false,
+        nested_loop_depth: 0,
+        nested_try_block_depth: 0,
+        diverging_functions,
+    };
     visitor.visit_stmt(statement);
     visitor.found
 }
 
-#[derive(Default)]
-struct FollowingStatementExitVisitor {
+struct FollowingStatementExitVisitor<'a> {
     found: bool,
     nested_loop_depth: usize,
     nested_try_block_depth: usize,
+    diverging_functions: &'a HashSet<String>,
 }
 
-impl<'ast> syn::visit::Visit<'ast> for FollowingStatementExitVisitor {
+impl<'ast> syn::visit::Visit<'ast> for FollowingStatementExitVisitor<'_> {
+    fn visit_expr_call(&mut self, call: &'ast syn::ExprCall) {
+        self.found |= call_is_known_to_diverge(call, self.diverging_functions);
+        syn::visit::visit_expr_call(self, call);
+    }
+
     fn visit_macro(&mut self, invocation: &'ast syn::Macro) {
         if !invocation.path.is_ident("include") {
             self.found = true;
@@ -1259,6 +1313,55 @@ impl<'ast> syn::visit::Visit<'ast> for FollowingStatementExitVisitor {
     fn visit_expr_closure(&mut self, _closure: &'ast syn::ExprClosure) {}
 
     fn visit_expr_async(&mut self, _expression: &'ast syn::ExprAsync) {}
+}
+
+fn call_is_known_to_diverge(call: &syn::ExprCall, diverging_functions: &HashSet<String>) -> bool {
+    let syn::Expr::Path(function) = &*call.func else {
+        return false;
+    };
+    let segments = function
+        .path
+        .segments
+        .iter()
+        .map(|segment| segment.ident.to_string())
+        .collect::<Vec<_>>();
+
+    matches!(
+        segments.as_slice(),
+        [standard, process, function]
+            if standard == "std"
+                && process == "process"
+                && matches!(function.as_str(), "exit" | "abort")
+    ) || matches!(
+        segments.as_slice(),
+        [standard, panic, function]
+            if standard == "std" && panic == "panic" && function == "resume_unwind"
+    ) || segments
+        .last()
+        .is_some_and(|name| diverging_functions.contains(name))
+}
+
+fn diverging_function_names(file: &syn::File) -> HashSet<String> {
+    #[derive(Default)]
+    struct Visitor {
+        names: HashSet<String>,
+    }
+
+    impl<'ast> syn::visit::Visit<'ast> for Visitor {
+        fn visit_item_fn(&mut self, function: &'ast syn::ItemFn) {
+            if matches!(
+                &function.sig.output,
+                syn::ReturnType::Type(_, output) if matches!(&**output, syn::Type::Never(_))
+            ) {
+                self.names.insert(function.sig.ident.to_string());
+            }
+            syn::visit::visit_item_fn(self, function);
+        }
+    }
+
+    let mut visitor = Visitor::default();
+    visitor.visit_file(file);
+    visitor.names
 }
 
 fn expression_unconditionally_terminates(expression: &syn::Expr) -> bool {
@@ -1673,6 +1776,86 @@ mod tests {
     }
 
     #[test]
+    fn explicit_path_submodules_resolve_beside_the_explicit_source() {
+        let temp = tempfile::tempdir().expect("tempdir");
+        let support = temp.path().join("support");
+        fs::create_dir_all(&support).expect("create support directory");
+        fs::write(
+            temp.path().join("build.rs"),
+            "#[path = \"support/helper_impl.rs\"] mod assets; fn main() { assets::run(); }\n",
+        )
+        .expect("write build target");
+        fs::write(
+            support.join("helper_impl.rs"),
+            "mod nested; pub fn run() { nested::configure(); }\n",
+        )
+        .expect("write explicit module");
+        let nested = support.join("nested.rs");
+        fs::write(
+            &nested,
+            "pub fn configure() { es_fluent_build::track_i18n_assets(); }\n",
+        )
+        .expect("write nested module");
+
+        let entry = temp.path().join("build.rs");
+        let graph = reachable_source_graph(&entry, temp.path());
+        assert!(
+            graph.indeterminate_reasons.is_empty(),
+            "valid explicit-path graph should be determinate: {:?}",
+            graph.indeterminate_reasons
+        );
+        assert!(
+            graph
+                .paths
+                .contains(&nested.canonicalize().expect("canonical nested module"))
+        );
+        assert!(matches!(
+            inspect(&entry, temp.path(), SourceTarget::Call("track_i18n_assets")),
+            InspectionOutcome::Found(_)
+        ));
+    }
+
+    #[test]
+    fn included_submodules_resolve_from_the_include_directory() {
+        let temp = tempfile::tempdir().expect("tempdir");
+        let support = temp.path().join("support");
+        fs::create_dir_all(&support).expect("create support directory");
+        fs::write(
+            temp.path().join("build.rs"),
+            "include!(\"support/config.rs\"); fn main() { configure(); }\n",
+        )
+        .expect("write build target");
+        fs::write(
+            support.join("config.rs"),
+            "mod nested; fn configure() { nested::run(); }\n",
+        )
+        .expect("write included source");
+        let nested = support.join("nested.rs");
+        fs::write(
+            &nested,
+            "pub fn run() { es_fluent_build::track_i18n_assets(); }\n",
+        )
+        .expect("write nested module");
+
+        let entry = temp.path().join("build.rs");
+        let graph = reachable_source_graph(&entry, temp.path());
+        assert!(
+            graph.indeterminate_reasons.is_empty(),
+            "valid include graph should be determinate: {:?}",
+            graph.indeterminate_reasons
+        );
+        assert!(
+            graph
+                .paths
+                .contains(&nested.canonicalize().expect("canonical nested module"))
+        );
+        assert!(matches!(
+            inspect(&entry, temp.path(), SourceTarget::Call("track_i18n_assets")),
+            InspectionOutcome::Found(_)
+        ));
+    }
+
+    #[test]
     fn unreferenced_files_do_not_count() {
         assert_eq!(
             inspect_fixture(
@@ -1784,6 +1967,24 @@ mod tests {
         for source in [
             "fn skip() -> bool { false } fn main() { if skip() { return; } es_fluent_build::track_i18n_assets(); }",
             "fn skip() -> bool { false } fn setup() { es_fluent_build::track_i18n_assets(); } fn main() { if skip() { return; } setup(); }",
+        ] {
+            assert!(matches!(
+                inspect_fixture(
+                    &[("build.rs", source)],
+                    "build.rs",
+                    SourceTarget::Call("track_i18n_assets")
+                ),
+                InspectionOutcome::Indeterminate(reason)
+                    if reason.contains("under control flow that could not be proven to execute")
+            ));
+        }
+    }
+
+    #[test]
+    fn build_helper_calls_after_diverging_calls_are_indeterminate() {
+        for source in [
+            "fn main() { std::process::exit(0); es_fluent_build::track_i18n_assets(); }",
+            "fn stop() -> ! { loop {} } fn main() { stop(); es_fluent_build::track_i18n_assets(); }",
         ] {
             assert!(matches!(
                 inspect_fixture(

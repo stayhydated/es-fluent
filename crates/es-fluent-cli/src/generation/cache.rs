@@ -383,7 +383,7 @@ mod tests {
         fs::write(temp_dir.path().join("build.rs"), "fn main() {}\n").unwrap();
 
         let first = compute_crate_inputs_hash(temp_dir.path(), &src_dir, None, Some(&build_target));
-        fs::write(&helper, "pub fn run() { println!(\"changed\"); }\n").unwrap();
+        fs::write(&helper, "pub fn run() { let _changed = true; }\n").unwrap();
         let second =
             compute_crate_inputs_hash(temp_dir.path(), &src_dir, None, Some(&build_target));
         assert_ne!(first, second);
@@ -395,6 +395,95 @@ mod tests {
         .unwrap();
         let third = compute_crate_inputs_hash(temp_dir.path(), &src_dir, None, Some(&build_target));
         assert_eq!(second, third);
+    }
+
+    #[test]
+    fn test_compute_crate_inputs_hash_tracks_custom_build_target_outside_package_root() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let manifest_dir = temp_dir.path().join("app");
+        let src_dir = manifest_dir.join("src");
+        fs::create_dir_all(&src_dir).unwrap();
+        fs::write(src_dir.join("lib.rs"), "pub struct App;\n").unwrap();
+        let build_target = temp_dir.path().join("shared-build.rs");
+        let helper = temp_dir.path().join("shared_helper.rs");
+        fs::write(
+            &build_target,
+            "mod shared_helper; fn main() { shared_helper::run(); }\n",
+        )
+        .unwrap();
+        fs::write(&helper, "pub fn run() {}\n").unwrap();
+
+        let first = compute_crate_inputs_hash(&manifest_dir, &src_dir, None, Some(&build_target))
+            .expect("external custom-build graph should be cacheable");
+        fs::write(&helper, "pub fn run() { let _changed = true; }\n").unwrap();
+        let second = compute_crate_inputs_hash(&manifest_dir, &src_dir, None, Some(&build_target))
+            .expect("updated external custom-build graph should be cacheable");
+
+        assert_ne!(first, second);
+    }
+
+    #[test]
+    fn test_compute_crate_inputs_hash_accepts_explicit_path_submodule_layout() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let src_dir = temp_dir.path().join("src");
+        let support_dir = temp_dir.path().join("support");
+        fs::create_dir_all(&src_dir).unwrap();
+        fs::create_dir_all(&support_dir).unwrap();
+        fs::write(src_dir.join("lib.rs"), "pub struct App;\n").unwrap();
+        let build_target = temp_dir.path().join("build.rs");
+        fs::write(
+            &build_target,
+            "#[path = \"support/helper_impl.rs\"] mod assets; fn main() { assets::run(); }\n",
+        )
+        .unwrap();
+        fs::write(
+            support_dir.join("helper_impl.rs"),
+            "mod nested; pub fn run() { nested::configure(); }\n",
+        )
+        .unwrap();
+        let nested = support_dir.join("nested.rs");
+        fs::write(&nested, "pub fn configure() {}\n").unwrap();
+
+        let first = compute_crate_inputs_hash(temp_dir.path(), &src_dir, None, Some(&build_target))
+            .expect("explicit-path submodule graph should be cacheable");
+        fs::write(&nested, "pub fn configure() { let _changed = true; }\n").unwrap();
+        let second =
+            compute_crate_inputs_hash(temp_dir.path(), &src_dir, None, Some(&build_target))
+                .expect("updated explicit-path submodule graph should be cacheable");
+
+        assert_ne!(first, second);
+    }
+
+    #[test]
+    fn test_compute_crate_inputs_hash_accepts_included_submodule_layout() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let src_dir = temp_dir.path().join("src");
+        let support_dir = temp_dir.path().join("support");
+        fs::create_dir_all(&src_dir).unwrap();
+        fs::create_dir_all(&support_dir).unwrap();
+        fs::write(src_dir.join("lib.rs"), "pub struct App;\n").unwrap();
+        let build_target = temp_dir.path().join("build.rs");
+        fs::write(
+            &build_target,
+            "include!(\"support/config.rs\"); fn main() { configure(); }\n",
+        )
+        .unwrap();
+        fs::write(
+            support_dir.join("config.rs"),
+            "mod nested; fn configure() { nested::run(); }\n",
+        )
+        .unwrap();
+        let nested = support_dir.join("nested.rs");
+        fs::write(&nested, "pub fn run() {}\n").unwrap();
+
+        let first = compute_crate_inputs_hash(temp_dir.path(), &src_dir, None, Some(&build_target))
+            .expect("included submodule graph should be cacheable");
+        fs::write(&nested, "pub fn run() { let _changed = true; }\n").unwrap();
+        let second =
+            compute_crate_inputs_hash(temp_dir.path(), &src_dir, None, Some(&build_target))
+                .expect("updated included submodule graph should be cacheable");
+
+        assert_ne!(first, second);
     }
 
     #[test]
