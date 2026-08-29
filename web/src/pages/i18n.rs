@@ -9,14 +9,35 @@ es_fluent_manager_dioxus::define_i18n_module!();
 pub(crate) enum DemoLanguage {}
 
 #[derive(Clone, Copy, Debug, EsFluent)]
-pub(crate) enum DioxusDemoMessage {
-    PanelLabel,
+pub(crate) enum EmberEchoCopy {
+    RestaurantName,
+    Kicker,
     Title,
-    Body,
-    ResultLabel,
-    ResultBody,
-    RuntimeTitle,
-    RuntimeBody,
-    ResourceTitle,
-    ResourceBody,
+    Manifesto,
+    SignatureName,
+    SignatureDescription,
+    RivalryClaim,
+    SelectLabel,
+    ImageAlt,
+    DoughTitle,
+    DoughBody,
+    FireTitle,
+    FireBody,
+    FinishTitle,
+    FinishBody,
+}
+
+#[derive(Debug, EsFluent)]
+pub(crate) struct CourtyardLocaleStatus<'a> {
+    pub(crate) locale: &'a str,
+}
+
+#[derive(Debug, EsFluent)]
+pub(crate) struct CourtyardWelcome<'a> {
+    pub(crate) guest: &'a str,
+}
+
+#[derive(Debug, EsFluent)]
+pub(crate) struct PiesAtDusk {
+    pub(crate) count: i32,
 }

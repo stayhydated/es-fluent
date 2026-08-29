@@ -1,4 +1,6 @@
-use crate::pages::i18n::{DemoLanguage, DioxusDemoMessage};
+use crate::pages::i18n::{
+    CourtyardLocaleStatus, CourtyardWelcome, DemoLanguage, EmberEchoCopy, PiesAtDusk,
+};
 use crate::site::{
     constants::{PROJECT, VERSION},
     routing::PageKind,
@@ -9,8 +11,6 @@ use stayhydated_dioxus::{
     NavigationTarget, StayhydatedProjectPortalShell, select, surface_reveal_style,
 };
 use strum::IntoEnumIterator as _;
-
-const OSMOSE_IMAGE_URL: &str = "https://www.expressivee.com/img/products/osmose/osmose2.png";
 
 #[component]
 pub(crate) fn DioxusPage() -> Element {
@@ -24,7 +24,7 @@ pub(crate) fn DioxusPage() -> Element {
 
 #[component]
 fn DioxusDemoContent() -> Element {
-    let demo_style = surface_reveal_style();
+    let courtyard_style = surface_reveal_style();
     let i18n = match use_i18n() {
         Ok(i18n) => i18n,
         Err(error) => {
@@ -33,11 +33,12 @@ fn DioxusDemoContent() -> Element {
                     project: PROJECT,
                     version: VERSION,
                     home: NavigationTarget::Internal(crate::site::routing::app_route(PageKind::Home)),
-                    div { class: "demo-page",
-                        section { class: "section-band",
-                            span { class: "panel-label", "demo load failure" }
-                            h1 { "Expressive E Osmose" }
-                            p { "Failed to initialize the Osmose demo: {error}" }
+                    div { class: "demo-page courtyard-page", lang: "en-US",
+                        section { class: "courtyard-closed section-band",
+                            span { class: "panel-label", "Ember & Echo · oven closed" }
+                            h1 { "The courtyard fire could not be kindled" }
+                            p { "The oven doors are closed while the localization provider recovers." }
+                            code { class: "courtyard-diagnostic", "{error}" }
                         }
                     }
                 }
@@ -62,39 +63,56 @@ fn DioxusDemoContent() -> Element {
         let _ = i18n_for_select.select_language(next_language);
     };
 
-    let panel_label = i18n.localize_message(&DioxusDemoMessage::PanelLabel);
-    let title = i18n.localize_message(&DioxusDemoMessage::Title);
-    let body = i18n.localize_message(&DioxusDemoMessage::Body);
-    let result_label = i18n.localize_message(&DioxusDemoMessage::ResultLabel);
-    let result_body = i18n.localize_message(&DioxusDemoMessage::ResultBody);
-    let runtime_title = i18n.localize_message(&DioxusDemoMessage::RuntimeTitle);
-    let runtime_body = i18n.localize_message(&DioxusDemoMessage::RuntimeBody);
-    let resource_title = i18n.localize_message(&DioxusDemoMessage::ResourceTitle);
-    let resource_body = i18n.localize_message(&DioxusDemoMessage::ResourceBody);
+    let restaurant_name = i18n.localize_message(&EmberEchoCopy::RestaurantName);
+    let kicker = i18n.localize_message(&EmberEchoCopy::Kicker);
+    let title = i18n.localize_message(&EmberEchoCopy::Title);
+    let manifesto = i18n.localize_message(&EmberEchoCopy::Manifesto);
+    let signature_name = i18n.localize_message(&EmberEchoCopy::SignatureName);
+    let signature_description = i18n.localize_message(&EmberEchoCopy::SignatureDescription);
+    let rivalry_claim = i18n.localize_message(&EmberEchoCopy::RivalryClaim);
+    let select_label = i18n.localize_message(&EmberEchoCopy::SelectLabel);
+    let image_alt = i18n.localize_message(&EmberEchoCopy::ImageAlt);
+    let dough_title = i18n.localize_message(&EmberEchoCopy::DoughTitle);
+    let dough_body = i18n.localize_message(&EmberEchoCopy::DoughBody);
+    let fire_title = i18n.localize_message(&EmberEchoCopy::FireTitle);
+    let fire_body = i18n.localize_message(&EmberEchoCopy::FireBody);
+    let finish_title = i18n.localize_message(&EmberEchoCopy::FinishTitle);
+    let finish_body = i18n.localize_message(&EmberEchoCopy::FinishBody);
+    let locale_status = i18n.localize_message(&CourtyardLocaleStatus {
+        locale: &selected_label,
+    });
+    let welcome = i18n.localize_message(&CourtyardWelcome { guest: "Sorrel" });
+    let pies = i18n.localize_message(&PiesAtDusk { count: 3 });
+    let page_output_dir = crate::site::routing::output_dir(PageKind::Dioxus);
+    let site_root = crate::site::routing::site_root_prefix(&page_output_dir);
+    let hero_src = format!("{site_root}assets/pizzerias/ember-and-echo.webp");
+    let document_language = i18n.requested_language().to_string();
 
     rsx! {
         StayhydatedProjectPortalShell {
             project: PROJECT,
             version: VERSION,
             home: NavigationTarget::Internal(crate::site::routing::app_route(PageKind::Home)),
-            div { class: "demo-page",
-                section { class: "dioxus-keyboard-hero motion-reveal",
-                    style: demo_style.as_str(),
-                    div { class: "dioxus-demo-card-header",
-                        div { class: "dioxus-demo-card-heading",
-                            span { class: "panel-label", "{panel_label}" }
+            div { class: "demo-page courtyard-page", lang: document_language,
+                section {
+                    class: "ember-courtyard motion-reveal",
+                    style: courtyard_style.as_str(),
+                    header { class: "courtyard-header",
+                        div { class: "courtyard-heading",
+                            span { class: "panel-label", "{kicker}" }
+                            p { class: "courtyard-brand", "{restaurant_name}" }
                             h1 { "{title}" }
-                            p { "{body}" }
+                            p { class: "courtyard-manifesto", "{manifesto}" }
                         }
-                        div { class: "dioxus-demo-card-controls",
+                        div { class: "courtyard-language",
                             select::Select::<DemoLanguage> {
                                 value: Some(selected.into()),
                                 on_value_change: on_change,
                                 select::SelectTrigger {
-                                    aria_label: "Language",
+                                    aria_label: select_label.clone(),
                                     select::SelectValue { placeholder: selected_label }
                                 }
-                                select::SelectList { aria_label: "Languages",
+                                select::SelectList { aria_label: select_label,
                                     for (index, (language, label)) in options.iter().enumerate() {
                                         {
                                             let active = Some(*language) == selected();
@@ -114,34 +132,45 @@ fn DioxusDemoContent() -> Element {
                                     }
                                 }
                             }
+                            p { class: "courtyard-locale-status", "{locale_status}" }
                         }
                     }
-                    div {
-                        class: "osmose-visual",
-                        div { class: "osmose-panel",
-                            span { "Expressive E" }
-                            strong { "Osmose" }
-                        }
-                        div { class: "osmose-image-frame",
+                    div { class: "courtyard-menu-grid",
+                        figure { class: "courtyard-photo",
                             img {
-                                class: "osmose-product-image",
-                                src: OSMOSE_IMAGE_URL,
-                                alt: "Expressive E Osmose 49/61-key synthesizer",
+                                src: hero_src,
+                                alt: image_alt,
+                                width: "1600",
+                                height: "2400",
+                                decoding: "async",
+                                fetchpriority: "high",
+                            }
+                            figcaption {
+                                span { "{signature_name}" }
+                                strong { "{signature_description}" }
                             }
                         }
+                        aside { class: "courtyard-order", aria_live: "polite",
+                            p { class: "courtyard-call", "{welcome}" }
+                            p { class: "courtyard-count", "{pies}" }
+                            blockquote { "{rivalry_claim}" }
+                        }
                     }
-                    div { class: "dioxus-keyboard-proof",
-                        article { class: "feature-card",
-                            span { class: "panel-label", "{result_label}" }
-                            p { class: "feature-copy", "{result_body}" }
+                    div { class: "courtyard-proof",
+                        article { class: "courtyard-step dough-step",
+                            span { class: "step-number", "I" }
+                            h2 { "{dough_title}" }
+                            p { "{dough_body}" }
                         }
-                        article { class: "feature-card",
-                            h2 { class: "feature-title", "{runtime_title}" }
-                            p { class: "feature-copy", "{runtime_body}" }
+                        article { class: "courtyard-step fire-step",
+                            span { class: "step-number", "II" }
+                            h2 { "{fire_title}" }
+                            p { "{fire_body}" }
                         }
-                        article { class: "feature-card",
-                            h2 { class: "feature-title", "{resource_title}" }
-                            p { class: "feature-copy", "{resource_body}" }
+                        article { class: "courtyard-step finish-step",
+                            span { class: "step-number", "III" }
+                            h2 { "{finish_title}" }
+                            p { "{finish_body}" }
                         }
                     }
                 }

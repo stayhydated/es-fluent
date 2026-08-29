@@ -19,7 +19,7 @@ impl PageKind {
         match self {
             Self::Home => "Home",
             Self::Demos => "Demos",
-            Self::Dioxus => "Osmose Demo",
+            Self::Dioxus => "Ember & Echo Demo",
             Self::Bevy => "Bevy Example",
             Self::Gpui => "GPUI Example",
         }
@@ -31,7 +31,9 @@ impl PageKind {
                 "Define messages in Rust. Generate Fluent files. Use them in embedded, Bevy, and Dioxus apps."
             },
             Self::Demos => "Browser demos for es-fluent runtime integrations.",
-            Self::Dioxus => "A hero demo for the Expressive E Osmose 49/61-key MPE synthesizer.",
+            Self::Dioxus => {
+                "Ember & Echo demonstrates reactive Dioxus localization in a wood-fired pizza courtyard."
+            },
             Self::Bevy => "A Bevy wasm demo inside the book site.",
             Self::Gpui => "A GPUI wasm demo inside the book site.",
         }
