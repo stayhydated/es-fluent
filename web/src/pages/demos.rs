@@ -27,6 +27,11 @@ pub(crate) fn DemosPage() -> Element {
             "GPUI",
             "gpui-demo-card-shader",
         ),
+        DemoGalleryItem::route(
+            crate::site::routing::app_route(PageKind::TypeScript),
+            "TypeScript",
+            "typescript-demo-card-shader",
+        ),
     ];
 
     rsx! {
@@ -36,7 +41,7 @@ pub(crate) fn DemosPage() -> Element {
             home: NavigationTarget::Internal(crate::site::routing::app_route(PageKind::Home)),
             DemoGallery::<AppRoute> {
                 items: demos,
-                columns: DemoGalleryColumns::Three,
+                columns: DemoGalleryColumns::Two,
             }
         }
     }

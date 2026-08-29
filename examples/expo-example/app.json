@@ -1,0 +1,20 @@
+{
+  "expo": {
+    "name": "es-fluent Expo demo",
+    "slug": "es-fluent-expo-demo",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "platforms": ["ios", "android", "web"],
+    "newArchEnabled": true,
+    "userInterfaceStyle": "dark",
+    "experiments": {
+      "baseUrl": "/es-fluent/expo-demo"
+    },
+    "ios": {
+      "bundleIdentifier": "dev.stayhydated.esfluentdemo"
+    },
+    "android": {
+      "package": "dev.stayhydated.esfluentdemo"
+    }
+  }
+}

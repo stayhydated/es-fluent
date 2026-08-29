@@ -2,8 +2,8 @@
 
 use clap::{Parser, Subcommand};
 use commands::{
-    AddLocaleArgs, CheckArgs, CleanArgs, DoctorArgs, FormatArgs, GenerateArgs, StatusArgs,
-    SyncArgs, TreeArgs, WatchArgs,
+    AddLocaleArgs, CheckArgs, CleanArgs, DoctorArgs, ExportArgs, FormatArgs, GenerateArgs,
+    StatusArgs, SyncArgs, TreeArgs, WatchArgs,
 };
 use miette::Result as MietteResult;
 
@@ -72,6 +72,9 @@ enum Commands {
 
     /// Display a tree view of FTL items for each crate
     Tree(TreeArgs),
+
+    /// Export generated language facades and package-owned localization assets
+    Export(ExportArgs),
 }
 
 #[doc(hidden)]
@@ -151,6 +154,7 @@ fn dispatch(command: Commands) -> Result<(), CliError> {
         Commands::Sync(args) => commands::run_sync(args),
         Commands::AddLocale(args) => commands::run_add_locale(args),
         Commands::Tree(args) => commands::run_tree(args),
+        Commands::Export(args) => commands::run_export(args),
     }
 }
 
@@ -181,6 +185,7 @@ mod tests {
         "sync",
         "add-locale",
         "tree",
+        "export",
     ];
 
     fn missing_package_workspace_args(path: &std::path::Path) -> WorkspaceArgs {
@@ -212,6 +217,7 @@ mod tests {
             Commands::Sync(_) => "sync",
             Commands::AddLocale(_) => "add-locale",
             Commands::Tree(_) => "tree",
+            Commands::Export(_) => "export",
         }
     }
 
@@ -339,6 +345,7 @@ mod tests {
             (&["sync", "--all-locales"], "sync"),
             (&["add-locale", "fr-FR"], "add-locale"),
             (&["tree"], "tree"),
+            (&["export", "typescript", "--out", "generated"], "export"),
         ];
 
         let parsed = cases

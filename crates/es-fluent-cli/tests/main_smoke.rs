@@ -17,6 +17,7 @@ const SUBCOMMANDS: &[&str] = &[
     "sync",
     "add-locale",
     "tree",
+    "export",
 ];
 
 #[test]
@@ -179,6 +180,59 @@ fn binary_subcommand_help_succeeds_for_every_command() {
             .success()
             .stdout(predicate::str::contains("Usage:"));
     }
+}
+
+#[test]
+fn binary_typescript_export_writes_runtime_contract_and_package_owned_ftl() {
+    let temp = fixtures::create_workspace();
+    let workspace = temp.path().to_str().expect("workspace path");
+
+    let output = Command::cargo_bin("cargo-es-fluent")
+        .expect("binary exists")
+        .args([
+            "es-fluent",
+            "export",
+            "typescript",
+            "--path",
+            workspace,
+            "--out",
+            "typescript",
+            "--output",
+            "json",
+        ])
+        .assert()
+        .success()
+        .stderr(predicate::str::is_empty())
+        .get_output()
+        .stdout
+        .clone();
+
+    let json: Value = serde_json::from_slice(&output).expect("export stdout is JSON only");
+    assert_eq!(json["target"], "typescript");
+    assert_eq!(json["packageCount"], 1);
+    assert_eq!(json["resourceCount"], 1);
+    assert_eq!(json["applied"], true);
+    assert!(temp.path().join("typescript/messages.ts").is_file());
+    assert!(temp.path().join("typescript/manifest.ts").is_file());
+    assert!(temp.path().join("typescript/resources.ts").is_file());
+    assert!(
+        temp.path()
+            .join("typescript/locales/en/test-app/test-app.ftl")
+            .is_file()
+    );
+
+    let manifest: Value = serde_json::from_str(
+        &std::fs::read_to_string(temp.path().join("typescript/manifest.json"))
+            .expect("read generated manifest"),
+    )
+    .expect("parse generated manifest");
+    assert_eq!(manifest["schema_version"], Value::Null);
+    assert_eq!(manifest["schemaVersion"], 1);
+    assert_eq!(manifest["packages"][0]["owner"], "test-app");
+    assert_eq!(
+        manifest["resources"][0]["path"],
+        "locales/en/test-app/test-app.ftl"
+    );
 }
 
 #[test]
@@ -1606,6 +1660,7 @@ fn binary_every_command_has_a_noninteractive_success_path() {
             &["add-locale", "--path", workspace, "--dry-run", "fr-FR"],
         ),
         ("tree", &["tree", "--path", workspace]),
+        ("export", &["export", "--help"]),
     ];
 
     assert_eq!(

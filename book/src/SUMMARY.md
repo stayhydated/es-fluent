@@ -11,5 +11,7 @@
   - [Embedded manager](manager_embedded.md)
   - [Dioxus manager](manager_dioxus.md)
   - [Bevy manager](manager_bevy.md)
+- [TypeScript, React, and SolidStart](typescript.md)
+  - [Expo universal facade](expo.md)
 - [CLI reference](cli.md)
 - [Incremental builds](incremental_builds.md)

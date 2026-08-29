@@ -3,7 +3,16 @@
 use serde::Serialize;
 
 #[derive(
-    Clone, Copy, Debug, strum::Display, Eq, Hash, strum::IntoStaticStr, PartialEq, Serialize,
+    Clone,
+    Copy,
+    Debug,
+    serde::Deserialize,
+    strum::Display,
+    Eq,
+    Hash,
+    strum::IntoStaticStr,
+    PartialEq,
+    Serialize,
 )]
 #[strum(const_into_str, serialize_all = "snake_case")]
 pub enum TypeKind {

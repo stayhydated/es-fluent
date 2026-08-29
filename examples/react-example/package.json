@@ -1,0 +1,22 @@
+{
+  "name": "@es-fluent/example-react",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "vite build --base=./ --outDir ../../web/public/react-demo --emptyOutDir",
+    "dev": "vite",
+    "export:i18n": "cargo es-fluent-local export typescript --path . --out examples/react-example/generated",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@es-fluent/core": "0.0.0",
+    "@es-fluent/react": "0.0.0",
+    "react": "19.2.8",
+    "react-dom": "19.2.8"
+  },
+  "devDependencies": {
+    "@types/react": "19.2.18",
+    "@types/react-dom": "19.2.5"
+  }
+}

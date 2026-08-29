@@ -1,0 +1,110 @@
+{
+  "schemaVersion": 1,
+  "revision": "981d7f7384709705d150a063f6c98236278a36a861a59bd3909788ce4699f0f7",
+  "messages": [
+    {
+      "owner": "typescript-example",
+      "domain": "typescript-example",
+      "id": "demo_copy-Body",
+      "arguments": [],
+      "rustSource": {
+        "typeKind": "enum",
+        "typeName": "DemoCopy",
+        "variantName": "Body",
+        "modulePath": "typescript_example::__es_fluent_inventory_DemoCopy"
+      },
+      "sourceFile": "examples/typescript-example/src/lib.rs",
+      "sourceLine": 9
+    },
+    {
+      "owner": "typescript-example",
+      "domain": "typescript-example",
+      "id": "demo_copy-Kicker",
+      "arguments": [],
+      "rustSource": {
+        "typeKind": "enum",
+        "typeName": "DemoCopy",
+        "variantName": "Kicker",
+        "modulePath": "typescript_example::__es_fluent_inventory_DemoCopy"
+      },
+      "sourceFile": "examples/typescript-example/src/lib.rs",
+      "sourceLine": 7
+    },
+    {
+      "owner": "typescript-example",
+      "domain": "typescript-example",
+      "id": "demo_copy-SwitchLocale",
+      "arguments": [],
+      "rustSource": {
+        "typeKind": "enum",
+        "typeName": "DemoCopy",
+        "variantName": "SwitchLocale",
+        "modulePath": "typescript_example::__es_fluent_inventory_DemoCopy"
+      },
+      "sourceFile": "examples/typescript-example/src/lib.rs",
+      "sourceLine": 10
+    },
+    {
+      "owner": "typescript-example",
+      "domain": "typescript-example",
+      "id": "demo_copy-Title",
+      "arguments": [],
+      "rustSource": {
+        "typeKind": "enum",
+        "typeName": "DemoCopy",
+        "variantName": "Title",
+        "modulePath": "typescript_example::__es_fluent_inventory_DemoCopy"
+      },
+      "sourceFile": "examples/typescript-example/src/lib.rs",
+      "sourceLine": 8
+    },
+    {
+      "owner": "typescript-example",
+      "domain": "typescript-example",
+      "id": "greeting",
+      "arguments": [
+        "name"
+      ],
+      "rustSource": {
+        "typeKind": "struct",
+        "typeName": "Greeting",
+        "variantName": "Greeting",
+        "modulePath": "typescript_example::__es_fluent_inventory_Greeting"
+      },
+      "sourceFile": "examples/typescript-example/src/lib.rs",
+      "sourceLine": 19
+    },
+    {
+      "owner": "typescript-example",
+      "domain": "typescript-example",
+      "id": "inbox",
+      "arguments": [
+        "count"
+      ],
+      "rustSource": {
+        "typeKind": "struct",
+        "typeName": "Inbox",
+        "variantName": "Inbox",
+        "modulePath": "typescript_example::__es_fluent_inventory_Inbox"
+      },
+      "sourceFile": "examples/typescript-example/src/lib.rs",
+      "sourceLine": 24
+    },
+    {
+      "owner": "typescript-example",
+      "domain": "typescript-example",
+      "id": "locale_status",
+      "arguments": [
+        "locale"
+      ],
+      "rustSource": {
+        "typeKind": "struct",
+        "typeName": "LocaleStatus",
+        "variantName": "LocaleStatus",
+        "modulePath": "typescript_example::__es_fluent_inventory_LocaleStatus"
+      },
+      "sourceFile": "examples/typescript-example/src/lib.rs",
+      "sourceLine": 14
+    }
+  ]
+}

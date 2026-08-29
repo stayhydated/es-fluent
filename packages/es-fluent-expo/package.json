@@ -1,0 +1,48 @@
+{
+  "name": "@es-fluent/expo",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "main": "./dist/src/index.js",
+  "types": "./dist/src/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/src/index.d.ts",
+      "browser": "./dist/src/index.web.js",
+      "react-native": "./dist/src/index.js",
+      "default": "./dist/src/index.js"
+    }
+  },
+  "files": [
+    "android",
+    "dist",
+    "expo-module.config.json",
+    "ios",
+    "README.md",
+    "rust",
+    "scripts"
+  ],
+  "scripts": {
+    "build": "tsc -b",
+    "build:native:android": "bash scripts/build-android.sh",
+    "build:native:ios": "bash scripts/build-ios.sh",
+    "generate:bindings": "bash scripts/generate-bindings.sh",
+    "test": "npm run build && node --test dist/test/*.test.js"
+  },
+  "dependencies": {
+    "@es-fluent/core": "0.0.0",
+    "@es-fluent/react": "0.0.0"
+  },
+  "peerDependencies": {
+    "expo": "^57.0.0",
+    "react": "^19.2.0",
+    "react-native": "^0.86.0"
+  },
+  "devDependencies": {
+    "@types/react": "19.2.18",
+    "expo": "57.0.18",
+    "react": "19.2.8",
+    "react-native": "0.86.3",
+    "react-native-web": "0.21.2"
+  }
+}

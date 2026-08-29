@@ -1,0 +1,30 @@
+{
+  "name": "@es-fluent/solid",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/src/index.d.ts",
+      "default": "./dist/src/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsc -b",
+    "test": "npm run build && node --test dist/test/ssr.test.js && node --conditions=browser --test dist/test/client.test.js"
+  },
+  "dependencies": {
+    "@es-fluent/core": "0.0.0"
+  },
+  "peerDependencies": {
+    "solid-js": "^2.0.0-rc.0"
+  },
+  "devDependencies": {
+    "@solidjs/web": "2.0.0-rc.3",
+    "solid-js": "2.0.0-rc.3"
+  }
+}

@@ -2,7 +2,8 @@
 
 `es-fluent-cli` maintains the FTL resources for a crate or Cargo
 workspace. It can generate fallback entries, validate translations, synchronize
-locales, format files, inspect resource trees, and clean stale output.
+locales, format files, inspect resource trees, export typed bindings, and clean
+stale output.
 
 Commands that inspect derived messages collect inventory from library targets.
 Keep localizable types reachable from `src/lib.rs` or another library
@@ -41,6 +42,7 @@ the configured fallback locale directory.
 | `add-locale` | Create target locale directories and seed their FTL files. |
 | `clean` | Remove entries or files not represented by current derive inventory. |
 | `tree` | Inspect discovered resources, entries, attributes, and variables. |
+| `export` | Build typed language bindings and package-owned locale assets. |
 
 Run `cargo es-fluent <COMMAND> --help` for the complete option set.
 
@@ -203,11 +205,40 @@ library target. JSON output is file-oriented and does not accept
 
 ## Structured output
 
-`check`, `fmt`, `sync`, `tree`, and
+`check`, `export`, `fmt`, `sync`, `tree`, and
 `status` support `--output json`. After successful argument
 parsing, JSON mode writes the report to stdout. Use both the process exit status
 and documented report fields when automation distinguishes errors, warnings, or
 pending dry-run work.
+
+## Export TypeScript bindings
+
+Export all locales for the selected packages after running the normal
+all-locale validation:
+
+~~~sh
+cargo es-fluent export typescript --out web/src/i18n/generated
+cargo es-fluent export typescript --out web/src/i18n/generated --dry-run
+~~~
+
+The output contains:
+
+- `messages.ts`, a nested package/domain/message object with compile-time
+  argument types and workspace-relative Rust source metadata;
+- `manifest.ts`, the locale, fallback, resource, and content-revision contract;
+- `resources.ts`, an embedded resource map and framework-neutral loader;
+- `contract.json` and `manifest.json` for non-TypeScript generators; and
+- package-owned FTL files under `locales/<locale>/<package>/...`.
+
+Package and domain remain part of each message descriptor and resource path.
+The exporter therefore preserves the same ownership boundary as Rust even when
+multiple packages declare an equal domain or message ID. It plans writes and
+owned stale-file removals as one filesystem transaction. The state file
+`.es-fluent-export.json` limits cleanup to files created by an earlier export.
+Symlinked targets and existing paths outside that ownership state are rejected.
+
+Use the generated contract with the framework-neutral and Solid packages as
+shown in [TypeScript, React, and SolidStart](typescript.md).
 
 ## GitHub Actions
 

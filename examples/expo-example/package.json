@@ -1,0 +1,27 @@
+{
+  "name": "@es-fluent/example-expo",
+  "version": "0.0.0",
+  "private": true,
+  "main": "./index.ts",
+  "scripts": {
+    "android": "expo run:android",
+    "build:web": "expo export --platform web --output-dir ../../web/public/expo-demo",
+    "export:i18n": "cargo es-fluent-local export typescript --path . --out examples/expo-example/generated",
+    "ios": "expo run:ios",
+    "start": "expo start --dev-client",
+    "typecheck": "tsc --noEmit",
+    "web": "expo start --web"
+  },
+  "dependencies": {
+    "@expo/metro-runtime": "~57.0.14",
+    "@es-fluent/expo": "0.0.0",
+    "expo": "57.0.18",
+    "react": "19.2.8",
+    "react-dom": "19.2.8",
+    "react-native": "0.86.3",
+    "react-native-web": "0.21.2"
+  },
+  "devDependencies": {
+    "@types/react": "19.2.18"
+  }
+}

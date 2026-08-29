@@ -1492,6 +1492,7 @@ mod tests {
                     )),
                     source_file: es_fluent_shared::source::SourceFile::new("src/lib.rs"),
                     source_line: Some(es_fluent_shared::source::SourceLine::new(42)),
+                    rust_source: None,
                 }],
             },
         );

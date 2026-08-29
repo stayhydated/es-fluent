@@ -1,0 +1,12 @@
+[bindings.kotlin]
+android = true
+cdylib_name = "es_fluent_expo_native"
+generate_immutable_records = true
+package_name = "expo.modules.esfluent.uniffi"
+
+[bindings.swift]
+cdylib_name = "es_fluent_expo_native"
+ffi_module_filename = "EsFluentExpoNativeFFI"
+ffi_module_name = "EsFluentExpoNativeFFI"
+generate_immutable_records = true
+module_name = "EsFluentExpoNative"

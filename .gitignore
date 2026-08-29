@@ -5,3 +5,8 @@ target/
 *.pending-snap
 .rumdl_cache/
 *.profraw
+node_modules/
+packages/*/dist/
+packages/es-fluent-expo/.native-build/
+packages/es-fluent-expo/android/src/main/jniLibs/
+packages/es-fluent-expo/ios/EsFluentExpoNative.xcframework/

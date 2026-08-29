@@ -1,0 +1,13 @@
+{
+  "schemaVersion": 1,
+  "files": [
+    "contract.json",
+    "index.ts",
+    "locales/en/typescript-example/typescript-example.ftl",
+    "locales/fr/typescript-example/typescript-example.ftl",
+    "manifest.json",
+    "manifest.ts",
+    "messages.ts",
+    "resources.ts"
+  ]
+}
