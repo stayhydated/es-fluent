@@ -1,0 +1,28 @@
+{
+  "schemaVersion": 1,
+  "revision": "18bfb661b24a7541eaf1f39f2fce092518511214f2c0eef628a12f9a9fc92d95",
+  "packages": [
+    {
+      "owner": "solid-example",
+      "fallbackLocale": "en",
+      "locales": [
+        "en",
+        "fr"
+      ]
+    }
+  ],
+  "resources": [
+    {
+      "locale": "en",
+      "owner": "solid-example",
+      "domain": "solid-example",
+      "path": "locales/en/solid-example/solid-example.ftl"
+    },
+    {
+      "locale": "fr",
+      "owner": "solid-example",
+      "domain": "solid-example",
+      "path": "locales/fr/solid-example/solid-example.ftl"
+    }
+  ]
+}

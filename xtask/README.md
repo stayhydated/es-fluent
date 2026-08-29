@@ -12,6 +12,7 @@ Run commands from the workspace root:
 | `cargo xtask build llms-txt` | Generate LLM-oriented book exports. |
 | `cargo xtask build bevy-demo` | Build the hosted Bevy demo assets. |
 | `cargo xtask build gpui-demo` | Build the hosted GPUI demo assets; requires nightly Rust. |
+| `cargo xtask build typescript-demos` | Build the hosted TypeScript, Solid 2, React, and Expo web demo assets. |
 | `cargo xtask build web` | Build the release Dioxus site. |
 | `cargo xtask release plan` | Print crates.io publication order. |
 | `cargo xtask release publish` | Print publish commands in release order. |

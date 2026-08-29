@@ -10,6 +10,10 @@ pub fn run() -> anyhow::Result<()> {
             .extra_file("web/public/assets/site.css", "assets/site.css")
             .extra_dir("web/public/bevy-demo", "bevy-demo")
             .extra_dir("web/public/gpui-demo", "gpui-demo")
+            .extra_dir("web/public/typescript-demo", "typescript-demo")
+            .extra_dir("web/public/solid-demo", "solid-demo")
+            .extra_dir("web/public/react-demo", "react-demo")
+            .extra_dir("web/public/expo-demo", "expo-demo")
             .route_manifest(web::route_manifest())
             .build(),
     )

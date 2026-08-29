@@ -1,0 +1,13 @@
+{
+  "schemaVersion": 1,
+  "files": [
+    "contract.json",
+    "index.ts",
+    "locales/en/react-example/react-example.ftl",
+    "locales/fr/react-example/react-example.ftl",
+    "manifest.json",
+    "manifest.ts",
+    "messages.ts",
+    "resources.ts"
+  ]
+}

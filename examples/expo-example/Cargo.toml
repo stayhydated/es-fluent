@@ -1,0 +1,17 @@
+[package]
+name = "expo-example"
+version.workspace = true
+rust-version.workspace = true
+edition.workspace = true
+license = "Unlicense"
+publish = false
+autobins = false
+
+[dependencies]
+es-fluent = { workspace = true }
+
+[build-dependencies]
+es-fluent-build = { workspace = true }
+
+[lints]
+workspace = true

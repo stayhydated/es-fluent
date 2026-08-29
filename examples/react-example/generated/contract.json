@@ -1,0 +1,110 @@
+{
+  "schemaVersion": 1,
+  "revision": "fcef7097cc2d9ad837f0cb3e2a8e320a6f4a60bfb9bd2db4ec27927ee50c4fb9",
+  "messages": [
+    {
+      "owner": "react-example",
+      "domain": "react-example",
+      "id": "demo_copy-Body",
+      "arguments": [],
+      "rustSource": {
+        "typeKind": "enum",
+        "typeName": "DemoCopy",
+        "variantName": "Body",
+        "modulePath": "react_example::__es_fluent_inventory_DemoCopy"
+      },
+      "sourceFile": "examples/react-example/src/lib.rs",
+      "sourceLine": 9
+    },
+    {
+      "owner": "react-example",
+      "domain": "react-example",
+      "id": "demo_copy-Kicker",
+      "arguments": [],
+      "rustSource": {
+        "typeKind": "enum",
+        "typeName": "DemoCopy",
+        "variantName": "Kicker",
+        "modulePath": "react_example::__es_fluent_inventory_DemoCopy"
+      },
+      "sourceFile": "examples/react-example/src/lib.rs",
+      "sourceLine": 7
+    },
+    {
+      "owner": "react-example",
+      "domain": "react-example",
+      "id": "demo_copy-SwitchLocale",
+      "arguments": [],
+      "rustSource": {
+        "typeKind": "enum",
+        "typeName": "DemoCopy",
+        "variantName": "SwitchLocale",
+        "modulePath": "react_example::__es_fluent_inventory_DemoCopy"
+      },
+      "sourceFile": "examples/react-example/src/lib.rs",
+      "sourceLine": 10
+    },
+    {
+      "owner": "react-example",
+      "domain": "react-example",
+      "id": "demo_copy-Title",
+      "arguments": [],
+      "rustSource": {
+        "typeKind": "enum",
+        "typeName": "DemoCopy",
+        "variantName": "Title",
+        "modulePath": "react_example::__es_fluent_inventory_DemoCopy"
+      },
+      "sourceFile": "examples/react-example/src/lib.rs",
+      "sourceLine": 8
+    },
+    {
+      "owner": "react-example",
+      "domain": "react-example",
+      "id": "greeting",
+      "arguments": [
+        "name"
+      ],
+      "rustSource": {
+        "typeKind": "struct",
+        "typeName": "Greeting",
+        "variantName": "Greeting",
+        "modulePath": "react_example::__es_fluent_inventory_Greeting"
+      },
+      "sourceFile": "examples/react-example/src/lib.rs",
+      "sourceLine": 19
+    },
+    {
+      "owner": "react-example",
+      "domain": "react-example",
+      "id": "inbox",
+      "arguments": [
+        "count"
+      ],
+      "rustSource": {
+        "typeKind": "struct",
+        "typeName": "Inbox",
+        "variantName": "Inbox",
+        "modulePath": "react_example::__es_fluent_inventory_Inbox"
+      },
+      "sourceFile": "examples/react-example/src/lib.rs",
+      "sourceLine": 24
+    },
+    {
+      "owner": "react-example",
+      "domain": "react-example",
+      "id": "locale_status",
+      "arguments": [
+        "locale"
+      ],
+      "rustSource": {
+        "typeKind": "struct",
+        "typeName": "LocaleStatus",
+        "variantName": "LocaleStatus",
+        "modulePath": "react_example::__es_fluent_inventory_LocaleStatus"
+      },
+      "sourceFile": "examples/react-example/src/lib.rs",
+      "sourceLine": 14
+    }
+  ]
+}

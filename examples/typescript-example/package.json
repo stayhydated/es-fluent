@@ -1,0 +1,15 @@
+{
+  "name": "@es-fluent/example-typescript",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "vite build --base=./ --outDir ../../web/public/typescript-demo --emptyOutDir",
+    "dev": "vite",
+    "export:i18n": "cargo es-fluent-local export typescript --path . --out examples/typescript-example/generated",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@es-fluent/core": "0.0.0"
+  }
+}

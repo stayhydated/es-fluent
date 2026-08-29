@@ -1,6 +1,8 @@
 //! Inventory collection functionality for CLI commands.
 
-use es_fluent_runner::{ExpectedKey, InventoryData, PackageName, RunnerMetadataStore};
+use es_fluent_runner::{
+    ExpectedKey, ExpectedKeyRustSource, InventoryData, PackageName, RunnerMetadataStore,
+};
 use es_fluent_shared::fluent::{FluentArgumentName, FluentDomain, FluentMessageKey};
 use es_fluent_shared::resource::{ModuleResourceSpec, ResourceRoute};
 use es_fluent_shared::source::{SourceFile, SourceLine};
@@ -14,6 +16,7 @@ struct KeyMeta {
     source_file: Option<SourceFile>,
     source_line: SourceLine,
     source_description: String,
+    rust_source: ExpectedKeyRustSource,
 }
 
 /// Collects inventory data for a crate and writes it to `inventory.json`.
@@ -84,6 +87,12 @@ pub fn write_inventory_for_crate_at(
                     source_file: info.source_file(),
                     source_line: variant.source_line(),
                     source_description: source_description.clone(),
+                    rust_source: ExpectedKeyRustSource {
+                        type_kind: *info.type_kind(),
+                        type_name: info.type_name().to_string(),
+                        variant_name: variant.name().to_string(),
+                        module_path: info.module_path().to_string(),
+                    },
                 }),
                 Entry::Occupied(entry) => {
                     return Err(es_fluent_runner::RunnerIoError::Message(format!(
@@ -107,6 +116,7 @@ pub fn write_inventory_for_crate_at(
             resource: Some(meta.resource),
             source_file: meta.source_file,
             source_line: Some(meta.source_line),
+            rust_source: Some(meta.rust_source),
         })
         .collect();
 

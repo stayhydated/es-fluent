@@ -37,6 +37,8 @@ pub enum BuildCommand {
     BevyDemo,
     /// Build the Trunk-hosted GPUI demo into web/public/gpui-demo
     GpuiDemo,
+    /// Build the TypeScript, Solid, React, and Expo web demos into web/public
+    TypescriptDemos,
     /// Build mdBook documentation to web/public/book
     Book,
     /// Build llms.txt and per-chapter Markdown files from mdBook sources

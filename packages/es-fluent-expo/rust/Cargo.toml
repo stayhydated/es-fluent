@@ -1,0 +1,33 @@
+[package]
+name = "es-fluent-expo-native"
+description = "UniFFI localization runtime used by the es-fluent Expo module"
+edition.workspace = true
+license.workspace = true
+publish = false
+repository.workspace = true
+rust-version.workspace = true
+version.workspace = true
+
+[lib]
+crate-type = [ "cdylib", "staticlib", "rlib" ]
+
+[features]
+bindgen = [ "uniffi/cli" ]
+
+[[bin]]
+name = "uniffi-bindgen"
+path = "uniffi-bindgen.rs"
+required-features = [ "bindgen" ]
+
+[dependencies]
+fluent-bundle = { workspace = true }
+fluent-langneg = { workspace = true }
+intl-memoizer = { workspace = true }
+serde = { features = [ "derive" ], workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+unic-langid = { workspace = true }
+uniffi = { workspace = true }
+
+[lints]
+workspace = true

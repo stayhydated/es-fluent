@@ -1,7 +1,7 @@
 # CLI workflow
 
 Read this reference when generating, validating, formatting, synchronizing,
-inspecting, or cleaning FTL resources.
+inspecting, exporting, or cleaning FTL resources.
 
 ## Prerequisites
 
@@ -104,12 +104,42 @@ cargo es-fluent tree --output json
 Text `tree` can link to Rust or FTL source. JSON output does not
 accept `--link-mode`.
 
-`check`, `fmt`, `sync`, `tree`, and
+`check`, `export`, `fmt`, `sync`, `tree`, and
 `status` support `--output json`. Use the exit status plus
 the report fields relevant to warnings or dry-run work.
 
 Commands that write FTL plan the selected change before committing it and roll
 back earlier writes if the command fails.
+
+## Export a TypeScript contract
+
+~~~sh
+cargo es-fluent export typescript --out web/src/i18n/generated
+cargo es-fluent export typescript --out web/src/i18n/generated --dry-run
+~~~
+
+The command validates every locale for the selected packages, then emits typed
+message descriptors, a runtime manifest, JSON generator inputs, and copied FTL.
+Keep package plus domain as the runtime lookup scope. Use the manifest revision
+when transferring SSR locale state to the client. The export state owns only
+its recorded relative paths, and the whole write/stale-removal plan commits as
+one transaction. Reject symlinked targets and unowned existing paths.
+`--output json` reports changed and removed paths.
+
+Consume the export through `@es-fluent/core` for framework-neutral TypeScript,
+`@es-fluent/solid` for Solid 2/SolidStart, or `@es-fluent/react` for React and
+SSR. For Expo iOS, Android, and web, pass the generated `manifest` and
+`resourceSources` to `@es-fluent/expo`. That universal facade re-exports the
+React provider and hooks, formats through Rust and UniFFI on native targets,
+and selects the TypeScript runtime on web. Import the generated `manifest`,
+`messages`, and `resources` leaf modules without extensions when Metro consumes
+the TypeScript source directly.
+
+Repository examples keep one Rust contract and generated export per target:
+`examples/typescript-example`, `examples/solid-example`,
+`examples/react-example`, and `examples/expo-example`. Refresh an example with
+its `export:i18n` npm workspace script. Build the hosted browser demos with
+`cargo xtask build typescript-demos`.
 
 ## Select workspace scope
 

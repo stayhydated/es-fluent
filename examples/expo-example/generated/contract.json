@@ -1,0 +1,110 @@
+{
+  "schemaVersion": 1,
+  "revision": "a27923cda05641928e600d0660165b2425379e474eb5912a40b0976908c20d63",
+  "messages": [
+    {
+      "owner": "expo-example",
+      "domain": "expo-example",
+      "id": "demo_copy-Body",
+      "arguments": [],
+      "rustSource": {
+        "typeKind": "enum",
+        "typeName": "DemoCopy",
+        "variantName": "Body",
+        "modulePath": "expo_example::__es_fluent_inventory_DemoCopy"
+      },
+      "sourceFile": "examples/expo-example/src/lib.rs",
+      "sourceLine": 9
+    },
+    {
+      "owner": "expo-example",
+      "domain": "expo-example",
+      "id": "demo_copy-Kicker",
+      "arguments": [],
+      "rustSource": {
+        "typeKind": "enum",
+        "typeName": "DemoCopy",
+        "variantName": "Kicker",
+        "modulePath": "expo_example::__es_fluent_inventory_DemoCopy"
+      },
+      "sourceFile": "examples/expo-example/src/lib.rs",
+      "sourceLine": 7
+    },
+    {
+      "owner": "expo-example",
+      "domain": "expo-example",
+      "id": "demo_copy-SwitchLocale",
+      "arguments": [],
+      "rustSource": {
+        "typeKind": "enum",
+        "typeName": "DemoCopy",
+        "variantName": "SwitchLocale",
+        "modulePath": "expo_example::__es_fluent_inventory_DemoCopy"
+      },
+      "sourceFile": "examples/expo-example/src/lib.rs",
+      "sourceLine": 10
+    },
+    {
+      "owner": "expo-example",
+      "domain": "expo-example",
+      "id": "demo_copy-Title",
+      "arguments": [],
+      "rustSource": {
+        "typeKind": "enum",
+        "typeName": "DemoCopy",
+        "variantName": "Title",
+        "modulePath": "expo_example::__es_fluent_inventory_DemoCopy"
+      },
+      "sourceFile": "examples/expo-example/src/lib.rs",
+      "sourceLine": 8
+    },
+    {
+      "owner": "expo-example",
+      "domain": "expo-example",
+      "id": "greeting",
+      "arguments": [
+        "name"
+      ],
+      "rustSource": {
+        "typeKind": "struct",
+        "typeName": "Greeting",
+        "variantName": "Greeting",
+        "modulePath": "expo_example::__es_fluent_inventory_Greeting"
+      },
+      "sourceFile": "examples/expo-example/src/lib.rs",
+      "sourceLine": 19
+    },
+    {
+      "owner": "expo-example",
+      "domain": "expo-example",
+      "id": "inbox",
+      "arguments": [
+        "count"
+      ],
+      "rustSource": {
+        "typeKind": "struct",
+        "typeName": "Inbox",
+        "variantName": "Inbox",
+        "modulePath": "expo_example::__es_fluent_inventory_Inbox"
+      },
+      "sourceFile": "examples/expo-example/src/lib.rs",
+      "sourceLine": 24
+    },
+    {
+      "owner": "expo-example",
+      "domain": "expo-example",
+      "id": "locale_status",
+      "arguments": [
+        "locale"
+      ],
+      "rustSource": {
+        "typeKind": "struct",
+        "typeName": "LocaleStatus",
+        "variantName": "LocaleStatus",
+        "modulePath": "expo_example::__es_fluent_inventory_LocaleStatus"
+      },
+      "sourceFile": "examples/expo-example/src/lib.rs",
+      "sourceLine": 14
+    }
+  ]
+}

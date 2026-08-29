@@ -5,6 +5,7 @@
 use es_fluent_shared::fluent::{FluentDomain, FluentEntryId};
 use es_fluent_shared::{
     fluent::{FluentArgumentName, FluentMessageKey},
+    meta::TypeKind,
     resource::ModuleResourceSpec,
     source::{SourceFile, SourceLine},
 };
@@ -24,7 +25,7 @@ pub use transaction::{FileMutation, FileTransaction};
 /// monolithic runner binaries are rebuilt before they exchange incompatible
 /// data with the CLI.
 #[doc(hidden)]
-pub const RUNNER_PROTOCOL_VERSION: u32 = 2;
+pub const RUNNER_PROTOCOL_VERSION: u32 = 3;
 
 #[derive(Clone, Debug, Default, serde::Deserialize, Eq, PartialEq, serde::Serialize)]
 pub struct RunnerResult {
@@ -41,6 +42,17 @@ pub struct ExpectedKey {
     pub resource: Option<ModuleResourceSpec>,
     pub source_file: Option<SourceFile>,
     pub source_line: Option<SourceLine>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub rust_source: Option<ExpectedKeyRustSource>,
+}
+
+/// Rust declaration metadata retained for generated language facades.
+#[derive(Clone, Debug, serde::Deserialize, Eq, PartialEq, serde::Serialize)]
+pub struct ExpectedKeyRustSource {
+    pub type_kind: TypeKind,
+    pub type_name: String,
+    pub variant_name: String,
+    pub module_path: String,
 }
 
 #[derive(Clone, Debug, Default, serde::Deserialize, Eq, PartialEq, serde::Serialize)]
@@ -409,6 +421,7 @@ mod tests {
                 resource: Some(ModuleResourceSpec::base("crate-x", true)),
                 source_file: SourceFile::new("src/lib.rs"),
                 source_line: Some(SourceLine::new(7)),
+                rust_source: None,
             }],
         };
 

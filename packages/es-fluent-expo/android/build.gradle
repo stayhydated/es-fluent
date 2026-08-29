@@ -1,0 +1,40 @@
+plugins {
+  id 'com.android.library'
+  id 'expo-module-gradle-plugin'
+}
+
+group = 'expo.modules.esfluent'
+version = '0.18.1'
+
+android {
+  namespace 'expo.modules.esfluent'
+  defaultConfig {
+    versionCode 1
+    versionName '0.18.1'
+  }
+  sourceSets {
+    main.jniLibs.srcDirs += ['src/main/jniLibs']
+  }
+}
+
+dependencies {
+  implementation 'net.java.dev.jna:jna:5.19.1@aar'
+}
+
+def packageDir = project.projectDir.parentFile
+def workspaceDir = packageDir.parentFile.parentFile
+
+def buildRustAndroid = tasks.register('buildRustAndroid', Exec) {
+  workingDir packageDir
+  commandLine 'bash', 'scripts/build-android.sh'
+  inputs.dir new File(packageDir, 'rust/src')
+  inputs.file new File(packageDir, 'rust/Cargo.toml')
+  inputs.file new File(packageDir, 'rust/uniffi.toml')
+  inputs.file new File(workspaceDir, 'Cargo.toml')
+  inputs.file new File(workspaceDir, 'Cargo.lock')
+  outputs.dir new File(project.projectDir, 'src/main/jniLibs')
+}
+
+tasks.named('preBuild').configure {
+  dependsOn buildRustAndroid
+}

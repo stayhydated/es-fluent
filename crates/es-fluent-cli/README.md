@@ -4,7 +4,7 @@
 [![Crates.io](https://img.shields.io/crates/v/es-fluent-cli.svg)](https://crates.io/crates/es-fluent-cli)
 
 The Cargo subcommand for generating, validating, synchronizing, formatting,
-inspecting, and cleaning `es-fluent` FTL resources.
+inspecting, exporting, and cleaning `es-fluent` FTL resources.
 
 ## Install
 
@@ -36,6 +36,7 @@ cargo es-fluent check --all-locales
 | `add-locale` | Create and seed locale directories. |
 | `clean` | Remove stale generated entries or orphaned files. |
 | `tree` | Inspect resource files, entries, and variables. |
+| `export` | Build typed language bindings and package-owned locale assets. |
 
 Run `cargo es-fluent doctor` for a read-only setup report. It follows Cargo's
 selected library and custom-build targets and parses their local module graphs.
@@ -67,12 +68,34 @@ Use `--path` for a crate or workspace and `--package` for
 one configured package. Preview destructive cleanup and aggressive generation
 with `--dry-run`.
 
-Machine-readable output is available for `check`, `doctor`, `fmt`,
+Machine-readable output is available for `check`, `doctor`, `export`, `fmt`,
 `sync`, `tree`, and `status`:
 
 ~~~sh
 cargo es-fluent check --all-locales --output json
 ~~~
+
+## TypeScript export
+
+Generate a framework-neutral contract for `@es-fluent/core` and copy every
+selected package's locale resources:
+
+~~~sh
+cargo es-fluent export typescript --out web/src/i18n/generated
+~~~
+
+The export validates all locales before writing. It produces typed
+`messages.ts`, `manifest.ts`, an embedded `resources.ts` loader, JSON
+equivalents for other generators, and FTL under
+`locales/<locale>/<package>/...`. Message identity remains
+package-and-domain scoped, so equal domains or IDs in different Rust packages
+stay independent. A content revision supports deterministic SSR hydration.
+
+The command plans the complete output transaction before committing it. Its
+`.es-fluent-export.json` state owns stale-file cleanup within the output
+directory. The exporter rejects symlinked targets and existing paths absent from
+that ownership state. Use `--dry-run` to preview and `--output json` for
+automation.
 
 ## GitHub Actions
 

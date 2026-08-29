@@ -1,0 +1,9 @@
+{
+  "platforms": ["ios", "android", "web"],
+  "apple": {
+    "modules": ["EsFluentExpoModule"]
+  },
+  "android": {
+    "modules": ["expo.modules.esfluent.EsFluentExpoModule"]
+  }
+}

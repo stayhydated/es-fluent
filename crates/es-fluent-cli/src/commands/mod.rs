@@ -6,6 +6,7 @@ mod clean;
 mod common;
 mod doctor;
 mod dry_run;
+mod export;
 mod format;
 mod generate;
 mod status;
@@ -19,6 +20,7 @@ pub(crate) use clean::{CleanArgs, run_clean};
 #[cfg(test)]
 pub(crate) use common::{OutputFormat, WorkspaceArgs};
 pub(crate) use doctor::{DoctorArgs, run_doctor};
+pub(crate) use export::{ExportArgs, run_export};
 pub(crate) use format::{FormatArgs, run_format};
 pub(crate) use generate::{GenerateArgs, run_generate};
 pub(crate) use status::{StatusArgs, run_status};

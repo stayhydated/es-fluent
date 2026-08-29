@@ -1,0 +1,110 @@
+{
+  "schemaVersion": 1,
+  "revision": "18bfb661b24a7541eaf1f39f2fce092518511214f2c0eef628a12f9a9fc92d95",
+  "messages": [
+    {
+      "owner": "solid-example",
+      "domain": "solid-example",
+      "id": "demo_copy-Body",
+      "arguments": [],
+      "rustSource": {
+        "typeKind": "enum",
+        "typeName": "DemoCopy",
+        "variantName": "Body",
+        "modulePath": "solid_example::__es_fluent_inventory_DemoCopy"
+      },
+      "sourceFile": "examples/solid-example/src/lib.rs",
+      "sourceLine": 9
+    },
+    {
+      "owner": "solid-example",
+      "domain": "solid-example",
+      "id": "demo_copy-Kicker",
+      "arguments": [],
+      "rustSource": {
+        "typeKind": "enum",
+        "typeName": "DemoCopy",
+        "variantName": "Kicker",
+        "modulePath": "solid_example::__es_fluent_inventory_DemoCopy"
+      },
+      "sourceFile": "examples/solid-example/src/lib.rs",
+      "sourceLine": 7
+    },
+    {
+      "owner": "solid-example",
+      "domain": "solid-example",
+      "id": "demo_copy-SwitchLocale",
+      "arguments": [],
+      "rustSource": {
+        "typeKind": "enum",
+        "typeName": "DemoCopy",
+        "variantName": "SwitchLocale",
+        "modulePath": "solid_example::__es_fluent_inventory_DemoCopy"
+      },
+      "sourceFile": "examples/solid-example/src/lib.rs",
+      "sourceLine": 10
+    },
+    {
+      "owner": "solid-example",
+      "domain": "solid-example",
+      "id": "demo_copy-Title",
+      "arguments": [],
+      "rustSource": {
+        "typeKind": "enum",
+        "typeName": "DemoCopy",
+        "variantName": "Title",
+        "modulePath": "solid_example::__es_fluent_inventory_DemoCopy"
+      },
+      "sourceFile": "examples/solid-example/src/lib.rs",
+      "sourceLine": 8
+    },
+    {
+      "owner": "solid-example",
+      "domain": "solid-example",
+      "id": "greeting",
+      "arguments": [
+        "name"
+      ],
+      "rustSource": {
+        "typeKind": "struct",
+        "typeName": "Greeting",
+        "variantName": "Greeting",
+        "modulePath": "solid_example::__es_fluent_inventory_Greeting"
+      },
+      "sourceFile": "examples/solid-example/src/lib.rs",
+      "sourceLine": 19
+    },
+    {
+      "owner": "solid-example",
+      "domain": "solid-example",
+      "id": "inbox",
+      "arguments": [
+        "count"
+      ],
+      "rustSource": {
+        "typeKind": "struct",
+        "typeName": "Inbox",
+        "variantName": "Inbox",
+        "modulePath": "solid_example::__es_fluent_inventory_Inbox"
+      },
+      "sourceFile": "examples/solid-example/src/lib.rs",
+      "sourceLine": 24
+    },
+    {
+      "owner": "solid-example",
+      "domain": "solid-example",
+      "id": "locale_status",
+      "arguments": [
+        "locale"
+      ],
+      "rustSource": {
+        "typeKind": "struct",
+        "typeName": "LocaleStatus",
+        "variantName": "LocaleStatus",
+        "modulePath": "solid_example::__es_fluent_inventory_LocaleStatus"
+      },
+      "sourceFile": "examples/solid-example/src/lib.rs",
+      "sourceLine": 14
+    }
+  ]
+}

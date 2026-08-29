@@ -12,6 +12,7 @@ pub(crate) enum PageKind {
     Dioxus,
     Bevy,
     Gpui,
+    TypeScript,
 }
 
 impl PageKind {
@@ -22,18 +23,22 @@ impl PageKind {
             Self::Dioxus => "Osmose Demo",
             Self::Bevy => "Bevy Example",
             Self::Gpui => "GPUI Example",
+            Self::TypeScript => "TypeScript Demos",
         }
     }
 
     fn description(self) -> &'static str {
         match self {
             Self::Home => {
-                "Define messages in Rust. Generate Fluent files. Use them in embedded, Bevy, and Dioxus apps."
+                "Define messages in Rust. Generate Fluent files. Use them in Rust, TypeScript, Solid, React, and Expo apps."
             },
             Self::Demos => "Browser demos for es-fluent runtime integrations.",
             Self::Dioxus => "A hero demo for the Expressive E Osmose 49/61-key MPE synthesizer.",
-            Self::Bevy => "A Bevy wasm demo inside the book site.",
-            Self::Gpui => "A GPUI wasm demo inside the book site.",
+            Self::Bevy => "A Bevy wasm localization demo.",
+            Self::Gpui => "A GPUI wasm localization demo.",
+            Self::TypeScript => {
+                "Live TypeScript, Solid, React, and Expo localization demos in one list."
+            },
         }
     }
 }
@@ -55,6 +60,8 @@ pub(crate) enum AppRoute {
     Bevy {},
     #[route("/gpui-example/", GpuiRoute)]
     Gpui {},
+    #[route("/typescript-examples/", TypeScriptRoute)]
+    TypeScript {},
 }
 
 pub(crate) fn app_route(page: PageKind) -> AppRoute {
@@ -64,6 +71,7 @@ pub(crate) fn app_route(page: PageKind) -> AppRoute {
         PageKind::Dioxus => AppRoute::Dioxus {},
         PageKind::Bevy => AppRoute::Bevy {},
         PageKind::Gpui => AppRoute::Gpui {},
+        PageKind::TypeScript => AppRoute::TypeScript {},
     }
 }
 
@@ -105,4 +113,9 @@ fn BevyRoute() -> Element {
 #[component]
 fn GpuiRoute() -> Element {
     route_element(PageKind::Gpui)
+}
+
+#[component]
+fn TypeScriptRoute() -> Element {
+    route_element(PageKind::TypeScript)
 }

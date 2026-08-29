@@ -1,4 +1,23 @@
 {
   "name": "es-fluent",
-  "private": true
+  "private": true,
+  "type": "module",
+  "workspaces": [
+    "packages/*",
+    "examples/typescript-example",
+    "examples/solid-example",
+    "examples/react-example",
+    "examples/expo-example"
+  ],
+  "scripts": {
+    "build:typescript": "tsc -b packages/es-fluent-ts packages/es-fluent-solid packages/es-fluent-react packages/es-fluent-expo",
+    "build:demos": "npm run build:typescript && npm run build --workspace @es-fluent/example-typescript && npm run build --workspace @es-fluent/example-solid && npm run build --workspace @es-fluent/example-react && npm run build:web --workspace @es-fluent/example-expo",
+    "typecheck:demos": "npm run typecheck --workspaces --if-present",
+    "test:typescript": "npm run build:typescript && node --test packages/es-fluent-ts/dist/test/*.test.js packages/es-fluent-solid/dist/test/ssr.test.js packages/es-fluent-react/dist/test/*.test.js packages/es-fluent-expo/dist/test/*.test.js && node --conditions=browser --test packages/es-fluent-solid/dist/test/client.test.js"
+  },
+  "devDependencies": {
+    "@types/node": "^26.0.0",
+    "typescript": "^7.0.0",
+    "vite": "8.2.2"
+  }
 }

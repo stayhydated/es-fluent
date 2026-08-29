@@ -15,6 +15,18 @@ const OSMOSE_IMAGE_URL: &str = "https://www.expressivee.com/img/products/osmose/
 #[component]
 pub(crate) fn DioxusPage() -> Element {
     rsx! {
+        StayhydatedProjectPortalShell {
+            project: PROJECT,
+            version: VERSION,
+            home: NavigationTarget::Internal(crate::site::routing::app_route(PageKind::Home)),
+            DioxusDemo {}
+        }
+    }
+}
+
+#[component]
+fn DioxusDemo() -> Element {
+    rsx! {
         DioxusAssetI18nProvider {
             initial_language: DemoLanguage::default().into(),
             DioxusDemoContent {}
@@ -29,16 +41,11 @@ fn DioxusDemoContent() -> Element {
         Ok(i18n) => i18n,
         Err(error) => {
             return rsx! {
-                StayhydatedProjectPortalShell {
-                    project: PROJECT,
-                    version: VERSION,
-                    home: NavigationTarget::Internal(crate::site::routing::app_route(PageKind::Home)),
-                    div { class: "demo-page",
-                        section { class: "section-band",
-                            span { class: "panel-label", "demo load failure" }
-                            h1 { "Expressive E Osmose" }
-                            p { "Failed to initialize the Osmose demo: {error}" }
-                        }
+                div { class: "demo-page",
+                    section { class: "section-band",
+                        span { class: "panel-label", "demo load failure" }
+                        h1 { "Expressive E Osmose" }
+                        p { "Failed to initialize the Osmose demo: {error}" }
                     }
                 }
             };
@@ -73,41 +80,36 @@ fn DioxusDemoContent() -> Element {
     let resource_body = i18n.localize_message(&DioxusDemoMessage::ResourceBody);
 
     rsx! {
-        StayhydatedProjectPortalShell {
-            project: PROJECT,
-            version: VERSION,
-            home: NavigationTarget::Internal(crate::site::routing::app_route(PageKind::Home)),
-            div { class: "demo-page",
-                section { class: "dioxus-keyboard-hero motion-reveal",
-                    style: demo_style.as_str(),
-                    div { class: "dioxus-demo-card-header",
-                        div { class: "dioxus-demo-card-heading",
-                            span { class: "panel-label", "{panel_label}" }
-                            h1 { "{title}" }
-                            p { "{body}" }
-                        }
-                        div { class: "dioxus-demo-card-controls",
-                            select::Select::<DemoLanguage> {
-                                value: Some(selected.into()),
-                                on_value_change: on_change,
-                                select::SelectTrigger {
-                                    aria_label: "Language",
-                                    select::SelectValue { placeholder: selected_label }
-                                }
-                                select::SelectList { aria_label: "Languages",
-                                    for (index, (language, label)) in options.iter().enumerate() {
-                                        {
-                                            let active = Some(*language) == selected();
-                                            rsx! {
-                                                select::SelectOption::<DemoLanguage> {
-                                                    key: "{language:?}",
-                                                    index,
-                                                    value: *language,
-                                                    text_value: Some(label.clone()),
-                                                    "{label}"
-                                                    if active {
-                                                        select::SelectItemIndicator {}
-                                                    }
+        div { class: "demo-page",
+            section { class: "dioxus-keyboard-hero motion-reveal",
+                style: demo_style.as_str(),
+                div { class: "dioxus-demo-card-header",
+                    div { class: "dioxus-demo-card-heading",
+                        span { class: "panel-label", "{panel_label}" }
+                        h1 { "{title}" }
+                        p { "{body}" }
+                    }
+                    div { class: "dioxus-demo-card-controls",
+                        select::Select::<DemoLanguage> {
+                            value: Some(selected.into()),
+                            on_value_change: on_change,
+                            select::SelectTrigger {
+                                aria_label: "Language",
+                                select::SelectValue { placeholder: selected_label }
+                            }
+                            select::SelectList { aria_label: "Languages",
+                                for (index, (language, label)) in options.iter().enumerate() {
+                                    {
+                                        let active = Some(*language) == selected();
+                                        rsx! {
+                                            select::SelectOption::<DemoLanguage> {
+                                                key: "{language:?}",
+                                                index,
+                                                value: *language,
+                                                text_value: Some(label.clone()),
+                                                "{label}"
+                                                if active {
+                                                    select::SelectItemIndicator {}
                                                 }
                                             }
                                         }
@@ -116,33 +118,33 @@ fn DioxusDemoContent() -> Element {
                             }
                         }
                     }
-                    div {
-                        class: "osmose-visual",
-                        div { class: "osmose-panel",
-                            span { "Expressive E" }
-                            strong { "Osmose" }
-                        }
-                        div { class: "osmose-image-frame",
-                            img {
-                                class: "osmose-product-image",
-                                src: OSMOSE_IMAGE_URL,
-                                alt: "Expressive E Osmose 49/61-key synthesizer",
-                            }
+                }
+                div {
+                    class: "osmose-visual",
+                    div { class: "osmose-panel",
+                        span { "Expressive E" }
+                        strong { "Osmose" }
+                    }
+                    div { class: "osmose-image-frame",
+                        img {
+                            class: "osmose-product-image",
+                            src: OSMOSE_IMAGE_URL,
+                            alt: "Expressive E Osmose 49/61-key synthesizer",
                         }
                     }
-                    div { class: "dioxus-keyboard-proof",
-                        article { class: "feature-card",
-                            span { class: "panel-label", "{result_label}" }
-                            p { class: "feature-copy", "{result_body}" }
-                        }
-                        article { class: "feature-card",
-                            h2 { class: "feature-title", "{runtime_title}" }
-                            p { class: "feature-copy", "{runtime_body}" }
-                        }
-                        article { class: "feature-card",
-                            h2 { class: "feature-title", "{resource_title}" }
-                            p { class: "feature-copy", "{resource_body}" }
-                        }
+                }
+                div { class: "dioxus-keyboard-proof",
+                    article { class: "feature-card",
+                        span { class: "panel-label", "{result_label}" }
+                        p { class: "feature-copy", "{result_body}" }
+                    }
+                    article { class: "feature-card",
+                        h2 { class: "feature-title", "{runtime_title}" }
+                        p { class: "feature-copy", "{runtime_body}" }
+                    }
+                    article { class: "feature-card",
+                        h2 { class: "feature-title", "{resource_title}" }
+                        p { class: "feature-copy", "{resource_body}" }
                     }
                 }
             }

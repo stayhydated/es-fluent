@@ -4,6 +4,7 @@ mod dioxus_demo;
 mod gpui;
 mod home;
 pub(crate) mod i18n;
+mod typescript_demos;
 
 use crate::site::routing::PageKind;
 use dioxus::prelude::*;
@@ -15,5 +16,6 @@ pub(crate) fn route_content(page: PageKind) -> Element {
         PageKind::Dioxus => rsx!(dioxus_demo::DioxusPage {}),
         PageKind::Bevy => rsx!(bevy::BevyPage {}),
         PageKind::Gpui => rsx!(gpui::GpuiPage {}),
+        PageKind::TypeScript => rsx!(typescript_demos::TypeScriptDemosPage {}),
     }
 }

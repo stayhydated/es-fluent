@@ -1,0 +1,17 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "composite": true,
+    "rootDir": ".",
+    "outDir": "dist",
+    "tsBuildInfoFile": "dist/.tsbuildinfo"
+  },
+  "references": [
+    { "path": "../es-fluent-ts" },
+    { "path": "../es-fluent-react" }
+  ],
+  "include": [
+    "src/**/*.ts",
+    "test/**/*.ts"
+  ]
+}
