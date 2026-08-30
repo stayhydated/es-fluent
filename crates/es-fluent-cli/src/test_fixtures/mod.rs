@@ -17,6 +17,8 @@ use std::process::Command;
 use std::sync::OnceLock;
 #[cfg(test)]
 use std::time::SystemTime;
+#[cfg(test)]
+pub use tempfile::TempDir;
 
 pub const CARGO_TOML: &str = include_str!("../../tests/fixtures/base/Cargo.toml");
 pub const I18N_TOML: &str = include_str!("../../tests/fixtures/base/i18n.toml");
@@ -51,6 +53,27 @@ pub struct FakeRunnerBehavior {
     pub exit_code: i32,
     pub echo_args: bool,
     pub record_args_path: Option<PathBuf>,
+}
+
+#[cfg(test)]
+/// Create a temporary directory whose lexical path matches its canonical path.
+///
+/// macOS exposes its temporary directory through the `/var` symlink while Cargo
+/// metadata and filesystem inspection return the `/private/var` target.
+pub fn tempdir() -> std::io::Result<tempfile::TempDir> {
+    let temp_root = std::env::temp_dir().canonicalize()?;
+    let temp_root = crate::utils::paths::normalize_windows_verbatim_path(&temp_root);
+    tempfile::tempdir_in(temp_root)
+}
+
+#[cfg(test)]
+#[test]
+fn tempdir_path_is_canonical() {
+    let temp = tempdir().expect("tempdir");
+    let canonical = temp.path().canonicalize().expect("canonical tempdir");
+    let canonical = crate::utils::paths::normalize_windows_verbatim_path(&canonical);
+
+    assert_eq!(temp.path(), canonical);
 }
 
 #[cfg(test)]
@@ -91,21 +114,21 @@ impl FakeRunnerBehavior {
 
 #[cfg(test)]
 pub fn create_test_crate_workspace() -> tempfile::TempDir {
-    let temp = tempfile::tempdir().expect("tempdir");
+    let temp = tempdir().expect("tempdir");
     write_basic_workspace(temp.path(), true);
     temp
 }
 
 #[cfg(test)]
 pub fn create_test_crate_workspace_without_ftl() -> tempfile::TempDir {
-    let temp = tempfile::tempdir().expect("tempdir");
+    let temp = tempdir().expect("tempdir");
     write_basic_workspace(temp.path(), false);
     temp
 }
 
 #[cfg(test)]
 pub fn create_binary_only_i18n_workspace() -> tempfile::TempDir {
-    let temp = tempfile::tempdir().expect("tempdir");
+    let temp = tempdir().expect("tempdir");
     fs::create_dir_all(temp.path().join("src")).expect("create src");
     fs::create_dir_all(temp.path().join("i18n/en")).expect("create i18n/en");
     fs::write(
@@ -121,7 +144,7 @@ pub fn create_binary_only_i18n_workspace() -> tempfile::TempDir {
 
 #[cfg(test)]
 pub fn create_mixed_library_and_binary_i18n_workspace() -> tempfile::TempDir {
-    let temp = tempfile::tempdir().expect("tempdir");
+    let temp = tempdir().expect("tempdir");
     fs::write(
         temp.path().join("Cargo.toml"),
         "[workspace]\nmembers = [\"valid-app\", \"bin-app\"]\nresolver = \"3\"\n",
@@ -169,7 +192,7 @@ pub fn write_basic_workspace(base: &Path, include_ftl: bool) {
 
 #[cfg(test)]
 pub fn create_workspace_with_locales(locales: &[(&str, &str)]) -> tempfile::TempDir {
-    let temp = tempfile::tempdir().expect("tempdir");
+    let temp = tempdir().expect("tempdir");
     fs::create_dir_all(temp.path().join("src")).expect("create src");
     fs::write(temp.path().join("Cargo.toml"), CARGO_TOML).expect("write Cargo.toml");
     fs::write(temp.path().join("src/lib.rs"), LIB_RS).expect("write lib.rs");

@@ -2113,6 +2113,7 @@ fn token_stream_contains_macro_invocation(tokens: &proc_macro2::TokenStream, tar
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::test_fixtures as tempfile;
     use std::fs;
 
     fn inspect_fixture(

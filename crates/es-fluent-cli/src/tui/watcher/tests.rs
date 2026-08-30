@@ -1,4 +1,5 @@
 use crate::core::{CrateInfo, FluentParseMode, WorkspaceInfo};
+use crate::test_fixtures as tempfile;
 use crate::test_fixtures::FakeRunnerBehavior;
 use fs_err as fs;
 use notify::{
