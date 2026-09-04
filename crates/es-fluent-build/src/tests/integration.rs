@@ -50,7 +50,7 @@ es-fluent-build = {{ path = "{}" }}
         !strict.status.success(),
         "strict build should reject the missing key"
     );
-    let strict_stderr = String::from_utf8_lossy(&strict.stderr);
+    let strict_stderr = String::from_utf8_lossy(&strict.stderr).replace('\\', "/");
     for expected in [
         "missing fallback Fluent message `missing_value`",
         "domain `fallback-app`",
