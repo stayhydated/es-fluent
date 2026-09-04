@@ -43,7 +43,9 @@ runs:
         toolchain: ${{ inputs.toolchain }}
 
     - name: Setup sccache
-      uses: mozilla-actions/sccache-action@v0.0.10
+      uses: mozilla-actions/sccache-action@v0.0.11
+      with:
+        version: "v0.16.0"
 
     - name: Install es-fluent-cli
       shell: bash
