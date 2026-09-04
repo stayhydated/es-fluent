@@ -146,42 +146,39 @@ fn build_source_entries(
         let graph =
             crate::source_inspector::reachable_source_graph(build_target, &krate.manifest_dir);
         let crate_name = krate.name.to_string();
+        let source_paths = graph
+            .paths
+            .iter()
+            .chain(&graph.lexical_paths)
+            .map(|path| crate::utils::paths::normalize_windows_verbatim_path(path))
+            .collect::<BTreeSet<_>>();
 
         if !graph.indeterminate_reasons.is_empty() {
             build_source_dirs.push((krate.manifest_dir.to_path_buf(), crate_name.clone()));
-            build_source_dirs.extend(
-                graph
-                    .watch_dirs
-                    .iter()
-                    .cloned()
-                    .map(|directory| (directory, crate_name.clone())),
-            );
+            build_source_dirs.extend(graph.watch_dirs.iter().map(|directory| {
+                (
+                    crate::utils::paths::normalize_windows_verbatim_path(directory),
+                    crate_name.clone(),
+                )
+            }));
         }
 
         build_sources.extend(
-            graph
-                .paths
+            source_paths
                 .iter()
-                .chain(&graph.lexical_paths)
                 .cloned()
                 .map(|path| (path, crate_name.clone())),
         );
-        build_source_dirs.extend(
-            graph
-                .paths
-                .into_iter()
-                .chain(graph.lexical_paths)
-                .filter_map(|source| {
-                    if source.starts_with(&krate.src_dir)
-                        || source.parent() == Some(krate.manifest_dir.as_path())
-                    {
-                        return None;
-                    }
-                    source
-                        .parent()
-                        .map(|parent| (parent.to_path_buf(), crate_name.clone()))
-                }),
-        );
+        build_source_dirs.extend(source_paths.into_iter().filter_map(|source| {
+            if source.starts_with(&krate.src_dir)
+                || source.parent() == Some(krate.manifest_dir.as_path())
+            {
+                return None;
+            }
+            source
+                .parent()
+                .map(|parent| (parent.to_path_buf(), crate_name.clone()))
+        }));
     }
 
     (build_sources, build_source_dirs)
@@ -196,6 +193,9 @@ pub(super) fn process_file_events(
 
     for event in events {
         for path in &event.paths {
+            let normalized_path = crate::utils::paths::normalize_windows_verbatim_path(path);
+            let path = normalized_path.as_path();
+
             if path.components().any(|c| c.as_os_str() == ".es-fluent") {
                 continue;
             }
@@ -279,20 +279,22 @@ impl PathToCrateMap {
     pub(super) fn should_refresh_build_sources(&self, events: &[DebouncedEvent]) -> bool {
         events.iter().any(|event| {
             event.paths.iter().any(|path| {
-                self.is_build_source_event(path)
-                    || self.is_manifest_event(path)
-                    || self.is_cargo_config_event(path)
-                    || self.is_cargo_input_topology_event(path)
+                let path = crate::utils::paths::normalize_windows_verbatim_path(path);
+                self.is_build_source_event(&path)
+                    || self.is_manifest_event(&path)
+                    || self.is_cargo_config_event(&path)
+                    || self.is_cargo_input_topology_event(&path)
             })
         })
     }
 
     pub(super) fn has_rediscovery_event(&self, events: &[DebouncedEvent]) -> bool {
         events.iter().flat_map(|event| &event.paths).any(|path| {
-            self.is_manifest_event(path)
-                || self.is_cargo_config_event(path)
-                || self.is_cargo_input_topology_event(path)
-                || self.match_missing_default_build_target(path).is_some()
+            let path = crate::utils::paths::normalize_windows_verbatim_path(path);
+            self.is_manifest_event(&path)
+                || self.is_cargo_config_event(&path)
+                || self.is_cargo_input_topology_event(&path)
+                || self.match_missing_default_build_target(&path).is_some()
         })
     }
 

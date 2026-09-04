@@ -118,7 +118,9 @@ fn watcher_rediscovers_new_default_build_target() {
     assert_eq!(
         update.added,
         BTreeMap::from([(
-            support_dir.canonicalize().expect("canonical support dir"),
+            crate::utils::paths::normalize_windows_verbatim_path(
+                &support_dir.canonicalize().expect("canonical support dir"),
+            ),
             RecursiveMode::Recursive,
         )])
     );
@@ -176,13 +178,17 @@ fn watcher_rediscovers_custom_build_target_after_manifest_edit() {
     assert_eq!(
         update.added,
         BTreeMap::from([(
-            new_dir.canonicalize().expect("canonical new build dir"),
+            crate::utils::paths::normalize_windows_verbatim_path(
+                &new_dir.canonicalize().expect("canonical new build dir"),
+            ),
             RecursiveMode::Recursive,
         )])
     );
     assert_eq!(
         update.removed,
-        vec![old_dir.canonicalize().expect("canonical old build dir")]
+        vec![crate::utils::paths::normalize_windows_verbatim_path(
+            &old_dir.canonicalize().expect("canonical old build dir"),
+        )]
     );
 
     let new_target = new_dir
@@ -244,16 +250,22 @@ fn watcher_rediscovers_library_target_and_watches_new_source_directory() {
         .expect("rediscover Cargo metadata")
         .expect("manifest edit should refresh source watches");
 
-    let new_library = new_src_dir
-        .join("lib.rs")
-        .canonicalize()
-        .expect("canonical new library target");
-    let old_source = old_src_dir
-        .canonicalize()
-        .expect("canonical old source directory");
-    let new_source = new_src_dir
-        .canonicalize()
-        .expect("canonical new source directory");
+    let new_library = crate::utils::paths::normalize_windows_verbatim_path(
+        &new_src_dir
+            .join("lib.rs")
+            .canonicalize()
+            .expect("canonical new library target"),
+    );
+    let old_source = crate::utils::paths::normalize_windows_verbatim_path(
+        &old_src_dir
+            .canonicalize()
+            .expect("canonical old source directory"),
+    );
+    let new_source = crate::utils::paths::normalize_windows_verbatim_path(
+        &new_src_dir
+            .canonicalize()
+            .expect("canonical new source directory"),
+    );
     let refreshed = runtime.valid_crates();
     assert_eq!(refreshed[0].src_dir.as_path(), new_source.as_path());
     assert_eq!(

@@ -184,6 +184,11 @@ pub(super) fn inspect_source_graph(
     graph.paths.dedup();
     graph.lexical_paths.sort();
     graph.lexical_paths.dedup();
+    graph.watch_dirs = graph
+        .watch_dirs
+        .into_iter()
+        .map(|path| crate::utils::paths::normalize_windows_verbatim_path(&path))
+        .collect();
     graph.watch_dirs.sort();
     graph.watch_dirs.dedup();
     graph.indeterminate_reasons.sort();
