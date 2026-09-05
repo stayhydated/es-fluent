@@ -1,4 +1,5 @@
 use assert_cmd::Command;
+use path_slash::PathExt as _;
 use predicates::prelude::*;
 use serde_json::Value;
 use std::path::{Path, PathBuf};
@@ -35,7 +36,7 @@ fn copy_fixture() -> tempfile::TempDir {
         .expect("read fixture manifest")
         .replace(
             "../../../crates/",
-            &format!("{}/crates/", repository_root.display()),
+            &format!("{}/crates/", repository_root.to_slash_lossy()),
         );
     std::fs::write(manifest_path, manifest).expect("rewrite fixture dependency paths");
 
