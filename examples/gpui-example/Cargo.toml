@@ -15,9 +15,7 @@ path = "src/main.rs"
 es-fluent = { workspace = true }
 es-fluent-manager-embedded = { workspace = true }
 example-shared-lib = { features = [ "gpui" ], path = "../example-shared-lib" }
-gpui = { workspace = true }
-gpui-component = { workspace = true }
-gpui_platform = { workspace = true }
+gpui-kit = { workspace = true }
 tracing-subscriber = { features = [ "env-filter" ], workspace = true }
 wasm-bindgen = { workspace = true }
 

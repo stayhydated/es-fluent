@@ -82,14 +82,7 @@ fs-err = "3.3"
 futures = "0.3"
 getset = "0.1"
 globset = "0.4"
-gpui = { branch = "linux-headless-renderer", git = "https://github.com/stayhydated/zed" }
-gpui-component = { git = "https://github.com/stayhydated/gpui-component", rev = "33f25d368447a47ab5da2c674b2e833826c79fb1" }
-gpui_platform = { features = [
-  "font-kit",
-  "x11",
-  "wayland",
-  "runtime_shaders",
-], branch = "linux-headless-renderer", git = "https://github.com/stayhydated/zed" }
+gpui-kit = "0.6.0"
 heck = "0.5"
 icu_calendar = "2.2"
 icu_datetime = "2.2"

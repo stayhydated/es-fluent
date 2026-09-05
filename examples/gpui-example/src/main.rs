@@ -3,13 +3,13 @@
 use std::borrow::Cow;
 
 use example_shared_lib::{ButtonState, CurrentLanguage, Languages};
-use gpui::prelude::*;
-use gpui::{
+use gpui_example::{GpuiScreenMessages, i18n};
+use gpui_kit::component::{button::Button, label::Label};
+use gpui_kit::prelude::*;
+use gpui_kit::{
     App, Application, Bounds, Context, FocusHandle, Focusable, KeyBinding, Window, WindowBounds,
     WindowOptions, actions,
 };
-use gpui_component::{button::Button, label::Label};
-use gpui_example::{GpuiScreenMessages, i18n};
 use tracing_subscriber::{EnvFilter, filter::LevelFilter};
 #[cfg(target_family = "wasm")]
 use wasm_bindgen::prelude::*;
@@ -19,24 +19,24 @@ mod i18n_global {
 
     pub struct CurrentI18n(pub i18n::I18n);
 
-    impl gpui::Global for CurrentI18n {}
+    impl gpui_kit::Global for CurrentI18n {}
 }
 
 actions!(gpui_example, [CycleLocale]);
 
 #[cfg(not(target_family = "wasm"))]
 fn main() {
-    run_with_app(gpui_platform::application(), true);
+    run_with_app(gpui_kit::application(), true);
 }
 
 #[cfg(target_family = "wasm")]
 #[wasm_bindgen]
 pub fn run() -> Result<(), JsValue> {
-    gpui_platform::web_init();
-    let app = gpui_platform::single_threaded_web();
+    gpui_kit::platform::web_init();
+    let app = gpui_kit::platform::single_threaded_web();
     // Keep the app alive for the duration of JS-driven callbacks (RAF/input/resize).
     // without this, GPUI can drop the platform callbacks while browser closures are still queued.
-    struct WasmApplication(std::rc::Rc<gpui::AppCell>);
+    struct WasmApplication(std::rc::Rc<gpui_kit::AppCell>);
     let app = unsafe {
         let wasm_app = std::mem::transmute::<Application, WasmApplication>(app);
         std::mem::forget(wasm_app.0.clone());
@@ -69,9 +69,13 @@ fn run_with_app(app: Application, enable_tracing: bool) {
         cx.set_global(CurrentLanguage(startup_language));
         cx.set_global(i18n_global::CurrentI18n(i18n));
         cx.bind_keys([KeyBinding::new("t", CycleLocale, Some("GpuiExample"))]);
-        gpui_component::init(cx);
+        gpui_kit::init(cx);
 
-        let bounds = Bounds::centered(None, gpui::size(gpui::px(640.), gpui::px(480.)), cx);
+        let bounds = Bounds::centered(
+            None,
+            gpui_kit::size(gpui_kit::px(640.), gpui_kit::px(480.)),
+            cx,
+        );
         cx.open_window(
             WindowOptions {
                 window_bounds: Some(WindowBounds::Windowed(bounds)),
@@ -132,7 +136,7 @@ impl Render for GpuiExampleView {
         let current_language = cx.global::<CurrentLanguage>().0;
         let i18n = cx.global::<i18n_global::CurrentI18n>().0.clone();
 
-        gpui::div()
+        gpui_kit::div()
             .font_family("Noto Sans SC")
             .id("gpui-example")
             .key_context("GpuiExample")
@@ -158,14 +162,14 @@ impl Render for GpuiExampleView {
                         cx.notify();
                     }))
                     .on_mouse_down(
-                        gpui::MouseButton::Left,
+                        gpui_kit::MouseButton::Left,
                         cx.listener(|this, _event, _window, cx| {
                             this.button_state = ButtonState::Pressed;
                             cx.notify();
                         }),
                     )
                     .on_mouse_up(
-                        gpui::MouseButton::Left,
+                        gpui_kit::MouseButton::Left,
                         cx.listener(|this, _event, _window, cx| {
                             this.button_state = ButtonState::Hovered;
                             cx.notify();
@@ -173,13 +177,13 @@ impl Render for GpuiExampleView {
                     ),
             )
             .child(
-                gpui::div().child(
+                gpui_kit::div().child(
                     Label::new(
                         i18n.localize_message(&GpuiScreenMessages::ToggleLanguageHint {
                             current_language,
                         }),
                     )
-                    .text_color(gpui::white()),
+                    .text_color(gpui_kit::white()),
                 ),
             )
             .child(

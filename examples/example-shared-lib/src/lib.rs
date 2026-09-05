@@ -24,7 +24,7 @@ pub enum ButtonState {
 }
 
 #[cfg(feature = "gpui")]
-impl gpui::Global for CurrentLanguage {}
+impl gpui_kit::Global for CurrentLanguage {}
 
 #[es_fluent_language]
 #[derive(Clone, Copy, Debug, EnumIter, Eq, PartialEq)]

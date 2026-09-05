@@ -12,7 +12,7 @@ es-fluent = { workspace = true }
 es-fluent-lang = { workspace = true }
 es-fluent-manager-bevy = { optional = true, workspace = true }
 es-fluent-manager-embedded = { optional = true, workspace = true }
-gpui = { optional = true, workspace = true }
+gpui-kit = { optional = true, workspace = true }
 strum = { features = [ "derive" ], workspace = true }
 
 [build-dependencies]
@@ -25,4 +25,4 @@ workspace = true
 bevy = [ "dep:bevy", "dep:es-fluent-manager-bevy", "es-fluent-manager-bevy/macros" ]
 dioxus = [ "dep:es-fluent-manager-embedded" ]
 embedded = [ "dep:es-fluent-manager-embedded" ]
-gpui = [ "dep:gpui", "dep:es-fluent-manager-embedded" ]
+gpui = [ "dep:gpui-kit", "dep:es-fluent-manager-embedded" ]
