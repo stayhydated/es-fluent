@@ -6348,6 +6348,7 @@ dependencies = [
 name = "gpui-example"
 version = "0.18.1"
 dependencies = [
+ "console_error_panic_hook",
  "es-fluent",
  "es-fluent-build",
  "es-fluent-manager-embedded",

@@ -19,6 +19,9 @@ gpui-kit = { workspace = true }
 tracing-subscriber = { features = [ "env-filter" ], workspace = true }
 wasm-bindgen = { workspace = true }
 
+[target.'cfg(target_family = "wasm")'.dependencies]
+console_error_panic_hook = { workspace = true }
+
 [lib]
 crate-type = [ "cdylib", "rlib" ]
 

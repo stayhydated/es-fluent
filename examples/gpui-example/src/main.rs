@@ -1,15 +1,17 @@
 #![allow(clippy::derive_partial_eq_without_eq)]
 
 use std::borrow::Cow;
+#[cfg(target_family = "wasm")]
+use std::cell::RefCell;
 
 use example_shared_lib::{ButtonState, CurrentLanguage, Languages};
 use gpui_example::{GpuiScreenMessages, i18n};
-use gpui_kit::component::{button::Button, label::Label};
+use gpui_kit::component::{ActiveTheme as _, Root, button::Button, label::Label};
 use gpui_kit::prelude::*;
-use gpui_kit::{
-    App, Application, Bounds, Context, FocusHandle, Focusable, KeyBinding, Window, WindowBounds,
-    WindowOptions, actions,
-};
+use gpui_kit::{App, Context, FocusHandle, Focusable, KeyBinding, Window, WindowOptions, actions};
+#[cfg(not(target_family = "wasm"))]
+use gpui_kit::{Bounds, WindowBounds};
+#[cfg(not(target_family = "wasm"))]
 use tracing_subscriber::{EnvFilter, filter::LevelFilter};
 #[cfg(target_family = "wasm")]
 use wasm_bindgen::prelude::*;
@@ -26,73 +28,70 @@ actions!(gpui_example, [CycleLocale]);
 
 #[cfg(not(target_family = "wasm"))]
 fn main() {
-    run_with_app(gpui_kit::application(), true);
+    init_tracing();
+    gpui_kit::application().run(launch);
 }
 
 #[cfg(target_family = "wasm")]
-#[wasm_bindgen]
-pub fn run() -> Result<(), JsValue> {
+thread_local! {
+    static APPLICATION: RefCell<Option<gpui_kit::ApplicationHandle>> = const { RefCell::new(None) };
+}
+
+#[cfg(target_family = "wasm")]
+#[wasm_bindgen(start)]
+pub fn start() -> Result<(), JsValue> {
+    console_error_panic_hook::set_once();
     gpui_kit::platform::web_init();
     let app = gpui_kit::platform::single_threaded_web();
-    // Keep the app alive for the duration of JS-driven callbacks (RAF/input/resize).
-    // without this, GPUI can drop the platform callbacks while browser closures are still queued.
-    struct WasmApplication(std::rc::Rc<gpui_kit::AppCell>);
-    let app = unsafe {
-        let wasm_app = std::mem::transmute::<Application, WasmApplication>(app);
-        std::mem::forget(wasm_app.0.clone());
-        std::mem::transmute::<WasmApplication, Application>(wasm_app)
-    };
-
-    run_with_app(app, false);
+    APPLICATION.with(|application| {
+        *application.borrow_mut() = Some(app.run_embedded(launch));
+    });
     Ok(())
 }
 
 #[cfg(target_family = "wasm")]
-fn main() {
-    let _ = run();
-}
+fn main() {}
 
-fn run_with_app(app: Application, enable_tracing: bool) {
-    if enable_tracing {
-        init_tracing();
-    }
+fn launch(cx: &mut App) {
+    gpui_kit::init(cx);
+    cx.text_system()
+        .add_fonts(vec![Cow::Borrowed(
+            include_bytes!("../assets/fonts/NotoSansSC-Bold.ttf").as_slice(),
+        )])
+        .expect("Failed to load NotoSansSC-Bold font");
 
-    app.run(|cx: &mut App| {
-        cx.text_system()
-            .add_fonts(vec![Cow::Borrowed(
-                include_bytes!("../assets/fonts/NotoSansSC-Bold.ttf").as_slice(),
-            )])
-            .expect("Failed to load NotoSansSC-Bold font");
+    let startup_language = Languages::default();
+    let i18n = i18n::try_new_with_language(startup_language).expect("i18n should initialize");
+    cx.set_global(CurrentLanguage(startup_language));
+    cx.set_global(i18n_global::CurrentI18n(i18n));
+    cx.bind_keys([KeyBinding::new("t", CycleLocale, Some("GpuiExample"))]);
 
-        let startup_language = Languages::default();
-        let i18n = i18n::try_new_with_language(startup_language).expect("i18n should initialize");
-        cx.set_global(CurrentLanguage(startup_language));
-        cx.set_global(i18n_global::CurrentI18n(i18n));
-        cx.bind_keys([KeyBinding::new("t", CycleLocale, Some("GpuiExample"))]);
-        gpui_kit::init(cx);
-
+    #[cfg(not(target_family = "wasm"))]
+    let options = {
         let bounds = Bounds::centered(
             None,
             gpui_kit::size(gpui_kit::px(640.), gpui_kit::px(480.)),
             cx,
         );
-        cx.open_window(
-            WindowOptions {
-                window_bounds: Some(WindowBounds::Windowed(bounds)),
-                ..Default::default()
-            },
-            |window, cx| {
-                let view = cx.new(GpuiExampleView::new);
-                view.focus_handle(cx).focus(window, cx);
-                view
-            },
-        )
-        .unwrap();
+        WindowOptions {
+            window_bounds: Some(WindowBounds::Windowed(bounds)),
+            ..Default::default()
+        }
+    };
+    #[cfg(target_family = "wasm")]
+    let options = WindowOptions::default();
 
-        cx.activate(true);
-    });
+    cx.open_window(options, |window, cx| {
+        let view = cx.new(GpuiExampleView::new);
+        view.focus_handle(cx).focus(window, cx);
+        cx.new(|cx| Root::new(view, window, cx).bg(cx.theme().background))
+    })
+    .expect("the GPUI example window should open");
+
+    cx.activate(true);
 }
 
+#[cfg(not(target_family = "wasm"))]
 fn init_tracing() {
     let filter = EnvFilter::builder()
         .with_default_directive(LevelFilter::INFO.into())
@@ -183,7 +182,7 @@ impl Render for GpuiExampleView {
                             current_language,
                         }),
                     )
-                    .text_color(gpui_kit::white()),
+                    .text_color(cx.theme().foreground),
                 ),
             )
             .child(
