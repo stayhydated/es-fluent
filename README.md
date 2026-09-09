@@ -1,6 +1,7 @@
 # es-fluent
 
 [![Build status](https://github.com/stayhydated/es-fluent/actions/workflows/ci.yml/badge.svg)](https://github.com/stayhydated/es-fluent/actions/workflows/ci.yml)
+[![Codecov](https://codecov.io/github/stayhydated/es-fluent/graph/badge.svg)](https://codecov.io/github/stayhydated/es-fluent)
 [![Book](https://img.shields.io/badge/docs-book-black)](https://stayhydated.github.io/es-fluent/book/)
 [![API docs](https://docs.rs/es-fluent/badge.svg)](https://docs.rs/es-fluent/)
 [![Crates.io](https://img.shields.io/crates/v/es-fluent.svg)](https://crates.io/crates/es-fluent)
