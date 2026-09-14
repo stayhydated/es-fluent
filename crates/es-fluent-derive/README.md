@@ -15,7 +15,7 @@ The crate implements:
 - `EsFluentVariants` for field or variant metadata; and
 - `EsFluentLabel` for type-level labels.
 
-~~~rust
+~~~rust,ignore
 use es_fluent::{EsFluent, EsFluentLabel};
 
 #[derive(EsFluent, EsFluentLabel)]

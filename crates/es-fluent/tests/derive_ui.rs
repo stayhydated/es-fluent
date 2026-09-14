@@ -3,7 +3,7 @@ use std::path::PathBuf;
 
 #[test]
 fn macro_failures_match_user_diagnostics() {
-    let trybuild_manifest = workspace_target_dir().join("tests/trybuild/es-fluent-derive");
+    let trybuild_manifest = workspace_target_dir().join("tests/trybuild/es-fluent");
     fs::create_dir_all(&trybuild_manifest).expect("create trybuild manifest dir");
     fs::write(
         trybuild_manifest.join("i18n.toml"),

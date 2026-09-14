@@ -4,7 +4,7 @@ use std::path::PathBuf;
 #[test]
 fn namespace_allowlist_failures_match_user_diagnostics() {
     let workspace_target = workspace_target_dir();
-    let trybuild_manifest = workspace_target.join("tests/trybuild/es-fluent-derive");
+    let trybuild_manifest = workspace_target.join("tests/trybuild/es-fluent");
 
     fs::create_dir_all(&trybuild_manifest).expect("create trybuild manifest dir");
     fs::write(

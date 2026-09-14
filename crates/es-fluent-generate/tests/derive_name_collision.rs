@@ -1,5 +1,3 @@
-#![cfg(feature = "derive")]
-
 use es_fluent::registry::StaticFluentMessageKey;
 use es_fluent::{EsFluent, FluentArgs, FluentLocalizer, FluentLocalizerExt as _};
 

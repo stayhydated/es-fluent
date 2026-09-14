@@ -4942,11 +4942,8 @@ name = "es-fluent"
 version = "0.19.0"
 dependencies = [
  "chrono",
- "es-fluent-build",
  "es-fluent-derive",
- "es-fluent-generate",
  "es-fluent-manager-core",
- "es-fluent-manager-embedded",
  "es-fluent-shared",
  "fluent-bundle",
  "icu_calendar",
@@ -4958,7 +4955,9 @@ dependencies = [
  "intl-memoizer",
  "inventory",
  "jiff",
+ "temp-env",
  "tempfile",
+ "trybuild",
  "unic-langid",
  "writeable",
 ]
@@ -5055,7 +5054,6 @@ name = "es-fluent-derive"
 version = "0.19.0"
 dependencies = [
  "darling 0.24.1",
- "es-fluent",
  "es-fluent-derive-core",
  "es-fluent-shared",
  "fs-err",
@@ -5069,7 +5067,6 @@ dependencies = [
  "temp-env",
  "tempfile",
  "toml 1.1.6+spec-1.1.0",
- "trybuild",
 ]
 
 [[package]]
@@ -5100,6 +5097,7 @@ name = "es-fluent-generate"
 version = "0.19.0"
 dependencies = [
  "colored",
+ "es-fluent",
  "es-fluent-runner",
  "es-fluent-shared",
  "es-fluent-toml",
