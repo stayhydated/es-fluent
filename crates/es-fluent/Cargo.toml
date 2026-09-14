@@ -61,10 +61,9 @@ unic-langid = { features = [ "macros" ], workspace = true }
 writeable = { optional = true, workspace = true }
 
 [dev-dependencies]
-es-fluent-build = { workspace = true }
-es-fluent-generate = { workspace = true }
-es-fluent-manager-embedded = { workspace = true }
+temp-env = { workspace = true }
 tempfile = { workspace = true }
+trybuild = { workspace = true }
 
 [lints]
 workspace = true

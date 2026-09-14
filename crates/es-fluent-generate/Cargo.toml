@@ -24,6 +24,7 @@ similar = { workspace = true }
 tracing = { workspace = true }
 
 [dev-dependencies]
+es-fluent = { workspace = true }
 insta = { workspace = true }
 proc-macro2 = { workspace = true }
 syn = { workspace = true }
