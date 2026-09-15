@@ -122,7 +122,7 @@ Enable the feature for the date/time library used by your message fields:
 
 ```toml
 [dependencies]
-es-fluent = { version = "0.18", features = ["icu-datetime"] }
+es-fluent = { version = "0.19", features = ["icu-datetime"] }
 ```
 
 Temporal fields work like other derived arguments, including borrowed fields,

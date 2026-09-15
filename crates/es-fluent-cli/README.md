@@ -1,16 +1,12 @@
 # es-fluent-cli
 
-[![Docs](https://docs.rs/es-fluent-cli/badge.svg)](https://docs.rs/es-fluent-cli/)
+[![CI](https://github.com/stayhydated/es-fluent/actions/workflows/ci.yml/badge.svg)](https://github.com/stayhydated/es-fluent/actions/workflows/ci.yml)
+[![Codecov](https://codecov.io/gh/stayhydated/es-fluent/branch/master/graph/badge.svg)](https://codecov.io/gh/stayhydated/es-fluent)
+[![Book](https://img.shields.io/badge/book-online-blue)](https://stayhydated.github.io/es-fluent/book/)
 [![Crates.io](https://img.shields.io/crates/v/es-fluent-cli.svg)](https://crates.io/crates/es-fluent-cli)
 
 The Cargo subcommand for generating, validating, synchronizing, formatting,
 inspecting, and cleaning `es-fluent` FTL resources.
-
-## Install
-
-~~~sh
-cargo install es-fluent-cli --locked
-~~~
 
 Run it as `cargo es-fluent <COMMAND>` or invoke the installed
 `cargo-es-fluent` binary directly.
@@ -88,7 +84,3 @@ Run the repository-owned action from a workflow step:
 
 Set `no_fallback_copy_check` to `true` only when all-locale validation should
 allow translations that match the fallback text.
-
-See the [CLI reference](https://stayhydated.github.io/es-fluent/book/cli.html)
-for configuration, command behavior, workspace selection, CI, and recovery
-guidance.

@@ -1,25 +1,15 @@
 # es-fluent-manager-dioxus
 
-[![Docs](https://docs.rs/es-fluent-manager-dioxus/badge.svg)](https://docs.rs/es-fluent-manager-dioxus/)
+[![CI](https://github.com/stayhydated/es-fluent/actions/workflows/ci.yml/badge.svg)](https://github.com/stayhydated/es-fluent/actions/workflows/ci.yml)
+[![Codecov](https://codecov.io/gh/stayhydated/es-fluent/branch/master/graph/badge.svg)](https://codecov.io/gh/stayhydated/es-fluent)
+[![Book](https://img.shields.io/badge/book-online-blue)](https://stayhydated.github.io/es-fluent/book/)
 [![Crates.io](https://img.shields.io/crates/v/es-fluent-manager-dioxus.svg)](https://crates.io/crates/es-fluent-manager-dioxus)
 
 Typed localization for Dioxus `0.7.x`, with signal-backed client
 context and request-scoped SSR.
 
-Choose the runtime surfaces the application uses:
-
-~~~toml
-[dependencies]
-dioxus = "0.7"
-es-fluent = "*"
-es-fluent-manager-dioxus = { version = "*", features = ["client"] }
-
-# SSR:
-# es-fluent-manager-dioxus = { version = "*", features = ["ssr"] }
-
-# Client and SSR:
-# es-fluent-manager-dioxus = { version = "*", features = ["client", "ssr"] }
-~~~
+Enable `client` for client rendering, `ssr` for server rendering, or both
+when the application uses both runtime surfaces.
 
 Register Dioxus assets from a library-reachable module:
 
@@ -40,6 +30,3 @@ selected custom-build target. Derived fallback-locale messages are compile-time
 checked by default. Set `missing_message_policy = "fallback-str"` in the owning
 package's `i18n.toml` when client and request-scoped SSR lookup should return
 snake_case field, variant, or type names after locale fallback is exhausted.
-
-See the [Dioxus manager guide](https://stayhydated.github.io/es-fluent/book/manager_dioxus.html)
-for provider, locale switching, SSR, and asset-loading patterns.

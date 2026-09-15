@@ -1,16 +1,12 @@
 # es-fluent-lang
 
-[![Docs](https://docs.rs/es-fluent-lang/badge.svg)](https://docs.rs/es-fluent-lang/)
+[![CI](https://github.com/stayhydated/es-fluent/actions/workflows/ci.yml/badge.svg)](https://github.com/stayhydated/es-fluent/actions/workflows/ci.yml)
+[![Codecov](https://codecov.io/gh/stayhydated/es-fluent/branch/master/graph/badge.svg)](https://codecov.io/gh/stayhydated/es-fluent)
+[![Book](https://img.shields.io/badge/book-online-blue)](https://stayhydated.github.io/es-fluent/book/)
 [![Crates.io](https://img.shields.io/crates/v/es-fluent-lang.svg)](https://crates.io/crates/es-fluent-lang)
 
 Typed locale enums and localized language labels for `es-fluent`
 applications.
-
-~~~toml
-[dependencies]
-es-fluent-lang = "*"
-strum = { version = "0.28", features = ["derive"] }
-~~~
 
 Annotate an empty enum:
 
@@ -38,5 +34,3 @@ Labels are autonyms by default. Enable `localized-langs` to render
 them in the selected UI language. Use
 `#[es_fluent_language(custom)]` when the application ships its own FTL
 labels.
-
-See [Build a language picker](https://stayhydated.github.io/es-fluent/book/language_enum.html).

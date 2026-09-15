@@ -137,7 +137,7 @@ Alternatively, set `check_fallback_copies = false` for that package.
 
 `status` does not edit project or locale files. It reports whether
 generation, cleanup, formatting, synchronization, or validation needs
-attention, making it the useful pre-commit summary.
+attention, so you can review pending work before committing.
 
 ## Format and manage locales
 
@@ -203,8 +203,7 @@ library target. JSON output is file-oriented and does not accept
 
 ## Structured output
 
-`check`, `fmt`, `sync`, `tree`, and
-`status` support `--output json`. After successful argument
+`check`, `doctor`, `fmt`, `sync`, `tree`, and `status` support `--output json`. After successful argument
 parsing, JSON mode writes the report to stdout. Use both the process exit status
 and documented report fields when automation distinguishes errors, warnings, or
 pending dry-run work.

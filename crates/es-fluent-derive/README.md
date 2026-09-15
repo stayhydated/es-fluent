@@ -1,6 +1,8 @@
 # es-fluent-derive
 
-[![Docs](https://docs.rs/es-fluent-derive/badge.svg)](https://docs.rs/es-fluent-derive/)
+[![CI](https://github.com/stayhydated/es-fluent/actions/workflows/ci.yml/badge.svg)](https://github.com/stayhydated/es-fluent/actions/workflows/ci.yml)
+[![Codecov](https://codecov.io/gh/stayhydated/es-fluent/branch/master/graph/badge.svg)](https://codecov.io/gh/stayhydated/es-fluent)
+[![Book](https://img.shields.io/badge/book-online-blue)](https://stayhydated.github.io/es-fluent/book/)
 [![Crates.io](https://img.shields.io/crates/v/es-fluent-derive.svg)](https://crates.io/crates/es-fluent-derive)
 
 Procedural macros behind the `es-fluent` typed-message facade.
@@ -26,6 +28,4 @@ pub enum AccountMessage<'a> {
 ~~~
 
 Derives support argument transforms, selectors, explicit keys, package-local
-domains, and namespace-based file splitting. See the
-[derive guide](https://stayhydated.github.io/es-fluent/book/deriving_messages.html)
-for the public attribute and generated-FTL contract.
+domains, and namespace-based file splitting.

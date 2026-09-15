@@ -11,12 +11,12 @@ Add the facade, embedded manager, locale identifier, and build helper:
 
 ~~~toml
 [dependencies]
-es-fluent = "0.18"
-es-fluent-manager-embedded = "0.18"
+es-fluent = "0.19"
+es-fluent-manager-embedded = "0.19"
 unic-langid = "0.9"
 
 [build-dependencies]
-es-fluent-build = "0.18"
+es-fluent-build = "0.19"
 ~~~
 
 Install the Cargo subcommand:

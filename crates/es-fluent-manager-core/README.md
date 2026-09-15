@@ -1,6 +1,8 @@
 # es-fluent-manager-core
 
-[![Docs](https://docs.rs/es-fluent-manager-core/badge.svg)](https://docs.rs/es-fluent-manager-core/)
+[![CI](https://github.com/stayhydated/es-fluent/actions/workflows/ci.yml/badge.svg)](https://github.com/stayhydated/es-fluent/actions/workflows/ci.yml)
+[![Codecov](https://codecov.io/gh/stayhydated/es-fluent/branch/master/graph/badge.svg)](https://codecov.io/gh/stayhydated/es-fluent)
+[![Book](https://img.shields.io/badge/book-online-blue)](https://stayhydated.github.io/es-fluent/book/)
 [![Crates.io](https://img.shields.io/crates/v/es-fluent-manager-core.svg)](https://crates.io/crates/es-fluent-manager-core)
 
 Shared runtime contracts for custom `es-fluent` manager
@@ -32,6 +34,4 @@ fn main() -> std::io::Result<()> {
 ~~~
 
 Disable the default `embedded` feature when an asset-backed
-integration does not need `rust-embed`. See the
-[Rust API documentation](https://docs.rs/es-fluent-manager-core/) for extension
-contracts.
+integration does not need `rust-embed`.

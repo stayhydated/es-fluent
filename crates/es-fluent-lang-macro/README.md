@@ -1,6 +1,8 @@
 # es-fluent-lang-macro
 
-[![Docs](https://docs.rs/es-fluent-lang-macro/badge.svg)](https://docs.rs/es-fluent-lang-macro/)
+[![CI](https://github.com/stayhydated/es-fluent/actions/workflows/ci.yml/badge.svg)](https://github.com/stayhydated/es-fluent/actions/workflows/ci.yml)
+[![Codecov](https://codecov.io/gh/stayhydated/es-fluent/branch/master/graph/badge.svg)](https://codecov.io/gh/stayhydated/es-fluent)
+[![Book](https://img.shields.io/badge/book-online-blue)](https://stayhydated.github.io/es-fluent/book/)
 [![Crates.io](https://img.shields.io/crates/v/es-fluent-lang-macro.svg)](https://crates.io/crates/es-fluent-lang-macro)
 
 The procedural macro behind
@@ -16,6 +18,3 @@ use es_fluent_lang::es_fluent_language;
 #[es_fluent_language]
 pub enum Languages {}
 ~~~
-
-See the [language picker guide](https://stayhydated.github.io/es-fluent/book/language_enum.html)
-for default and custom label modes.

@@ -1,6 +1,6 @@
 ---
 name: use-es-fluent
-description: Use when adding, migrating, debugging, documenting, or reviewing es-fluent localization in Rust applications. Covers choosing embedded, Dioxus, or Bevy managers; configuring i18n.toml; deriving typed messages, labels, variants, and language enums; generating and validating FTL with cargo es-fluent; and composing localization across Cargo workspaces.
+description: Add, debug, review, or document es-fluent localization in Rust applications. Use for typed messages, i18n.toml, embedded/Dioxus/Bevy managers, language pickers, cargo es-fluent workflows, and package-local FTL ownership.
 ---
 
 # Use es-fluent
@@ -9,9 +9,9 @@ description: Use when adding, migrating, debugging, documenting, or reviewing es
 
 1. Inspect the relevant `Cargo.toml`, `i18n.toml`, library
    target, locale tree, and existing manager module. Preserve the repository's
-   compatible release lines.
-2. Choose one concrete runtime manager: embedded for general Rust, Dioxus for
-   client/SSR, or Bevy for ECS and reactive UI.
+   compatible release lines; manager versions can differ from framework versions.
+2. Use the application's concrete runtime manager: embedded for general Rust,
+   Dioxus for client/SSR, or Bevy for ECS and reactive UI.
 3. Keep localizable types and `define_i18n_module!()` reachable from a
    library target. CLI derive discovery does not inspect binary-only types.
 4. Give each package that owns messages its own configuration, fallback FTL,
@@ -20,8 +20,8 @@ description: Use when adding, migrating, debugging, documenting, or reviewing es
    field or variant metadata, `EsFluentLabel` for type labels, and a
    unit-only `EsFluent` enum for selectors when it should also be a
    message.
-6. Run `cargo es-fluent doctor` to verify setup, generate fallback FTL, translate
-   it, then run the narrow relevant CLI check.
+6. For setup changes, run `cargo es-fluent doctor`. After changing message
+   types, generate fallback FTL, translate it, and run the relevant CLI check.
 7. Localize through the explicit manager or framework context. Use fallible
    lookup only where the caller intentionally handles missing output.
 

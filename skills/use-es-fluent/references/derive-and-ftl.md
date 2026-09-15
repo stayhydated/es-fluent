@@ -1,8 +1,8 @@
-# Derive and FTL Patterns
+# Derive and FTL patterns
 
 Use this reference when adding localizable Rust types or explaining how generated FTL should look.
 
-## Message Derive
+## Message derive
 
 `#[derive(EsFluent)]` turns structs and enum variants into typed messages:
 
@@ -54,7 +54,7 @@ fallback fails. Struct messages and labels use the type name, enum messages use
 the variant name, and `EsFluentVariants` messages use the source field or
 variant. The `try_localize_*` APIs continue to return `None`.
 
-## Field and Variant Attributes
+## Field and variant attributes
 
 Common `#[fluent(...)]` attributes:
 
@@ -96,7 +96,7 @@ crate that declares it and does not reference another crate.
 Generated FTL IDs must be unique within one package-local domain, including
 across namespace files. The same ID may be reused in another domain or package.
 
-## Localized Temporal Arguments
+## Localized temporal arguments
 
 Enable `es-fluent`'s `icu-datetime`, `chrono`, or `jiff` feature to use that
 library's temporal types directly in derived message fields. Owned, borrowed,
@@ -105,7 +105,7 @@ inference as other supported field types.
 
 ```toml
 [dependencies]
-es-fluent = { version = "0.18", features = ["icu-datetime"] }
+es-fluent = { version = "0.19", features = ["icu-datetime"] }
 ```
 
 ```rust
@@ -141,7 +141,10 @@ millisecond precision. `Duration` uses ICU4X's locale-aware short duration
 format after balancing through hours, minutes, seconds, and subsecond units.
 Jiff durations use Jiff's friendly duration format.
 
-Transparent wrapper variants:
+## Delegate wrapper messages
+
+Use `#[fluent(skip)]` on a single-field enum variant to localize its wrapped
+message:
 
 ```rust
 use es_fluent::EsFluent;
@@ -203,7 +206,7 @@ greeting =
     }
 ```
 
-## Variants and Labels
+## Variants and labels
 
 Use `EsFluentVariants` to generate message enums for struct fields or enum variants:
 
@@ -260,7 +263,11 @@ let title = Gender::localize_label(&i18n);
 let maybe_title = Gender::try_localize_label(&i18n);
 ```
 
-`#[derive(EsFluentLabel)]` generates a type-level label, validated static label metadata, hard-failing `localize_label(...)`, and fallible `try_localize_label(...)`. `#[derive(EsFluentVariants)]` also gives generated variant enums label keys inferred from their generated enum names.
+`#[derive(EsFluentLabel)]` generates a type-level label, validated static label
+metadata, normal `localize_label(...)`, and fallible `try_localize_label(...)`.
+Normal lookup follows the owning package's missing-message policy.
+`#[derive(EsFluentVariants)]` also gives generated variant enums label keys
+inferred from their generated enum names.
 
 ## Namespaces
 
@@ -299,7 +306,7 @@ Literal namespace strings must also be safe locale-relative paths: no empty
 segments, `.`/`..`, backslashes, absolute paths, surrounding whitespace, or
 `.ftl` suffix.
 
-## Inventory Discovery
+## Inventory discovery
 
 Keep derived message types reachable from a library target. The CLI collects derive inventory from library targets. It does not discover binary-only types that live only in `src/main.rs`.
 Inventory records the declaring Cargo package explicitly. CLI attribution does

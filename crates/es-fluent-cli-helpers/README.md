@@ -1,6 +1,8 @@
 # es-fluent-cli-helpers
 
-[![Docs](https://docs.rs/es-fluent-cli-helpers/badge.svg)](https://docs.rs/es-fluent-cli-helpers/)
+[![CI](https://github.com/stayhydated/es-fluent/actions/workflows/ci.yml/badge.svg)](https://github.com/stayhydated/es-fluent/actions/workflows/ci.yml)
+[![Codecov](https://codecov.io/gh/stayhydated/es-fluent/branch/master/graph/badge.svg)](https://codecov.io/gh/stayhydated/es-fluent)
+[![Book](https://img.shields.io/badge/book-online-blue)](https://stayhydated.github.io/es-fluent/book/)
 [![Crates.io](https://img.shields.io/crates/v/es-fluent-cli-helpers.svg)](https://crates.io/crates/es-fluent-cli-helpers)
 
 Support library used by the temporary runner that

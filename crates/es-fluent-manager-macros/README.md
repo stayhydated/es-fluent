@@ -1,6 +1,8 @@
 # es-fluent-manager-macros
 
-[![Docs](https://docs.rs/es-fluent-manager-macros/badge.svg)](https://docs.rs/es-fluent-manager-macros/)
+[![CI](https://github.com/stayhydated/es-fluent/actions/workflows/ci.yml/badge.svg)](https://github.com/stayhydated/es-fluent/actions/workflows/ci.yml)
+[![Codecov](https://codecov.io/gh/stayhydated/es-fluent/branch/master/graph/badge.svg)](https://codecov.io/gh/stayhydated/es-fluent)
+[![Book](https://img.shields.io/badge/book-online-blue)](https://stayhydated.github.io/es-fluent/book/)
 [![Crates.io](https://img.shields.io/crates/v/es-fluent-manager-macros.svg)](https://crates.io/crates/es-fluent-manager-macros)
 
 Compile-time module registration and Bevy text macros shared by the embedded,

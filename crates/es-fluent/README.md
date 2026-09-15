@@ -1,6 +1,8 @@
 # es-fluent
 
-[![Docs](https://docs.rs/es-fluent/badge.svg)](https://docs.rs/es-fluent/)
+[![CI](https://github.com/stayhydated/es-fluent/actions/workflows/ci.yml/badge.svg)](https://github.com/stayhydated/es-fluent/actions/workflows/ci.yml)
+[![Codecov](https://codecov.io/gh/stayhydated/es-fluent/branch/master/graph/badge.svg)](https://codecov.io/gh/stayhydated/es-fluent)
+[![Book](https://img.shields.io/badge/book-online-blue)](https://stayhydated.github.io/es-fluent/book/)
 [![Crates.io](https://img.shields.io/crates/v/es-fluent.svg)](https://crates.io/crates/es-fluent)
 
 The public facade for typed
@@ -8,12 +10,7 @@ The public facade for typed
 derive macros and runtime traits used by `es-fluent` manager
 integrations.
 
-## Add the facade
-
-~~~toml
-[dependencies]
-es-fluent = "*"
-~~~
+## Typed messages
 
 Derive a typed message in a library target:
 
@@ -75,8 +72,3 @@ source name in snake_case. Struct messages and labels use the type name, enum
 messages use the variant name, and `EsFluentVariants` messages use the source
 field or variant name. Fallible `try_localize_message(...)` and
 `try_localize_label(...)` continue to return `None` for missing output.
-
-See the [derive guide](https://stayhydated.github.io/es-fluent/book/deriving_messages.html)
-for attributes, generated FTL, domains, namespaces, choices, and labels. See
-the [getting-started tutorial](https://stayhydated.github.io/es-fluent/book/getting_started.html)
-for CLI and runtime setup.

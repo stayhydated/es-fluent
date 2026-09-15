@@ -1,19 +1,14 @@
 # es-fluent-manager-embedded
 
-[![Docs](https://docs.rs/es-fluent-manager-embedded/badge.svg)](https://docs.rs/es-fluent-manager-embedded/)
+[![CI](https://github.com/stayhydated/es-fluent/actions/workflows/ci.yml/badge.svg)](https://github.com/stayhydated/es-fluent/actions/workflows/ci.yml)
+[![Codecov](https://codecov.io/gh/stayhydated/es-fluent/branch/master/graph/badge.svg)](https://codecov.io/gh/stayhydated/es-fluent)
+[![Book](https://img.shields.io/badge/book-online-blue)](https://stayhydated.github.io/es-fluent/book/)
 [![Crates.io](https://img.shields.io/crates/v/es-fluent-manager-embedded.svg)](https://crates.io/crates/es-fluent-manager-embedded)
 
 Embedded localization for general Rust applications, including CLIs, TUIs,
 desktop apps, and services. Configured FTL resources are compiled into the
 binary and resolved through an explicit, cloneable `EmbeddedI18n`
 handle.
-
-~~~toml
-[dependencies]
-es-fluent = "*"
-es-fluent-manager-embedded = "*"
-unic-langid = "0.9"
-~~~
 
 Register resources from a library-reachable module:
 
@@ -41,7 +36,3 @@ checked by default. Set `missing_message_policy = "fallback-str"` in the owning
 package's `i18n.toml` to return snake_case field, variant, or type names from
 normal typed lookup after locale fallback is exhausted; fallible lookup still
 returns `None`.
-
-See the [embedded manager guide](https://stayhydated.github.io/es-fluent/book/manager_embedded.html)
-for workspace composition, fallible lookup, locale switching, and debug asset
-embedding.
