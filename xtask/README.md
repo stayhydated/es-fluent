@@ -1,8 +1,7 @@
 # xtask
 
 Repository-maintenance commands for generated documentation, site assets, demos,
-and crates.io release planning. Application users should use the published
-crates and [user guide](https://stayhydated.github.io/es-fluent/book/).
+and crates.io release planning.
 
 Run commands from the workspace root:
 

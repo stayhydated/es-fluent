@@ -1,103 +1,72 @@
 # es-fluent
 
-[![Build status](https://github.com/stayhydated/es-fluent/actions/workflows/ci.yml/badge.svg)](https://github.com/stayhydated/es-fluent/actions/workflows/ci.yml)
-[![Book](https://img.shields.io/badge/docs-book-black)](https://stayhydated.github.io/es-fluent/book/)
-[![API docs](https://docs.rs/es-fluent/badge.svg)](https://docs.rs/es-fluent/)
-[![Crates.io](https://img.shields.io/crates/v/es-fluent.svg)](https://crates.io/crates/es-fluent)
+[![CI][ci-badge]][ci]
+[![Codecov][codecov-badge]][codecov]
+[![Book][book-badge]][book]
+[![crates.io: es-fluent][es-fluent-badge]][es-fluent-crate]
 
-`es-fluent` provides typed
-[Project Fluent](https://projectfluent.org/) localization for Rust. Derive
-messages from structs and enums, maintain FTL resources with
-`cargo es-fluent`, and resolve them with an embedded, Dioxus, or Bevy
-runtime manager.
+`es-fluent` provides typed [Project Fluent](https://projectfluent.org/)
+localization for Rust. Derive messages from structs and enums, maintain FTL
+resources with `cargo es-fluent`, and resolve them with an embedded, Dioxus, or
+Bevy runtime manager.
 
-## Choose a runtime
+## Crates
 
-| Application | Manager |
+| Crate | Purpose |
 | --- | --- |
-| General Rust, CLI, TUI, or desktop | `es-fluent-manager-embedded` |
-| Dioxus client or SSR | `es-fluent-manager-dioxus` |
-| Bevy | `es-fluent-manager-bevy` |
+| [`es-fluent`][es-fluent-readme] | Typed-message derives and runtime traits. |
+| [`es-fluent-build`][es-fluent-build-readme] | Build-script asset tracking and fallback-catalog generation. |
+| [`es-fluent-cli`][es-fluent-cli-readme] | FTL generation, validation, synchronization, and inspection. |
+| [`es-fluent-lang`][es-fluent-lang-readme] | Typed locale enums and localized language labels. |
+| [`es-fluent-manager-bevy`][es-fluent-manager-bevy-readme] | Bevy localization plugin and components. |
+| [`es-fluent-manager-core`][es-fluent-manager-core-readme] | Runtime contracts for custom manager integrations. |
+| [`es-fluent-manager-dioxus`][es-fluent-manager-dioxus-readme] | Dioxus client and SSR localization. |
+| [`es-fluent-manager-embedded`][es-fluent-manager-embedded-readme] | Embedded localization for general Rust applications. |
 
-Framework managers follow their framework release lines:
+## Example
 
-| Surface | Compatible line |
-| --- | --- |
-| Core crates, CLI, embedded manager, and language enum | `0.18.x` |
-| Dioxus manager and Dioxus | `0.7.x` |
-| Bevy manager and Bevy | `0.19.x` |
-
-## Quick start
-
-Add the facade and embedded manager:
-
-~~~toml
-[dependencies]
-es-fluent = "0.18"
-es-fluent-manager-embedded = "0.18"
-unic-langid = "0.9"
-
-[build-dependencies]
-es-fluent-build = "0.18"
-~~~
-
-Create `i18n.toml` beside `Cargo.toml`:
-
-~~~toml
-fallback_language = "en"
-assets_dir = "assets/locales"
-~~~
-
-Track locale assets and generate the strict fallback-message catalog:
-
-~~~rust,no_run
-// build.rs
-fn main() {
-    es_fluent_build::track_i18n_assets();
-}
-~~~
-
-Keep localizable types and the manager module reachable from a library target:
+Define localizable types in a library target:
 
 ~~~rust
-// src/lib.rs
-pub mod i18n;
-
 use es_fluent::EsFluent;
 
 #[derive(EsFluent)]
-pub struct Greeting<'a> {
-    pub name: &'a str,
+pub enum LoginMessage<'a> {
+    Welcome { name: &'a str },
+    SignedOut,
 }
 ~~~
 
-~~~rust
-// src/i18n.rs
-es_fluent_manager_embedded::define_i18n_module!();
+The CLI derives message IDs and arguments from the type. Edit the generated FTL
+values to supply your translations:
+
+~~~ftl
+login_message-Welcome = Welcome, { $name }!
+login_message-SignedOut = You are signed out.
 ~~~
 
-Install the CLI, create the fallback locale, and generate FTL:
+Resolve the message through your application's manager:
 
-~~~sh
-cargo install es-fluent-cli --locked
-mkdir -p assets/locales/en
-cargo es-fluent doctor
-cargo es-fluent generate
+~~~rust,ignore
+let text = i18n.localize_message(&LoginMessage::Welcome { name: "Ada" });
 ~~~
 
-Follow the [getting-started tutorial](https://stayhydated.github.io/es-fluent/book/getting_started.html)
-to edit the fallback message and localize it at runtime.
+`EsFluentVariants` generates field and variant labels, `EsFluentLabel` gives a
+type its own label, and `EsFluentChoice` supplies Fluent selector values.
 
-Configured packages use strict fallback-message validation by default. Set
-`missing_message_policy = "fallback-str"` in that package's `i18n.toml` when
-normal typed lookup should return the snake_case Rust type, field, or variant
-name after locale fallback is exhausted. Strict and fallback-string packages
-can coexist in one workspace build; fallible lookup remains `None`.
-
-## Documentation
-
-- [User guide](https://stayhydated.github.io/es-fluent/book/)
-- [Derive reference](https://stayhydated.github.io/es-fluent/book/deriving_messages.html)
-- [Runtime managers](https://stayhydated.github.io/es-fluent/book/managers.html)
-- [CLI reference](https://stayhydated.github.io/es-fluent/book/cli.html)
-- [Rust API documentation](https://docs.rs/es-fluent/)
+[ci-badge]: https://github.com/stayhydated/es-fluent/actions/workflows/ci.yml/badge.svg?branch=master
+[ci]: https://github.com/stayhydated/es-fluent/actions/workflows/ci.yml
+[codecov-badge]: https://codecov.io/gh/stayhydated/es-fluent/branch/master/graph/badge.svg
+[codecov]: https://codecov.io/gh/stayhydated/es-fluent
+[book-badge]: https://img.shields.io/badge/Book-mdBook-blue
+[book]: https://stayhydated.github.io/es-fluent/book/
+[es-fluent-badge]: https://img.shields.io/crates/v/es-fluent.svg?label=es-fluent
+[es-fluent-crate]: https://crates.io/crates/es-fluent
+[es-fluent-readme]: crates/es-fluent/README.md
+[es-fluent-build-readme]: crates/es-fluent-build/README.md
+[es-fluent-cli-readme]: crates/es-fluent-cli/README.md
+[es-fluent-lang-readme]: crates/es-fluent-lang/README.md
+[es-fluent-manager-bevy-readme]: crates/es-fluent-manager-bevy/README.md
+[es-fluent-manager-core-readme]: crates/es-fluent-manager-core/README.md
+[es-fluent-manager-dioxus-readme]: crates/es-fluent-manager-dioxus/README.md
+[es-fluent-manager-embedded-readme]: crates/es-fluent-manager-embedded/README.md

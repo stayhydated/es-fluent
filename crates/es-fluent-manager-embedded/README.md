@@ -1,19 +1,12 @@
 # es-fluent-manager-embedded
 
-[![Docs](https://docs.rs/es-fluent-manager-embedded/badge.svg)](https://docs.rs/es-fluent-manager-embedded/)
-[![Crates.io](https://img.shields.io/crates/v/es-fluent-manager-embedded.svg)](https://crates.io/crates/es-fluent-manager-embedded)
+[![Codecov: es-fluent-manager-embedded][codecov-badge]][codecov]
+[![crates.io: es-fluent-manager-embedded][crate-badge]][crate]
 
 Embedded localization for general Rust applications, including CLIs, TUIs,
 desktop apps, and services. Configured FTL resources are compiled into the
 binary and resolved through an explicit, cloneable `EmbeddedI18n`
 handle.
-
-~~~toml
-[dependencies]
-es-fluent = "*"
-es-fluent-manager-embedded = "*"
-unic-langid = "0.9"
-~~~
 
 Register resources from a library-reachable module:
 
@@ -42,6 +35,7 @@ package's `i18n.toml` to return snake_case field, variant, or type names from
 normal typed lookup after locale fallback is exhausted; fallible lookup still
 returns `None`.
 
-See the [embedded manager guide](https://stayhydated.github.io/es-fluent/book/manager_embedded.html)
-for workspace composition, fallible lookup, locale switching, and debug asset
-embedding.
+[codecov-badge]: https://codecov.io/gh/stayhydated/es-fluent/branch/master/graph/badge.svg?component=es-fluent-manager-embedded
+[codecov]: https://codecov.io/gh/stayhydated/es-fluent
+[crate-badge]: https://img.shields.io/crates/v/es-fluent-manager-embedded.svg?label=es-fluent-manager-embedded
+[crate]: https://crates.io/crates/es-fluent-manager-embedded

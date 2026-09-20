@@ -104,8 +104,7 @@ cargo es-fluent tree --output json
 Text `tree` can link to Rust or FTL source. JSON output does not
 accept `--link-mode`.
 
-`check`, `fmt`, `sync`, `tree`, and
-`status` support `--output json`. Use the exit status plus
+`check`, `doctor`, `fmt`, `sync`, `tree`, and `status` support `--output json`. Use the exit status plus
 the report fields relevant to warnings or dry-run work.
 
 Commands that write FTL plan the selected change before committing it and roll

@@ -1,19 +1,14 @@
 # es-fluent
 
-[![Docs](https://docs.rs/es-fluent/badge.svg)](https://docs.rs/es-fluent/)
-[![Crates.io](https://img.shields.io/crates/v/es-fluent.svg)](https://crates.io/crates/es-fluent)
+[![Codecov: es-fluent][codecov-badge]][codecov]
+[![crates.io: es-fluent][crate-badge]][crate]
 
 The public facade for typed
 [Project Fluent](https://projectfluent.org/) messages in Rust. It re-exports the
 derive macros and runtime traits used by `es-fluent` manager
 integrations.
 
-## Add the facade
-
-~~~toml
-[dependencies]
-es-fluent = "*"
-~~~
+## Typed messages
 
 Derive a typed message in a library target:
 
@@ -76,7 +71,7 @@ messages use the variant name, and `EsFluentVariants` messages use the source
 field or variant name. Fallible `try_localize_message(...)` and
 `try_localize_label(...)` continue to return `None` for missing output.
 
-See the [derive guide](https://stayhydated.github.io/es-fluent/book/deriving_messages.html)
-for attributes, generated FTL, domains, namespaces, choices, and labels. See
-the [getting-started tutorial](https://stayhydated.github.io/es-fluent/book/getting_started.html)
-for CLI and runtime setup.
+[codecov-badge]: https://codecov.io/gh/stayhydated/es-fluent/branch/master/graph/badge.svg?component=es-fluent
+[codecov]: https://codecov.io/gh/stayhydated/es-fluent
+[crate-badge]: https://img.shields.io/crates/v/es-fluent.svg?label=es-fluent
+[crate]: https://crates.io/crates/es-fluent

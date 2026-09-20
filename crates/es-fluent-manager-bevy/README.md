@@ -1,18 +1,11 @@
 # es-fluent-manager-bevy
 
-[![Docs](https://docs.rs/es-fluent-manager-bevy/badge.svg)](https://docs.rs/es-fluent-manager-bevy/)
-[![Crates.io](https://img.shields.io/crates/v/es-fluent-manager-bevy.svg)](https://crates.io/crates/es-fluent-manager-bevy)
+[![Codecov: es-fluent-manager-bevy][codecov-badge]][codecov]
+[![crates.io: es-fluent-manager-bevy][crate-badge]][crate]
 
 Typed localization for Bevy `0.19.x`. The plugin loads configured FTL
 resources, updates `FluentText<T>` components when the locale changes,
 and exposes `BevyI18n` for direct localization in systems.
-
-~~~toml
-[dependencies]
-bevy = "0.19"
-es-fluent = "*"
-es-fluent-manager-bevy = "*"
-~~~
 
 Register package resources from a library module:
 
@@ -20,7 +13,7 @@ Register package resources from a library module:
 es_fluent_manager_bevy::define_i18n_module!();
 ~~~
 
-Install the plugin:
+Register the plugin:
 
 ~~~rust,no_run
 use bevy::prelude::*;
@@ -44,5 +37,7 @@ checked by default. Set `missing_message_policy = "fallback-str"` in the owning
 package's `i18n.toml` when `BevyI18n` and `FluentText<T>` should use snake_case
 field, variant, or type names after locale fallback is exhausted.
 
-See the [Bevy manager guide](https://stayhydated.github.io/es-fluent/book/manager_bevy.html)
-for UI components, system parameters, locale state, and scheduling.
+[codecov-badge]: https://codecov.io/gh/stayhydated/es-fluent/branch/master/graph/badge.svg?component=es-fluent-manager-bevy
+[codecov]: https://codecov.io/gh/stayhydated/es-fluent
+[crate-badge]: https://img.shields.io/crates/v/es-fluent-manager-bevy.svg?label=es-fluent-manager-bevy
+[crate]: https://crates.io/crates/es-fluent-manager-bevy

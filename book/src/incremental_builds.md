@@ -14,7 +14,7 @@ Add `es-fluent-build` to your **build dependencies**:
 
 ```toml
 [build-dependencies]
-es-fluent-build = "0.18"
+es-fluent-build = "0.19"
 ```
 
 Call the tracking helper from Cargo's selected custom-build target. The default
@@ -28,8 +28,8 @@ fn main() {
 ```
 
 A custom `[package] build = "support/i18n.rs"` path uses the same helper call.
-This guarantees your project recompiles whenever locale files or folders are
-added, removed, or renamed. Run `cargo es-fluent doctor` to verify the helper
+Cargo reruns the build script when configured locale files or directories
+change, including additions, removals, and renames. Run `cargo es-fluent doctor` to verify the helper
 through Cargo's selected target and its local module graph. A warning means
 static inspection could not prove the integration and requires manual
 verification.

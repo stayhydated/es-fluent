@@ -1,7 +1,7 @@
 # es-fluent-toml
 
-[![Docs](https://docs.rs/es-fluent-toml/badge.svg)](https://docs.rs/es-fluent-toml/)
-[![Crates.io](https://img.shields.io/crates/v/es-fluent-toml.svg)](https://crates.io/crates/es-fluent-toml)
+[![Codecov: es-fluent-toml][codecov-badge]][codecov]
+[![crates.io: es-fluent-toml][crate-badge]][crate]
 
 Parser and path resolver for package-local `i18n.toml` configuration.
 It validates fallback locales, asset paths, feature lists, namespace
@@ -22,5 +22,7 @@ fn main() -> std::io::Result<()> {
 }
 ~~~
 
-See [Configure a project](https://stayhydated.github.io/es-fluent/book/configuration.html)
-for the public file format and resource layout.
+[codecov-badge]: https://codecov.io/gh/stayhydated/es-fluent/branch/master/graph/badge.svg?component=es-fluent-toml
+[codecov]: https://codecov.io/gh/stayhydated/es-fluent
+[crate-badge]: https://img.shields.io/crates/v/es-fluent-toml.svg?label=es-fluent-toml
+[crate]: https://crates.io/crates/es-fluent-toml
