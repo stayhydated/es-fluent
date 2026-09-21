@@ -2,7 +2,7 @@ mod cli;
 mod commands;
 use clap::Parser as _;
 
-use cli::{BuildCommand, Cli, Command, PreviewCommand, ReleaseCommand};
+use cli::{BuildCommand, Cli, Command, PreviewCommand};
 
 fn main() -> anyhow::Result<()> {
     let cli = Cli::parse();
@@ -17,10 +17,6 @@ fn main() -> anyhow::Result<()> {
         },
         Command::Preview { target } => match target {
             PreviewCommand::Web => commands::preview_web::run(),
-        },
-        Command::Release { action } => match action {
-            ReleaseCommand::Plan => commands::release::plan(),
-            ReleaseCommand::Publish(args) => commands::release::publish(&args),
         },
     }
 }

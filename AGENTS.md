@@ -113,7 +113,6 @@ broader checks for changes spanning several surfaces.
 | Hosted demos | `cargo xtask build bevy-demo` or `cargo xtask build gpui-demo`. |
 | Dioxus integration | `cargo test -p web --lib` or `cargo check -p web`. |
 | Complete site | `just web-build`. |
-| Release ordering | `just test-publish` prints the release package plan. |
 
 Use `just check`, `just clippy`, or `just test` when a change crosses workspace
 boundaries. Report commands that succeeded separately from failed attempts and
