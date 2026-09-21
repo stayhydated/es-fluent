@@ -77,7 +77,7 @@ the helper to track changes and write the fallback-message catalog:
 
 ~~~toml
 [build-dependencies]
-es-fluent-build = "0.19"
+es-fluent-build = "0.20"
 ~~~
 
 ~~~rust

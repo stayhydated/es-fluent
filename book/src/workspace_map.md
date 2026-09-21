@@ -17,12 +17,12 @@ A general Rust application can start with:
 
 ~~~toml
 [dependencies]
-es-fluent = "0.19"
-es-fluent-manager-embedded = "0.19"
+es-fluent = "0.20"
+es-fluent-manager-embedded = "0.20"
 unic-langid = "0.9"
 
 [build-dependencies]
-es-fluent-build = "0.19"
+es-fluent-build = "0.20"
 ~~~
 
 Install the CLI separately:

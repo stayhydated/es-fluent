@@ -8,7 +8,7 @@ assets, and reactive UI text.
 ~~~toml
 [dependencies]
 bevy = "0.19"
-es-fluent = "0.19"
+es-fluent = "0.20"
 es-fluent-manager-bevy = "0.20"
 unic-langid = "0.9"
 ~~~

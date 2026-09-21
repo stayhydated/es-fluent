@@ -10,7 +10,7 @@ Add the `es-fluent-lang` crate:
 
 ```toml
 [dependencies]
-es-fluent-lang = "0.19"
+es-fluent-lang = "0.20"
 
 # Add this when the application iterates the generated enum.
 strum = { version = "0.28", features = ["derive"] }

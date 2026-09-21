@@ -105,7 +105,7 @@ inference as other supported field types.
 
 ```toml
 [dependencies]
-es-fluent = { version = "0.19", features = ["icu-datetime"] }
+es-fluent = { version = "0.20", features = ["icu-datetime"] }
 ```
 
 ```rust
