@@ -1,8 +1,7 @@
 # xtask
 
-Repository-maintenance commands for generated documentation, site assets, demos,
-and crates.io release planning. Application users should use the published
-crates and [user guide](https://stayhydated.github.io/es-fluent/book/).
+Repository-maintenance commands for generated documentation, site assets,
+and demos.
 
 Run commands from the workspace root:
 
@@ -13,9 +12,3 @@ Run commands from the workspace root:
 | `cargo xtask build bevy-demo` | Build the hosted Bevy demo assets. |
 | `cargo xtask build gpui-demo` | Build the hosted GPUI demo assets; requires nightly Rust. |
 | `cargo xtask build web` | Build the release Dioxus site. |
-| `cargo xtask release plan` | Print crates.io publication order. |
-| `cargo xtask release publish` | Print publish commands in release order. |
-| `cargo xtask release publish --execute --skip-existing` | Publish while skipping versions already present. |
-
-Use `cargo xtask <COMMAND> --help` for release resume, dirty-worktree,
-and dev-dependency options.

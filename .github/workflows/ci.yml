@@ -201,8 +201,8 @@ jobs:
       - name: Install Linux dependencies
         uses: ./.github/actions/install-linux-deps
 
-      - name: Check release package plan
-        run: cargo xtask release plan
+      - name: Check package contents
+        run: cargo package --workspace --list
 
   machete:
     runs-on: ubuntu-latest

@@ -35,9 +35,6 @@ test-dioxus-manager-feature-matrix:
 cov:
     cargo llvm-cov --workspace --exclude xtask --exclude web --all-features --all-targets
 
-test-publish:
-    cargo xtask release plan
-
 test-docs:
     cargo doc --workspace --all-features --no-deps --locked --open
 

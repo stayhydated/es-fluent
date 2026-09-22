@@ -1,16 +1,10 @@
 # es-fluent-lang
 
-[![Docs](https://docs.rs/es-fluent-lang/badge.svg)](https://docs.rs/es-fluent-lang/)
-[![Crates.io](https://img.shields.io/crates/v/es-fluent-lang.svg)](https://crates.io/crates/es-fluent-lang)
+[![Codecov: es-fluent-lang][codecov-badge]][codecov]
+[![crates.io: es-fluent-lang][crate-badge]][crate]
 
 Typed locale enums and localized language labels for `es-fluent`
 applications.
-
-~~~toml
-[dependencies]
-es-fluent-lang = "*"
-strum = { version = "0.28", features = ["derive"] }
-~~~
 
 Annotate an empty enum:
 
@@ -39,4 +33,7 @@ them in the selected UI language. Use
 `#[es_fluent_language(custom)]` when the application ships its own FTL
 labels.
 
-See [Build a language picker](https://stayhydated.github.io/es-fluent/book/language_enum.html).
+[codecov-badge]: https://codecov.io/gh/stayhydated/es-fluent/branch/master/graph/badge.svg?component=es-fluent-lang
+[codecov]: https://codecov.io/gh/stayhydated/es-fluent
+[crate-badge]: https://img.shields.io/crates/v/es-fluent-lang.svg?label=es-fluent-lang
+[crate]: https://crates.io/crates/es-fluent-lang

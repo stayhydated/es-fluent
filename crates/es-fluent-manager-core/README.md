@@ -1,7 +1,7 @@
 # es-fluent-manager-core
 
-[![Docs](https://docs.rs/es-fluent-manager-core/badge.svg)](https://docs.rs/es-fluent-manager-core/)
-[![Crates.io](https://img.shields.io/crates/v/es-fluent-manager-core.svg)](https://crates.io/crates/es-fluent-manager-core)
+[![Codecov: es-fluent-manager-core][codecov-badge]][codecov]
+[![crates.io: es-fluent-manager-core][crate-badge]][crate]
 
 Shared runtime contracts for custom `es-fluent` manager
 integrations. The crate provides `FluentManager`, localization module
@@ -10,9 +10,9 @@ resource plans, and optional embedded-asset support.
 
 Most applications should use a concrete manager:
 
-- [Embedded](../es-fluent-manager-embedded/README.md)
-- [Dioxus](../es-fluent-manager-dioxus/README.md)
-- [Bevy](../es-fluent-manager-bevy/README.md)
+- [Embedded][embedded-manager]
+- [Dioxus][dioxus-manager]
+- [Bevy][bevy-manager]
 
 Custom integrations construct a manager, select a language, and keep typed keys
 until the final Fluent bundle lookup:
@@ -32,6 +32,12 @@ fn main() -> std::io::Result<()> {
 ~~~
 
 Disable the default `embedded` feature when an asset-backed
-integration does not need `rust-embed`. See the
-[Rust API documentation](https://docs.rs/es-fluent-manager-core/) for extension
-contracts.
+integration does not need `rust-embed`.
+
+[embedded-manager]: https://github.com/stayhydated/es-fluent/blob/master/crates/es-fluent-manager-embedded/README.md
+[dioxus-manager]: https://github.com/stayhydated/es-fluent/blob/master/crates/es-fluent-manager-dioxus/README.md
+[bevy-manager]: https://github.com/stayhydated/es-fluent/blob/master/crates/es-fluent-manager-bevy/README.md
+[codecov-badge]: https://codecov.io/gh/stayhydated/es-fluent/branch/master/graph/badge.svg?component=es-fluent-manager-core
+[codecov]: https://codecov.io/gh/stayhydated/es-fluent
+[crate-badge]: https://img.shields.io/crates/v/es-fluent-manager-core.svg?label=es-fluent-manager-core
+[crate]: https://crates.io/crates/es-fluent-manager-core

@@ -9,8 +9,8 @@ handle.
 
 ~~~toml
 [dependencies]
-es-fluent = "0.18"
-es-fluent-manager-embedded = "0.18"
+es-fluent = "0.20"
+es-fluent-manager-embedded = "0.20"
 unic-langid = "0.9"
 ~~~
 

@@ -10,7 +10,7 @@ Add the `es-fluent-lang` crate:
 
 ```toml
 [dependencies]
-es-fluent-lang = "0.18"
+es-fluent-lang = "0.20"
 
 # Add this when the application iterates the generated enum.
 strum = { version = "0.28", features = ["derive"] }
@@ -22,8 +22,8 @@ Feature flags:
 - `localized-langs` formats language names in the currently selected UI
   language instead of as autonyms.
 
-For `wasm32` builds, default generated language enums emit the force-link
-keepalive across managers, including Dioxus and Bevy.
+Generated language enums also link the built-in labels into `wasm32`
+applications, including Dioxus and Bevy builds.
 
 ## Usage
 
@@ -77,7 +77,9 @@ use es_fluent_manager_embedded as manager;
 let i18n = manager::EmbeddedI18n::try_new_with_language(Languages::En)?;
 ```
 
-Since it implements `Into<LanguageIdentifier>`, you can pass variants anywhere a `LanguageIdentifier` is expected.
+Pass a variant directly to manager methods that accept
+`Into<LanguageIdentifier>`. Use `.into()` where an API requires a concrete
+`LanguageIdentifier`.
 
 ## Render language-name labels
 

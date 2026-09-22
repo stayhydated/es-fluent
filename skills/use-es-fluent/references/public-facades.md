@@ -23,9 +23,9 @@ Most applications should not depend directly on `es-fluent-derive`,
 ## Compatible release lines
 
 - `es-fluent`, CLI, embedded manager, and language enum:
-  `0.18.x`.
-- Dioxus manager: `0.7.x` with Dioxus `0.7.x`.
-- Bevy manager: `0.19.x` with Bevy `0.19.x`.
+  `0.19.x`.
+- Dioxus manager: `0.8.x` with Dioxus `0.7.x`.
+- Bevy manager: `0.20.x` with Bevy `0.19.x`.
 
 Use the versions already declared by the target repository rather than
 rewriting manifests to these examples mechanically.
@@ -77,7 +77,7 @@ the helper to track changes and write the fallback-message catalog:
 
 ~~~toml
 [build-dependencies]
-es-fluent-build = "0.18"
+es-fluent-build = "0.20"
 ~~~
 
 ~~~rust

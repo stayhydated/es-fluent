@@ -1,10 +1,10 @@
 # es-fluent-lang-macro
 
-[![Docs](https://docs.rs/es-fluent-lang-macro/badge.svg)](https://docs.rs/es-fluent-lang-macro/)
-[![Crates.io](https://img.shields.io/crates/v/es-fluent-lang-macro.svg)](https://crates.io/crates/es-fluent-lang-macro)
+[![Codecov: es-fluent-lang-macro][codecov-badge]][codecov]
+[![crates.io: es-fluent-lang-macro][crate-badge]][crate]
 
 The procedural macro behind
-[`es-fluent-lang`](../es-fluent-lang/README.md). It reads canonical
+[`es-fluent-lang`][es-fluent-lang]. It reads canonical
 locale directories from `i18n.toml` and fills an annotated empty enum
 with typed locale variants and conversions.
 
@@ -17,5 +17,8 @@ use es_fluent_lang::es_fluent_language;
 pub enum Languages {}
 ~~~
 
-See the [language picker guide](https://stayhydated.github.io/es-fluent/book/language_enum.html)
-for default and custom label modes.
+[es-fluent-lang]: https://github.com/stayhydated/es-fluent/blob/master/crates/es-fluent-lang/README.md
+[codecov-badge]: https://codecov.io/gh/stayhydated/es-fluent/branch/master/graph/badge.svg?component=es-fluent-lang-macro
+[codecov]: https://codecov.io/gh/stayhydated/es-fluent
+[crate-badge]: https://img.shields.io/crates/v/es-fluent-lang-macro.svg?label=es-fluent-lang-macro
+[crate]: https://crates.io/crates/es-fluent-lang-macro
