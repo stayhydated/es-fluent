@@ -75,57 +75,5 @@ runs:
         ES_FLUENT_NO_FALLBACK_COPY_CHECK: ${{ inputs.no_fallback_copy_check }}
         ES_FLUENT_FORCE_RUN: ${{ inputs.force_run }}
       run: |
-        set -euo pipefail
-        action_bool() {
-          local name="$1"
-          local value="$2"
-          case "$value" in
-            true)
-              return 0
-              ;;
-            false|"")
-              return 1
-              ;;
-            *)
-              echo "::error::input '$name' must be 'true' or 'false' (got '$value')" >&2
-              exit 1
-              ;;
-          esac
-        }
-
-        args=()
-        if [[ -n "$ES_FLUENT_PATH" ]]; then
-          args+=(--path "$ES_FLUENT_PATH")
-        fi
-        if [[ -n "$ES_FLUENT_PACKAGE" ]]; then
-          args+=(--package "$ES_FLUENT_PACKAGE")
-        fi
-        if action_bool all_locales "$ES_FLUENT_ALL_LOCALES"; then
-          args+=(--all-locales)
-        fi
-        if [[ -n "$ES_FLUENT_IGNORE" ]]; then
-          ignore_value=$(
-            printf '%s\n' "$ES_FLUENT_IGNORE" |
-              tr '\n' ',' |
-              awk -v RS=',' '
-                {
-                  gsub(/^[[:space:]]+|[[:space:]]+$/, "", $0)
-                  if ($0 != "") {
-                    print $0
-                  }
-                }
-              ' |
-              paste -sd, -
-          )
-          if [[ -n "$ignore_value" ]]; then
-            args+=(--ignore "$ignore_value")
-          fi
-        fi
-        if action_bool no_fallback_copy_check "$ES_FLUENT_NO_FALLBACK_COPY_CHECK"; then
-          args+=(--no-fallback-copy-check)
-        fi
-        if action_bool force_run "$ES_FLUENT_FORCE_RUN"; then
-          args+=(--force-run)
-        fi
-
-        cargo es-fluent check "${args[@]}"
+        uv run --frozen --no-dev --project "${GITHUB_ACTION_PATH}/scripts" \
+          python "${GITHUB_ACTION_PATH}/scripts/run_check.py"

@@ -219,23 +219,22 @@ fn binary_check_help_describes_filter_conflict() {
 
 #[test]
 fn action_wrapper_rejects_invalid_boolean_inputs() {
-    let action = std::fs::read_to_string(
-        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("action.yml"),
-    )
-    .expect("read action.yml");
+    let manifest_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+    let action = std::fs::read_to_string(manifest_dir.join("action.yml")).expect("read action.yml");
+    let run_check = std::fs::read_to_string(manifest_dir.join("scripts/run_check.py"))
+        .expect("read run_check.py");
 
     assert!(action.contains("all_locales:"));
     assert!(!action.contains("\n  all:\n"));
-    assert!(action.contains("action_bool all_locales \"$ES_FLUENT_ALL_LOCALES\""));
     assert!(!action.contains("ES_FLUENT_ALL:"));
     assert!(action.contains("no_fallback_copy_check:"));
+    assert!(action.contains("ES_FLUENT_ALL_LOCALES"));
     assert!(action.contains("ES_FLUENT_NO_FALLBACK_COPY_CHECK"));
-    assert!(
-        action.contains("action_bool no_fallback_copy_check \"$ES_FLUENT_NO_FALLBACK_COPY_CHECK\"")
-    );
-    assert!(action.contains("args+=(--no-fallback-copy-check)"));
-    assert!(action.contains("action_bool force_run \"$ES_FLUENT_FORCE_RUN\""));
-    assert!(action.contains("must be 'true' or 'false'"));
+    assert!(action.contains("ES_FLUENT_FORCE_RUN"));
+    assert!(action.contains("scripts/run_check.py"));
+
+    assert!(run_check.contains("must be 'true' or 'false'"));
+    assert!(run_check.contains("--no-fallback-copy-check"));
 }
 
 #[test]
