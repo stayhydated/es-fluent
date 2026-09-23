@@ -225,7 +225,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      - uses: astral-sh/setup-uv@v10
+      - uses: astral-sh/setup-uv@v10.2.0
 
       - name: Run action script tests
         run: uv run --frozen --project crates/es-fluent-cli/scripts pytest crates/es-fluent-cli/scripts
