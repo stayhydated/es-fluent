@@ -17,6 +17,10 @@ keywords = [ "fluent", "i18n", "locale" ]
 name = "cargo-es-fluent"
 path = "src/main.rs"
 
+[package.metadata.binstall]
+pkg-url = "{ repo }/releases/download/{ name }-v{ version }/{ bin }-{ target }{ archive-suffix }"
+pkg-fmt = "zip"
+
 [dependencies]
 anyhow = { workspace = true }
 anstream = { workspace = true }

@@ -31,6 +31,13 @@ Install the CLI separately:
 cargo install es-fluent-cli --locked
 ~~~
 
+Or install a prebuilt binary with
+[cargo-binstall](https://github.com/cargo-bins/cargo-binstall):
+
+~~~sh
+cargo binstall es-fluent-cli
+~~~
+
 ## Compatible release lines
 
 Manager and framework release numbers are independent. Use these compatible

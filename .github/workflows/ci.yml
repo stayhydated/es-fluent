@@ -272,6 +272,8 @@ jobs:
       - package
       - machete
       - rust-coverage
+    outputs:
+      cli_tag: ${{ steps.cli_tag.outputs.tag }}
     runs-on: ubuntu-latest
     environment: release
     permissions:
@@ -299,9 +301,29 @@ jobs:
         uses: ./.github/actions/install-linux-deps
 
       - name: Publish unpublished crate versions
+        id: release_plz
         uses: release-plz/action@v0.5.133
         with:
           command: release
           version: 0.3.162
         env:
           GITHUB_TOKEN: ${{ github.token }}
+
+      - name: Resolve es-fluent-cli release tag
+        id: cli_tag
+        if: steps.release_plz.outputs.releases_created == 'true'
+        env:
+          RELEASES: ${{ steps.release_plz.outputs.releases }}
+        run: |
+          tag=$(jq -r '.[] | select(.package_name == "es-fluent-cli") | .tag' <<<"$RELEASES")
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+
+  release-cli-binaries:
+    name: release-cli binaries
+    needs: release
+    if: needs.release.outputs.cli_tag != ''
+    permissions:
+      contents: write
+    uses: ./.github/workflows/release-cli.yml
+    with:
+      tag: ${{ needs.release.outputs.cli_tag }}

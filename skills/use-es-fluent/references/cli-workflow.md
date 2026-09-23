@@ -5,7 +5,8 @@ inspecting, or cleaning FTL resources.
 
 ## Prerequisites
 
-- Install with `cargo install es-fluent-cli --locked`.
+- Install with `cargo install es-fluent-cli --locked`, or install a prebuilt
+  binary with `cargo binstall es-fluent-cli`.
 - Put `i18n.toml` beside the owner package's
   `Cargo.toml`.
 - Create the fallback locale directory.

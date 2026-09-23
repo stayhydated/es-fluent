@@ -14,6 +14,14 @@ module.
 cargo install es-fluent-cli --locked
 ~~~
 
+Prebuilt binaries are attached to the `es-fluent-cli-v<version>` GitHub
+release, so [cargo-binstall](https://github.com/cargo-bins/cargo-binstall) can
+install one instead of compiling from source:
+
+~~~sh
+cargo binstall es-fluent-cli
+~~~
+
 Examples use Cargo's subcommand form:
 
 ~~~sh

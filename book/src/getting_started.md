@@ -25,6 +25,13 @@ Install the Cargo subcommand:
 cargo install es-fluent-cli --locked
 ~~~
 
+Or install a prebuilt binary with
+[cargo-binstall](https://github.com/cargo-bins/cargo-binstall):
+
+~~~sh
+cargo binstall es-fluent-cli
+~~~
+
 ## Configure locale assets
 
 Create `i18n.toml` next to `Cargo.toml`:

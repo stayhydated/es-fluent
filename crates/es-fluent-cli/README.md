@@ -9,6 +9,14 @@ inspecting, and cleaning `es-fluent` FTL resources.
 Run it as `cargo es-fluent <COMMAND>` or invoke the installed
 `cargo-es-fluent` binary directly.
 
+Install from crates.io, or use a prebuilt binary with
+[cargo-binstall](https://github.com/cargo-bins/cargo-binstall):
+
+~~~sh
+cargo install es-fluent-cli --locked
+cargo binstall es-fluent-cli
+~~~
+
 ## Common workflow
 
 ~~~sh
