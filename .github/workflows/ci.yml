@@ -218,6 +218,18 @@ jobs:
       - name: Machete
         uses: bnjbvr/cargo-machete@main
 
+  action-scripts:
+    name: action scripts
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: astral-sh/setup-uv@v10
+
+      - name: Run action script tests
+        run: uv run --frozen --project crates/es-fluent-cli/scripts pytest crates/es-fluent-cli/scripts
+
   rust-coverage:
     runs-on: ubuntu-latest
 
@@ -271,6 +283,7 @@ jobs:
       - docs
       - package
       - machete
+      - action-scripts
       - rust-coverage
     outputs:
       cli_tag: ${{ steps.cli_tag.outputs.tag }}

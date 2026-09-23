@@ -240,3 +240,9 @@ jobs:
 Pin the action to a release tag or commit SHA for reproducible builds.
 Set `no_fallback_copy_check` to `true` only when all-locale validation should
 allow translations that match the fallback text.
+
+Set `version` to a published `es-fluent-cli` release (or `latest`) to install
+the prebuilt `cargo-es-fluent` binary with cargo-binstall. Pinning the action to
+a release tag such as `es-fluent-cli-v0.20.3` installs the prebuilt binary for
+that tag; other refs (for example `@master`) build the CLI from the pinned ref
+with `cargo install`.

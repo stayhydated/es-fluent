@@ -36,6 +36,9 @@ or implementation work.
   `skills/use-es-fluent/references/cli-workflow.md`.
   `crates/es-fluent-cli/tests/main_smoke/help.rs` checks action usage and common
   documentation contracts.
+- The `es-fluent-cli` action install logic lives in
+  `crates/es-fluent-cli/scripts/install_cli.py` and runs with `uv`; keep its
+  `pytest` suite and the `action.yml` wrapper in sync.
 - Update affected `.ftl` files and inventory expectations when localizable
   types or `i18n.toml` change. Use the repository's `cargo es-fluent-local`
   alias to generate or validate locale resources with the local CLI.
@@ -103,6 +106,7 @@ broader checks for changes spanning several surfaces.
 | --- | --- |
 | One crate | `cargo test -p <package> --locked` with the affected test or feature selection. |
 | Public CLI documentation | `cargo test -p es-fluent-cli --test main_smoke public_ --locked`. |
+| Action wrapper scripts | `just test-action` runs the `crates/es-fluent-cli/scripts` pytest suite with uv. |
 | Rust documentation | `just test-docs` builds workspace docs and opens the result. |
 | Dioxus manager features | `just test-dioxus-manager-feature-matrix`. |
 | Locale setup | `just doctor` for read-only configuration and wiring diagnostics. |

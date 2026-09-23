@@ -1,0 +1,16 @@
+[project]
+name = "es-fluent-cli-action-scripts"
+version = "0.0.0"
+description = "Helper scripts for the es-fluent-cli GitHub Action."
+requires-python = ">=3.11"
+dependencies = []
+
+[dependency-groups]
+dev = ["pytest>=8"]
+
+[tool.uv]
+python-preference = "system"
+
+[tool.pytest.ini_options]
+testpaths = ["."]
+addopts = "-q"

@@ -32,13 +32,16 @@ test-dioxus-manager-feature-matrix:
     cargo test -p es-fluent-manager-dioxus --no-default-features --features client,ssr
     cargo check -p es-fluent-manager-dioxus --target wasm32-unknown-unknown --no-default-features --features client
 
+test-action:
+    uv run --frozen --project crates/es-fluent-cli/scripts pytest crates/es-fluent-cli/scripts
+
 cov:
     cargo llvm-cov --workspace --exclude xtask --exclude web --all-features --all-targets
 
 test-docs:
     cargo doc --workspace --all-features --no-deps --locked --open
 
-ci: fmt doctor check clippy test cov
+ci: fmt doctor check clippy test test-action cov
     cargo machete
 
 book:

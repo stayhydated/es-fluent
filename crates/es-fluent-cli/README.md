@@ -91,6 +91,12 @@ Run the repository-owned action from a workflow step:
 Set `no_fallback_copy_check` to `true` only when all-locale validation should
 allow translations that match the fallback text.
 
+Set `version` to a published `es-fluent-cli` release (or `latest`) to install
+the prebuilt `cargo-es-fluent` binary with cargo-binstall. Pinning the action to
+a release tag such as `es-fluent-cli-v0.20.3` installs the prebuilt binary for
+that tag; other refs (for example `@master`) build the CLI from the pinned ref
+with `cargo install`.
+
 [codecov-badge]: https://codecov.io/gh/stayhydated/es-fluent/branch/master/graph/badge.svg?component=es-fluent-cli
 [codecov]: https://codecov.io/gh/stayhydated/es-fluent
 [crate-badge]: https://img.shields.io/crates/v/es-fluent-cli.svg?label=es-fluent-cli

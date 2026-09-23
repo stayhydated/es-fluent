@@ -2,7 +2,7 @@ name: es-fluent-cli
 description: Run es-fluent check in CI.
 inputs:
   version:
-    description: "Optional es-fluent-cli version to install from crates.io. When omitted, the CLI is installed from the pinned action ref."
+    description: "Optional es-fluent-cli version to install from prebuilt binaries with cargo-binstall. When omitted, a release-tag action ref selects the version; other refs build from source with cargo install."
     required: false
     default: ""
   path:
@@ -47,23 +47,23 @@ runs:
       with:
         version: "v0.16.0"
 
+    - name: Install uv
+      uses: astral-sh/setup-uv@v10
+      with:
+        enable-cache: false
+
+    - name: Install cargo-binstall
+      if: inputs.version != '' || startsWith(github.action_ref, 'es-fluent-cli-v')
+      uses: cargo-bins/cargo-binstall@main
+
     - name: Install es-fluent-cli
       shell: bash
       env:
         ES_FLUENT_CLI_VERSION: ${{ inputs.version }}
+        ES_FLUENT_ACTION_REF: ${{ github.action_ref }}
       run: |
-        set -euo pipefail
-        (
-          cd "${GITHUB_ACTION_PATH}"
-          version="${ES_FLUENT_CLI_VERSION}"
-          if [[ -z "$version" ]]; then
-            cargo install --path . --locked
-          elif [[ "$version" == "latest" ]]; then
-            cargo install es-fluent-cli --locked
-          else
-            cargo install es-fluent-cli --locked --version "$version"
-          fi
-        )
+        uv run --frozen --no-dev --project "${GITHUB_ACTION_PATH}/scripts" \
+          python "${GITHUB_ACTION_PATH}/scripts/install_cli.py"
 
     - name: Run es-fluent
       shell: bash
