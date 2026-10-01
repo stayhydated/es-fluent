@@ -315,7 +315,7 @@ jobs:
 
       - name: Publish unpublished crate versions
         id: release_plz
-        uses: release-plz/action@v0.5.133
+        uses: release-plz/action@v0.5.139
         with:
           command: release
           version: 0.3.162
