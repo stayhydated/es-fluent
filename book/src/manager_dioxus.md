@@ -8,16 +8,16 @@ request-scoped SSR, or applications that use both.
 ~~~toml
 [dependencies]
 dioxus = "0.7"
-es-fluent = "0.20"
+es-fluent = "0.21"
 
 # Client rendering:
-es-fluent-manager-dioxus = { version = "0.20", features = ["client"] }
+es-fluent-manager-dioxus = { version = "0.21", features = ["client"] }
 
 # SSR only:
-# es-fluent-manager-dioxus = { version = "0.20", features = ["ssr"] }
+# es-fluent-manager-dioxus = { version = "0.21", features = ["ssr"] }
 
 # Client and SSR:
-# es-fluent-manager-dioxus = { version = "0.20", features = ["client", "ssr"] }
+# es-fluent-manager-dioxus = { version = "0.21", features = ["client", "ssr"] }
 ~~~
 
 The crate has no default runtime feature. The module macro remains available
@@ -98,9 +98,34 @@ async fn request_i18n() -> Result<(), Box<dyn std::error::Error>> {
 
 `request(...)` and `request_strict(...)` are asynchronous
 because asset reads are asynchronous. Blocking variants are available for
-static generation. Render helpers do not install context automatically; pass
-`SsrI18n` as a prop or provide it from the request's component tree.
+static generation. Pass `SsrI18n` as a prop or provide it from the request's
+component tree, and call `i18n.localize_message(&message)` there. Rebuild and
+render the tree through Dioxus:
+
+~~~rust,ignore
+dom.rebuild_in_place();
+let html = dioxus_ssr::render(&dom);
+~~~
 
 Enable both `client` and `ssr` if SSR components use the
 Dioxus hook API. Use an explicit module set only when the application should
 load a subset of discovered translations.
+
+## Migrate SSR rendering to 0.21
+
+The 0.21 release keeps localization on the request context and rendering on
+Dioxus. Replace the former `SsrI18n` rendering methods as follows; the request
+context still belongs in the component tree.
+
+| Previous call | Dioxus call |
+| --- | --- |
+| `i18n.render(&dom)` | `dioxus_ssr::render(&dom)` |
+| `i18n.pre_render(&dom)` | `dioxus_ssr::pre_render(&dom)` |
+| `i18n.render_with(&mut renderer, &dom)` | `renderer.render(&dom)` |
+| `i18n.render_element(element)` | `dioxus_ssr::render_element(element)` |
+| `i18n.rebuild_and_render(&mut dom)` | `dom.rebuild_in_place(); dioxus_ssr::render(&dom)` |
+| `i18n.rebuild_and_pre_render(&mut dom)` | `dom.rebuild_in_place(); dioxus_ssr::pre_render(&dom)` |
+
+Add `dioxus-ssr = "0.7"` to the rendering application's dependencies when it
+uses these functions directly. Keep the existing choice of `render` or
+`pre_render` so hydration behavior is preserved.

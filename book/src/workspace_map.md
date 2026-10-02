@@ -17,12 +17,12 @@ A general Rust application can start with:
 
 ~~~toml
 [dependencies]
-es-fluent = "0.20"
-es-fluent-manager-embedded = "0.20"
+es-fluent = "0.21"
+es-fluent-manager-embedded = "0.21"
 unic-langid = "0.9"
 
 [build-dependencies]
-es-fluent-build = "0.20"
+es-fluent-build = "0.21"
 ~~~
 
 Install the CLI separately:
@@ -40,14 +40,14 @@ cargo binstall es-fluent-cli
 
 ## Compatible release lines
 
-Manager and framework release numbers are independent. Use these compatible
-release lines:
+The workspace packages use the 0.21 release line. Match each manager to its
+framework version:
 
 | Surface | Release line | Runtime compatibility |
 | --- | --- | --- |
-| `es-fluent`, CLI, embedded manager, and language enum | `0.19.x` | General Rust |
-| `es-fluent-manager-dioxus` | `0.8.x` | Dioxus `0.7.x` |
-| `es-fluent-manager-bevy` | `0.20.x` | Bevy `0.19.x` |
+| `es-fluent`, CLI, embedded manager, and language enum | `0.21.x` | General Rust |
+| `es-fluent-manager-dioxus` | `0.21.x` | Dioxus `0.7.x` |
+| `es-fluent-manager-bevy` | `0.21.x` | Bevy `0.19.x` |
 
 ## Supporting crates
 

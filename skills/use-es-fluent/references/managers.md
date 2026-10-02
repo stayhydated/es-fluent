@@ -9,8 +9,8 @@ Use for general Rust applications:
 
 ~~~toml
 [dependencies]
-es-fluent = "0.20"
-es-fluent-manager-embedded = "0.20"
+es-fluent = "0.21"
+es-fluent-manager-embedded = "0.21"
 unic-langid = "0.9"
 ~~~
 
@@ -40,13 +40,13 @@ Enable exactly the runtime surfaces used by the application:
 ~~~toml
 [dependencies]
 dioxus = "0.7"
-es-fluent-manager-dioxus = { version = "0.20", features = ["client"] }
+es-fluent-manager-dioxus = { version = "0.21", features = ["client"] }
 
 # SSR:
-# es-fluent-manager-dioxus = { version = "0.20", features = ["ssr"] }
+# es-fluent-manager-dioxus = { version = "0.21", features = ["ssr"] }
 
 # Client and SSR:
-# es-fluent-manager-dioxus = { version = "0.20", features = ["client", "ssr"] }
+# es-fluent-manager-dioxus = { version = "0.21", features = ["client", "ssr"] }
 ~~~
 
 Register assets from a library module:
@@ -67,16 +67,19 @@ let runtime = SsrI18nRuntime::discovered();
 let i18n = runtime.request(langid!("en")).await?;
 ~~~
 
-Pass request state into the component tree. Enable both `client` and
-`ssr` if SSR components use Dioxus hooks.
+Pass request state into the component tree and call
+`i18n.localize_message(&message)` there. Use `dom.rebuild_in_place()` and
+`dioxus_ssr::render(&dom)` for HTML rendering; add `dioxus-ssr = "0.7"` to the
+rendering application. Enable both `client` and `ssr` if SSR components use
+Dioxus hooks.
 
 ## Bevy
 
 ~~~toml
 [dependencies]
 bevy = "0.19"
-es-fluent = "0.20"
-es-fluent-manager-bevy = "0.20"
+es-fluent = "0.21"
+es-fluent-manager-bevy = "0.21"
 ~~~
 
 ~~~rust
@@ -105,8 +108,8 @@ around locale synchronization or text refresh.
 - Use the concrete context's `localize_message(&value)` for typed
   messages.
 - Pass the same context to `MyType::localize_label(&i18n)`.
-- Import `es_fluent::FluentLocalizerExt as _` for fallible message
-  lookup.
+- Import `es_fluent::FluentLocalizerExt as _` for generic or type-erased
+  localizers and fallible message lookup; keep the same method syntax.
 - Use `try_localize_message(...)` or
   `try_localize_label(...)` only when missing output is an expected
   state.
@@ -117,3 +120,7 @@ around locale synchronization or text refresh.
   carried by each generated key.
 - Select a language before rendering. Failed switches keep the previous ready
   state.
+
+Keep `FluentMessage::to_fluent_string_with`, raw-key `FluentLocalizer::localize`,
+and `with_lookup` inside custom integrations. They define the adapter's lookup
+and rendering contracts; application examples use the typed context methods.
