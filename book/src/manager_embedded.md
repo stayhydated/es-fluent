@@ -9,8 +9,8 @@ handle.
 
 ~~~toml
 [dependencies]
-es-fluent = "0.20"
-es-fluent-manager-embedded = "0.20"
+es-fluent = "0.21"
+es-fluent-manager-embedded = "0.21"
 unic-langid = "0.9"
 ~~~
 
@@ -77,7 +77,8 @@ can serve the requested locale and keeps supported modules active. Use
 application module must support the locale.
 
 A failed switch keeps the previous ready locale. Cloned
-`EmbeddedI18n` handles share language state; construct a separate
+`EmbeddedI18n` handles share language state. Concurrent selections are serialized
+across the active locale and its cached selection policy. Construct a separate
 manager when independent locale state is required.
 
 WASM debug builds embed locale assets automatically. For other debug targets

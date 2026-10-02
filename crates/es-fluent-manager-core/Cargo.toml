@@ -34,6 +34,7 @@ unic-langid = { features = [ "macros" ], workspace = true }
 rust-embed = { features = [ "debug-embed" ], optional = true, workspace = true }
 
 [dev-dependencies]
+proptest = { workspace = true }
 serial_test = { workspace = true }
 
 [lints]

@@ -95,31 +95,36 @@ impl EmbeddedI18n {
         }
     }
 
-    fn language_is_active(
+    fn select_language_with_policy(
         &self,
-        lang: &LanguageIdentifier,
+        lang: LanguageIdentifier,
         policy: EmbeddedSelectionPolicy,
-    ) -> bool {
-        let active_selection = self
-            .active_selection
-            .read()
-            .unwrap_or_else(|error| error.into_inner());
-
-        active_selection
-            .as_ref()
-            .is_some_and(|selection| selection.language == *lang && selection.policy == policy)
-    }
-
-    fn store_active_language(&self, lang: LanguageIdentifier, policy: EmbeddedSelectionPolicy) {
+    ) -> Result<(), LocalizationError> {
+        // Keep the cache check, manager transition, and cache commit in one
+        // critical section shared by every clone and both selection policies.
         let mut active_selection = self
             .active_selection
             .write()
             .unwrap_or_else(|error| error.into_inner());
+        if active_selection
+            .as_ref()
+            .is_some_and(|selection| selection.language == lang && selection.policy == policy)
+        {
+            return Ok(());
+        }
 
+        info!("Changing locale to: {}", lang);
+        match policy {
+            EmbeddedSelectionPolicy::BestEffort => self.manager.select_language(&lang)?,
+            EmbeddedSelectionPolicy::Strict => self.manager.select_language_strict(&lang)?,
+        }
+        #[cfg(test)]
+        tests::after_manager_selection();
         *active_selection = Some(ActiveSelection {
             language: lang,
             policy,
         });
+        Ok(())
     }
 
     /// Builds an embedded context without selecting a language.
@@ -169,36 +174,25 @@ impl EmbeddedI18n {
     }
 
     /// Selects the active language for this context.
+    ///
+    /// Concurrent selections through cloned handles are serialized. A failed
+    /// selection preserves the previously active language and selection policy.
     pub fn select_language<L: Into<LanguageIdentifier>>(
         &self,
         lang: L,
     ) -> Result<(), LocalizationError> {
-        let lang = lang.into();
-        if self.language_is_active(&lang, EmbeddedSelectionPolicy::BestEffort) {
-            return Ok(());
-        }
-
-        info!("Changing locale to: {}", lang);
-        self.manager.select_language(&lang)?;
-        self.store_active_language(lang, EmbeddedSelectionPolicy::BestEffort);
-        Ok(())
+        self.select_language_with_policy(lang.into(), EmbeddedSelectionPolicy::BestEffort)
     }
 
     /// Selects the active language for this context and fails if any runtime
     /// module rejects the requested locale.
+    ///
+    /// Shares the same serialized transition as [`Self::select_language`].
     pub fn select_language_strict<L: Into<LanguageIdentifier>>(
         &self,
         lang: L,
     ) -> Result<(), LocalizationError> {
-        let lang = lang.into();
-        if self.language_is_active(&lang, EmbeddedSelectionPolicy::Strict) {
-            return Ok(());
-        }
-
-        info!("Changing locale to: {}", lang);
-        self.manager.select_language_strict(&lang)?;
-        self.store_active_language(lang, EmbeddedSelectionPolicy::Strict);
-        Ok(())
+        self.select_language_with_policy(lang.into(), EmbeddedSelectionPolicy::Strict)
     }
 
     /// Renders a derived typed message through this context.
@@ -235,8 +229,21 @@ mod tests {
     use es_fluent_manager_core::{
         I18nModule, I18nModuleDescriptor, I18nModuleRegistration, Localizer, ModuleData,
     };
-    use std::sync::{Mutex, Once};
+    use std::cell::RefCell;
+    use std::sync::{Mutex, Once, mpsc};
+    use std::time::Duration;
     use unic_langid::langid;
+
+    thread_local! {
+        static AFTER_MANAGER_SELECTION: RefCell<Option<Box<dyn FnOnce()>>> = RefCell::new(None);
+    }
+
+    pub(super) fn after_manager_selection() {
+        let hook = AFTER_MANAGER_SELECTION.with_borrow_mut(Option::take);
+        if let Some(hook) = hook {
+            hook();
+        }
+    }
 
     static TEST_SUPPORTED_LANGUAGES: &[LanguageIdentifier] = &[langid!("en-US"), langid!("fr")];
     static TEST_MODULE_DATA: ModuleData = ModuleData {
@@ -344,6 +351,91 @@ mod tests {
             es_fluent::registry::__macro::static_domain("embedded-test-module"),
             es_fluent::registry::__macro::static_entry_id(id),
         )
+    }
+
+    fn select_with_policy(
+        i18n: &EmbeddedI18n,
+        language: LanguageIdentifier,
+        policy: EmbeddedSelectionPolicy,
+    ) -> Result<(), LocalizationError> {
+        match policy {
+            EmbeddedSelectionPolicy::BestEffort => i18n.select_language(language),
+            EmbeddedSelectionPolicy::Strict => i18n.select_language_strict(language),
+        }
+    }
+
+    #[test]
+    fn concurrent_selections_keep_cached_and_rendered_languages_consistent() {
+        force_inventory_link();
+        for first_policy in [
+            EmbeddedSelectionPolicy::BestEffort,
+            EmbeddedSelectionPolicy::Strict,
+        ] {
+            let second_policy = match first_policy {
+                EmbeddedSelectionPolicy::BestEffort => EmbeddedSelectionPolicy::Strict,
+                EmbeddedSelectionPolicy::Strict => EmbeddedSelectionPolicy::BestEffort,
+            };
+            let i18n = EmbeddedI18n::try_new().unwrap();
+            select_with_policy(&i18n, langid!("en-US"), first_policy).unwrap();
+            let (committed_tx, committed_rx) = mpsc::channel();
+            let (resume_tx, resume_rx) = mpsc::channel();
+            let (finished_tx, finished_rx) = mpsc::channel();
+            let timeout = Duration::from_secs(10);
+
+            std::thread::scope(|scope| {
+                let first_i18n = i18n.clone();
+                let first = scope.spawn(move || {
+                    AFTER_MANAGER_SELECTION.set(Some(Box::new(move || {
+                        committed_tx.send(()).unwrap();
+                        resume_rx.recv_timeout(timeout).unwrap();
+                    })));
+                    select_with_policy(&first_i18n, langid!("fr"), first_policy)
+                });
+                committed_rx.recv_timeout(timeout).unwrap();
+
+                // If the cache is unlocked after the manager commit, expose the old
+                // race by completing the second selection before the first caches it.
+                // Otherwise release the serialized first selection so the second runs.
+                let selection_is_locked = i18n.active_selection.try_write().is_err();
+                let second_i18n = i18n.clone();
+                let second = scope.spawn(move || {
+                    let result = select_with_policy(&second_i18n, langid!("en-US"), second_policy);
+                    finished_tx.send(()).unwrap();
+                    result
+                });
+                if selection_is_locked {
+                    resume_tx.send(()).unwrap();
+                    finished_rx.recv_timeout(timeout).unwrap();
+                } else {
+                    finished_rx.recv_timeout(timeout).unwrap();
+                    resume_tx.send(()).unwrap();
+                }
+                first.join().unwrap().unwrap();
+                second.join().unwrap().unwrap();
+            });
+
+            assert_eq!(i18n.localize_message(&TestMessage), "Hello");
+            select_with_policy(&i18n, langid!("fr"), first_policy).unwrap();
+            assert_eq!(i18n.localize_message(&TestMessage), "Bonjour");
+        }
+    }
+
+    #[test]
+    fn rejected_selections_preserve_the_active_language_and_policy() {
+        force_inventory_link();
+        let i18n = EmbeddedI18n::try_new_with_language(langid!("en-US")).unwrap();
+        let initial = i18n.active_selection.read().unwrap().clone();
+        for policy in [
+            EmbeddedSelectionPolicy::BestEffort,
+            EmbeddedSelectionPolicy::Strict,
+        ] {
+            std::assert_matches!(
+                select_with_policy(&i18n, langid!("de"), policy),
+                Err(LocalizationError::LanguageNotSupported(language)) if language == langid!("de")
+            );
+            assert_eq!(i18n.localize_message(&TestMessage), "Hello");
+            assert_eq!(*i18n.active_selection.read().unwrap(), initial);
+        }
     }
 
     #[test]

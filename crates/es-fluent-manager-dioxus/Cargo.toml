@@ -16,7 +16,7 @@ keywords = [ "fluent", "i18n", "locale", "dioxus" ]
 [features]
 client = [ "dep:dioxus-core", "dep:dioxus-core-macro", "dep:dioxus-hooks", "dep:dioxus-signals" ]
 default = [  ]
-ssr = [ "dep:dioxus-core", "dep:dioxus-ssr", "dep:futures" ]
+ssr = [ "dep:dioxus-core", "dep:futures" ]
 
 [dependencies]
 dioxus = { features = [ "asset" ], workspace = true }
@@ -24,7 +24,6 @@ dioxus-core = { optional = true, workspace = true }
 dioxus-core-macro = { optional = true, workspace = true }
 dioxus-hooks = { optional = true, workspace = true }
 dioxus-signals = { optional = true, workspace = true }
-dioxus-ssr = { optional = true, workspace = true }
 es-fluent = { workspace = true }
 es-fluent-manager-core = { workspace = true }
 es-fluent-manager-macros = { workspace = true }

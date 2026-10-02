@@ -28,9 +28,10 @@ or implementation work.
 - Public API and manager changes belong with the matching crate README, Rust
   docs, book pages, executable examples, and skill reference. Several crate
   roots include their README as Rust documentation.
-- Keep README badges for CI, Codecov, the book, and the published crate. Keep
-  setup procedures and chapter navigation in the book; READMEs explain purpose,
-  public behavior, and representative usage.
+- Keep repository-wide CI, Codecov, and book badges on the root README. Member
+  READMEs use their own published-crate badge and verified package-specific
+  coverage badges. Keep setup procedures and chapter navigation in the book;
+  READMEs explain purpose, public behavior, and representative usage.
 - CLI changes must agree with `crates/es-fluent-cli/README.md`,
   `book/src/cli.md`, and
   `skills/use-es-fluent/references/cli-workflow.md`.
@@ -73,6 +74,10 @@ or implementation work.
 - Policy changes must agree across catalog parsing, source-spanned derive
   diagnostics, `doctor`, embedded/Dioxus/Bevy lookup, and compile/runtime tests.
   The CLI's temporary inventory environment must preserve application policy.
+- Embedded locale selection serializes the cache check, manager transition, and
+  cached language/policy update across cloned handles and both selection
+  policies. Preserve the previous state on failure; the embedded manager's
+  unit tests cover concurrent selections and rejected switches.
 
 ### CLI planning, writes, and watching
 
@@ -105,6 +110,10 @@ broader checks for changes spanning several surfaces.
 | Change | Validation |
 | --- | --- |
 | One crate | `cargo test -p <package> --locked` with the affected test or feature selection. |
+| FTL property tests | `cargo test -p es-fluent-generate --test properties --locked`. |
+| Fallback property tests | `cargo test -p es-fluent-manager-core --test fallback_properties --locked`. |
+| FTL benchmark compilation | `cargo bench -p es-fluent-generate --bench ftl --no-run --locked`. |
+| FTL benchmark smoke check | `cargo bench -p es-fluent-generate --bench ftl --locked -- --test`. |
 | Public CLI documentation | `cargo test -p es-fluent-cli --test main_smoke public_ --locked`. |
 | Action wrapper scripts | `just test-action` runs the `crates/es-fluent-cli/scripts` pytest suite with uv. |
 | Rust documentation | `just test-docs` builds workspace docs and opens the result. |
@@ -121,3 +130,15 @@ broader checks for changes spanning several surfaces.
 Use `just check`, `just clippy`, or `just test` when a change crosses workspace
 boundaries. Report commands that succeeded separately from failed attempts and
 checks that were only reviewed.
+
+The FTL properties generate owned syntax and preserve payloads, group ownership
+for ambiguous headings, and valid shrinking. Keep the expected variable set
+independent of the production traversal; do not reuse the static registry test
+helpers that leak allocations for every generated case. Fallback properties use
+explicit locale-chain fixtures rather than the production resolver as an oracle.
+
+Run timing comparisons with `cargo bench -p es-fluent-generate --bench ftl --locked`
+on the same quiet machine, toolchain, lockfile, and profile. The harness prepares
+ASTs outside the timed loop; smoke checks do not measure performance. Record
+baselines before claiming improvements, and keep timing thresholds out of ordinary
+CI checks.

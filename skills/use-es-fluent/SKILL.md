@@ -22,8 +22,9 @@ description: Add, debug, review, or document es-fluent localization in Rust appl
    message.
 6. For setup changes, run `cargo es-fluent doctor`. After changing message
    types, generate fallback FTL, translate it, and run the relevant CLI check.
-7. Localize through the explicit manager or framework context. Use fallible
-   lookup only where the caller intentionally handles missing output.
+7. Call `i18n.localize_message(&message)` through the explicit manager or
+   framework context, and `MyType::localize_label(&i18n)` for type labels. Use
+   fallible lookup only where the caller intentionally handles missing output.
 
 ## Decision rules
 

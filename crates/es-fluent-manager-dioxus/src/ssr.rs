@@ -1,6 +1,4 @@
 use crate::{DioxusAssetI18n, DioxusAssetLoadError, DioxusI18nAssetModules};
-use dioxus_core::{Element, VirtualDom};
-use dioxus_ssr::Renderer;
 use es_fluent::{
     FluentArgs, FluentLocalizer, FluentLocalizerLookup, FluentMessage,
     registry::StaticFluentMessageKey,
@@ -105,32 +103,6 @@ impl SsrI18n {
     pub fn provide_context(&self) -> crate::DioxusAssetI18nHandle {
         crate::use_provide_asset_i18n(self.i18n.clone())
     }
-
-    pub fn rebuild_and_render(&self, dom: &mut VirtualDom) -> String {
-        dom.rebuild_in_place();
-        dioxus_ssr::render(dom)
-    }
-
-    pub fn rebuild_and_pre_render(&self, dom: &mut VirtualDom) -> String {
-        dom.rebuild_in_place();
-        dioxus_ssr::pre_render(dom)
-    }
-
-    pub fn render(&self, dom: &VirtualDom) -> String {
-        dioxus_ssr::render(dom)
-    }
-
-    pub fn pre_render(&self, dom: &VirtualDom) -> String {
-        dioxus_ssr::pre_render(dom)
-    }
-
-    pub fn render_with(&self, renderer: &mut Renderer, dom: &VirtualDom) -> String {
-        renderer.render(dom)
-    }
-
-    pub fn render_element(&self, element: Element) -> String {
-        dioxus_ssr::render_element(element)
-    }
 }
 
 impl FluentLocalizer for SsrI18n {
@@ -152,8 +124,9 @@ mod tests {
     use super::*;
     use crate::{DioxusI18nAssetModule, DioxusI18nAssetResource};
     use dioxus::prelude::manganis;
-    use dioxus_core::VirtualDom;
-    use dioxus_core_macro::rsx;
+    use dioxus_core::{Element, VirtualDom};
+    use dioxus_core_macro::{Props, component, rsx};
+    use es_fluent::FluentLocalizerExt as _;
     use es_fluent_manager_core::{ModuleData, ModuleDomain};
     use unic_langid::{LanguageIdentifier, langid};
 
@@ -206,8 +179,10 @@ mod tests {
     }
 
     #[allow(non_snake_case)]
-    fn SsrMessage() -> Element {
-        rsx! { "SSR" }
+    #[component]
+    fn SsrMessage(i18n: SsrI18n) -> Element {
+        let message = i18n.localize_message(&TestMessage);
+        rsx! { "{message}" }
     }
 
     fn runtime() -> SsrI18nRuntime {
@@ -270,19 +245,27 @@ mod tests {
     }
 
     #[test]
-    fn ssr_render_helpers_delegate_to_dioxus_ssr() {
-        let i18n = runtime()
+    fn ssr_requests_render_independent_locales_through_dioxus() {
+        let runtime = runtime();
+        let english = runtime
             .request_blocking(langid!("en"))
-            .expect("SSR request should load assets");
-        let mut dom = VirtualDom::new(SsrMessage);
+            .expect("English SSR request should load assets");
+        let french = runtime
+            .request_blocking(langid!("fr"))
+            .expect("French SSR request should load assets");
 
-        assert!(i18n.rebuild_and_render(&mut dom).contains("SSR"));
-        assert!(i18n.render(&dom).contains("SSR"));
-        assert!(i18n.pre_render(&dom).contains("SSR"));
+        assert_eq!(
+            english.try_localize_message(&TestMessage),
+            Some("Hello from asset".to_string())
+        );
+        let mut english_dom =
+            VirtualDom::new_with_props(SsrMessage, SsrMessageProps { i18n: english });
+        let mut french_dom =
+            VirtualDom::new_with_props(SsrMessage, SsrMessageProps { i18n: french });
+        english_dom.rebuild_in_place();
+        french_dom.rebuild_in_place();
 
-        let mut renderer = Renderer::new();
-        assert!(i18n.render_with(&mut renderer, &dom).contains("SSR"));
-        assert!(i18n.rebuild_and_pre_render(&mut dom).contains("SSR"));
-        assert!(i18n.render_element(rsx! { "Element" }).contains("Element"));
+        assert!(dioxus_ssr::render(&english_dom).contains("Hello from asset"));
+        assert!(dioxus_ssr::render(&french_dom).contains("Bonjour from asset"));
     }
 }

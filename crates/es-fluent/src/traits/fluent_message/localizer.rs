@@ -13,9 +13,12 @@ const WITH_LOOKUP_CALLBACK_COUNT_ERROR: &str =
 /// Derive macros implement this trait for `#[derive(EsFluent)]` and generated
 /// variant enums. Runtime managers use it to keep typed message call sites while
 /// routing lookup through a request, component, or application-scoped manager.
+/// Application code renders messages with `i18n.localize_message(&message)`;
+/// this trait supplies the callback contract for derives and custom integrations.
 pub trait FluentMessage {
     /// Converts the message into a localized string using the supplied lookup
-    /// callback.
+    /// callback. This is the custom-rendering integration point; ordinary
+    /// typed calls use [`FluentLocalizerExt::localize_message`].
     ///
     /// Manual implementations should treat `localize` as the only lookup path
     /// during rendering. Do not re-enter the same localizer to select a
@@ -45,7 +48,10 @@ impl<T: FluentMessage + ?Sized> FluentMessage for &T {
 /// [`FluentLocalizerExt::localize_message`] and
 /// [`FluentLocalizerExt::try_localize_message`].
 pub trait FluentLocalizer {
-    /// Localizes a fully scoped static message key.
+    /// Looks up a fully scoped static message key for a runtime integration.
+    ///
+    /// Application code uses [`FluentLocalizerExt::localize_message`] to render
+    /// typed messages with the context's lookup scope and missing-message policy.
     fn localize<'a>(
         &self,
         key: StaticFluentMessageKey,
@@ -158,7 +164,16 @@ impl<T: FluentLocalizer + ?Sized> FluentLocalizer for Arc<T> {
 ///
 /// Concrete manager crates expose inherent `localize_message(...)` methods for
 /// application code. Import this trait when integration code works with a
-/// generic [`FluentLocalizer`] and still needs typed message rendering.
+/// generic or type-erased [`FluentLocalizer`] and still needs typed message
+/// rendering. Keep the same method syntax in either case:
+///
+/// ```
+/// use es_fluent::{FluentLocalizer, FluentLocalizerExt as _, FluentMessage};
+///
+/// fn render(i18n: &dyn FluentLocalizer, message: &dyn FluentMessage) -> String {
+///     i18n.localize_message(message)
+/// }
+/// ```
 pub trait FluentLocalizerExt: FluentLocalizer {
     /// Attempts to render a derived typed message through this explicit
     /// localizer.

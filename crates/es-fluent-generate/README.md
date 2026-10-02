@@ -11,6 +11,10 @@ Application developers should use
 directly only when custom tooling needs the same conservative or aggressive
 generation and Fluent formatting behavior as the CLI.
 
+Formatting retains separate group headings. When multiple headings match a
+message equally, the message stays in its original group, so repeated formatting
+does not move it between ambiguous groups.
+
 [es-fluent-cli]: https://github.com/stayhydated/es-fluent/blob/master/crates/es-fluent-cli/README.md
 [codecov-badge]: https://codecov.io/gh/stayhydated/es-fluent/branch/master/graph/badge.svg?component=es-fluent-generate
 [codecov]: https://codecov.io/gh/stayhydated/es-fluent

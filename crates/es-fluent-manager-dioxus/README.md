@@ -16,7 +16,9 @@ es_fluent_manager_dioxus::define_i18n_module!();
 
 Client applications provide `DioxusAssetI18nProvider` and localize
 through the handle returned by `use_i18n()`. SSR applications create
-one `SsrI18nRuntime` and one `SsrI18n` per request.
+one `SsrI18nRuntime` and one `SsrI18n` per request. Both contexts render
+typed messages with `i18n.localize_message(&message)`. Provide request state
+inside the component tree and render HTML through `dioxus_ssr`.
 
 The configured `assets_dir` must be inside the package root. Enable
 both `client` and `ssr` when SSR components use Dioxus

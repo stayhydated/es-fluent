@@ -23,6 +23,8 @@ includes the fallback locale, and implements conversions to and from
 the active manager can render language-picker labels:
 
 ~~~rust,ignore
+use strum::IntoEnumIterator as _;
+
 for language in Languages::iter() {
     println!("{}", i18n.localize_message(&language));
 }

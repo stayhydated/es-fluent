@@ -9,6 +9,8 @@ use heck::ToSnakeCase as _;
 ///
 /// Additionally, this function attempts to "repair" grouping by matching message keys
 /// to section headers (heuristically matching snake_case keys to PascalCase headers).
+/// Equally specific matching headers remain separate, and their messages retain
+/// their original section rather than choosing an ambiguous relocation target.
 ///
 /// Keys ending in `_label` (defined by `FluentKey::LABEL_SUFFIX`) are sorted to the top
 /// of their respective sections.
@@ -139,6 +141,8 @@ pub fn sort_ftl_resource(resource: &ast::Resource<String>) -> String {
                 if score > best_score {
                     best_score = score;
                     best_section_idx = Some(idx);
+                } else if score == best_score {
+                    best_section_idx = None;
                 }
             }
         }
@@ -152,6 +156,8 @@ pub fn sort_ftl_resource(resource: &ast::Resource<String>) -> String {
                     if score > best_score {
                         best_score = score;
                         best_section_idx = Some(idx);
+                    } else if score == best_score {
+                        best_section_idx = None;
                     }
                 }
             }

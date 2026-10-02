@@ -13,11 +13,10 @@ macros, or `es-fluent-build`. Custom tooling can load a resolved
 layout directly:
 
 ~~~rust,no_run
-fn main() -> std::io::Result<()> {
+fn main() -> Result<(), es_fluent_toml::I18nConfigError> {
     let _layout = es_fluent_toml::ResolvedI18nLayout::from_manifest_dir(
         std::path::Path::new(env!("CARGO_MANIFEST_DIR")),
-    )
-    .map_err(|error| std::io::Error::other(format!("{error:?}")))?;
+    )?;
     Ok(())
 }
 ~~~
