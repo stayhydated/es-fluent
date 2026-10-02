@@ -10,6 +10,8 @@ localization for Rust. Derive messages from structs and enums, maintain FTL
 resources with `cargo es-fluent`, and resolve them with an embedded, Dioxus, or
 Bevy runtime manager.
 
+es-fluent requires Rust 1.99 or newer.
+
 ## Crates
 
 | Crate | Purpose |

@@ -455,7 +455,7 @@ pub fn run_monolithic(
             bail!("Monolithic binary failed: {}", stderr);
         }
 
-        return Ok(String::from_utf8_lossy(&output.stdout).to_string());
+        return Ok(String::from_utf8_lossy_owned(output.stdout));
     }
 
     let args = vec![encoded_request];

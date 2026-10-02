@@ -32,7 +32,7 @@ inputs:
   toolchain:
     description: Rust toolchain to install for running the CLI.
     required: false
-    default: stable
+    default: "1.99.0"
 
 runs:
   using: composite

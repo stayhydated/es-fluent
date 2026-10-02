@@ -241,6 +241,9 @@ Pin the action to a release tag or commit SHA for reproducible builds.
 Set `no_fallback_copy_check` to `true` only when all-locale validation should
 allow translations that match the fallback text.
 
+The action installs Rust 1.99.0 by default. Set `toolchain` to another compatible
+Rust toolchain when the checked workspace requires it.
+
 Set `version` to a published `es-fluent-cli` release (or `latest`) to install
 the prebuilt `cargo-es-fluent` binary with cargo-binstall. Pinning the action to
 a release tag such as `es-fluent-cli-v0.20.3` installs the prebuilt binary for
