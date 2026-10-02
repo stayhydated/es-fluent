@@ -64,6 +64,10 @@ jobs:
       - name: Run tests
         run: ${{ matrix.command }}
 
+      - name: Smoke-test FTL benchmarks
+        if: runner.os == 'Linux'
+        run: cargo test -p es-fluent-generate --bench ftl --locked
+
   dioxus-manager-feature-matrix:
     name: dioxus manager (${{ matrix.name }})
     runs-on: ubuntu-latest

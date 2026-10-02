@@ -36,8 +36,8 @@ rust-version = "1.99"
 version = "0.20.3"
 
 [workspace.dependencies]
-anyhow = "1.0"
 anstream = "1.0"
+anyhow = "1.0"
 askama = "0.16"
 assert_cmd = "2.2"
 assert_fs = "1.1"
@@ -51,6 +51,7 @@ chrono = { default-features = false, features = [ "std" ], version = "0.4" }
 clap = "4.6"
 colored = "3.1"
 console_error_panic_hook = "0.1"
+criterion = { default-features = false, features = [ "cargo_bench_support" ], version = "0.8.2" }
 crossbeam-channel = "0.5"
 crossterm = "0.29"
 darling = "0.24"
@@ -106,6 +107,7 @@ predicates = "3.1"
 prettyplease = "0.3"
 proc-macro-crate = "3.5"
 proc-macro2 = "1.0"
+proptest = { default-features = false, features = [ "std" ], version = "1.11.0" }
 quote = "1.0"
 ratatui = "0.30"
 rstest = "0.27"

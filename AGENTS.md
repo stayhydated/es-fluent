@@ -110,6 +110,10 @@ broader checks for changes spanning several surfaces.
 | Change | Validation |
 | --- | --- |
 | One crate | `cargo test -p <package> --locked` with the affected test or feature selection. |
+| FTL property tests | `cargo test -p es-fluent-generate --test properties --locked`. |
+| Fallback property tests | `cargo test -p es-fluent-manager-core --test fallback_properties --locked`. |
+| FTL benchmark compilation | `cargo bench -p es-fluent-generate --bench ftl --no-run --locked`. |
+| FTL benchmark smoke check | `cargo bench -p es-fluent-generate --bench ftl --locked -- --test`. |
 | Public CLI documentation | `cargo test -p es-fluent-cli --test main_smoke public_ --locked`. |
 | Action wrapper scripts | `just test-action` runs the `crates/es-fluent-cli/scripts` pytest suite with uv. |
 | Rust documentation | `just test-docs` builds workspace docs and opens the result. |
@@ -126,3 +130,15 @@ broader checks for changes spanning several surfaces.
 Use `just check`, `just clippy`, or `just test` when a change crosses workspace
 boundaries. Report commands that succeeded separately from failed attempts and
 checks that were only reviewed.
+
+The FTL properties generate owned syntax and preserve payloads, group ownership
+for ambiguous headings, and valid shrinking. Keep the expected variable set
+independent of the production traversal; do not reuse the static registry test
+helpers that leak allocations for every generated case. Fallback properties use
+explicit locale-chain fixtures rather than the production resolver as an oracle.
+
+Run timing comparisons with `cargo bench -p es-fluent-generate --bench ftl --locked`
+on the same quiet machine, toolchain, lockfile, and profile. The harness prepares
+ASTs outside the timed loop; smoke checks do not measure performance. Record
+baselines before claiming improvements, and keep timing thresholds out of ordinary
+CI checks.
