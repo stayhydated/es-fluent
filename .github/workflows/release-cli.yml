@@ -50,7 +50,7 @@ jobs:
         with:
           ref: refs/tags/${{ inputs.tag }}
 
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@1.99.0
         with:
           targets: ${{ matrix.target }}
 

@@ -68,7 +68,7 @@ impl RunnerCrate<'_> {
             bail!("Cargo run failed: {}", stderr)
         }
 
-        Ok(String::from_utf8_lossy(&output.stdout).to_string())
+        Ok(String::from_utf8_lossy_owned(output.stdout))
     }
 
     /// Run `cargo run` on the runner crate and capture output.

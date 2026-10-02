@@ -188,3 +188,39 @@ fn run_monolithic_force_run_uses_slow_path_and_writes_runner_cache() {
     let cache = RunnerCache::load(runner_dir.base_dir()).expect("runner cache should be written");
     assert!(cache.crate_hashes.contains_key(&package("slow-path")));
 }
+
+#[test]
+fn run_cargo_preserves_lossy_stdout_decoding() {
+    let temp = tempfile::tempdir().expect("tempdir");
+    fs::create_dir_all(temp.path().join("src")).expect("create src");
+    crate::test_fixtures::toml_helpers::write_toml(
+        &temp.path().join("Cargo.toml"),
+        &package_manifest("runner-lossy-stdout"),
+    );
+    crate::test_fixtures::write_file(
+        &temp.path().join("src/main.rs"),
+        r#"use std::io::Write as _;
+
+fn main() {
+    let bytes: &[u8] = match std::env::args().nth(1).as_deref() {
+        Some("empty") => b"",
+        Some("valid") => b"hello",
+        Some("invalid") => b"a\xffb",
+        Some("truncated") => b"\xe2\x82",
+        _ => panic!("expected a decoding case"),
+    };
+    std::io::stdout().write_all(bytes).unwrap();
+}
+"#,
+    );
+
+    for (case, expected) in [
+        ("empty", ""),
+        ("valid", "hello"),
+        ("invalid", "a\u{fffd}b"),
+        ("truncated", "\u{fffd}"),
+    ] {
+        let actual = run_cargo(temp.path(), None, &[case.to_owned()]).expect("run cargo");
+        assert_eq!(actual, expected, "decoding case: {case}");
+    }
+}
