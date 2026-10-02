@@ -25,8 +25,10 @@ let text = i18n.localize_message(&message);
 ~~~
 
 Use strict initialization or selection only when every linked application
-module must support the requested locale. Clones share locale state; construct
-a separate manager for independent state.
+module must support the requested locale. Clones share locale state, and
+concurrent selections are serialized so the active locale and selection policy
+stay consistent. A failed selection preserves the previous state. Construct a
+separate manager for independent state.
 
 Configured packages call `es_fluent_build::track_i18n_assets()` from Cargo's
 selected custom-build target. Derived fallback-locale messages are compile-time
