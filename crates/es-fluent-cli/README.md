@@ -9,14 +9,6 @@ inspecting, and cleaning `es-fluent` FTL resources.
 Run it as `cargo es-fluent <COMMAND>` or invoke the installed
 `cargo-es-fluent` binary directly.
 
-Install from crates.io, or use a prebuilt binary with
-[cargo-binstall](https://github.com/cargo-bins/cargo-binstall):
-
-~~~sh
-cargo install es-fluent-cli --locked
-cargo binstall es-fluent-cli
-~~~
-
 ## Common workflow
 
 ~~~sh
@@ -91,14 +83,12 @@ Run the repository-owned action from a workflow step:
 Set `no_fallback_copy_check` to `true` only when all-locale validation should
 allow translations that match the fallback text.
 
-The action installs Rust 1.99.0 by default. Set `toolchain` to another compatible
-Rust toolchain when the checked workspace requires it.
+The action uses Rust 1.99.0 by default. Its `toolchain` input selects another
+compatible toolchain when the checked workspace requires it.
 
-Set `version` to a published `es-fluent-cli` release (or `latest`) to install
-the prebuilt `cargo-es-fluent` binary with cargo-binstall. Pinning the action to
-a release tag such as `es-fluent-cli-v0.20.3` installs the prebuilt binary for
-that tag; other refs (for example `@master`) build the CLI from the pinned ref
-with `cargo install`.
+The `version` input selects a published `es-fluent-cli` release or `latest`.
+Without that input, an `es-fluent-cli-v*` action tag selects its matching release;
+other action refs build the CLI from that ref.
 
 [codecov-badge]: https://codecov.io/gh/stayhydated/es-fluent/branch/master/graph/badge.svg?component=es-fluent-cli
 [codecov]: https://codecov.io/gh/stayhydated/es-fluent

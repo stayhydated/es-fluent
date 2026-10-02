@@ -28,9 +28,10 @@ or implementation work.
 - Public API and manager changes belong with the matching crate README, Rust
   docs, book pages, executable examples, and skill reference. Several crate
   roots include their README as Rust documentation.
-- Keep README badges for CI, Codecov, the book, and the published crate. Keep
-  setup procedures and chapter navigation in the book; READMEs explain purpose,
-  public behavior, and representative usage.
+- Keep repository-wide CI, Codecov, and book badges on the root README. Member
+  READMEs use their own published-crate badge and verified package-specific
+  coverage badges. Keep setup procedures and chapter navigation in the book;
+  READMEs explain purpose, public behavior, and representative usage.
 - CLI changes must agree with `crates/es-fluent-cli/README.md`,
   `book/src/cli.md`, and
   `skills/use-es-fluent/references/cli-workflow.md`.
@@ -73,6 +74,10 @@ or implementation work.
 - Policy changes must agree across catalog parsing, source-spanned derive
   diagnostics, `doctor`, embedded/Dioxus/Bevy lookup, and compile/runtime tests.
   The CLI's temporary inventory environment must preserve application policy.
+- Embedded locale selection serializes the cache check, manager transition, and
+  cached language/policy update across cloned handles and both selection
+  policies. Preserve the previous state on failure; the embedded manager's
+  unit tests cover concurrent selections and rejected switches.
 
 ### CLI planning, writes, and watching
 

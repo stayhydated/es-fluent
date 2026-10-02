@@ -4,9 +4,10 @@
 [![crates.io: es-fluent-manager-embedded][crate-badge]][crate]
 
 Embedded localization for general Rust applications, including CLIs, TUIs,
-desktop apps, and services. Configured FTL resources are compiled into the
-binary and resolved through an explicit, cloneable `EmbeddedI18n`
-handle.
+desktop apps, and services. Configured FTL resources are resolved through an
+explicit, cloneable `EmbeddedI18n` handle. Release builds and Wasm debug builds
+embed the assets; other debug builds read them from disk unless `debug-embed`
+is enabled.
 
 Register resources from a library-reachable module:
 
