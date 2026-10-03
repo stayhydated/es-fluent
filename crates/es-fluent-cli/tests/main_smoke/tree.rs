@@ -512,7 +512,11 @@ fn binary_tree_json_reports_ftl_parse_errors_and_fails() {
         .failure()
         .stderr(
             predicate::str::contains("failed to parse FTL file 'test-app.ftl'")
-                .and(predicate::str::contains("Fluent parse errors")),
+                // Fancy diagnostics can wrap the message after a long workspace path.
+                .and(
+                    predicate::str::is_match(r"Fluent[\s│]+parse[\s│]+errors")
+                        .expect("valid wrapped diagnostic pattern"),
+                ),
         );
 }
 
