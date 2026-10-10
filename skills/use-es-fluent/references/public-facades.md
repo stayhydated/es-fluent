@@ -25,7 +25,7 @@ Most applications should not depend directly on `es-fluent-derive`,
 - `es-fluent`, CLI, embedded manager, and language enum:
   `0.21.x`.
 - Dioxus manager: `0.21.x` with Dioxus `0.7.x`.
-- Bevy manager: `0.21.x` with Bevy `0.19.x`.
+- Bevy manager: `0.21.x` with Bevy `0.20.x`.
 
 Use the versions already declared by the target repository rather than
 rewriting manifests to these examples mechanically.

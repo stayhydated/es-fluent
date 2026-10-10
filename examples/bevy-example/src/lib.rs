@@ -1,7 +1,10 @@
 use bevy::{
     color::palettes::basic::*,
     input_focus::{FocusCause, InputFocus},
+    picking::hover::Hovered,
     prelude::*,
+    ui::Pressed,
+    ui_widgets::{Activate, Button, observe},
     window::{Window, WindowPlugin},
     winit::WinitSettings,
 };
@@ -76,7 +79,11 @@ pub fn run() {
     .add_systems(Startup, setup)
     .add_systems(
         PostUpdate,
-        (button_system, locale_change_system, locale_button_system),
+        (
+            button_system,
+            locale_change_system,
+            locale_button_appearance,
+        ),
     )
     .run();
 }
@@ -98,35 +105,43 @@ fn button_system(
     mut interaction_query: Query<
         (
             Entity,
-            &Interaction,
+            &Hovered,
+            Has<Pressed>,
             &mut BackgroundColor,
             &mut BorderColor,
-            &mut Button,
             &mut FluentText<ButtonState>,
         ),
-        (Changed<Interaction>, Without<LocaleButton>),
+        (With<Button>, Without<LocaleButton>),
     >,
 ) {
-    for (entity, interaction, mut color, mut border_color, mut button, mut localized) in
+    for (entity, hovered, pressed, mut color, mut border_color, mut localized) in
         &mut interaction_query
     {
-        match *interaction {
-            Interaction::Pressed => {
-                input_focus.set(entity, FocusCause::Pressed);
-                localized.value = ButtonState::Pressed;
+        let state = match (hovered.get(), pressed) {
+            (_, true) => ButtonState::Pressed,
+            (true, false) => ButtonState::Hovered,
+            (false, false) => ButtonState::Normal,
+        };
+
+        if localized.value != state {
+            match state {
+                ButtonState::Pressed => input_focus.set(entity, FocusCause::Pressed),
+                ButtonState::Normal => input_focus.clear(),
+                ButtonState::Hovered => {},
+            }
+            localized.value = state;
+        }
+
+        match state {
+            ButtonState::Pressed => {
                 *color = PRESSED_BUTTON.into();
                 *border_color = BorderColor::all(RED);
-                button.set_changed();
             },
-            Interaction::Hovered => {
-                localized.value = ButtonState::Hovered;
+            ButtonState::Hovered => {
                 *color = HOVERED_BUTTON.into();
                 *border_color = BorderColor::all(Color::WHITE);
-                button.set_changed();
             },
-            Interaction::None => {
-                input_focus.clear();
-                localized.value = ButtonState::Normal;
+            ButtonState::Normal => {
                 *color = NORMAL_BUTTON.into();
                 *border_color = BorderColor::all(Color::BLACK);
             },
@@ -134,28 +149,28 @@ fn button_system(
     }
 }
 
-fn locale_button_system(
-    mut locale_change_events: MessageWriter<LocaleChangeEvent>,
-    requested_language: Res<RequestedLanguageId>,
+fn locale_button_appearance(
     mut interaction_query: Query<
-        (&Interaction, &mut BackgroundColor, &mut BorderColor),
-        (Changed<Interaction>, With<LocaleButton>),
+        (
+            &Hovered,
+            Has<Pressed>,
+            &mut BackgroundColor,
+            &mut BorderColor,
+        ),
+        With<LocaleButton>,
     >,
 ) {
-    for (interaction, mut color, mut border_color) in &mut interaction_query {
-        match *interaction {
-            Interaction::Pressed => {
+    for (hovered, pressed, mut color, mut border_color) in &mut interaction_query {
+        match (hovered.get(), pressed) {
+            (_, true) => {
                 *color = PRESSED_BUTTON.into();
                 *border_color = BorderColor::all(RED);
-                if let Ok(lang) = Languages::try_from(&requested_language.0) {
-                    locale_change_events.write(LocaleChangeEvent(lang.next().into()));
-                }
             },
-            Interaction::Hovered => {
+            (true, false) => {
                 *color = HOVERED_BUTTON.into();
                 *border_color = BorderColor::all(Color::WHITE);
             },
-            Interaction::None => {
+            (false, false) => {
                 *color = NORMAL_BUTTON.into();
                 *border_color = BorderColor::all(Color::BLACK);
             },
@@ -184,6 +199,7 @@ fn button(asset_server: &AssetServer) -> impl Bundle {
         children![
             (
                 Button,
+                Hovered::default(),
                 FluentText::new(ButtonState::Normal),
                 Node {
                     width: px(150),
@@ -229,8 +245,18 @@ fn button(asset_server: &AssetServer) -> impl Bundle {
             ),
             (
                 Button,
+                Hovered::default(),
                 LocaleButton,
                 FluentText::new(BevyScreenMessages::ChangeLocaleButton),
+                observe(
+                    |_activate: On<Activate>,
+                     requested_language: Res<RequestedLanguageId>,
+                     mut locale_change_events: MessageWriter<LocaleChangeEvent>| {
+                        if let Ok(lang) = Languages::try_from(&requested_language.0) {
+                            locale_change_events.write(LocaleChangeEvent(lang.next().into()));
+                        }
+                    },
+                ),
                 Node {
                     width: px(200),
                     height: px(50),
