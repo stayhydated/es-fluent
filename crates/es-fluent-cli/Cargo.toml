@@ -22,8 +22,8 @@ pkg-url = "{ repo }/releases/download/es-fluent-cli-v{ version }/cargo-es-fluent
 pkg-fmt = "zip"
 
 [dependencies]
-anyhow = { workspace = true }
 anstream = { workspace = true }
+anyhow = { workspace = true }
 askama = { workspace = true }
 blake3 = { workspace = true }
 bon = { workspace = true }
@@ -53,10 +53,10 @@ ratatui = { features = [ "crossterm" ], workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 similar = { workspace = true }
+syn = { features = [ "full", "visit" ], workspace = true }
 terminal-link = { workspace = true }
 thiserror = { workspace = true }
 throbber-widgets-tui = { workspace = true }
-syn = { features = [ "full", "visit" ], workspace = true }
 toml = { workspace = true }
 treelog = { workspace = true }
 walkdir = { workspace = true }

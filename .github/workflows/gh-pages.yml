@@ -19,8 +19,8 @@ jobs:
     uses: stayhydated/shared/.github/workflows/deploy-pages.yml@d9c54bbb850b58b822458a6a15eb75ba64034a31
     with:
       build-command: |
-        env -u RUSTC_WRAPPER cargo xtask build bevy-demo
-        cargo xtask build book
-        cargo xtask build llms-txt
-        cargo xtask build web
+        env -u RUSTC_WRAPPER cargo run --locked -p xtask -- build bevy-demo
+        cargo run --locked -p xtask -- build book
+        cargo run --locked -p xtask -- build llms-txt
+        cargo run --locked -p xtask -- build web
       install-trunk: true
