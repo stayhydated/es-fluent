@@ -55,6 +55,8 @@ runs:
     - name: Install cargo-binstall
       if: inputs.version != '' || startsWith(github.action_ref, 'es-fluent-cli-v')
       uses: cargo-bins/cargo-binstall@3be4ad2b146f3302f92e5956c54fedbb6ae8cccc # main
+      with:
+        version: "1.25.1"
 
     - name: Install es-fluent-cli
       shell: bash

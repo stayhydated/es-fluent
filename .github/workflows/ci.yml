@@ -265,6 +265,8 @@ jobs:
         uses: ./.github/actions/install-linux-deps
 
       - uses: cargo-bins/cargo-binstall@3be4ad2b146f3302f92e5956c54fedbb6ae8cccc # main
+        with:
+          version: "1.25.1"
 
       - name: Install cargo-llvm-cov
         shell: bash
@@ -298,6 +300,8 @@ jobs:
         with:
           toolchain: 1.99.0
       - uses: cargo-bins/cargo-binstall@3be4ad2b146f3302f92e5956c54fedbb6ae8cccc # main
+        with:
+          version: "1.25.1"
       - name: Install pinned quality tools
         run: |
           cargo binstall taplo-cli --version 0.10.0 --locked --no-confirm
@@ -367,8 +371,10 @@ jobs:
           toolchain: 1.99.0
           targets: wasm32-unknown-unknown
       - uses: cargo-bins/cargo-binstall@3be4ad2b146f3302f92e5956c54fedbb6ae8cccc # main
+        with:
+          version: "1.25.1"
       - name: Install publication tools
-        run: cargo binstall dioxus-cli --version 0.7.9 --locked --no-confirm
+        run: cargo binstall dioxus-cli --version 0.7.10 --locked --no-confirm
       - name: Install Trunk
         run: cargo binstall trunk --version 0.21.14 --locked --no-confirm
       - name: Build publication artifacts
