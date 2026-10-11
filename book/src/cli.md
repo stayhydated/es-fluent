@@ -237,7 +237,7 @@ jobs:
           no_fallback_copy_check: false
 ~~~
 
-Pin the action to a release tag or commit SHA for reproducible builds.
+Pin the action to a release tag or commit SHA to keep the action source fixed.
 Set `no_fallback_copy_check` to `true` only when all-locale validation should
 allow translations that match the fallback text.
 
