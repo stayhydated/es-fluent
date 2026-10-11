@@ -332,7 +332,7 @@ jobs:
       - name: Check dependency advisories and sources
         run: cargo deny --locked --all-features check advisories sources
 
-  isolated-consumers:
+  feature-checks:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -345,17 +345,17 @@ jobs:
           version: "v0.16.0"
       - name: Install Linux dependencies
         uses: ./.github/actions/install-linux-deps
-      - name: Compile each consumer independently
+      - name: Check each library feature selection independently
         run: |
-          python3 scripts/check-consumer.py es-fluent
-          python3 scripts/check-consumer.py es-fluent --no-default-features
-          python3 scripts/check-consumer.py es-fluent --no-default-features --features derive
-          python3 scripts/check-consumer.py es-fluent --no-default-features --features icu-datetime
-          python3 scripts/check-consumer.py es-fluent --no-default-features --features chrono
-          python3 scripts/check-consumer.py es-fluent --no-default-features --features jiff
-          python3 scripts/check-consumer.py es-fluent-manager-core --no-default-features
-          python3 scripts/check-consumer.py es-fluent-manager-embedded --no-default-features
-          python3 scripts/check-consumer.py es-fluent-manager-bevy --no-default-features
+          cargo check -p es-fluent --lib --locked
+          cargo check -p es-fluent --lib --locked --no-default-features
+          cargo check -p es-fluent --lib --locked --no-default-features --features derive
+          cargo check -p es-fluent --lib --locked --no-default-features --features icu-datetime
+          cargo check -p es-fluent --lib --locked --no-default-features --features chrono
+          cargo check -p es-fluent --lib --locked --no-default-features --features jiff
+          cargo check -p es-fluent-manager-core --lib --locked --no-default-features
+          cargo check -p es-fluent-manager-embedded --lib --locked --no-default-features
+          cargo check -p es-fluent-manager-bevy --lib --locked --no-default-features
 
   publication-build:
     if: github.event_name == 'pull_request'
@@ -400,7 +400,7 @@ jobs:
       - action-scripts
       - rust-coverage
       - quality
-      - isolated-consumers
+      - feature-checks
     outputs:
       cli_tag: ${{ steps.cli_tag.outputs.tag }}
     runs-on: ubuntu-latest
