@@ -48,7 +48,6 @@ book:
     mdbook serve book
 
 wasm-demo-build:
-    cargo xtask build gpui-demo
     cargo xtask build bevy-demo
 
 web-build: wasm-demo-build

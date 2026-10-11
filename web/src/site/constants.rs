@@ -5,6 +5,7 @@ pub(crate) const PROJECT: Project = Project::new("es-fluent", "Rust localization
 pub(crate) const SITE_URL: &str = "https://stayhydated.github.io/es-fluent/";
 pub(crate) const RUSTDOC_URL: &str = "https://docs.rs/es-fluent/";
 pub(crate) const SOURCE_URL: &str = "https://github.com/stayhydated/es-fluent";
+pub(crate) const GPUI_DEMO_URL: &str = "https://stayhydated.github.io/gpui-es-fluent/demo/";
 pub(crate) const VERSION: &str = env!("CARGO_PKG_VERSION");
 
 pub(crate) fn site() -> ProjectSite {

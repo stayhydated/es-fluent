@@ -1,7 +1,6 @@
 mod bevy;
 mod demos;
 mod dioxus_demo;
-mod gpui;
 mod home;
 pub(crate) mod i18n;
 
@@ -14,6 +13,5 @@ pub(crate) fn route_content(page: PageKind) -> Element {
         PageKind::Demos => rsx!(demos::DemosPage {}),
         PageKind::Dioxus => rsx!(dioxus_demo::DioxusPage {}),
         PageKind::Bevy => rsx!(bevy::BevyPage {}),
-        PageKind::Gpui => rsx!(gpui::GpuiPage {}),
     }
 }

@@ -47,7 +47,7 @@ framework version:
 | --- | --- | --- |
 | `es-fluent`, CLI, embedded manager, and language enum | `0.21.x` | General Rust |
 | `es-fluent-manager-dioxus` | `0.21.x` | Dioxus `0.7.x` |
-| `es-fluent-manager-bevy` | `0.21.x` | Bevy `0.19.x` |
+| `es-fluent-manager-bevy` | `0.21.x` | Bevy `0.20.x` |
 
 ## Supporting crates
 

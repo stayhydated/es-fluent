@@ -8,7 +8,7 @@ use bevy::prelude::*;
 #[cfg(feature = "bevy")]
 es_fluent_manager_bevy::define_i18n_module!();
 
-#[cfg(any(feature = "dioxus", feature = "embedded", feature = "gpui"))]
+#[cfg(any(feature = "dioxus", feature = "embedded"))]
 es_fluent_manager_embedded::define_i18n_module!();
 
 #[derive(Clone, Copy, Debug, Default, Eq, EsFluent, PartialEq)]
@@ -22,9 +22,6 @@ pub enum ButtonState {
     Hovered,
     Pressed,
 }
-
-#[cfg(feature = "gpui")]
-impl gpui_kit::Global for CurrentLanguage {}
 
 #[es_fluent_language]
 #[derive(Clone, Copy, Debug, EnumIter, Eq, PartialEq)]

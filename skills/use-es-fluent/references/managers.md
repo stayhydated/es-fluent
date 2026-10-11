@@ -77,7 +77,7 @@ Dioxus hooks.
 
 ~~~toml
 [dependencies]
-bevy = "0.19"
+bevy = "0.20"
 es-fluent = "0.21"
 es-fluent-manager-bevy = "0.21"
 ~~~

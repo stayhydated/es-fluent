@@ -11,7 +11,6 @@ pub(crate) enum PageKind {
     Demos,
     Dioxus,
     Bevy,
-    Gpui,
 }
 
 impl PageKind {
@@ -21,7 +20,6 @@ impl PageKind {
             Self::Demos => "Demos",
             Self::Dioxus => "Ember & Echo Demo",
             Self::Bevy => "Bevy Example",
-            Self::Gpui => "GPUI Example",
         }
     }
 
@@ -35,7 +33,6 @@ impl PageKind {
                 "Ember & Echo demonstrates reactive Dioxus localization in a wood-fired pizza courtyard."
             },
             Self::Bevy => "A Bevy wasm demo inside the book site.",
-            Self::Gpui => "A GPUI wasm demo inside the book site.",
         }
     }
 }
@@ -55,8 +52,6 @@ pub(crate) enum AppRoute {
     Dioxus {},
     #[route("/bevy-example/", BevyRoute)]
     Bevy {},
-    #[route("/gpui-example/", GpuiRoute)]
-    Gpui {},
 }
 
 pub(crate) fn app_route(page: PageKind) -> AppRoute {
@@ -65,7 +60,6 @@ pub(crate) fn app_route(page: PageKind) -> AppRoute {
         PageKind::Demos => AppRoute::Demos {},
         PageKind::Dioxus => AppRoute::Dioxus {},
         PageKind::Bevy => AppRoute::Bevy {},
-        PageKind::Gpui => AppRoute::Gpui {},
     }
 }
 
@@ -102,9 +96,4 @@ fn DioxusRoute() -> Element {
 #[component]
 fn BevyRoute() -> Element {
     route_element(PageKind::Bevy)
-}
-
-#[component]
-fn GpuiRoute() -> Element {
-    route_element(PageKind::Gpui)
 }

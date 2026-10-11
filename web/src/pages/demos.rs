@@ -5,7 +5,7 @@ use stayhydated_dioxus::{
 };
 
 use crate::site::{
-    constants::{PROJECT, VERSION},
+    constants::{GPUI_DEMO_URL, PROJECT, VERSION},
     routing::{AppRoute, PageKind},
 };
 
@@ -22,11 +22,7 @@ pub(crate) fn DemosPage() -> Element {
             "Bevy",
             "bevy-demo-card-shader",
         ),
-        DemoGalleryItem::route(
-            crate::site::routing::app_route(PageKind::Gpui),
-            "GPUI",
-            "gpui-demo-card-shader",
-        ),
+        DemoGalleryItem::href(GPUI_DEMO_URL, "GPUI", "gpui-demo-card-shader"),
     ];
 
     rsx! {

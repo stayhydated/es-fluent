@@ -9,7 +9,6 @@ pub fn run() -> anyhow::Result<()> {
             .extra_dir("web/assets", "assets")
             .extra_file("web/public/assets/site.css", "assets/site.css")
             .extra_dir("web/public/bevy-demo", "bevy-demo")
-            .extra_dir("web/public/gpui-demo", "gpui-demo")
             .route_manifest(web::route_manifest())
             .build(),
     )
