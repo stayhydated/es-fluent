@@ -16,7 +16,7 @@ Start with the owning crate below and `just --list` for repository commands.
 | Configuration and generation | `crates/es-fluent-toml`, `es-fluent-build`, and `es-fluent-generate`: layouts, fallback catalogs, and FTL maintenance. |
 | Internal protocols | `crates/es-fluent-shared`, `es-fluent-runner`, and `es-fluent-cli-helpers`: metadata, runner planning, and filesystem transactions. |
 | User guidance | Root and crate READMEs, `book/src`, and `skills/use-es-fluent`. |
-| Executable examples | `examples/readme`, `examples/bevy-example`, `examples/gpui-example`, and `examples/example-shared-lib`. |
+| Executable examples | `examples/readme`, `examples/bevy-example`, and `examples/example-shared-lib`. |
 | Site and build tooling | `web` contains the Dioxus site and demo; `xtask` builds the site, book, LLM exports, and hosted demos. |
 
 Crate paths in a row share the `crates/` prefix. Application code normally uses
@@ -123,7 +123,7 @@ broader checks for changes spanning several surfaces.
 | Markdown | `rumdl check` with the edited paths. |
 | Book | `MDBOOK_BUILD__CREATE_MISSING=false cargo xtask build book`. |
 | LLM exports | `cargo xtask build llms-txt`. |
-| Hosted demos | `cargo xtask build bevy-demo` or `cargo xtask build gpui-demo`. |
+| Hosted demos | `cargo xtask build bevy-demo`; the GPUI demo is hosted by the separate `gpui-es-fluent` repository. |
 | Dioxus integration | `cargo test -p web --lib` or `cargo check -p web`. |
 | Complete site | `just web-build`. |
 

@@ -6,7 +6,7 @@ pub use site::app::App;
 pub fn route_manifest() -> stayhydated_site::SiteRouteManifest {
     site::constants::site()
         .route_manifest::<site::routing::AppRoute>()
-        .with_static_paths(["/bevy-demo/", "/gpui-demo/"])
+        .with_static_paths(["/bevy-demo/"])
 }
 
 #[cfg(test)]
@@ -23,20 +23,14 @@ mod tests {
                 .iter()
                 .map(|path| path.as_str())
                 .collect::<Vec<_>>(),
-            [
-                "/",
-                "/demos/",
-                "/dioxus-example/",
-                "/bevy-example/",
-                "/gpui-example/",
-            ]
+            ["/", "/demos/", "/dioxus-example/", "/bevy-example/"]
         );
-        assert!(["/bevy-demo/", "/gpui-demo/"].into_iter().all(|expected| {
+        assert!(
             manifest
                 .static_paths()
                 .iter()
-                .any(|path| path.as_str() == expected)
-        }));
+                .any(|path| path.as_str() == "/bevy-demo/")
+        );
         assert_eq!(manifest.site_url().as_str(), site::constants::SITE_URL);
         assert_eq!(
             site::constants::PROJECT.skill_command(),

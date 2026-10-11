@@ -3,7 +3,7 @@
 [![Codecov: es-fluent-manager-bevy][codecov-badge]][codecov]
 [![crates.io: es-fluent-manager-bevy][crate-badge]][crate]
 
-Typed localization for Bevy `0.19.x`. The plugin loads configured FTL
+Typed localization for Bevy `0.20.x`. The plugin loads configured FTL
 resources, updates `FluentText<T>` components when the locale changes,
 and exposes `BevyI18n` for direct localization in systems.
 
