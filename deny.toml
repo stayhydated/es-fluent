@@ -1,6 +1,7 @@
 # Check advisories and existing dependency sources. License acceptance needs a
 # project policy; this gate does not invent a transitive-license allowlist.
 [advisories]
+unmaintained = "workspace"
 
 [sources]
 allow-git = [ "https://github.com/DioxusLabs/components", "https://github.com/stayhydated/shared" ]

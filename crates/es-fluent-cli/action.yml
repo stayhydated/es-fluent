@@ -43,12 +43,12 @@ runs:
         toolchain: ${{ inputs.toolchain }}
 
     - name: Setup sccache
-      uses: mozilla-actions/sccache-action@fc920bf0ec8de6ee65d409111f7ec508035751ba # v0.0.11
+      uses: mozilla-actions/sccache-action@v0.0.11
       with:
         version: "v0.16.0"
 
     - name: Install uv
-      uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+      uses: astral-sh/setup-uv@v10.2.0
       with:
         enable-cache: false
 
@@ -56,7 +56,7 @@ runs:
       if: inputs.version != '' || startsWith(github.action_ref, 'es-fluent-cli-v')
       env:
         RUSTUP_TOOLCHAIN: ${{ inputs.toolchain }}
-      uses: cargo-bins/cargo-binstall@3be4ad2b146f3302f92e5956c54fedbb6ae8cccc # main
+      uses: cargo-bins/cargo-binstall@v1.25.3
       with:
         version: "1.25.1"
 
