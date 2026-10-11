@@ -26,6 +26,7 @@ permissions:
 
 env:
   CARGO_TERM_COLOR: always
+  RUSTUP_TOOLCHAIN: stable
 
 jobs:
   upload-binary:
@@ -50,9 +51,8 @@ jobs:
         with:
           ref: refs/tags/${{ inputs.tag }}
 
-      - uses: dtolnay/rust-toolchain@fb523f40495206854c36b250850817ae0f83e3d1 # 1.99.0
+      - uses: dtolnay/rust-toolchain@stable
         with:
-          toolchain: 1.99.0
           targets: ${{ matrix.target }}
 
       - name: Build and upload cargo-es-fluent
