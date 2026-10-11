@@ -19,7 +19,6 @@ members = [
   "crates/es-fluent-manager-dioxus",
   "examples/example-shared-lib",
   "examples/bevy-example",
-  "examples/gpui-example",
   "examples/readme",
   "web",
   "xtask",
@@ -84,7 +83,6 @@ fs-err = "3.3"
 futures = "0.3"
 getset = "0.1"
 globset = "0.4"
-gpui-kit = "0.7.0"
 heck = "0.5"
 icu_calendar = "2.3"
 icu_datetime = "2.3"
