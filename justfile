@@ -13,6 +13,13 @@ fmt:
     taplo fmt
     rumdl fmt .
 
+fmt-check:
+    cargo fmt --all -- --check
+    taplo fmt --check
+    rumdl check .
+    cargo sort-derives --check
+    typos
+
 clippy:
     cargo clippy --workspace --all-features --all-targets --locked -- -D warnings
 
@@ -26,11 +33,11 @@ test: test-dioxus-manager-feature-matrix
     cargo test --workspace --all-features --all-targets --locked
 
 test-dioxus-manager-feature-matrix:
-    cargo check -p es-fluent-manager-dioxus --no-default-features
-    cargo test -p es-fluent-manager-dioxus --no-default-features --features client
-    cargo test -p es-fluent-manager-dioxus --no-default-features --features ssr
-    cargo test -p es-fluent-manager-dioxus --no-default-features --features client,ssr
-    cargo check -p es-fluent-manager-dioxus --target wasm32-unknown-unknown --no-default-features --features client
+    cargo check -p es-fluent-manager-dioxus --no-default-features --locked
+    cargo test -p es-fluent-manager-dioxus --no-default-features --features client --locked
+    cargo test -p es-fluent-manager-dioxus --no-default-features --features ssr --locked
+    cargo test -p es-fluent-manager-dioxus --no-default-features --features client,ssr --locked
+    cargo check -p es-fluent-manager-dioxus --target wasm32-unknown-unknown --no-default-features --features client --locked
 
 test-action:
     uv run --frozen --project crates/es-fluent-cli/scripts pytest crates/es-fluent-cli/scripts

@@ -111,9 +111,9 @@ the report fields relevant to warnings or dry-run work.
 Commands that write FTL plan the selected change before committing it and roll
 back earlier writes if the command fails.
 
-The repository-owned GitHub Action installs Rust 1.99.0 by default. Use its
-`toolchain` input when the checked workspace requires another compatible Rust
-toolchain.
+The repository-owned GitHub Action installs the latest stable Rust toolchain by
+default. Use its `toolchain` input when the checked workspace requires another
+compatible Rust toolchain.
 
 ## Select workspace scope
 

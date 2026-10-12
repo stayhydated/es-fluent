@@ -3,7 +3,7 @@ use fs_err as fs;
 use std::path::{Path, PathBuf};
 
 /// A planned filesystem mutation with its expected before and after contents.
-#[derive(Clone, Debug, Eq, PartialEq, serde::Deserialize, serde::Serialize)]
+#[derive(Clone, Debug, serde::Deserialize, Eq, PartialEq, serde::Serialize)]
 pub struct FileMutation {
     path: PathBuf,
     original: Option<Vec<u8>>,
@@ -25,7 +25,7 @@ impl FileMutation {
 }
 
 /// An all-or-nothing set of file and directory mutations.
-#[derive(Clone, Debug, Default, Eq, PartialEq, serde::Deserialize, serde::Serialize)]
+#[derive(Clone, Debug, Default, serde::Deserialize, Eq, PartialEq, serde::Serialize)]
 pub struct FileTransaction {
     mutations: Vec<FileMutation>,
     #[serde(default)]

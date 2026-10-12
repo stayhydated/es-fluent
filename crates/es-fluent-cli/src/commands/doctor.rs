@@ -12,7 +12,7 @@ use diagnosis::diagnose_crate;
 use model::DoctorReport;
 use render::render_report;
 
-#[derive(Debug, Args)]
+#[derive(Args, Debug)]
 pub struct DoctorArgs {
     #[command(flatten)]
     pub workspace: WorkspaceArgs,

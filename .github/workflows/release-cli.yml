@@ -26,6 +26,7 @@ permissions:
 
 env:
   CARGO_TERM_COLOR: always
+  RUSTUP_TOOLCHAIN: stable
 
 jobs:
   upload-binary:
@@ -50,7 +51,7 @@ jobs:
         with:
           ref: refs/tags/${{ inputs.tag }}
 
-      - uses: dtolnay/rust-toolchain@1.99.0
+      - uses: dtolnay/rust-toolchain@stable
         with:
           targets: ${{ matrix.target }}
 

@@ -83,8 +83,8 @@ Run the repository-owned action from a workflow step:
 Set `no_fallback_copy_check` to `true` only when all-locale validation should
 allow translations that match the fallback text.
 
-The action uses Rust 1.99.0 by default. Its `toolchain` input selects another
-compatible toolchain when the checked workspace requires it.
+The action uses the latest stable Rust toolchain by default. Its `toolchain` input
+selects another compatible toolchain when the checked workspace requires it.
 
 The `version` input selects a published `es-fluent-cli` release or `latest`.
 Without that input, an `es-fluent-cli-v*` action tag selects its matching release;
