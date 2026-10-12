@@ -254,7 +254,7 @@ jobs:
         with:
           persist-credentials: false
 
-      - uses: astral-sh/setup-uv@v10.2.0
+      - uses: astral-sh/setup-uv@v10.3.0
 
       - name: Run action script tests
         run: uv run --frozen --project crates/es-fluent-cli/scripts pytest crates/es-fluent-cli/scripts
@@ -330,7 +330,7 @@ jobs:
       - name: Prevent checkout-controlled typos executable reuse
         run: test ! -e typos && test ! -L typos
       - name: Check spelling
-        uses: crate-ci/typos@v1.42.3
+        uses: crate-ci/typos@v1.51.1
         with:
           write_changes: false
       - uses: cargo-bins/cargo-binstall@v1.25.3
@@ -467,7 +467,7 @@ jobs:
 
       - name: Publish unpublished crate versions
         id: release_plz
-        uses: release-plz/action@v0.5.133
+        uses: release-plz/action@v0.5.140
         with:
           command: release
           version: 0.3.162
