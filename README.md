@@ -17,8 +17,7 @@ targets Dioxus 0.7; the Bevy manager targets Bevy 0.20.
 
 Applications start with [`es-fluent`][es-fluent-readme] and one concrete runtime
 manager. Add [`es-fluent-lang`][es-fluent-lang-readme] for a typed language picker;
-use [`es-fluent-cli`][es-fluent-cli-readme] to maintain translations. Each owning
-README documents its complete Cargo feature set.
+use [`es-fluent-cli`][es-fluent-cli-readme] to maintain translations.
 
 | Crate | Purpose |
 | --- | --- |

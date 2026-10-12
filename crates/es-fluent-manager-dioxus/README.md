@@ -17,8 +17,8 @@ Client applications use `DioxusAssetI18nProvider` and handle the `Result` from
 `use_i18n()` before localizing messages. The [maintained client demo][example]
 shows provider setup, loading errors, typed lookup, and locale switching.
 SSR applications share an `SsrI18nRuntime` and create one `SsrI18n` per request.
-Both contexts resolve `i18n.localize_message(&message)`; the [facade][facade]
-owns the common missing-message policy.
+Both contexts resolve `i18n.localize_message(&message)` and follow the
+[package-local missing-message policy][facade].
 
 ## Features
 

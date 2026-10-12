@@ -11,8 +11,7 @@ conversions, and language-label messages.
 Requires Rust 1.99 or newer.
 
 Applications use `es_fluent_lang::es_fluent_language`; a direct dependency serves
-macro integrations that need the proc-macro entry point. The [facade][facade]
-provides feature guidance and the maintained example.
+macro integrations that need the proc-macro entry point.
 
 [facade]: https://github.com/stayhydated/es-fluent/blob/master/crates/es-fluent-lang/README.md
 [codecov-badge]: https://codecov.io/gh/stayhydated/es-fluent/branch/master/graph/badge.svg?component=es-fluent-lang-macro

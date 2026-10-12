@@ -39,18 +39,8 @@ previews pending changes before `check` validates all locales.
 | `clean` | Remove stale generated entries or orphaned files. |
 | `tree` | Inspect resource files, entries, and variables. |
 
-Run `cargo es-fluent doctor` for a read-only setup report. It follows Cargo's
-selected library and custom-build targets and parses their local module graphs.
-Add `--output json` for machine-readable configuration, build-script, manager,
-policy, and catalog checks. Warnings identify constructs that static inspection
-cannot prove and require manual verification.
-
-During `watch`, transient Cargo metadata errors are reported while the previous
-build-source graph and watches remain active. Saving a corrected manifest
-retries metadata discovery without restarting the session. Applicable
-`.cargo/config.toml` and `.cargo/config` files in the workspace hierarchy and
-Cargo home, their recursive includes, and configured lockfile paths invalidate
-both watch fingerprints and cached derive inventory.
+Run `cargo es-fluent doctor` for a read-only setup report. Add `--output json`
+for configuration, build-script, manager, policy, and catalog checks.
 
 Inspect fallback resources or every locale:
 
@@ -61,9 +51,7 @@ cargo es-fluent tree --all-locales
 
 Commands that inspect derives collect inventory from Cargo library targets.
 Move binary-only localizable types into `src/lib.rs` or another
-library module. A hidden inventory mode lets `generate` discover new derived
-keys before strict fallback coverage is complete without changing the package's
-configured runtime policy.
+library module.
 
 Use `--path` for a crate or workspace and `--package` for
 one configured package. Preview destructive cleanup and aggressive generation

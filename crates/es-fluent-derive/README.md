@@ -17,8 +17,7 @@ Requires Rust 1.99 or newer.
 - `EsFluentLabel` derives type labels.
 
 Derives support argument transforms, explicit keys, package-local domains, and
-namespace-based file splitting. The [facade example][facade] shows their
-application use with maintained locale assets.
+namespace-based file splitting.
 
 [facade]: https://github.com/stayhydated/es-fluent/blob/master/crates/es-fluent/README.md
 [codecov-badge]: https://codecov.io/gh/stayhydated/es-fluent/branch/master/graph/badge.svg?component=es-fluent-derive
