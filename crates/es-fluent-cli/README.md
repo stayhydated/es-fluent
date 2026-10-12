@@ -4,12 +4,17 @@
 [![crates.io: es-fluent-cli][crate-badge]][crate]
 
 The Cargo subcommand for generating, validating, synchronizing, formatting,
-inspecting, and cleaning `es-fluent` FTL resources.
+inspecting, and cleaning `es-fluent` FTL resources for Rust application developers.
+
+Requires Rust 1.99 or newer.
 
 Run it as `cargo es-fluent <COMMAND>` or invoke the installed
 `cargo-es-fluent` binary directly.
 
-## Common workflow
+## Commands
+
+From a configured crate or workspace root containing package-local `i18n.toml`,
+locale assets, build-script tracking, and messages in library targets:
 
 ~~~sh
 cargo es-fluent doctor
@@ -17,6 +22,9 @@ cargo es-fluent generate
 cargo es-fluent status --all-locales
 cargo es-fluent check --all-locales
 ~~~
+
+`doctor` reports wiring issues, `generate` updates fallback FTL, and `status`
+previews pending changes before `check` validates all locales.
 
 | Command | Purpose |
 | --- | --- |

@@ -3,32 +3,24 @@
 [![Codecov: es-fluent-derive][codecov-badge]][codecov]
 [![crates.io: es-fluent-derive][crate-badge]][crate]
 
-Procedural macros behind the `es-fluent` typed-message facade.
-Applications should import these derives from
-[`es-fluent`][es-fluent] rather than depending on this
-crate directly.
+Procedural macros behind the [`es-fluent`][facade] typed-message facade.
+Applications use the facade's default `derive` feature and its re-exports;
+a direct dependency serves integrations that need the proc-macro entry points.
 
-The crate implements:
+Requires Rust 1.99 or newer.
 
-- `EsFluent` for structs and enum messages;
-- `EsFluentChoice` for standalone selector enums;
-- `EsFluentVariants` for field or variant metadata; and
-- `EsFluentLabel` for type-level labels.
+## Overview
 
-~~~rust,ignore
-use es_fluent::{EsFluent, EsFluentLabel};
+- `EsFluent` derives struct and enum messages, including selector values for unit-only enums.
+- `EsFluentChoice` derives selector-only enums.
+- `EsFluentVariants` derives field or variant messages.
+- `EsFluentLabel` derives type labels.
 
-#[derive(EsFluent, EsFluentLabel)]
-pub enum AccountMessage<'a> {
-    Welcome { name: &'a str },
-    SignedOut,
-}
-~~~
+Derives support argument transforms, explicit keys, package-local domains, and
+namespace-based file splitting. The [facade example][facade] shows their
+application use with maintained locale assets.
 
-Derives support argument transforms, selectors, explicit keys, package-local
-domains, and namespace-based file splitting.
-
-[es-fluent]: https://github.com/stayhydated/es-fluent/blob/master/crates/es-fluent/README.md
+[facade]: https://github.com/stayhydated/es-fluent/blob/master/crates/es-fluent/README.md
 [codecov-badge]: https://codecov.io/gh/stayhydated/es-fluent/branch/master/graph/badge.svg?component=es-fluent-derive
 [codecov]: https://codecov.io/gh/stayhydated/es-fluent
 [crate-badge]: https://img.shields.io/crates/v/es-fluent-derive.svg?label=es-fluent-derive

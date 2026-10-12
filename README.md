@@ -10,9 +10,15 @@ localization for Rust. Derive messages from structs and enums, maintain FTL
 resources with `cargo es-fluent`, and resolve them with an embedded, Dioxus, or
 Bevy runtime manager.
 
-es-fluent requires Rust 1.99 or newer.
+All published workspace packages require Rust 1.99 or newer. The Dioxus manager
+targets Dioxus 0.7; the Bevy manager targets Bevy 0.20.
 
 ## Crates
+
+Applications start with [`es-fluent`][es-fluent-readme] and one concrete runtime
+manager. Add [`es-fluent-lang`][es-fluent-lang-readme] for a typed language picker;
+use [`es-fluent-cli`][es-fluent-cli-readme] to maintain translations. Each owning
+README documents its complete Cargo feature set.
 
 | Crate | Purpose |
 | --- | --- |
@@ -27,34 +33,29 @@ es-fluent requires Rust 1.99 or newer.
 
 ## Example
 
-Define localizable types in a library target:
+This excerpt from the [maintained example library][example-types] uses the
+facade's default `derive` feature. That package supplies `i18n.toml`, fallback
+FTL, build-script tracking, and an embedded manager module:
 
 ~~~rust
 use es_fluent::EsFluent;
 
 #[derive(EsFluent)]
-pub enum LoginMessage<'a> {
-    Welcome { name: &'a str },
-    SignedOut,
+pub struct WelcomeMessage<'a> {
+    pub name: &'a str,
+    pub count: i32,
 }
 ~~~
 
-The CLI derives message IDs and arguments from the type. Edit the generated FTL
-values to supply your translations:
+The CLI derives the message ID and arguments. Its translated English resource is:
 
 ~~~ftl
-login_message-Welcome = Welcome, { $name }!
-login_message-SignedOut = You are signed out.
+welcome_message = Welcome Message { $name } { $count }
 ~~~
 
-Resolve the message through your application's manager:
-
-~~~rust,ignore
-let text = i18n.localize_message(&LoginMessage::Welcome { name: "Ada" });
-~~~
-
-`EsFluentVariants` generates field and variant labels, `EsFluentLabel` gives a
-type its own label, and `EsFluentChoice` supplies Fluent selector values.
+The [complete executable][example-runtime] initializes the embedded manager and
+passes `WelcomeMessage { name: "John", count: 5 }` to `i18n.localize_message`,
+rendering “Welcome Message John 5”.
 
 [ci-badge]: https://github.com/stayhydated/es-fluent/actions/workflows/ci.yml/badge.svg?branch=master
 [ci]: https://github.com/stayhydated/es-fluent/actions/workflows/ci.yml
@@ -72,3 +73,5 @@ type its own label, and `EsFluentChoice` supplies Fluent selector values.
 [es-fluent-manager-core-readme]: crates/es-fluent-manager-core/README.md
 [es-fluent-manager-dioxus-readme]: crates/es-fluent-manager-dioxus/README.md
 [es-fluent-manager-embedded-readme]: crates/es-fluent-manager-embedded/README.md
+[example-types]: https://github.com/stayhydated/es-fluent/blob/master/examples/readme/src/lib.rs
+[example-runtime]: https://github.com/stayhydated/es-fluent/blob/master/examples/readme/src/main.rs

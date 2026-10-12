@@ -6,6 +6,8 @@
 FTL generation, merge, cleanup, and formatting support used by
 `es-fluent-cli`.
 
+Requires Rust 1.99 or newer.
+
 Application developers should use
 [`cargo es-fluent`][es-fluent-cli]. Depend on this crate
 directly only when custom tooling needs the same conservative or aggressive
