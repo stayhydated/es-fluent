@@ -446,7 +446,7 @@ fn variants_expansion_rejects_explicit_keys_with_no_unskipped_targets() {
 fn variants_expansion_builds_enum_label_key_and_domain() {
     let input: syn::DeriveInput = parse_quote! {
         #[fluent(
-            domain = "es-fluent-lang",
+            domain = "language-labels",
             namespace = "languages"
         )]
         enum Language {
@@ -455,7 +455,7 @@ fn variants_expansion_builds_enum_label_key_and_domain() {
         }
     };
 
-    let expansion = with_i18n_domains(&["es-fluent-lang"], || {
+    let expansion = with_i18n_domains(&["language-labels"], || {
         EsFluentVariantsExpansion::from_derive_input(&input)
             .expect("variants expansion should build")
     });
@@ -463,7 +463,7 @@ fn variants_expansion_builds_enum_label_key_and_domain() {
 
     assert_eq!(
         expansion.domain().expect("domain").as_str(),
-        "es-fluent-lang"
+        "language-labels"
     );
     assert_eq!(target.label_key().as_str(), "language_variants_label");
     assert_eq!(

@@ -168,12 +168,6 @@ mod tests {
             AttributeLocation::ChoiceContainer,
             FluentAttributeKey::RenameAll,
         );
-        assert_allowed(
-            parse_quote!(custom),
-            AttributeName::EsFluentLanguage,
-            AttributeLocation::LanguageContainer,
-            FluentAttributeKey::Custom,
-        );
 
         let keys: Meta = parse_quote!(keys = ["label"]);
         let bad = invalid_attribute_meta_item_for_location(
@@ -440,12 +434,7 @@ mod tests {
                 AttributeLocation::ChoiceContainer,
                 &[FluentAttributeKey::RenameAll][..],
             ),
-            // es_fluent_language and locale field marker options.
-            (
-                AttributeFamily::EsFluentLanguage,
-                AttributeLocation::LanguageContainer,
-                &[FluentAttributeKey::Builtin, FluentAttributeKey::Custom][..],
-            ),
+            // Locale field marker options.
             (
                 AttributeFamily::Locale,
                 AttributeLocation::LocaleNamedStructField,
@@ -479,7 +468,6 @@ mod tests {
             AttributeLocation::VariantsVariant,
             AttributeLocation::LabelContainer,
             AttributeLocation::ChoiceContainer,
-            AttributeLocation::LanguageContainer,
             AttributeLocation::LocaleNamedStructField,
             AttributeLocation::LocaleNamedEnumVariantField,
             AttributeLocation::LocaleTupleStructField,
@@ -576,8 +564,6 @@ mod tests {
             AttributeKey::Derive => "derive",
             AttributeKey::Keys => "keys",
             AttributeKey::RenameAll => "rename_all",
-            AttributeKey::Builtin => "builtin",
-            AttributeKey::Custom => "custom",
             AttributeKey::Locale => "locale",
         }
     }

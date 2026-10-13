@@ -51,8 +51,6 @@ fn attribute_key_shapes_are_consistent_across_rules() {
         AttributeKey::Derive,
         AttributeKey::Keys,
         AttributeKey::RenameAll,
-        AttributeKey::Builtin,
-        AttributeKey::Custom,
     ] {
         assert_eq!(AttributeValueShape::for_key(key), shapes[&key]);
     }
@@ -67,17 +65,5 @@ fn attribute_rules_are_family_specific() {
     assert!(!AttributeKey::Keys.is_allowed_in(
         AttributeFamily::Fluent,
         AttributeLocation::VariantsContainer
-    ));
-    assert!(AttributeKey::Builtin.is_allowed_in(
-        AttributeFamily::EsFluentLanguage,
-        AttributeLocation::LanguageContainer
-    ));
-    assert!(AttributeKey::Custom.is_allowed_in(
-        AttributeFamily::EsFluentLanguage,
-        AttributeLocation::LanguageContainer
-    ));
-    assert!(!AttributeKey::Custom.is_allowed_in(
-        AttributeFamily::FluentChoice,
-        AttributeLocation::LanguageContainer
     ));
 }

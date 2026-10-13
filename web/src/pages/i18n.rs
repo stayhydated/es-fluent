@@ -1,11 +1,11 @@
 use es_fluent::EsFluent;
-use es_fluent_lang::es_fluent_language;
+use iso_types::iso_locale;
 use strum::EnumIter;
 
 es_fluent_manager_dioxus::define_i18n_module!();
 
-#[es_fluent_language]
-#[derive(Clone, Copy, Debug, EnumIter, Eq, EsFluent, PartialEq)]
+#[iso_locale]
+#[derive(Clone, Copy, Debug, EnumIter, Eq, PartialEq)]
 pub(crate) enum DemoLanguage {}
 
 #[derive(Clone, Copy, Debug, EsFluent)]

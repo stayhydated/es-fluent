@@ -23,7 +23,19 @@ fn manager_macros_compile_when_runtime_dependencies_are_renamed() {
     let embedded_path = workspace_root.join("crates/es-fluent-manager-embedded");
     let bevy_path = workspace_root.join("crates/es-fluent-manager-bevy");
     let dioxus_path = workspace_root.join("crates/es-fluent-manager-dioxus");
-    let lang_path = workspace_root.join("crates/es-fluent-lang");
+    let metadata = cargo_metadata::MetadataCommand::new()
+        .manifest_path(workspace_root.join("Cargo.toml"))
+        .exec()
+        .expect("resolve iso-types source");
+    let lang_path = metadata
+        .packages
+        .iter()
+        .find(|package| package.name.as_str() == "iso-types")
+        .expect("iso-types dependency")
+        .manifest_path
+        .parent()
+        .expect("iso-types crate directory")
+        .as_std_path();
 
     std::fs::write(
         crate_dir.join("Cargo.toml"),
@@ -39,13 +51,21 @@ localized = {{ package = "es-fluent", path = "{}" }}
 embedded_runtime = {{ package = "es-fluent-manager-embedded", path = "{}" }}
 bevy_runtime = {{ package = "es-fluent-manager-bevy", path = "{}", default-features = false, features = ["macros"] }}
 dioxus_runtime = {{ package = "es-fluent-manager-dioxus", path = "{}" }}
-language_pack = {{ package = "es-fluent-lang", path = "{}" }}
+language_pack = {{ package = "iso-types", path = "{}", features = ["locales", "fluent"] }}
+
+[patch.crates-io]
+es-fluent = {{ path = "{}" }}
+es-fluent-manager-core = {{ path = "{}" }}
+es-fluent-toml = {{ path = "{}" }}
 "#,
             toml_path(&facade_path),
             toml_path(&embedded_path),
             toml_path(&bevy_path),
             toml_path(&dioxus_path),
-            toml_path(&lang_path)
+            toml_path(lang_path),
+            toml_path(&facade_path),
+            toml_path(&workspace_root.join("crates/es-fluent-manager-core")),
+            toml_path(&workspace_root.join("crates/es-fluent-toml"))
         ),
     )
     .expect("write Cargo.toml");
@@ -66,9 +86,9 @@ assets_dir = "i18n"
 embedded_runtime::define_i18n_module!();
 dioxus_runtime::define_i18n_module!();
 
-use language_pack::es_fluent_language;
+use language_pack::iso_locale;
 
-#[es_fluent_language]
+#[iso_locale]
 #[derive(Clone, Copy)]
 pub enum Languages {}
 
