@@ -5646,12 +5646,16 @@ version = "2.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "785f595c61ef57169a467eeed7b4b6936a66f6cacbb116a96ee86da983251bf4"
 dependencies = [
+ "displaydoc",
+ "either",
  "icu_collections",
  "icu_locale_core",
  "icu_locale_data",
  "icu_locale_fallback",
+ "icu_pattern",
  "icu_provider",
  "tinystr",
+ "writeable",
  "zerovec",
 ]
 
@@ -6029,29 +6033,35 @@ checksum = "a6cb138bb79a146c1bd460005623e142ef0181e3d0219cb493e02f7d08a35695"
 [[package]]
 name = "iso-types"
 version = "0.1.0"
-source = "git+https://github.com/stayhydated/iso-types?rev=b8a8bcd1c54fce5c0c64beb9bfbeb726ee4534fe#b8a8bcd1c54fce5c0c64beb9bfbeb726ee4534fe"
+source = "git+https://github.com/stayhydated/iso-types?rev=5ef0c1a86f90d7609237f371dd559685d53739ff#5ef0c1a86f90d7609237f371dd559685d53739ff"
 dependencies = [
  "es-fluent",
  "es-fluent-manager-core",
  "fluent-bundle",
+ "icu_calendar",
+ "icu_locale",
+ "icu_provider",
  "inventory",
  "iso-types-macros",
  "unic-langid",
+ "writeable",
 ]
 
 [[package]]
 name = "iso-types-macros"
 version = "0.1.0"
-source = "git+https://github.com/stayhydated/iso-types?rev=b8a8bcd1c54fce5c0c64beb9bfbeb726ee4534fe#b8a8bcd1c54fce5c0c64beb9bfbeb726ee4534fe"
+source = "git+https://github.com/stayhydated/iso-types?rev=5ef0c1a86f90d7609237f371dd559685d53739ff#5ef0c1a86f90d7609237f371dd559685d53739ff"
 dependencies = [
  "es-fluent-toml",
  "heck",
+ "icu_locale",
  "proc-macro-crate",
  "proc-macro2",
  "quote",
  "serde_json",
  "syn 3.0.7",
  "unic-langid",
+ "writeable",
 ]
 
 [[package]]
