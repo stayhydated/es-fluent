@@ -27,12 +27,22 @@ const canonical `code()`/`into_str()` and checked `from_repr()` using zero-based
 declaration ordinals. Use canonical locale tags for persistence.
 
 Country and currency catalogs are enabled by default. Add `3166-2` for typed
-country/subdivision hierarchy, `units` for 87 common CLDR measurement identifiers,
+country/subdivision hierarchy, `units` for 103 common CLDR measurement identifiers,
 and `unit-conversion` for ICU4X conversion. Declare subsets with `iso_enum` using
 `standard = "3166-2"`, `"4217"`, or `"units"`; `catalog_value()` exposes the
 maintained type's metadata and navigation. Country/currency relationships allow
 several active tender currencies per country. Measurement labels use pinned
 CLDR English display names; persist canonical codes.
+
+Use `country = "US"` in subdivision macros and `category = "length"` in unit
+or unit-preference macros. `full` enables all catalogs and regional relationships.
+Optional features supply UN M49 `regions`, `regional-preferences`,
+`language-relations`, `unit-preferences`, Jiff-backed `time-zones`,
+`calling-codes`, and `addresses`. Add `time-zone-localization` for ICU identity
+conversions and localized zone names, or `phone-numbers` for `phonenumber`
+adapters. Address field labels are typed Fluent messages; metadata preserves
+source language overrides. Unit preferences retain mixed components, thresholds,
+and number skeletons. User preferences take precedence over country defaults.
 
 Most applications should not depend directly on `es-fluent-derive`,
 `es-fluent-manager-core`, or
