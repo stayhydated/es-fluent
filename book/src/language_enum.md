@@ -29,9 +29,11 @@ For directories `en`, `fr-FR`, and `zh-CN`, the generated variants are
 `Languages::ALL` already provides a static slice of every locale.
 
 `Default` selects the configured fallback. `FromStr` and `TryFrom` accept
-supported `unic-langid::LanguageIdentifier` values, preserving distinct errors
+supported Fluent or ICU language identifiers, preserving distinct errors
 for malformed input and valid but unsupported locales. Owned and borrowed enum
-values convert into `LanguageIdentifier`.
+values convert into either identifier type. Parsing uses ICU4X's alias
+canonicalization; `eng-US` selects a configured `en-US` locale. Use ICU canonical
+tags for the fallback and locale directories.
 
 ## Select and display a locale
 
@@ -48,8 +50,9 @@ i18n.select_language(Languages::FrFr)?;
 
 Both `Display` and built-in Fluent labels use English. `FrFr` renders as
 `French (France)`; a script or variant is included when present. These labels
-come from iso-types' English FTL catalogs. Unassigned or private locale
-components retain their canonical code.
+come from ICU4X's English name data. `EnUs` renders as `American English`, and
+`ZhHantTw` renders as `Traditional Chinese (Taiwan)`. The macro reports a compile
+error if ICU4X cannot name a configured locale; choose a locale covered by ICU.
 
 The ISO runtime module follows manager locale selection while keeping its
 English labels. Application translation modules determine which locales are
@@ -68,4 +71,4 @@ pub enum Languages {}
 `cargo es-fluent generate` discovers this enum through inventory. The keys use
 the exact locale tags, such as `en` and `fr-FR`, and belong to the declaring
 package. Edit those messages to control the picker wording. `Display` continues
-to render the catalog's English label.
+to render ICU4X's English label.

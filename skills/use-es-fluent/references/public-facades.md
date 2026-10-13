@@ -16,6 +16,10 @@ establish a new es-fluent project. Read
 | FTL generation and validation | `es-fluent-cli` as `cargo es-fluent` |
 | Locale tracking and strict fallback catalog | `es-fluent-build` under `[build-dependencies]` |
 
+Locale pickers use ICU4X canonical tags and English name data through `iso-types`.
+Configure locales that ICU4X can name; the locale macro validates that data at
+compile time.
+
 Most applications should not depend directly on `es-fluent-derive`,
 `es-fluent-manager-core`, or
 `es-fluent-manager-macros`.
