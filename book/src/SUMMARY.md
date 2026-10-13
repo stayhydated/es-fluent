@@ -7,6 +7,7 @@
 - [Deriving messages](deriving_messages.md)
 - [Namespaces and file splitting](namespaces.md)
 - [Build a language picker](language_enum.md)
+- [Use country, currency, and measurement catalogs](catalogs.md)
 - [Choose a runtime manager](managers.md)
   - [Embedded manager](manager_embedded.md)
   - [Dioxus manager](manager_dioxus.md)
