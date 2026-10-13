@@ -6029,7 +6029,7 @@ checksum = "a6cb138bb79a146c1bd460005623e142ef0181e3d0219cb493e02f7d08a35695"
 [[package]]
 name = "iso-types"
 version = "0.1.0"
-source = "git+https://github.com/stayhydated/iso-types?rev=dfc1917a11c591753c9915de37823651a43823a1#dfc1917a11c591753c9915de37823651a43823a1"
+source = "git+https://github.com/stayhydated/iso-types?rev=b8a8bcd1c54fce5c0c64beb9bfbeb726ee4534fe#b8a8bcd1c54fce5c0c64beb9bfbeb726ee4534fe"
 dependencies = [
  "es-fluent",
  "es-fluent-manager-core",
@@ -6042,7 +6042,7 @@ dependencies = [
 [[package]]
 name = "iso-types-macros"
 version = "0.1.0"
-source = "git+https://github.com/stayhydated/iso-types?rev=dfc1917a11c591753c9915de37823651a43823a1#dfc1917a11c591753c9915de37823651a43823a1"
+source = "git+https://github.com/stayhydated/iso-types?rev=b8a8bcd1c54fce5c0c64beb9bfbeb726ee4534fe#b8a8bcd1c54fce5c0c64beb9bfbeb726ee4534fe"
 dependencies = [
  "es-fluent-toml",
  "heck",
