@@ -17,8 +17,9 @@ establish a new es-fluent project. Read
 | Locale tracking and strict fallback catalog | `es-fluent-build` under `[build-dependencies]` |
 
 Locale pickers use ICU4X canonical tags and English name data through `iso-types`.
-Configure locales that ICU4X can name; the locale macro validates that data at
-compile time.
+Configure current, common locales that ICU4X can name. The locale macro validates
+CLDR modern language coverage, recommended scripts, and current regions at
+compile time; locale variants and deprecated aliases are excluded.
 
 Most applications should not depend directly on `es-fluent-derive`,
 `es-fluent-manager-core`, or

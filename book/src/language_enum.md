@@ -30,10 +30,16 @@ For directories `en`, `fr-FR`, and `zh-CN`, the generated variants are
 
 `Default` selects the configured fallback. `FromStr` and `TryFrom` accept
 supported Fluent or ICU language identifiers, preserving distinct errors
-for malformed input and valid but unsupported locales. Owned and borrowed enum
-values convert into either identifier type. Parsing uses ICU4X's alias
-canonicalization; `eng-US` selects a configured `en-US` locale. Use ICU canonical
-tags for the fallback and locale directories.
+for malformed input, excluded data, and valid but unselected locales. Owned and
+borrowed enum values convert into either identifier type. Parsing normalizes
+current ISO representations with ICU4X; `eng-US` selects a configured `en-US`
+locale. Deprecated aliases such as `iw-IL` return `LocaleConversionError::OutOfScope`.
+Use ICU canonical tags for the fallback and locale directories.
+
+The picker supports current living languages with CLDR modern locale coverage,
+recommended modern scripts, and current regions. Locale variants and historical,
+deprecated, or uncommon components are excluded. The macro checks this scope at
+compile time, including for custom labels.
 
 ## Select and display a locale
 
@@ -49,7 +55,7 @@ i18n.select_language(Languages::FrFr)?;
 ```
 
 Both `Display` and built-in Fluent labels use English. `FrFr` renders as
-`French (France)`; a script or variant is included when present. These labels
+`French (France)`; a script is included when present. These labels
 come from ICU4X's English name data. `EnUs` renders as `American English`, and
 `ZhHantTw` renders as `Traditional Chinese (Taiwan)`. The macro reports a compile
 error if ICU4X cannot name a configured locale; choose a locale covered by ICU.

@@ -56,6 +56,14 @@ fn loaded_dioxus_asset_i18n_localizes_runtime_follower_messages() {
         i18n.localize(static_key("iso-types", "iso-locale-en-US"), None),
         Some("American English".to_string())
     );
+    assert_eq!(
+        i18n.localize(static_key("iso-types", "iso-locale-iw-IL"), None),
+        None
+    );
+    assert_eq!(
+        i18n.localize(static_key("iso-types", "iso-639-1-la"), None),
+        None
+    );
 }
 
 #[test]
