@@ -407,7 +407,7 @@ impl I18nResource {
     }
 
     /// Attaches a runtime fallback manager for non-Bevy embedded runtime
-    /// modules, such as `es-fluent-lang`.
+    /// modules, such as `iso-types`.
     #[doc(hidden)]
     pub fn with_fallback_manager(mut self, fallback_manager: Arc<FluentManager>) -> Self {
         self.fallback_manager = Some(fallback_manager);

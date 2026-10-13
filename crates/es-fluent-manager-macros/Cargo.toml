@@ -26,6 +26,7 @@ quote = { workspace = true }
 syn = { features = [ "full" ], workspace = true }
 
 [dev-dependencies]
+cargo_metadata = { workspace = true }
 es-fluent-build = { workspace = true }
 insta = { workspace = true }
 prettyplease = { workspace = true }

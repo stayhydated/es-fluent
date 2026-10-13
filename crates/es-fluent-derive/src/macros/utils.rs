@@ -639,14 +639,14 @@ mod tests {
     #[cfg_attr(not(target_os = "linux"), ignore = "insta snapshots are Linux-only")]
     fn generate_localize_label_impl_uses_explicit_domain_override_when_present() {
         let message_id = es_fluent_derive_core::semantic::spanned_message_id_from_value(
-            "es-fluent-lang-label",
+            "language-labels-label",
             proc_macro2::Span::call_site(),
             AttrContext::LabelContainer,
         )
         .expect("message id")
         .into_value();
         let domain = es_fluent_derive_core::semantic::parse_domain_name_in_context(
-            "es-fluent-lang",
+            "language-labels",
             proc_macro2::Span::call_site(),
             AttrContext::LabelContainer,
         )

@@ -43,8 +43,8 @@ web-sys = { features = [ "Location", "MessageEvent", "WebSocket", "Window" ], wo
 dioxus-core-macro = { workspace = true }
 dioxus-signals = { workspace = true }
 dioxus-ssr = { workspace = true }
-es-fluent-lang = { workspace = true }
 futures = { workspace = true }
+iso-types = { workspace = true }
 serde_json = { workspace = true }
 serial_test = { workspace = true }
 trybuild = { workspace = true }

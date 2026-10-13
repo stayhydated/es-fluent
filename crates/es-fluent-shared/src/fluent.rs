@@ -246,10 +246,10 @@ mod tests {
             "custom-key"
         );
         assert_eq!(
-            FluentDomain::try_new("es-fluent-lang")
+            FluentDomain::try_new("language-labels")
                 .expect("domain")
                 .as_str(),
-            "es-fluent-lang"
+            "language-labels"
         );
         assert_eq!(
             FluentEntryId::try_new("-shared-term")

@@ -1,141 +1,86 @@
-# Language enum
+# Build a language picker
 
-The `#[es_fluent_language]` macro generates a typed enum from the locale
-directories in `assets_dir`. Use it to initialize a manager, switch locales, or
-build a language picker without maintaining a second list of locale strings.
+Use `iso-types`' `#[iso_locale]` to declare your application's supported
+locales as an enum. The macro reads `i18n.toml` and the canonical locale
+directories, includes the fallback locale, and supplies manager conversions.
 
-## Setup
+## Configure the dependency
 
-Add the `es-fluent-lang` crate:
+Enable `locales` and `fluent` for an es-fluent application:
 
 ```toml
 [dependencies]
-es-fluent-lang = "0.21"
-
-# Add this when the application iterates the generated enum.
-strum = { version = "0.28", features = ["derive"] }
+iso-types = { git = "https://github.com/stayhydated/iso-types", features = ["locales", "fluent"] }
 ```
 
-Feature flags:
-
-- `macros` is enabled by default and provides `#[es_fluent_language]`.
-- `localized-langs` formats language names in the currently selected UI
-  language instead of as autonyms.
-
-Generated language enums also link the built-in labels into `wasm32`
-applications, including Dioxus and Bevy builds.
-
-## Usage
-
-Define an empty enum and annotate it with `#[es_fluent_language]`:
+Keep the package's `es-fluent-build` build script tracking its locale assets.
+Define an empty enum in the package's library:
 
 ```rust
-use es_fluent_lang::es_fluent_language;
-use strum::EnumIter;
+use iso_types::iso_locale;
 
-#[es_fluent_language]
-#[derive(EnumIter)]
+#[iso_locale]
 pub enum Languages {}
 ```
 
-The macro derives `Clone`, `Copy`, `Debug`, `Eq`, `Hash`, and `PartialEq`
-automatically. Add derives such as `EnumIter` only when your application needs
-them.
+For directories `en`, `fr-FR`, and `zh-CN`, the generated variants are
+`En`, `FrFr`, and `ZhCn`. The macro supplies `Clone`, `Copy`, `Debug`, `Eq`,
+`Hash`, `PartialEq`, and Strum's `VariantArray`, `EnumIter`, `EnumCount`,
+`FromRepr`, and `IntoStaticStr`. Import `iso_types::{VariantArray, IntoEnumIterator,
+EnumCount}` for `Languages::VARIANTS`, `Languages::iter()`, and `Languages::COUNT`.
+The slice and iterator follow canonical locale order. `code()` and `into_str()`
+return the canonical tag in const contexts. `from_repr()` accepts a zero-based
+ordinal in declaration order; use canonical tags for persistence.
 
-If your `assets_dir` contains the same locales as the executable README example
-(`en`, `fr-FR`, and `zh-CN`), the macro expands this into:
+`Default` selects the configured fallback. `FromStr` and `TryFrom` accept
+supported Fluent or ICU language identifiers, preserving distinct errors
+for malformed input, excluded data, and valid but unselected locales. Owned and
+borrowed enum values convert into either identifier type. Parsing normalizes
+current ISO representations with ICU4X; `eng-US` selects a configured `en-US`
+locale. Deprecated aliases such as `iw-IL` return `LocaleConversionError::OutOfScope`.
+Use ICU canonical tags for the fallback and locale directories.
 
-```rust
-pub enum Languages {
-    En,
-    FrFr,
-    ZhCn,
-}
-```
+The picker supports current living languages with CLDR modern locale coverage,
+recommended modern scripts, and current regions. Locale variants and historical,
+deprecated, or uncommon components are excluded. The macro checks this scope at
+compile time, including for custom labels.
 
-The macro also generates these trait implementations:
+## Select and display a locale
 
-| Trait                          | Description                                                       |
-| ------------------------------ | ----------------------------------------------------------------- |
-| `Default`                      | Returns the variant matching `fallback_language` from `i18n.toml` |
-| `FromStr`                      | Parses `"en"`, `"fr-FR"`, or `"zh-CN"` into the matching variant  |
-| `TryFrom<&LanguageIdentifier>` | Converts from a borrowed `unic-langid` identifier                 |
-| `TryFrom<LanguageIdentifier>`  | Converts from an owned `unic-langid` identifier                   |
-| `Into<LanguageIdentifier>`     | Converts back to a `unic-langid` identifier                       |
-| `FluentMessage`                | Renders language labels through a manager                         |
+Pass a variant directly to manager APIs that accept
+`Into<LanguageIdentifier>`:
 
-If the configured fallback language is not present as a locale directory, the
-macro still adds it to the enum so `Default` always has a valid variant.
+```rust,ignore
+use iso_types::IntoEnumIterator as _;
 
-## Use the enum with managers
-
-The `Languages` enum plugs directly into manager initialization:
-
-```rust
-use es_fluent_manager_embedded as manager;
-
-let i18n = manager::EmbeddedI18n::try_new_with_language(Languages::En)?;
-```
-
-Pass a variant directly to manager methods that accept
-`Into<LanguageIdentifier>`. Use `.into()` where an API requires a concrete
-`LanguageIdentifier`.
-
-## Render language-name labels
-
-Each variant can be rendered through an explicit manager with
-`i18n.localize_message(&language)`. The macro implements `FluentMessage`
-directly, and the crate formats those labels from ICU4X display-name data, so a
-language picker can display localized names:
-
-```rust
-// Prints the language name in its native script
-println!("{}", i18n.localize_message(&Languages::FrFr)); // → "français"
-```
-
-By default, names are autonyms: `FrFr` renders as `français` and `ZhCn` renders
-as `中文`. With the `localized-langs` feature, the same ICU4X data is formatted
-in the currently selected UI language instead, so an English UI can render
-`French` and `Chinese`.
-
-For a language picker, iterate your generated enum, render each label through
-the active manager, and pass the selected variant back to the manager:
-
-```rust
-use strum::IntoEnumIterator as _;
-
+let i18n = es_fluent_manager_embedded::EmbeddedI18n::try_new_with_language(Languages::En)?;
 for language in Languages::iter() {
-    let label = i18n.localize_message(&language);
-    println!("{language:?}: {label}");
+    println!("{}: {}", language.code(), i18n.localize_message(language));
 }
-
 i18n.select_language(Languages::FrFr)?;
 ```
 
-The runtime uses the shared ICU4X/CLDR fallback chain when exact display-name
-data is missing. Use custom mode when you need project-specific labels or
-fully custom names for unsupported locale tags.
+Both `Display` and built-in Fluent labels use English. `FrFr` renders as
+`French (France)`; a script is included when present. These labels
+come from ICU4X's English name data. `EnUs` renders as `American English`, and
+`ZhHantTw` renders as `Traditional Chinese (Taiwan)`. The macro reports a compile
+error if ICU4X cannot name a configured locale; choose a locale covered by ICU.
 
-The built-in language-name module follows successful manager locale switches
-but does not count as application content support. A manager still reports an
-unsupported locale when no application translation module can serve it.
+The ISO runtime module follows manager locale selection while keeping its
+English labels. Application translation modules determine which locales are
+supported. The macro keeps its runtime registration linked in optimized WASM
+applications.
 
-## Custom mode
+## Own the language labels
 
-By default, the macro links to the built-in `es-fluent-lang` runtime without
-registering another translation module. If you want to provide your own
-translations for language names (for example, project-specific labels or exact
-wording control), use **custom mode**:
+Use custom mode to generate locale label keys in your package's FTL:
 
 ```rust
-#[es_fluent_language(custom)]
-#[derive(EnumIter)]
+#[iso_types::iso_locale(custom)]
 pub enum Languages {}
 ```
 
-In custom mode:
-
-- The macro skips the built-in `es-fluent-lang` runtime hook.
-- `cargo es-fluent generate` will create keys for the enum in your FTL files.
-- You provide your own translations instead of using ICU4X-backed labels.
-- Use this when your app ships custom language-name translations for project-specific or otherwise unsupported locale tags.
+`cargo es-fluent generate` discovers this enum through inventory. The keys use
+the exact locale tags, such as `en` and `fr-FR`, and belong to the declaring
+package. Edit those messages to control the picker wording. `Display` continues
+to render ICU4X's English label.

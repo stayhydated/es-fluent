@@ -12,17 +12,45 @@ establish a new es-fluent project. Read
 | General Rust runtime | `es-fluent-manager-embedded` |
 | Dioxus client or SSR | `es-fluent-manager-dioxus` with the relevant features |
 | Bevy ECS and UI | `es-fluent-manager-bevy` |
-| Typed language picker | `es-fluent-lang` |
+| Typed language picker | `iso-types` with `locales` and `fluent` |
+| Country, subdivision, currency, and measurement selectors | `iso-types` with the matching catalog features and `fluent` |
 | FTL generation and validation | `es-fluent-cli` as `cargo es-fluent` |
 | Locale tracking and strict fallback catalog | `es-fluent-build` under `[build-dependencies]` |
 
+Locale pickers use ICU4X canonical tags and English name data through `iso-types`.
+Configure current, common locales that ICU4X can name. The locale macro validates
+CLDR modern language coverage, recommended scripts, and current regions at
+compile time; locale variants and deprecated aliases are excluded.
+Import `iso_types::{VariantArray, IntoEnumIterator, EnumCount}` for a generated
+locale enum's `VARIANTS`, `iter()`, and `COUNT`. The macro also supplies
+const canonical `code()`/`into_str()` and checked `from_repr()` using zero-based
+declaration ordinals. Use canonical locale tags for persistence.
+
+Country and currency catalogs are enabled by default. Add `3166-2` for typed
+country/subdivision hierarchy, `units` for 103 common CLDR measurement identifiers,
+and `unit-conversion` for ICU4X conversion. Declare subsets with `iso_enum` using
+`standard = "3166-2"`, `"4217"`, or `"units"`; `catalog_value()` exposes the
+maintained type's metadata and navigation. Country/currency relationships allow
+several active tender currencies per country. Measurement labels use pinned
+CLDR English display names; persist canonical codes.
+
+Use `country = "US"` in subdivision macros and `category = "length"` in unit
+or unit-preference macros. `full` enables all catalogs and regional relationships.
+Optional features supply UN M49 `regions`, `regional-preferences`,
+`language-relations`, `unit-preferences`, Jiff-backed `time-zones`,
+`calling-codes`, and `addresses`. Add `time-zone-localization` for ICU identity
+conversions and localized zone names, or `phone-numbers` for `phonenumber`
+adapters. Address field labels are typed Fluent messages; metadata preserves
+source language overrides. Unit preferences retain mixed components, thresholds,
+and number skeletons. User preferences take precedence over country defaults.
+
 Most applications should not depend directly on `es-fluent-derive`,
-`es-fluent-lang-macro`, `es-fluent-manager-core`, or
+`es-fluent-manager-core`, or
 `es-fluent-manager-macros`.
 
 ## Compatible release lines
 
-- `es-fluent`, CLI, embedded manager, and language enum:
+- `es-fluent`, CLI, and embedded manager:
   `0.21.x`.
 - Dioxus manager: `0.21.x` with Dioxus `0.7.x`.
 - Bevy manager: `0.21.x` with Bevy `0.20.x`.

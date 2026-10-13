@@ -10,8 +10,6 @@ members = [
   "crates/es-fluent-toml",
   "crates/es-fluent-derive",
   "crates/es-fluent-generate",
-  "crates/es-fluent-lang",
-  "crates/es-fluent-lang-macro",
   "crates/es-fluent-manager-core",
   "crates/es-fluent-manager-macros",
   "crates/es-fluent-manager-embedded",
@@ -66,8 +64,6 @@ es-fluent-build = { path = "crates/es-fluent-build", version = "0.21.0" }
 es-fluent-derive = { path = "crates/es-fluent-derive", version = "0.21.0" }
 es-fluent-derive-core = { path = "crates/es-fluent-derive-core", version = "0.21.0" }
 es-fluent-generate = { path = "crates/es-fluent-generate", version = "0.21.0" }
-es-fluent-lang = { path = "crates/es-fluent-lang", version = "0.21.0" }
-es-fluent-lang-macro = { path = "crates/es-fluent-lang-macro", version = "0.21.0" }
 es-fluent-manager-bevy = { default-features = false, path = "crates/es-fluent-manager-bevy", version = "0.21.0" }
 es-fluent-manager-core = { default-features = false, path = "crates/es-fluent-manager-core", version = "0.21.0" }
 es-fluent-manager-dioxus = { default-features = false, path = "crates/es-fluent-manager-dioxus", version = "0.21.0" }
@@ -95,6 +91,10 @@ indicatif = "0.18"
 insta = "1.49"
 intl-memoizer = "0.5"
 inventory = "0.3"
+iso-types = { features = [
+  "locales",
+  "fluent",
+], git = "https://github.com/stayhydated/iso-types", rev = "4580d5b60aad92504b1b5f9bc963d042241cba06" }
 jiff = "0.2"
 miette = "7.6"
 notify = "8.2"
@@ -180,3 +180,9 @@ type_complexity = "allow"
 uninlined_format_args = "allow"
 unused_trait_names = "warn"
 useless_conversion = "warn"
+
+# Share the workspace's localization types with iso-types' pinned integration.
+[patch.crates-io]
+es-fluent = { path = "crates/es-fluent" }
+es-fluent-manager-core = { path = "crates/es-fluent-manager-core" }
+es-fluent-toml = { path = "crates/es-fluent-toml" }

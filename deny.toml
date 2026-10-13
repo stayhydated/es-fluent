@@ -4,6 +4,10 @@
 unmaintained = "workspace"
 
 [sources]
-allow-git = [ "https://github.com/DioxusLabs/components", "https://github.com/stayhydated/shared" ]
+allow-git = [
+  "https://github.com/DioxusLabs/components",
+  "https://github.com/stayhydated/shared",
+  "https://github.com/stayhydated/iso-types",
+]
 unknown-git = "deny"
 unknown-registry = "deny"
