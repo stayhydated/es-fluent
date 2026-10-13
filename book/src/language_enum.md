@@ -25,9 +25,12 @@ pub enum Languages {}
 
 For directories `en`, `fr-FR`, and `zh-CN`, the generated variants are
 `En`, `FrFr`, and `ZhCn`. The macro supplies `Clone`, `Copy`, `Debug`, `Eq`,
-`Hash`, `PartialEq`, and Strum's `VariantArray`. `Languages::VARIANTS` provides a
-constant slice of every locale. Add `iso_types::strum::EnumIter` when a caller
-needs `IntoEnumIterator`.
+`Hash`, `PartialEq`, and Strum's `VariantArray`, `EnumIter`, `EnumCount`,
+`FromRepr`, and `IntoStaticStr`. Import `iso_types::{VariantArray, IntoEnumIterator,
+EnumCount}` for `Languages::VARIANTS`, `Languages::iter()`, and `Languages::COUNT`.
+The slice and iterator follow canonical locale order. `code()` and `into_str()`
+return the canonical tag in const contexts. `from_repr()` accepts a zero-based
+ordinal in declaration order; use canonical tags for persistence.
 
 `Default` selects the configured fallback. `FromStr` and `TryFrom` accept
 supported Fluent or ICU language identifiers, preserving distinct errors
@@ -48,10 +51,10 @@ Pass a variant directly to manager APIs that accept
 `Into<LanguageIdentifier>`:
 
 ```rust,ignore
-use iso_types::VariantArray as _;
+use iso_types::IntoEnumIterator as _;
 
 let i18n = es_fluent_manager_embedded::EmbeddedI18n::try_new_with_language(Languages::En)?;
-for language in Languages::VARIANTS {
+for language in Languages::iter() {
     println!("{}: {}", language.code(), i18n.localize_message(language));
 }
 i18n.select_language(Languages::FrFr)?;
