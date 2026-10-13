@@ -4,40 +4,58 @@
 [![crates.io: es-fluent-manager-embedded][crate-badge]][crate]
 
 Embedded localization for general Rust applications, including CLIs, TUIs,
-desktop apps, and services. Configured FTL resources are resolved through an
-explicit, cloneable `EmbeddedI18n` handle. Release builds and Wasm debug builds
-embed the assets; other debug builds read them from disk unless `debug-embed`
+desktop apps, and services. Depend on this concrete manager alongside the
+[`es-fluent`][facade] message facade; retain a cloneable `EmbeddedI18n` handle in
+application state.
+
+Requires Rust 1.99 or newer. Release builds and Wasm debug builds embed the
+configured assets. Native debug builds read them from disk unless `debug-embed`
 is enabled.
 
-Register resources from a library-reachable module:
+## Features
 
-~~~rust,ignore
-es_fluent_manager_embedded::define_i18n_module!();
-~~~
+The default feature set enables `macros` and its implicit
+`es-fluent-manager-macros` dependency feature.
 
-Initialize a selected locale and localize typed messages:
+| Feature | Default | Purpose |
+| --- | --- | --- |
+| `default` | Yes | Enables `macros`. |
+| `macros` | Yes | Re-exports the embedded `define_i18n_module!` registration macro. |
+| `es-fluent-manager-macros` | Yes | Implicit feature enabling the optional registration-macro dependency. |
+| `debug-embed` | No | Embeds assets in native debug builds through manager-core, the facade, and `rust-embed`. |
+
+## Example
+
+The [complete executable][example-runtime] supplies the
+[`WelcomeMessage` type][example-types], locale configuration, fallback catalog,
+and [library module registration][example-assets]. This adapted excerpt uses the
+public manager directly inside a function returning `Result<(), es_fluent_manager_embedded::EmbeddedInitError>`:
 
 ~~~rust,ignore
 use es_fluent_manager_embedded::EmbeddedI18n;
 use unic_langid::langid;
 
 let i18n = EmbeddedI18n::try_new_with_language(langid!("en"))?;
-let text = i18n.localize_message(&message);
+let welcome = WelcomeMessage {
+    name: "John",
+    count: 5,
+};
+println!("WelcomeMessage: {}", i18n.localize_message(&welcome));
 ~~~
 
-Use strict initialization or selection only when every linked application
-module must support the requested locale. Clones share locale state, and
-concurrent selections are serialized so the active locale and selection policy
-stay consistent. A failed selection preserves the previous state. Construct a
-separate manager for independent state.
+It propagates initialization errors and renders
+“WelcomeMessage: Welcome Message John 5” in English.
 
-Configured packages call `es_fluent_build::track_i18n_assets()` from Cargo's
-selected custom-build target. Derived fallback-locale messages are compile-time
-checked by default. Set `missing_message_policy = "fallback-str"` in the owning
-package's `i18n.toml` to return snake_case field, variant, or type names from
-normal typed lookup after locale fallback is exhausted; fallible lookup still
-returns `None`.
+Clones share locale state. Use strict initialization or selection when every
+linked application module must support the requested locale; failed selections
+preserve the previous state. See the [public API][api] for selection semantics
+and the [facade][facade] for package-local missing-message policy.
 
+[facade]: https://github.com/stayhydated/es-fluent/blob/master/crates/es-fluent/README.md
+[api]: https://docs.rs/es-fluent-manager-embedded/latest/es_fluent_manager_embedded/struct.EmbeddedI18n.html
+[example-types]: https://github.com/stayhydated/es-fluent/blob/master/examples/readme/src/lib.rs
+[example-runtime]: https://github.com/stayhydated/es-fluent/blob/master/examples/readme/src/main.rs
+[example-assets]: https://github.com/stayhydated/es-fluent/blob/master/examples/readme/src/i18n.rs
 [codecov-badge]: https://codecov.io/gh/stayhydated/es-fluent/branch/master/graph/badge.svg?component=es-fluent-manager-embedded
 [codecov]: https://codecov.io/gh/stayhydated/es-fluent
 [crate-badge]: https://img.shields.io/crates/v/es-fluent-manager-embedded.svg?label=es-fluent-manager-embedded

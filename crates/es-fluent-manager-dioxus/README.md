@@ -2,33 +2,37 @@
 
 [![crates.io: es-fluent-manager-dioxus][crate-badge]][crate]
 
-Typed localization for Dioxus `0.7.x`, with signal-backed client
-context and request-scoped SSR.
+Typed localization for Dioxus applications with signal-backed client state
+and request-scoped SSR. Depend on this concrete manager alongside the
+[`es-fluent`][facade] message facade, selecting the runtime features needed by
+the application.
 
-Enable `client` for client rendering, `ssr` for server rendering, or both
-when the application uses both runtime surfaces.
+Requires Rust 1.99 or newer and Dioxus 0.7. Configured `assets_dir` must stay
+inside the message-owning package root; its build script tracks fallback assets
+and its library registers the Dioxus module.
 
-Register Dioxus assets from a library-reachable module:
+## Overview
 
-~~~rust,ignore
-es_fluent_manager_dioxus::define_i18n_module!();
-~~~
+Client applications use `DioxusAssetI18nProvider` and handle the `Result` from
+`use_i18n()` before localizing messages. The [maintained client demo][example]
+shows provider setup, loading errors, typed lookup, and locale switching.
+SSR applications share an `SsrI18nRuntime` and create one `SsrI18n` per request.
+Both contexts resolve `i18n.localize_message(&message)` and follow the
+[package-local missing-message policy][facade].
 
-Client applications provide `DioxusAssetI18nProvider` and localize
-through the handle returned by `use_i18n()`. SSR applications create
-one `SsrI18nRuntime` and one `SsrI18n` per request. Both contexts render
-typed messages with `i18n.localize_message(&message)`. Provide request state
-inside the component tree and render HTML through `dioxus_ssr`.
+## Features
 
-The configured `assets_dir` must be inside the package root. Enable
-both `client` and `ssr` when SSR components use Dioxus
-hooks.
+No runtime features are enabled by default.
 
-Configured packages call `es_fluent_build::track_i18n_assets()` from Cargo's
-selected custom-build target. Derived fallback-locale messages are compile-time
-checked by default. Set `missing_message_policy = "fallback-str"` in the owning
-package's `i18n.toml` when client and request-scoped SSR lookup should return
-snake_case field, variant, or type names after locale fallback is exhausted.
+| Feature | Default | Purpose |
+| --- | --- | --- |
+| `default` | Yes | Enables no features. |
+| `client` | No | Enables Dioxus providers, signal-backed handles, and localization hooks. |
+| `ssr` | No | Enables `SsrI18nRuntime` and request-scoped `SsrI18n` with asynchronous loading. |
 
+Enable both `client` and `ssr` when SSR components use Dioxus hooks.
+
+[facade]: https://github.com/stayhydated/es-fluent/blob/master/crates/es-fluent/README.md
+[example]: https://github.com/stayhydated/es-fluent/blob/master/web/src/pages/dioxus_demo.rs
 [crate-badge]: https://img.shields.io/crates/v/es-fluent-manager-dioxus.svg?label=es-fluent-manager-dioxus
 [crate]: https://crates.io/crates/es-fluent-manager-dioxus

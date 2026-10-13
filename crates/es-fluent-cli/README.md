@@ -4,12 +4,17 @@
 [![crates.io: es-fluent-cli][crate-badge]][crate]
 
 The Cargo subcommand for generating, validating, synchronizing, formatting,
-inspecting, and cleaning `es-fluent` FTL resources.
+inspecting, and cleaning `es-fluent` FTL resources for Rust application developers.
+
+Requires Rust 1.99 or newer.
 
 Run it as `cargo es-fluent <COMMAND>` or invoke the installed
 `cargo-es-fluent` binary directly.
 
-## Common workflow
+## Commands
+
+From a configured crate or workspace root containing package-local `i18n.toml`,
+locale assets, build-script tracking, and messages in library targets:
 
 ~~~sh
 cargo es-fluent doctor
@@ -17,6 +22,9 @@ cargo es-fluent generate
 cargo es-fluent status --all-locales
 cargo es-fluent check --all-locales
 ~~~
+
+`doctor` reports wiring issues, `generate` updates fallback FTL, and `status`
+previews pending changes before `check` validates all locales.
 
 | Command | Purpose |
 | --- | --- |
@@ -31,18 +39,8 @@ cargo es-fluent check --all-locales
 | `clean` | Remove stale generated entries or orphaned files. |
 | `tree` | Inspect resource files, entries, and variables. |
 
-Run `cargo es-fluent doctor` for a read-only setup report. It follows Cargo's
-selected library and custom-build targets and parses their local module graphs.
-Add `--output json` for machine-readable configuration, build-script, manager,
-policy, and catalog checks. Warnings identify constructs that static inspection
-cannot prove and require manual verification.
-
-During `watch`, transient Cargo metadata errors are reported while the previous
-build-source graph and watches remain active. Saving a corrected manifest
-retries metadata discovery without restarting the session. Applicable
-`.cargo/config.toml` and `.cargo/config` files in the workspace hierarchy and
-Cargo home, their recursive includes, and configured lockfile paths invalidate
-both watch fingerprints and cached derive inventory.
+Run `cargo es-fluent doctor` for a read-only setup report. Add `--output json`
+for configuration, build-script, manager, policy, and catalog checks.
 
 Inspect fallback resources or every locale:
 
@@ -53,9 +51,7 @@ cargo es-fluent tree --all-locales
 
 Commands that inspect derives collect inventory from Cargo library targets.
 Move binary-only localizable types into `src/lib.rs` or another
-library module. A hidden inventory mode lets `generate` discover new derived
-keys before strict fallback coverage is complete without changing the package's
-configured runtime policy.
+library module.
 
 Use `--path` for a crate or workspace and `--package` for
 one configured package. Preview destructive cleanup and aggressive generation

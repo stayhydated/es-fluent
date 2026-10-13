@@ -6,14 +6,12 @@
 FTL generation, merge, cleanup, and formatting support used by
 `es-fluent-cli`.
 
+Requires Rust 1.99 or newer.
+
 Application developers should use
 [`cargo es-fluent`][es-fluent-cli]. Depend on this crate
 directly only when custom tooling needs the same conservative or aggressive
 generation and Fluent formatting behavior as the CLI.
-
-Formatting retains separate group headings. When multiple headings match a
-message equally, the message stays in its original group, so repeated formatting
-does not move it between ambiguous groups.
 
 [es-fluent-cli]: https://github.com/stayhydated/es-fluent/blob/master/crates/es-fluent-cli/README.md
 [codecov-badge]: https://codecov.io/gh/stayhydated/es-fluent/branch/master/graph/badge.svg?component=es-fluent-generate

@@ -5,6 +5,8 @@
 Shared request, result, inventory, and filesystem transaction types for the
 temporary runner workspace created by `es-fluent-cli`.
 
+Requires Rust 1.99 or newer.
+
 This crate is intended for `es-fluent-cli`,
 `es-fluent-cli-helpers`, and compatible runner integrations.
 Application developers should use

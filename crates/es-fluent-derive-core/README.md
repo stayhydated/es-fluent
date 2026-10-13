@@ -7,6 +7,8 @@ Build-time parsing, validation, and code-generation support for
 `es-fluent-derive`. It is separated from the proc-macro crate so the
 same derive rules can be reused without exposing proc-macro entry points.
 
+Requires Rust 1.99 or newer.
+
 Applications should depend on [`es-fluent`][es-fluent].
 Proc-macro integrations should normally use
 [`es-fluent-derive`][es-fluent-derive].

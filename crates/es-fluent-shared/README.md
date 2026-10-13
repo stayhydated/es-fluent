@@ -5,6 +5,8 @@
 Runtime-safe metadata, naming, error, locale, and asset-path types shared by the
 `es-fluent` facade, derives, managers, generators, and CLI.
 
+Requires Rust 1.99 or newer.
+
 Applications should depend on [`es-fluent`][es-fluent].
 Use this crate directly only when custom tooling or runtime integration needs
 the workspace's shared typed metadata without proc-macro code.

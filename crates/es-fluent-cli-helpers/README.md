@@ -7,6 +7,8 @@ Support library used by the temporary runner that
 `es-fluent-cli` builds to collect derive inventory and plan
 runner-backed generate, clean, and check operations.
 
+Requires Rust 1.99 or newer.
+
 Application developers should use
 [`es-fluent-cli`][es-fluent-cli]. Depend on this crate
 only when implementing a compatible runner integration.
