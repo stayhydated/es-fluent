@@ -1,5 +1,5 @@
 use es_fluent::{EsFluent, EsFluentLabel, EsFluentVariants};
-use es_fluent_lang::es_fluent_language;
+use iso_types::iso_locale;
 use strum::EnumIter;
 
 #[cfg(feature = "bevy")]
@@ -23,7 +23,7 @@ pub enum ButtonState {
     Pressed,
 }
 
-#[es_fluent_language]
+#[iso_locale]
 #[derive(Clone, Copy, Debug, EnumIter, Eq, PartialEq)]
 pub enum Languages {}
 

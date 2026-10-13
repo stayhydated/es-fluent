@@ -11,7 +11,6 @@ pub enum AttributeFamily {
     FluentVariants,
     FluentLabel,
     FluentChoice,
-    EsFluentLanguage,
     Locale,
 }
 
@@ -24,7 +23,6 @@ impl AttributeFamily {
             Self::FluentVariants => "fluent_variants",
             Self::FluentLabel => "fluent_label",
             Self::FluentChoice => "fluent_choice",
-            Self::EsFluentLanguage => "es_fluent_language",
             Self::Locale => "locale",
         }
     }
@@ -35,7 +33,6 @@ impl AttributeFamily {
             Self::FluentVariants => "#[fluent_variants]",
             Self::FluentLabel => "#[fluent_label]",
             Self::FluentChoice => "#[fluent_choice]",
-            Self::EsFluentLanguage => "#[es_fluent_language]",
             Self::Locale => "#[locale]",
         }
     }
@@ -56,7 +53,6 @@ pub enum AttributeLocation {
     VariantsVariant,
     LabelContainer,
     ChoiceContainer,
-    LanguageContainer,
     LocaleNamedStructField,
     LocaleNamedEnumVariantField,
     LocaleTupleStructField,
@@ -81,7 +77,6 @@ impl AttributeLocation {
             Self::VariantsVariant => AttrContext::VariantsVariant,
             Self::LabelContainer => AttrContext::LabelContainer,
             Self::ChoiceContainer => AttrContext::ChoiceContainer,
-            Self::LanguageContainer => AttrContext::LanguageContainer,
             Self::LocaleNamedStructField
             | Self::LocaleNamedEnumVariantField
             | Self::LocaleTupleStructField
@@ -103,8 +98,6 @@ pub enum AttributeKey {
     Derive,
     Keys,
     RenameAll,
-    Builtin,
-    Custom,
     Locale,
 }
 
@@ -142,10 +135,6 @@ impl AttributeKey {
             Some(Self::Keys)
         } else if path.is_ident("rename_all") {
             Some(Self::RenameAll)
-        } else if path.is_ident("builtin") {
-            Some(Self::Builtin)
-        } else if path.is_ident("custom") {
-            Some(Self::Custom)
         } else if path.is_ident("locale") {
             Some(Self::Locale)
         } else {

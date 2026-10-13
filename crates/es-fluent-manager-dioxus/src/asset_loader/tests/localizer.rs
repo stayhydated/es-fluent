@@ -31,7 +31,7 @@ fn loaded_dioxus_asset_i18n_localizes_selected_language() {
 
 #[test]
 fn loaded_dioxus_asset_i18n_localizes_runtime_follower_messages() {
-    let _ = es_fluent_lang::force_link();
+    let _ = iso_types::i18n::force_link();
     let i18n = DioxusAssetI18n::new_with_loaded_modules(
         vec![loaded_module()],
         langid!("en"),
@@ -40,16 +40,16 @@ fn loaded_dioxus_asset_i18n_localizes_runtime_follower_messages() {
     .expect("initial language should load");
 
     assert_eq!(
-        i18n.localize(static_key("es-fluent-lang", "es-fluent-lang-en"), None),
+        i18n.localize(static_key("iso-types", "iso-639-1-en"), None),
         Some("English".to_string())
     );
     assert_eq!(
-        i18n.localize(static_key("es-fluent-lang", "es-fluent-lang-en"), None,),
+        i18n.localize(static_key("iso-types", "iso-639-1-en"), None,),
         Some("English".to_string())
     );
     let mut looked_up = None;
     i18n.with_lookup(&mut |lookup| {
-        looked_up = lookup(static_key("es-fluent-lang", "es-fluent-lang-en"), None);
+        looked_up = lookup(static_key("iso-types", "iso-639-1-en"), None);
     });
     assert_eq!(looked_up, Some("English".to_string()));
 }

@@ -12,17 +12,17 @@ establish a new es-fluent project. Read
 | General Rust runtime | `es-fluent-manager-embedded` |
 | Dioxus client or SSR | `es-fluent-manager-dioxus` with the relevant features |
 | Bevy ECS and UI | `es-fluent-manager-bevy` |
-| Typed language picker | `es-fluent-lang` |
+| Typed language picker | `iso-types` with `locales` and `fluent` |
 | FTL generation and validation | `es-fluent-cli` as `cargo es-fluent` |
 | Locale tracking and strict fallback catalog | `es-fluent-build` under `[build-dependencies]` |
 
 Most applications should not depend directly on `es-fluent-derive`,
-`es-fluent-lang-macro`, `es-fluent-manager-core`, or
+`es-fluent-manager-core`, or
 `es-fluent-manager-macros`.
 
 ## Compatible release lines
 
-- `es-fluent`, CLI, embedded manager, and language enum:
+- `es-fluent`, CLI, and embedded manager:
   `0.21.x`.
 - Dioxus manager: `0.21.x` with Dioxus `0.7.x`.
 - Bevy manager: `0.21.x` with Bevy `0.20.x`.
