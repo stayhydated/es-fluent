@@ -4550,7 +4550,6 @@ dependencies = [
  "es-fluent-manager-bevy",
  "es-fluent-manager-embedded",
  "iso-types",
- "strum",
 ]
 
 [[package]]
@@ -6033,7 +6032,7 @@ checksum = "a6cb138bb79a146c1bd460005623e142ef0181e3d0219cb493e02f7d08a35695"
 [[package]]
 name = "iso-types"
 version = "0.1.0"
-source = "git+https://github.com/stayhydated/iso-types?rev=d26593582af07a44d5ce0d5d613e46219c086da8#d26593582af07a44d5ce0d5d613e46219c086da8"
+source = "git+https://github.com/stayhydated/iso-types?rev=533ce985e351388796b89b331b04326825ae987c#533ce985e351388796b89b331b04326825ae987c"
 dependencies = [
  "es-fluent",
  "es-fluent-manager-core",
@@ -6051,7 +6050,7 @@ dependencies = [
 [[package]]
 name = "iso-types-macros"
 version = "0.1.0"
-source = "git+https://github.com/stayhydated/iso-types?rev=d26593582af07a44d5ce0d5d613e46219c086da8#d26593582af07a44d5ce0d5d613e46219c086da8"
+source = "git+https://github.com/stayhydated/iso-types?rev=533ce985e351388796b89b331b04326825ae987c#533ce985e351388796b89b331b04326825ae987c"
 dependencies = [
  "es-fluent-toml",
  "heck",
@@ -10747,7 +10746,6 @@ dependencies = [
  "iso-types",
  "stayhydated-dioxus",
  "stayhydated-site",
- "strum",
 ]
 
 [[package]]

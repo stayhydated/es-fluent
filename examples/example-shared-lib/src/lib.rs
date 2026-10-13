@@ -1,6 +1,5 @@
 use es_fluent::{EsFluent, EsFluentLabel, EsFluentVariants};
-use iso_types::{VariantArray as _, iso_locale};
-use strum::EnumIter;
+use iso_types::{EnumCount as _, iso_locale};
 
 #[cfg(feature = "bevy")]
 use bevy::prelude::*;
@@ -24,17 +23,12 @@ pub enum ButtonState {
 }
 
 #[iso_locale]
-#[derive(Clone, Copy, Debug, EnumIter, Eq, PartialEq)]
 pub enum Languages {}
 
 impl Languages {
     pub fn next(self) -> Self {
-        let variants = Self::VARIANTS;
-        let current_index = variants
-            .iter()
-            .position(|&language| language == self)
-            .expect("generated locale is present in its variant array");
-        variants[(current_index + 1) % variants.len()]
+        Self::from_repr((self as usize + 1) % Self::COUNT)
+            .expect("wrapped ordinal is within the configured locales")
     }
 }
 
