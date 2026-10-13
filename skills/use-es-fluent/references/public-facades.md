@@ -20,6 +20,8 @@ Locale pickers use ICU4X canonical tags and English name data through `iso-types
 Configure current, common locales that ICU4X can name. The locale macro validates
 CLDR modern language coverage, recommended scripts, and current regions at
 compile time; locale variants and deprecated aliases are excluded.
+Import `iso_types::VariantArray` to enumerate a generated locale enum through
+its `VARIANTS` constant slice.
 
 Most applications should not depend directly on `es-fluent-derive`,
 `es-fluent-manager-core`, or

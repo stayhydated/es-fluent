@@ -1,5 +1,5 @@
 use es_fluent::{EsFluent, EsFluentLabel, EsFluentVariants};
-use iso_types::iso_locale;
+use iso_types::{VariantArray as _, iso_locale};
 use strum::EnumIter;
 
 #[cfg(feature = "bevy")]
@@ -29,10 +29,12 @@ pub enum Languages {}
 
 impl Languages {
     pub fn next(self) -> Self {
-        use strum::IntoEnumIterator as _;
-        let all = Self::iter().collect::<Vec<_>>();
-        let current_index = all.iter().position(|&l| l == self).unwrap_or(0);
-        all[(current_index + 1) % all.len()]
+        let variants = Self::VARIANTS;
+        let current_index = variants
+            .iter()
+            .position(|&language| language == self)
+            .expect("generated locale is present in its variant array");
+        variants[(current_index + 1) % variants.len()]
     }
 }
 

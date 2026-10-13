@@ -25,8 +25,9 @@ pub enum Languages {}
 
 For directories `en`, `fr-FR`, and `zh-CN`, the generated variants are
 `En`, `FrFr`, and `ZhCn`. The macro supplies `Clone`, `Copy`, `Debug`, `Eq`,
-`Hash`, and `PartialEq`. Add `strum::EnumIter` when a caller needs that trait;
-`Languages::ALL` already provides a static slice of every locale.
+`Hash`, `PartialEq`, and Strum's `VariantArray`. `Languages::VARIANTS` provides a
+constant slice of every locale. Add `iso_types::strum::EnumIter` when a caller
+needs `IntoEnumIterator`.
 
 `Default` selects the configured fallback. `FromStr` and `TryFrom` accept
 supported Fluent or ICU language identifiers, preserving distinct errors
@@ -47,8 +48,10 @@ Pass a variant directly to manager APIs that accept
 `Into<LanguageIdentifier>`:
 
 ```rust,ignore
+use iso_types::VariantArray as _;
+
 let i18n = es_fluent_manager_embedded::EmbeddedI18n::try_new_with_language(Languages::En)?;
-for language in Languages::ALL {
+for language in Languages::VARIANTS {
     println!("{}: {}", language.code(), i18n.localize_message(language));
 }
 i18n.select_language(Languages::FrFr)?;
