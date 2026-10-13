@@ -4,7 +4,7 @@ use es_fluent::FluentMessage;
 /// A Bevy component that holds localized text content.
 ///
 /// `FluentText` is a generic component that wraps any type implementing
-/// `FluentMessage` and `Clone`. It's designed to work with the `es-fluent`
+/// `FluentMessage`. It's designed to work with the `es-fluent`
 /// localization system in Bevy applications.
 ///
 /// When its message type is registered through `#[derive(BevyFluentText)]` or
@@ -31,17 +31,17 @@ use es_fluent::FluentMessage;
 /// # fn main() {}
 /// ```
 #[derive(Clone, Component)]
-pub struct FluentText<T: FluentMessage + Clone> {
+pub struct FluentText<T: FluentMessage> {
     /// The localized text content.
     pub value: T,
 }
 
-impl<T: FluentMessage + Clone> FluentText<T> {
+impl<T: FluentMessage> FluentText<T> {
     /// Creates a new `FluentText` component with the given value.
     ///
     /// # Arguments
     ///
-    /// * `value` - The text content that implements `FluentMessage` and `Clone`
+    /// * `value` - The text content that implements `FluentMessage`
     ///
     /// # Examples
     ///

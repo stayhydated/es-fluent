@@ -44,7 +44,12 @@ fn mark_locale_refresh_registered<T: 'static>(app: &mut App) -> bool {
 }
 
 fn configure_text_update_set(app: &mut App) {
-    app.configure_sets(PostUpdate, crate::I18nSet::TextUpdate);
+    app.configure_sets(
+        PostUpdate,
+        crate::I18nSet::TextUpdate
+            .before(bevy::text::detect_text_needs_rerender)
+            .before(bevy::ui::UiSystems::Content),
+    );
 }
 
 /// A plugin that initializes the `es-fluent` Bevy integration.
@@ -98,7 +103,7 @@ inventory::collect!(&'static dyn BevyI18nAssetRegistration);
 /// An extension trait for `App` to simplify the registration of `FluentText` components.
 pub trait FluentTextRegistration {
     /// Registers the necessary systems for a `FluentText<T>` component.
-    fn register_fluent_text<T: es_fluent::FluentMessage + Clone + Send + Sync + 'static>(
+    fn register_fluent_text<T: es_fluent::FluentMessage + Send + Sync + 'static>(
         &mut self,
     ) -> &mut Self;
 
@@ -107,75 +112,39 @@ pub trait FluentTextRegistration {
     ///
     /// This ensures that the component's value is updated when the locale changes.
     fn register_fluent_text_from_locale<
-        T: es_fluent::FluentMessage + Clone + crate::RefreshForLocale + Send + Sync + 'static,
+        T: es_fluent::FluentMessage + crate::RefreshForLocale + Send + Sync + 'static,
     >(
         &mut self,
     ) -> &mut Self;
 }
 
 impl FluentTextRegistration for App {
-    fn register_fluent_text<T: es_fluent::FluentMessage + Clone + Send + Sync + 'static>(
+    fn register_fluent_text<T: es_fluent::FluentMessage + Send + Sync + 'static>(
         &mut self,
     ) -> &mut Self {
         if mark_text_systems_registered::<T>(self) {
             configure_text_update_set(self);
             self.add_systems(
                 PostUpdate,
-                (
-                    crate::systems::update_all_fluent_text_on_locale_change::<T>,
-                    crate::systems::update_fluent_text_system::<T>,
-                )
-                    .chain()
-                    .in_set(crate::I18nSet::TextUpdate),
+                crate::systems::update_fluent_text_system::<T>.in_set(crate::I18nSet::TextUpdate),
             );
         }
         self
     }
 
     fn register_fluent_text_from_locale<
-        T: es_fluent::FluentMessage + Clone + crate::RefreshForLocale + Send + Sync + 'static,
+        T: es_fluent::FluentMessage + crate::RefreshForLocale + Send + Sync + 'static,
     >(
         &mut self,
     ) -> &mut Self {
-        let should_register_locale_refresh = mark_locale_refresh_registered::<T>(self);
-        let should_register_text_systems = mark_text_systems_registered::<T>(self);
-
-        match (should_register_locale_refresh, should_register_text_systems) {
-            (true, true) => {
-                configure_text_update_set(self);
-                self.add_systems(
-                    PostUpdate,
-                    (
-                        crate::update_values_on_locale_change::<T>,
-                        crate::systems::update_all_fluent_text_on_locale_change::<T>,
-                        crate::systems::update_fluent_text_system::<T>,
-                    )
-                        .chain()
-                        .in_set(crate::I18nSet::TextUpdate),
-                );
-            },
-            (true, false) => {
-                configure_text_update_set(self);
-                self.add_systems(
-                    PostUpdate,
-                    crate::update_values_on_locale_change::<T>
-                        .in_set(crate::I18nSet::TextUpdate)
-                        .before(crate::systems::update_all_fluent_text_on_locale_change::<T>),
-                );
-            },
-            (false, true) => {
-                configure_text_update_set(self);
-                self.add_systems(
-                    PostUpdate,
-                    (
-                        crate::systems::update_all_fluent_text_on_locale_change::<T>,
-                        crate::systems::update_fluent_text_system::<T>,
-                    )
-                        .chain()
-                        .in_set(crate::I18nSet::TextUpdate),
-                );
-            },
-            (false, false) => {},
+        self.register_fluent_text::<T>();
+        if mark_locale_refresh_registered::<T>(self) {
+            self.add_systems(
+                PostUpdate,
+                crate::update_values_on_locale_change::<T>
+                    .in_set(crate::I18nSet::TextUpdate)
+                    .before(crate::systems::update_fluent_text_system::<T>),
+            );
         }
         self
     }
@@ -184,7 +153,7 @@ impl FluentTextRegistration for App {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{FluentText, LocaleChangedEvent, RefreshForLocale};
+    use crate::{FluentText, LocaleChangedMessage, RefreshForLocale};
     use es_fluent::FluentMessage;
     use unic_langid::{LanguageIdentifier, langid};
 
@@ -211,7 +180,6 @@ mod tests {
         }
     }
 
-    #[derive(Clone)]
     struct PlainMessage(&'static str);
 
     #[derive(Component)]
@@ -277,14 +245,14 @@ mod tests {
         app.insert_resource(crate::ActiveLanguageId(en));
         app.insert_resource(crate::I18nReadyLocales::default());
         app.insert_resource(crate::I18nDomainBundles::default());
-        app.add_message::<LocaleChangedEvent>();
+        app.add_message::<LocaleChangedMessage>();
         app.register_fluent_text_from_locale::<PlainMessage>();
 
         let entity = app
             .world_mut()
             .spawn(FluentText::new(PlainMessage("hello")))
             .id();
-        app.world_mut().write_message(LocaleChangedEvent(fr));
+        app.world_mut().write_message(LocaleChangedMessage(fr));
 
         app.update();
 
@@ -307,7 +275,7 @@ mod tests {
         app.insert_resource(crate::I18nReadyLocales::default());
         app.insert_resource(crate::I18nDomainBundles::default());
         app.insert_resource(TextAfterI18nSet::default());
-        app.add_message::<LocaleChangedEvent>();
+        app.add_message::<LocaleChangedMessage>();
         app.add_systems(
             PostUpdate,
             capture_text_after_i18n_set.after(crate::I18nSet::TextUpdate),
@@ -322,7 +290,7 @@ mod tests {
                 ObservedText,
             ))
             .id();
-        app.world_mut().write_message(LocaleChangedEvent(fr));
+        app.world_mut().write_message(LocaleChangedMessage(fr));
 
         app.update();
 
@@ -331,6 +299,45 @@ mod tests {
         assert_eq!(
             app.world().resource::<TextAfterI18nSet>().0.as_deref(),
             Some("bonjour")
+        );
+    }
+
+    #[test]
+    fn locale_refresh_precedes_ui_content_when_upgrading_plain_registration() {
+        let en = langid!("en");
+        let mut app = App::new();
+        app.insert_resource(crate::I18nAssets::new());
+        app.insert_resource(crate::I18nResource::new(en.clone()));
+        app.insert_resource(crate::RequestedLanguageId(en.clone()));
+        app.insert_resource(crate::ActiveLanguageId(en));
+        app.insert_resource(crate::I18nReadyLocales::default());
+        app.insert_resource(crate::I18nDomainBundles::default());
+        app.init_resource::<TextAfterI18nSet>();
+        app.add_message::<LocaleChangedMessage>();
+        app.add_systems(
+            PostUpdate,
+            capture_text_after_i18n_set.in_set(bevy::ui::UiSystems::Content),
+        );
+        app.register_fluent_text::<PlainMessage>();
+        let entity = app
+            .world_mut()
+            .spawn((
+                FluentText::new(PlainMessage("hello")),
+                Text::default(),
+                ObservedText,
+            ))
+            .id();
+        app.update();
+
+        app.register_fluent_text_from_locale::<PlainMessage>();
+        app.world_mut()
+            .write_message(LocaleChangedMessage(langid!("fr")));
+        app.update();
+
+        assert_eq!(app.world().get::<Text>(entity).unwrap().0, "bonjour");
+        assert_eq!(
+            app.world().resource::<TextAfterI18nSet>().0.as_deref(),
+            Some("bonjour"),
         );
     }
 }

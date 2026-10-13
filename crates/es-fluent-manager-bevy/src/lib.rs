@@ -35,7 +35,7 @@ mod systems;
 pub use components::FluentText;
 pub use context::BevyI18n;
 pub use locale::{
-    ActiveLanguageId, FromLocale, LocaleChangeEvent, LocaleChangedEvent, RefreshForLocale,
+    ActiveLanguageId, FromLocale, LocaleChangeMessage, LocaleChangedMessage, RefreshForLocale,
     RequestedLanguageId,
 };
 pub use plugin::{I18nPlugin, I18nPluginConfig, I18nPluginStartupError};

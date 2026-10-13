@@ -14,11 +14,11 @@ pub enum I18nSet {
     AssetLoading,
     /// `Update`: rebuilds ready Fluent bundle caches from loaded resources.
     BundleRebuild,
-    /// `Update`: handles [`crate::LocaleChangeEvent`] requests.
+    /// `Update`: handles [`crate::LocaleChangeMessage`] requests.
     LocaleChange,
     /// `Update`: publishes pending locale changes once bundles become ready.
     LocaleSync,
     /// `PostUpdate`: refreshes [`crate::FluentText`] values and writes Bevy
-    /// [`Text`] components.
+    /// [`Text`] components before text change detection and UI content measurement.
     TextUpdate,
 }

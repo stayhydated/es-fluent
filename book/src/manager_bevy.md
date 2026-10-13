@@ -13,6 +13,10 @@ es-fluent-manager-bevy = "0.21"
 unic-langid = "0.9"
 ~~~
 
+The manager enables the Bevy asset, text, and UI APIs it uses. Select rendering
+and window backend features in the application's Bevy dependency. The maintained
+UI demo enables Bevy's `ui` feature with `default-features = false`.
+
 Register package resources from a library-reachable module:
 
 ~~~rust
@@ -46,7 +50,7 @@ snake_case source names after locale fallback is exhausted.
 
 ## Localize UI text
 
-Derive `BevyFluentText` for component types that should refresh when
+Derive `BevyFluentText` for message types that should refresh when
 the locale changes, then wrap values in `FluentText<T>`:
 
 ~~~rust
@@ -54,7 +58,7 @@ use bevy::prelude::*;
 use es_fluent::EsFluent;
 use es_fluent_manager_bevy::{BevyFluentText, FluentText};
 
-#[derive(BevyFluentText, Clone, Component, EsFluent)]
+#[derive(BevyFluentText, EsFluent)]
 enum UiMessage {
     StartGame,
     Settings,
@@ -70,6 +74,9 @@ fn spawn_menu(mut commands: Commands) {
 
 Only a type used directly as `FluentText<T>` needs registration.
 Nested message fields are formatted when the parent value refreshes.
+The wrapper is the ECS component; message values only need `FluentMessage`,
+`Send`, `Sync`, and a `'static` lifetime for registration. Cloning a wrapper
+requires a message value that implements `Clone`.
 
 If a named struct field or named enum variant field depends on the requested
 locale, mark it with `#[locale]`. Its type must implement
@@ -97,11 +104,29 @@ Use `RequestedLanguageId` for the latest user request and
 `ActiveLanguageId` for the published locale. Failed asset reloads or
 locale switches keep the last accepted locale active.
 
+Send `LocaleChangeMessage` to request a locale. Read `LocaleChangedMessage`
+for successfully published locale changes and accepted current-locale reloads.
+
+~~~rust
+use bevy::prelude::*;
+use es_fluent_manager_bevy::LocaleChangeMessage;
+use unic_langid::langid;
+
+fn select_french(mut requests: MessageWriter<LocaleChangeMessage>) {
+    requests.write(LocaleChangeMessage(langid!("fr-FR")));
+}
+~~~
+
 ## Order application systems
 
 The plugin labels localization phases with `I18nSet`. Use Bevy's
 `.before(...)` and `.after(...)` APIs when an application
 system must run around locale synchronization or text refresh:
+
+Send locale requests in `Update` before `I18nSet::LocaleChange` to apply them in
+the same frame. Update message values in `Update`; automatic text refresh runs
+in `PostUpdate` before Bevy's text change detection and UI content measurement.
+Changed output sends Bevy `RequestRedraw` messages for the host's window backend.
 
 ~~~rust
 use bevy::prelude::*;
@@ -110,6 +135,7 @@ use es_fluent_manager_bevy::I18nSet;
 fn persist_locale() {}
 fn update_window_title() {}
 
+app.add_systems(Update, select_french.before(I18nSet::LocaleChange));
 app.add_systems(Update, persist_locale.after(I18nSet::LocaleSync));
 app.add_systems(PostUpdate, update_window_title.after(I18nSet::TextUpdate));
 ~~~

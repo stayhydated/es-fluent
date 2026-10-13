@@ -1,5 +1,5 @@
 use crate::{
-    ActiveLanguageId, I18nDomainBundles, I18nReadyLocales, I18nResource, LocaleChangedEvent,
+    ActiveLanguageId, I18nDomainBundles, I18nReadyLocales, I18nResource, LocaleChangedMessage,
     PendingLanguageChange,
 };
 use bevy::ecs::system::SystemParam;
@@ -18,7 +18,7 @@ pub(crate) struct SyncLocaleStateParams<'w, 's> {
     i18n_resource: ResMut<'w, I18nResource>,
     active_language_id: ResMut<'w, ActiveLanguageId>,
     pending_language_change: ResMut<'w, PendingLanguageChange>,
-    locale_changed_events: MessageWriter<'w, LocaleChangedEvent>,
+    locale_changed_messages: MessageWriter<'w, LocaleChangedMessage>,
     redraw_events: MessageWriter<'w, RequestRedraw>,
     last_current_bundle: Local<'s, Option<(LanguageIdentifier, LanguageIdentifier, Option<usize>)>>,
 }
@@ -52,7 +52,7 @@ pub(crate) fn sync_locale_state(mut params: SyncLocaleStateParams) {
                     &pending_language,
                     &mut params.i18n_resource,
                     &mut params.active_language_id,
-                    &mut params.locale_changed_events,
+                    &mut params.locale_changed_messages,
                 );
                 params.pending_language_change.0 = None;
                 if published {
@@ -76,8 +76,8 @@ pub(crate) fn sync_locale_state(mut params: SyncLocaleStateParams) {
             // so `RefreshForLocale` registrations refresh after async loads complete
             // and current-locale hot reloads, but not after rejected rebuilds.
             params
-                .locale_changed_events
-                .write(LocaleChangedEvent(current_lang.clone()));
+                .locale_changed_messages
+                .write(LocaleChangedMessage(current_lang.clone()));
             // Request a redraw so that UI updates even when using WinitSettings::desktop_app()
             params.redraw_events.write(RequestRedraw);
         }
@@ -99,13 +99,13 @@ mod tests {
     }
 
     fn observe_sync_events(
-        mut locale_changed_events: MessageReader<LocaleChangedEvent>,
+        mut locale_changed_messages: MessageReader<LocaleChangedMessage>,
         mut redraw_events: MessageReader<RequestRedraw>,
         mut observed: ResMut<ObservedSyncEvents>,
     ) {
         observed
             .locale_changed
-            .extend(locale_changed_events.read().map(|event| event.0.clone()));
+            .extend(locale_changed_messages.read().map(|event| event.0.clone()));
         observed.redraw_count += redraw_events.read().count();
     }
 
@@ -117,7 +117,7 @@ mod tests {
         pending_language_change: PendingLanguageChange,
     ) -> App {
         let mut app = App::new();
-        app.add_message::<LocaleChangedEvent>()
+        app.add_message::<LocaleChangedMessage>()
             .add_message::<RequestRedraw>()
             .insert_resource(i18n_bundle)
             .insert_resource(i18n_domain_bundles)

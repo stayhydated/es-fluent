@@ -8,7 +8,7 @@ pub struct RequestedLanguageId(pub LanguageIdentifier);
 
 /// A Bevy resource that holds the currently published active `LanguageIdentifier`.
 ///
-/// This is the locale that `LocaleChangedEvent` refers to and that
+/// This is the locale that `LocaleChangedMessage` refers to and that
 /// locale-aware UI should treat as active.
 #[derive(Clone, Resource)]
 pub struct ActiveLanguageId(pub LanguageIdentifier);
@@ -76,21 +76,21 @@ where
 
 /// A Bevy `Message` sent to request a change of the requested locale.
 #[derive(Clone, Message)]
-pub struct LocaleChangeEvent(pub LanguageIdentifier);
+pub struct LocaleChangeMessage(pub LanguageIdentifier);
 
 /// A Bevy `Message` sent after the active locale has been successfully published.
 #[derive(Clone, Message)]
-pub struct LocaleChangedEvent(pub LanguageIdentifier);
+pub struct LocaleChangedMessage(pub LanguageIdentifier);
 
-/// A Bevy system that listens for `LocaleChangedEvent`s and updates components
+/// A Bevy system that listens for `LocaleChangedMessage`s and updates components
 /// that implement `RefreshForLocale`.
 pub fn update_values_on_locale_change<T>(
-    mut locale_changed_events: MessageReader<LocaleChangedEvent>,
+    mut locale_changed_messages: MessageReader<LocaleChangedMessage>,
     mut query: Query<&mut FluentText<T>>,
 ) where
-    T: RefreshForLocale + FluentMessage + Clone + Send + Sync + 'static,
+    T: RefreshForLocale + FluentMessage + Send + Sync + 'static,
 {
-    for event in locale_changed_events.read() {
+    for event in locale_changed_messages.read() {
         for mut fluent_text in query.iter_mut() {
             fluent_text.value.refresh_for_locale(&event.0);
         }

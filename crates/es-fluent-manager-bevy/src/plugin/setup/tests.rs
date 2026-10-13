@@ -1,7 +1,7 @@
 use super::*;
 use crate::{
     ActiveLanguageId, BevyI18nEmbeddedAsset, BundleBuildFailures, I18nDomainBundles,
-    I18nReadyLocales, I18nResourceKey, LocaleChangeEvent, PendingLanguageChange,
+    I18nReadyLocales, I18nResourceKey, LocaleChangeMessage, PendingLanguageChange,
 };
 use bevy::asset::AssetPlugin;
 use bevy::ecs::message::Messages;
@@ -684,7 +684,7 @@ fn configure_app_inserts_runtime_resources_and_locale_messages() {
     );
     assert!(
         app.world()
-            .get_resource::<Messages<LocaleChangeEvent>>()
+            .get_resource::<Messages<LocaleChangeMessage>>()
             .is_some()
     );
     assert_eq!(&app.world().resource::<RequestedLanguageId>().0, &requested);
@@ -703,7 +703,6 @@ fn runtime_sets_allow_user_systems_to_run_after_locale_sync() {
         .init_resource::<I18nDomainBundles>()
         .init_resource::<BundleBuildFailures>()
         .insert_resource(ActiveLanguageAfterLocaleSync::default())
-        .add_message::<bevy::window::RequestRedraw>()
         .add_systems(
             Update,
             capture_active_language_after_locale_sync.after(I18nSet::LocaleSync),
@@ -718,7 +717,8 @@ fn runtime_sets_allow_user_systems_to_run_after_locale_sync() {
     app.world_mut()
         .resource_mut::<I18nReadyLocales>()
         .mark_ready(fr.clone());
-    app.world_mut().write_message(LocaleChangeEvent(fr.clone()));
+    app.world_mut()
+        .write_message(LocaleChangeMessage(fr.clone()));
 
     app.update();
 

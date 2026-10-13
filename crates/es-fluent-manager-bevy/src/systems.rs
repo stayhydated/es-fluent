@@ -1,88 +1,72 @@
-use crate::{BevyI18n, I18nAssets, LocaleChangedEvent, components::FluentText};
-use bevy::prelude::*;
+use crate::{BevyI18n, I18nAssets, LocaleChangedMessage, components::FluentText};
+use bevy::{prelude::*, window::RequestRedraw};
 use es_fluent::FluentMessage;
 
-/// Updates `Text` components based on changed `FluentText` values.
-///
-/// This system handles incremental updates when `FluentText` components change.
-#[doc(hidden)]
-pub fn update_fluent_text_system<T: FluentMessage + Clone + Send + Sync + 'static>(
+/// Refreshes localized text after message changes, locale changes, and bundle reloads.
+pub(crate) fn update_fluent_text_system<T: FluentMessage + Send + Sync + 'static>(
     mut text_query: Query<&mut Text>,
-    fluent_text_query: Query<
-        (Entity, &FluentText<T>, Option<&Children>),
-        Or<(Added<FluentText<T>>, Changed<FluentText<T>>)>,
-    >,
+    fluent_text_query: Query<(Entity, Ref<FluentText<T>>, Option<&Children>)>,
+    mut locale_changed_messages: MessageReader<LocaleChangedMessage>,
     i18n_assets: Res<I18nAssets>,
     i18n: BevyI18n,
+    mut redraw_requests: Option<ResMut<Messages<RequestRedraw>>>,
 ) {
+    let locale_changed = !locale_changed_messages.is_empty();
+    locale_changed_messages.clear();
+
     if !i18n_assets.is_language_loaded(i18n.resolved_language()) {
         return;
     }
-    for (entity, fluent_text, children) in fluent_text_query.iter() {
-        update_text_for_entity(&mut text_query, entity, children, &fluent_text.value, &i18n);
+
+    let refresh_all = locale_changed || i18n.is_bundle_changed();
+    let mut text_changed = false;
+    for (entity, fluent_text, children) in &fluent_text_query {
+        if refresh_all || fluent_text.is_changed() {
+            text_changed |= update_text_for_entity(
+                &mut text_query,
+                entity,
+                children,
+                &fluent_text.value,
+                &i18n,
+            );
+        }
+    }
+
+    if text_changed && let Some(redraw_requests) = redraw_requests.as_mut() {
+        redraw_requests.write(RequestRedraw);
     }
 }
 
-/// Marks all `FluentText<T>` components as changed when locale changes,
-/// and performs a full refresh when the i18n bundle becomes ready.
-#[doc(hidden)]
-pub fn update_all_fluent_text_on_locale_change<T: FluentMessage + Clone + Send + Sync + 'static>(
-    mut locale_changed_events: MessageReader<LocaleChangedEvent>,
-    i18n: BevyI18n,
-    i18n_assets: Res<I18nAssets>,
-    mut text_query: Query<&mut Text>,
-    fluent_text_query: Query<(Entity, &FluentText<T>, Option<&Children>)>,
-    event_loop_proxy: Option<Res<bevy::winit::EventLoopProxyWrapper>>,
-) {
-    // Trigger update when locale changes via event OR when the bundle resource changes
-    // (handles initial load where event may not propagate across schedule boundaries)
-    let should_update = locale_changed_events.read().next().is_some() || i18n.is_bundle_changed();
-
-    if should_update && i18n_assets.is_language_loaded(i18n.resolved_language()) {
-        // Perform a full update of all FluentText components
-        for (entity, fluent_text, children) in fluent_text_query.iter() {
-            update_text_for_entity(&mut text_query, entity, children, &fluent_text.value, &i18n);
-        }
-        // Wake up the event loop to ensure UI updates are visible immediately,
-        // especially when using WinitSettings::desktop_app() which only
-        // redraws on input events.
-        if let Some(proxy) = event_loop_proxy {
-            let _ = proxy.send_event(bevy::winit::WinitUserEvent::WakeUp);
-        }
-    }
-}
-
-#[doc(hidden)]
 fn update_text_for_entity<T: FluentMessage>(
     text_query: &mut Query<&mut Text>,
     entity: Entity,
     children: Option<&Children>,
     value: &T,
     i18n: &BevyI18n<'_>,
-) {
+) -> bool {
     let new_text = i18n.localize_message(value);
+    let mut changed = false;
 
     if let Ok(mut text) = text_query.get_mut(entity) {
-        trace!("Updating direct text on {:?}: {}", entity, &new_text);
-        **text = new_text.clone();
+        changed |= text.set_if_neq(Text::new(new_text.clone()));
     }
 
     if let Some(children) = children {
         for child in children.iter() {
             if let Ok(mut text) = text_query.get_mut(child) {
-                trace!("Updating child text on {:?}: {}", child, &new_text);
-                **text = new_text.clone();
+                changed |= text.set_if_neq(Text::new(new_text.clone()));
             }
         }
     }
+    changed
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::{
-        ActiveLanguageId, FluentResourceScope, FtlAsset, I18nDomainBundles, I18nReadyLocales,
-        I18nResource, I18nResourceKey, RequestedLanguageId,
+        ActiveLanguageId, FluentResourceScope, FluentTextRegistration as _, FtlAsset,
+        I18nDomainBundles, I18nReadyLocales, I18nResource, I18nResourceKey, RequestedLanguageId,
     };
     use es_fluent_manager_core::{
         ModuleResourceSpec, ResourceKey, StaticFluentDomain, SyncFluentBundle,
@@ -166,6 +150,106 @@ mod tests {
         assets
     }
 
+    fn text_app() -> App {
+        let lang = langid!("en-US");
+        let mut app = App::new();
+        app.insert_resource(loaded_assets_for(lang.clone()));
+        app.insert_resource(I18nResource::new(lang.clone()));
+        app.insert_resource(RequestedLanguageId(lang.clone()));
+        app.insert_resource(ActiveLanguageId(lang));
+        app.init_resource::<I18nReadyLocales>();
+        app.init_resource::<I18nDomainBundles>();
+        app.add_message::<LocaleChangedMessage>();
+        app.add_message::<RequestRedraw>();
+        app.register_fluent_text::<FakeMessage>();
+        app
+    }
+
+    #[test]
+    fn unchanged_output_preserves_text_change_ticks_and_does_not_request_redraw() {
+        let mut app = text_app();
+        let child = app.world_mut().spawn(Text::default()).id();
+        let parent = app
+            .world_mut()
+            .spawn((FluentText::new(FakeMessage("hello")), Text::default()))
+            .add_child(child)
+            .id();
+        app.update();
+        assert!(!app.world().resource::<Messages<RequestRedraw>>().is_empty());
+        app.world_mut()
+            .resource_mut::<Messages<RequestRedraw>>()
+            .clear();
+        let parent_tick = app
+            .world()
+            .entity(parent)
+            .get_ref::<Text>()
+            .unwrap()
+            .last_changed();
+        let child_tick = app
+            .world()
+            .entity(child)
+            .get_ref::<Text>()
+            .unwrap()
+            .last_changed();
+
+        app.world_mut()
+            .write_message(LocaleChangedMessage(langid!("en-US")));
+        app.world_mut()
+            .get_mut::<FluentText<FakeMessage>>(parent)
+            .unwrap()
+            .value = FakeMessage("hello");
+        app.update();
+
+        assert_eq!(
+            app.world()
+                .entity(parent)
+                .get_ref::<Text>()
+                .unwrap()
+                .last_changed(),
+            parent_tick
+        );
+        assert_eq!(
+            app.world()
+                .entity(child)
+                .get_ref::<Text>()
+                .unwrap()
+                .last_changed(),
+            child_tick
+        );
+        assert!(app.world().resource::<Messages<RequestRedraw>>().is_empty());
+
+        app.world_mut()
+            .get_mut::<FluentText<FakeMessage>>(parent)
+            .unwrap()
+            .value = FakeMessage("bonjour");
+        app.update();
+        assert_eq!(app.world().get::<Text>(parent).unwrap().0, "bonjour");
+        assert_eq!(app.world().get::<Text>(child).unwrap().0, "bonjour");
+        assert!(!app.world().resource::<Messages<RequestRedraw>>().is_empty());
+    }
+
+    #[test]
+    fn locale_notifications_are_consumed_together_without_next_frame_refresh() {
+        let mut app = text_app();
+        let entity = app
+            .world_mut()
+            .spawn((FluentText::new(FakeMessage("hello")), Text::default()))
+            .id();
+        app.update();
+        app.world_mut()
+            .write_message(LocaleChangedMessage(langid!("fr")));
+        app.world_mut()
+            .write_message(LocaleChangedMessage(langid!("en-US")));
+        app.update();
+
+        app.world_mut().get_mut::<Text>(entity).unwrap().0 = "external override".to_owned();
+        app.update();
+        assert_eq!(
+            app.world().get::<Text>(entity).unwrap().0,
+            "external override"
+        );
+    }
+
     #[test]
     fn update_fluent_text_system_updates_direct_and_child_text() {
         let lang = langid!("en-US");
@@ -176,6 +260,7 @@ mod tests {
         app.insert_resource(RequestedLanguageId(langid!("en-US")));
         app.insert_resource(ActiveLanguageId(langid!("en-US")));
         app.insert_resource(I18nDomainBundles::default());
+        app.add_message::<LocaleChangedMessage>();
         app.add_systems(Update, update_fluent_text_system::<FakeMessage>);
 
         let child = app.world_mut().spawn(Text::new("old child")).id();
@@ -197,7 +282,7 @@ mod tests {
     }
 
     #[test]
-    fn update_all_fluent_text_on_locale_change_updates_all_entities() {
+    fn locale_change_refreshes_all_fluent_text_entities() {
         let lang = langid!("en-US");
         let mut app = App::new();
         app.insert_resource(loaded_assets_for(lang.clone()));
@@ -206,18 +291,15 @@ mod tests {
         app.insert_resource(ActiveLanguageId(lang.clone()));
         app.insert_resource(I18nReadyLocales::default());
         app.insert_resource(I18nDomainBundles::default());
-        app.add_message::<LocaleChangedEvent>();
-        app.add_systems(
-            Update,
-            update_all_fluent_text_on_locale_change::<FakeMessage>,
-        );
+        app.add_message::<LocaleChangedMessage>();
+        app.add_systems(Update, update_fluent_text_system::<FakeMessage>);
 
         let entity = app
             .world_mut()
             .spawn((FluentText::new(FakeMessage("updated")), Text::new("old")))
             .id();
 
-        app.world_mut().write_message(LocaleChangedEvent(lang));
+        app.world_mut().write_message(LocaleChangedMessage(lang));
         app.update();
 
         let text = &app.world().get::<Text>(entity).expect("text").0;
@@ -281,6 +363,7 @@ mod tests {
         app.insert_resource(RequestedLanguageId(requested.clone()));
         app.insert_resource(ActiveLanguageId(requested));
         app.insert_resource(domain_bundles);
+        app.add_message::<LocaleChangedMessage>();
         app.add_systems(Update, update_fluent_text_system::<DomainLookupMessage>);
 
         let app_title = app

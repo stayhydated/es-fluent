@@ -3,7 +3,7 @@ use super::super::runtime::{
 };
 use crate::{
     ActiveLanguageId, BevyFluentTextRegistration, I18nAssets, I18nResource, I18nSet,
-    LocaleChangeEvent, LocaleChangedEvent, PendingLanguageChange, RequestedLanguageId,
+    LocaleChangeMessage, LocaleChangedMessage, PendingLanguageChange, RequestedLanguageId,
 };
 use bevy::prelude::*;
 use unic_langid::LanguageIdentifier;
@@ -32,8 +32,9 @@ pub(in crate::plugin) fn configure_app(
         .insert_resource(RequestedLanguageId(requested_language))
         .insert_resource(ActiveLanguageId(active_language))
         .insert_resource(PendingLanguageChange::default())
-        .add_message::<LocaleChangeEvent>()
-        .add_message::<LocaleChangedEvent>();
+        .add_message::<LocaleChangeMessage>()
+        .add_message::<LocaleChangedMessage>()
+        .add_message::<bevy::window::RequestRedraw>();
 
     app.configure_sets(
         Update,

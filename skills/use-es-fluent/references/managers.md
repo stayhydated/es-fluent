@@ -103,6 +103,13 @@ must implement `TryFrom<&LanguageIdentifier>`. Use
 `I18nSet` only when application systems need explicit ordering
 around locale synchronization or text refresh.
 
+Send `LocaleChangeMessage` in `Update` before `I18nSet::LocaleChange` for
+same-frame selection. `LocaleChangedMessage` announces accepted locale changes
+and current-locale reloads. Update `FluentText<T>` values in `Update`; text refresh
+runs in `PostUpdate` before Bevy text processing. Registration accepts message
+values without `Clone` or `Component`; the wrapper supplies the ECS component.
+Applications select rendering and window backends through their Bevy features.
+
 ## Lookup rules
 
 - Use the concrete context's `localize_message(&value)` for typed

@@ -1,6 +1,6 @@
 use crate::{
     ActiveLanguageId, BundleBuildFailures, I18nAssets, I18nReadyLocales, I18nResource,
-    LanguageSelection, LocaleChangeEvent, LocaleChangedEvent, PendingLanguageChange,
+    LanguageSelection, LocaleChangeMessage, LocaleChangedMessage, PendingLanguageChange,
     RequestedLanguageId,
 };
 use bevy::ecs::system::SystemParam;
@@ -13,7 +13,7 @@ pub(super) fn apply_selected_language(
     selection: &LanguageSelection,
     i18n_resource: &mut I18nResource,
     active_language_id: &mut ActiveLanguageId,
-    locale_changed_events: &mut MessageWriter<LocaleChangedEvent>,
+    locale_changed_messages: &mut MessageWriter<LocaleChangedMessage>,
 ) -> bool {
     if i18n_resource.active_language() == &selection.requested
         && i18n_resource.resolved_language() == &selection.resolved
@@ -33,7 +33,7 @@ pub(super) fn apply_selected_language(
 
     i18n_resource.set_active_language(selection.requested.clone(), selection.resolved.clone());
     active_language_id.0 = selection.requested.clone();
-    locale_changed_events.write(LocaleChangedEvent(selection.requested.clone()));
+    locale_changed_messages.write(LocaleChangedMessage(selection.requested.clone()));
     true
 }
 
@@ -46,7 +46,7 @@ enum RequestedLanguageResolution {
 
 #[derive(SystemParam)]
 pub(crate) struct LocaleChangeParams<'w> {
-    locale_changed_events: MessageWriter<'w, LocaleChangedEvent>,
+    locale_changed_messages: MessageWriter<'w, LocaleChangedMessage>,
     i18n_resource: ResMut<'w, I18nResource>,
     i18n_bundle: Res<'w, I18nReadyLocales>,
     i18n_assets: Res<'w, I18nAssets>,
@@ -140,10 +140,10 @@ fn resolve_requested_language(
 
 #[doc(hidden)]
 pub(crate) fn handle_locale_changes(
-    mut locale_change_events: MessageReader<LocaleChangeEvent>,
+    mut locale_change_messages: MessageReader<LocaleChangeMessage>,
     mut params: LocaleChangeParams,
 ) {
-    for event in locale_change_events.read() {
+    for event in locale_change_messages.read() {
         info!("Changing locale to: {}", event.0);
         params.requested_language_id.0 = event.0.clone();
         let resolution = resolve_requested_language(
@@ -160,7 +160,7 @@ pub(crate) fn handle_locale_changes(
                     &selection,
                     &mut params.i18n_resource,
                     &mut params.active_language_id,
-                    &mut params.locale_changed_events,
+                    &mut params.locale_changed_messages,
                 );
             },
             RequestedLanguageResolution::Pending(selection) => {
@@ -209,7 +209,7 @@ mod tests {
     struct ObservedLocaleChanges(Vec<LanguageIdentifier>);
 
     fn observe_locale_changes(
-        mut events: MessageReader<LocaleChangedEvent>,
+        mut events: MessageReader<LocaleChangedMessage>,
         mut observed: ResMut<ObservedLocaleChanges>,
     ) {
         observed
@@ -245,8 +245,8 @@ mod tests {
     ) -> App {
         let lang = i18n_resource.active_language().clone();
         let mut app = App::new();
-        app.add_message::<LocaleChangeEvent>()
-            .add_message::<LocaleChangedEvent>()
+        app.add_message::<LocaleChangeMessage>()
+            .add_message::<LocaleChangedMessage>()
             .insert_resource(i18n_resource)
             .insert_resource(RequestedLanguageId(lang.clone()))
             .insert_resource(ActiveLanguageId(lang))
@@ -385,7 +385,8 @@ mod tests {
             PendingLanguageChange::default(),
         );
 
-        app.world_mut().write_message(LocaleChangeEvent(fr.clone()));
+        app.world_mut()
+            .write_message(LocaleChangeMessage(fr.clone()));
         app.update();
 
         assert_eq!(app.world().resource::<RequestedLanguageId>().0, fr);
@@ -417,7 +418,7 @@ mod tests {
         );
 
         app.world_mut()
-            .write_message(LocaleChangeEvent(requested.clone()));
+            .write_message(LocaleChangeMessage(requested.clone()));
         app.update();
 
         assert_eq!(app.world().resource::<RequestedLanguageId>().0, requested);
@@ -455,7 +456,8 @@ mod tests {
             I18nResource::new(fr.clone()).with_fallback_manager(fallback_manager),
         );
 
-        app.world_mut().write_message(LocaleChangeEvent(en.clone()));
+        app.world_mut()
+            .write_message(LocaleChangeMessage(en.clone()));
         app.update();
 
         assert_eq!(app.world().resource::<RequestedLanguageId>().0, en);
@@ -480,7 +482,8 @@ mod tests {
             PendingLanguageChange::default(),
         );
 
-        app.world_mut().write_message(LocaleChangeEvent(fr.clone()));
+        app.world_mut()
+            .write_message(LocaleChangeMessage(fr.clone()));
         app.update();
 
         assert_eq!(app.world().resource::<RequestedLanguageId>().0, fr);
@@ -511,8 +514,8 @@ mod tests {
         let mut app = App::new();
         app.add_message::<AssetEvent<FtlAsset>>()
             .add_message::<AssetLoadFailedEvent<FtlAsset>>()
-            .add_message::<LocaleChangeEvent>()
-            .add_message::<LocaleChangedEvent>()
+            .add_message::<LocaleChangeMessage>()
+            .add_message::<LocaleChangedMessage>()
             .insert_resource(I18nResource::new(langid!("en")))
             .insert_resource(RequestedLanguageId(langid!("en")))
             .insert_resource(ActiveLanguageId(langid!("en")))
@@ -532,7 +535,8 @@ mod tests {
                     .chain(),
             );
 
-        app.world_mut().write_message(LocaleChangeEvent(fr.clone()));
+        app.world_mut()
+            .write_message(LocaleChangeMessage(fr.clone()));
         app.update();
 
         assert_eq!(app.world().resource::<RequestedLanguageId>().0, fr);
@@ -560,7 +564,8 @@ mod tests {
             PendingLanguageChange(Some(LanguageSelection::new(fr.clone(), fr.clone()))),
         );
 
-        app.world_mut().write_message(LocaleChangeEvent(de.clone()));
+        app.world_mut()
+            .write_message(LocaleChangeMessage(de.clone()));
         app.update();
 
         assert_eq!(app.world().resource::<RequestedLanguageId>().0, de);
@@ -571,7 +576,7 @@ mod tests {
         app.world_mut().resource_mut::<PendingLanguageChange>().0 =
             Some(LanguageSelection::new(fr.clone(), fr));
         app.world_mut()
-            .write_message(LocaleChangeEvent(langid!("zh-Hant-TW")));
+            .write_message(LocaleChangeMessage(langid!("zh-Hant-TW")));
         app.update();
 
         assert_eq!(
@@ -594,7 +599,7 @@ mod tests {
             PendingLanguageChange::default(),
         );
 
-        app.world_mut().write_message(LocaleChangeEvent(en));
+        app.world_mut().write_message(LocaleChangeMessage(en));
         app.update();
 
         assert!(app.world().resource::<ObservedLocaleChanges>().0.is_empty());

@@ -12,6 +12,10 @@ Requires Rust 1.99 or newer and Bevy 0.20. Message-owning packages provide
 `i18n.toml`, fallback assets, build-script tracking, and library-reachable module
 registration.
 
+The manager enables Bevy's asset, text, and UI APIs. Applications select their
+rendering and window backend features. Text updates request redraws through
+Bevy's `RequestRedraw` message.
+
 ## Features
 
 The default feature set enables `macros`, its implicit
@@ -40,7 +44,7 @@ app.add_plugins(I18nPlugin::with_config(
 
 The plugin loads the selected language and updates localized text components.
 Derive `BevyFluentText` for messages stored in `FluentText<T>`; the demo also
-shows locale-change events. Use `#[locale]` for fields refreshed from the
+shows `LocaleChangeMessage` requests. Use `#[locale]` for fields refreshed from the
 requested locale and `I18nSet` for system ordering. See the [facade][facade] for
 the shared missing-message policy.
 

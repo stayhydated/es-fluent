@@ -19,7 +19,7 @@ default = [ "native" ]
 native = [ "bevy/wayland", "bevy/file_watcher", "es-fluent-manager-bevy/file_watcher" ]
 
 [dependencies]
-bevy = { workspace = true }
+bevy = { features = [ "ui" ], workspace = true }
 es-fluent = { workspace = true }
 es-fluent-manager-bevy = { workspace = true }
 example-shared-lib = { features = [ "bevy" ], path = "../example-shared-lib" }

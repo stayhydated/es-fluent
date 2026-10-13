@@ -362,7 +362,7 @@ fn bevy_i18n_system_param_exposes_context_bound_localization() {
 #[test]
 fn update_values_on_locale_change_updates_registered_fluent_text_values() {
     let mut app = App::new();
-    app.add_message::<LocaleChangedEvent>();
+    app.add_message::<LocaleChangedMessage>();
     app.add_systems(Update, update_values_on_locale_change::<RefreshableMessage>);
 
     let entity = app
@@ -371,7 +371,7 @@ fn update_values_on_locale_change_updates_registered_fluent_text_values() {
         .id();
 
     app.world_mut()
-        .write_message(LocaleChangedEvent(langid!("fr-CA")));
+        .write_message(LocaleChangedMessage(langid!("fr-CA")));
     app.update();
 
     let updated = app
@@ -388,7 +388,7 @@ fn locale_aware_registration_needs_locale_changed_event_to_refresh_values() {
     let mut i18n_assets = I18nAssets::new();
     i18n_assets.add_asset(lang.clone(), "app".to_string(), Handle::default());
 
-    app.add_message::<LocaleChangedEvent>();
+    app.add_message::<LocaleChangedMessage>();
     app.insert_resource(i18n_assets);
     app.insert_resource(I18nReadyLocales::default());
     app.insert_resource(I18nDomainBundles::default());
@@ -426,7 +426,7 @@ fn locale_aware_registration_needs_locale_changed_event_to_refresh_values() {
     assert_eq!(
         &app.world().get::<Text>(entity).expect("text").0,
         "initial",
-        "without a LocaleChangedEvent, locale-aware values should remain unchanged"
+        "without a LocaleChangedMessage, locale-aware values should remain unchanged"
     );
 }
 
