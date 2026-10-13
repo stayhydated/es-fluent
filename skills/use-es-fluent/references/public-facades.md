@@ -13,6 +13,7 @@ establish a new es-fluent project. Read
 | Dioxus client or SSR | `es-fluent-manager-dioxus` with the relevant features |
 | Bevy ECS and UI | `es-fluent-manager-bevy` |
 | Typed language picker | `iso-types` with `locales` and `fluent` |
+| Country, subdivision, currency, and measurement selectors | `iso-types` with the matching catalog features and `fluent` |
 | FTL generation and validation | `es-fluent-cli` as `cargo es-fluent` |
 | Locale tracking and strict fallback catalog | `es-fluent-build` under `[build-dependencies]` |
 
@@ -24,6 +25,14 @@ Import `iso_types::{VariantArray, IntoEnumIterator, EnumCount}` for a generated
 locale enum's `VARIANTS`, `iter()`, and `COUNT`. The macro also supplies
 const canonical `code()`/`into_str()` and checked `from_repr()` using zero-based
 declaration ordinals. Use canonical locale tags for persistence.
+
+Country and currency catalogs are enabled by default. Add `3166-2` for typed
+country/subdivision hierarchy, `units` for 87 common CLDR measurement identifiers,
+and `unit-conversion` for ICU4X conversion. Declare subsets with `iso_enum` using
+`standard = "3166-2"`, `"4217"`, or `"units"`; `catalog_value()` exposes the
+maintained type's metadata and navigation. Country/currency relationships allow
+several active tender currencies per country. Measurement labels use pinned
+CLDR English display names; persist canonical codes.
 
 Most applications should not depend directly on `es-fluent-derive`,
 `es-fluent-manager-core`, or
