@@ -18,7 +18,6 @@ The default feature set enables `derive`.
 
 | Feature | Default | Purpose |
 | --- | --- | --- |
-| `default` | Yes | Enables `derive`. |
 | `derive` | Yes | Re-exports `EsFluent`, `EsFluentChoice`, `EsFluentLabel`, and `EsFluentVariants`. |
 | `debug-embed` | No | Enables embedded manager-core assets and embeds them in native debug builds. |
 | `icu-datetime` | No | Formats `SystemTime` and `Duration` arguments with ICU4X in the active locale. |

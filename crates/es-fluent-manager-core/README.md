@@ -17,7 +17,6 @@ The default feature set enables `embedded`.
 
 | Feature | Default | Purpose |
 | --- | --- | --- |
-| `default` | Yes | Enables `embedded`. |
 | `embedded` | Yes | Provides `rust-embed` asset discovery and embedded module localizers. |
 | `debug-embed` | No | Enables `embedded` and `rust-embed/debug-embed` for native debug assets. |
 

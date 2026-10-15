@@ -17,7 +17,6 @@ The default feature set enables `macros`.
 
 | Feature | Default | Purpose |
 | --- | --- | --- |
-| `default` | Yes | Enables `macros`. |
 | `macros` | Yes | Re-exports `es_fluent_language` from `es-fluent-lang-macro`. |
 | `localized-langs` | No | Displays language names in the selected UI language instead of as autonyms. |
 
