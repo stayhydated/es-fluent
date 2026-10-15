@@ -19,7 +19,6 @@ The default feature set enables `macros` and its implicit
 
 | Feature | Default | Purpose |
 | --- | --- | --- |
-| `default` | Yes | Enables `macros`. |
 | `macros` | Yes | Re-exports the embedded `define_i18n_module!` registration macro. |
 | `es-fluent-manager-macros` | Yes | Implicit feature enabling the optional registration-macro dependency. |
 | `debug-embed` | No | Embeds assets in native debug builds through manager-core, the facade, and `rust-embed`. |

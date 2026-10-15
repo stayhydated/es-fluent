@@ -61,5 +61,33 @@ crates are intended for narrower integration work:
 - `es-fluent-manager-macros` exposes the manager module and Bevy text
   macros re-exported by concrete managers.
 
+For custom localization tooling, choose the lowest-level API that owns the
+operation you need:
+
+| Need | Supporting crate |
+| --- | --- |
+| Parse and validate package-local `i18n.toml` and resolve asset paths | `es-fluent-toml` |
+| Generate, merge, clean, or format FTL outside the CLI | `es-fluent-generate` |
+| Consume typed metadata, names, locales, and asset paths without proc-macro code | `es-fluent-shared` |
+| Reuse derive parsing and validation in a proc-macro integration | `es-fluent-derive-core` |
+| Exchange requests, inventory, results, and filesystem plans with a compatible runner | `es-fluent-runner` |
+| Collect derive inventory and plan operations inside a compatible runner | `es-fluent-cli-helpers` |
+
+Use `ResolvedI18nLayout::from_manifest_dir` from `es-fluent-toml` when a tool
+needs a validated layout for one package. Its input is the package directory,
+not the workspace root unless that root owns the package. See
+[Configure a project](configuration.md) for the configuration contract.
+
+When coordinating generated changes across packages, use
+`es_fluent_generate::plan_generate` to collect each package's `FileTransaction`
+before applying any changes. `generate` plans and applies one package's changes;
+it does not coordinate a workspace-wide operation. Prefer the
+[CLI](cli.md) when you need its package selection and transaction orchestration.
+
+The runner and helper crates serve CLI integrations rather than application
+localization. Keep their request, inventory, and result formats compatible with
+the CLI that launches the runner. Applications should continue to use the
+facade and a runtime manager.
+
 Continue with [Getting started](getting_started.md), or choose a manager in
 [Runtime managers](managers.md).

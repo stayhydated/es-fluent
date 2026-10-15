@@ -26,7 +26,6 @@ No runtime features are enabled by default.
 
 | Feature | Default | Purpose |
 | --- | --- | --- |
-| `default` | Yes | Enables no features. |
 | `client` | No | Enables Dioxus providers, signal-backed handles, and localization hooks. |
 | `ssr` | No | Enables `SsrI18nRuntime` and request-scoped `SsrI18n` with asynchronous loading. |
 

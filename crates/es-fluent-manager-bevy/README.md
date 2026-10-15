@@ -23,7 +23,6 @@ The default feature set enables `macros`, its implicit
 
 | Feature | Default | Purpose |
 | --- | --- | --- |
-| `default` | Yes | Enables `macros` and `file_watcher`. |
 | `macros` | Yes | Re-exports `define_i18n_module!` and the `BevyFluentText` derive. |
 | `es-fluent-manager-macros` | Yes | Implicit feature enabling the optional registration and text macro dependency. |
 | `file_watcher` | Yes | Enables Bevy's `embedded_watcher` and `file_watcher` asset features. |

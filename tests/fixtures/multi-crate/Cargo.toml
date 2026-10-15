@@ -11,4 +11,4 @@ version = "0.0.0"
 es-fluent = { path = "../../../crates/es-fluent" }
 es-fluent-build = { path = "../../../crates/es-fluent-build" }
 es-fluent-manager-embedded = { path = "../../../crates/es-fluent-manager-embedded" }
-unic-langid = "0.9"
+unic-langid = "0.9.6"

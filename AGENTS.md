@@ -52,6 +52,8 @@ or implementation work.
 - Edit book, web, and demo sources before rebuilding their outputs through
   `xtask`. Keep ownership and validation guidance here aligned when those
   workflows change.
+- Regenerate `Cargo.lock` after dependency changes before building the site;
+  the shared Dioxus build helper invokes `dx build` with `--locked`.
 
 ## Cross-crate contracts
 
