@@ -713,7 +713,7 @@ dependencies = [
 
 [[package]]
 name = "bevy-example"
-version = "0.21.0"
+version = "0.21.1"
 dependencies = [
  "bevy",
  "es-fluent",
@@ -4182,7 +4182,7 @@ checksum = "0b5343afd4a8365a643ac588dab4cf234a190c7f6c88c9f6dd6ffe00837661b7"
 
 [[package]]
 name = "es-fluent"
-version = "0.21.0"
+version = "0.21.1"
 dependencies = [
  "chrono",
  "es-fluent-derive",
@@ -4207,7 +4207,7 @@ dependencies = [
 
 [[package]]
 name = "es-fluent-build"
-version = "0.21.0"
+version = "0.21.1"
 dependencies = [
  "es-fluent-shared",
  "es-fluent-toml",
@@ -4219,7 +4219,7 @@ dependencies = [
 
 [[package]]
 name = "es-fluent-cli"
-version = "0.21.0"
+version = "0.21.1"
 dependencies = [
  "anstream",
  "anyhow",
@@ -4269,7 +4269,7 @@ dependencies = [
 
 [[package]]
 name = "es-fluent-cli-helpers"
-version = "0.21.0"
+version = "0.21.1"
 dependencies = [
  "assert_cmd",
  "assert_fs",
@@ -4294,7 +4294,7 @@ dependencies = [
 
 [[package]]
 name = "es-fluent-derive"
-version = "0.21.0"
+version = "0.21.1"
 dependencies = [
  "darling 0.24.1",
  "es-fluent-derive-core",
@@ -4314,7 +4314,7 @@ dependencies = [
 
 [[package]]
 name = "es-fluent-derive-core"
-version = "0.21.0"
+version = "0.21.1"
 dependencies = [
  "bon",
  "darling 0.24.1",
@@ -4337,7 +4337,7 @@ dependencies = [
 
 [[package]]
 name = "es-fluent-generate"
-version = "0.21.0"
+version = "0.21.1"
 dependencies = [
  "colored",
  "criterion",
@@ -4360,7 +4360,7 @@ dependencies = [
 
 [[package]]
 name = "es-fluent-lang"
-version = "0.21.0"
+version = "0.21.1"
 dependencies = [
  "es-fluent-lang-macro",
  "es-fluent-manager-core",
@@ -4375,7 +4375,7 @@ dependencies = [
 
 [[package]]
 name = "es-fluent-lang-macro"
-version = "0.21.0"
+version = "0.21.1"
 dependencies = [
  "es-fluent-derive-core",
  "es-fluent-toml",
@@ -4394,7 +4394,7 @@ dependencies = [
 
 [[package]]
 name = "es-fluent-manager-bevy"
-version = "0.21.0"
+version = "0.21.1"
 dependencies = [
  "bevy",
  "bon",
@@ -4410,7 +4410,7 @@ dependencies = [
 
 [[package]]
 name = "es-fluent-manager-core"
-version = "0.21.0"
+version = "0.21.1"
 dependencies = [
  "es-fluent-shared",
  "fluent-bundle",
@@ -4430,7 +4430,7 @@ dependencies = [
 
 [[package]]
 name = "es-fluent-manager-dioxus"
-version = "0.21.0"
+version = "0.21.1"
 dependencies = [
  "dioxus",
  "dioxus-core",
@@ -4457,7 +4457,7 @@ dependencies = [
 
 [[package]]
 name = "es-fluent-manager-embedded"
-version = "0.21.0"
+version = "0.21.1"
 dependencies = [
  "es-fluent",
  "es-fluent-manager-core",
@@ -4470,7 +4470,7 @@ dependencies = [
 
 [[package]]
 name = "es-fluent-manager-macros"
-version = "0.21.0"
+version = "0.21.1"
 dependencies = [
  "es-fluent-build",
  "es-fluent-derive-core",
@@ -4492,7 +4492,7 @@ dependencies = [
 
 [[package]]
 name = "es-fluent-runner"
-version = "0.21.0"
+version = "0.21.1"
 dependencies = [
  "derive_more",
  "es-fluent-shared",
@@ -4505,7 +4505,7 @@ dependencies = [
 
 [[package]]
 name = "es-fluent-shared"
-version = "0.21.0"
+version = "0.21.1"
 dependencies = [
  "anyhow",
  "camino",
@@ -4528,7 +4528,7 @@ dependencies = [
 
 [[package]]
 name = "es-fluent-toml"
-version = "0.21.0"
+version = "0.21.1"
 dependencies = [
  "bon",
  "es-fluent-shared",
@@ -4575,7 +4575,7 @@ dependencies = [
 
 [[package]]
 name = "example-shared-lib"
-version = "0.21.0"
+version = "0.21.1"
 dependencies = [
  "bevy",
  "es-fluent",
@@ -8608,7 +8608,7 @@ dependencies = [
 
 [[package]]
 name = "readme"
-version = "0.21.0"
+version = "0.21.1"
 dependencies = [
  "es-fluent",
  "es-fluent-build",
@@ -10768,7 +10768,7 @@ dependencies = [
 
 [[package]]
 name = "web"
-version = "0.21.0"
+version = "0.21.1"
 dependencies = [
  "dioxus",
  "es-fluent",
@@ -11693,7 +11693,7 @@ checksum = "e450f9b2ed1dff33c94c12589a87338689467b9c4f5d8a5710bd09a847d2c8a7"
 
 [[package]]
 name = "xtask"
-version = "0.21.0"
+version = "0.21.1"
 dependencies = [
  "anyhow",
  "clap",
