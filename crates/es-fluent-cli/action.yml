@@ -48,7 +48,7 @@ runs:
         version: "v0.16.0"
 
     - name: Install uv
-      uses: astral-sh/setup-uv@v10.2.0
+      uses: astral-sh/setup-uv@v10.3.1
       with:
         enable-cache: false
 
@@ -56,7 +56,7 @@ runs:
       if: inputs.version != '' || startsWith(github.action_ref, 'es-fluent-cli-v')
       env:
         RUSTUP_TOOLCHAIN: ${{ inputs.toolchain }}
-      uses: cargo-bins/cargo-binstall@v1.25.3
+      uses: cargo-bins/cargo-binstall@v1.26.0
       with:
         version: "1.25.1"
 
