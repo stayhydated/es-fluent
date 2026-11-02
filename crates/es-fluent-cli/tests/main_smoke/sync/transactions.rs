@@ -325,7 +325,10 @@ fn binary_sync_rejects_target_ftl_symlink_without_writing_external_file() {
         .assert()
         .failure()
         .stderr(predicate::str::contains("Refusing to sync"))
-        .stderr(predicate::str::contains("target FTL"))
+        .stderr(
+            predicate::str::is_match(r"target[\s│]+FTL")
+                .expect("target FTL diagnostic pattern is valid"),
+        )
         .stderr(predicate::str::contains("paths"))
         .stderr(predicate::str::contains("symlinks"));
 
