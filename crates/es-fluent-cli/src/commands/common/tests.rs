@@ -716,3 +716,25 @@ fn run_generation_for_crates_handles_empty_output_and_dry_run_render_paths() {
         render_generation_results_with_dry_run(&[clean_result], false, GenerationVerb::Clean);
     assert!(!clean_has_errors);
 }
+
+#[test]
+fn validate_generation_paths_checks_declared_domain_layouts() {
+    let temp = crate::test_fixtures::create_test_crate_workspace();
+    fs::write(
+        temp.path().join("i18n.toml"),
+        "assets_dir = \"i18n\"\nfallback_language = \"en\"\ndomains = [\"ui\"]\n",
+    )
+    .expect("declare extra domain");
+    fs::create_dir_all(temp.path().join("i18n/en/ui.ftl")).expect("create domain ftl directory");
+    let workspace = create_workspace_info(&temp);
+
+    let error = validate_generation_paths(&workspace.crates, true)
+        .expect_err("a directory at a domain's FTL path should fail setup");
+
+    let message = error.to_string();
+    assert!(
+        message.contains("fallback locale FTL layout for test-app could not be read")
+            && message.contains("ui.ftl"),
+        "unexpected error: {message}"
+    );
+}

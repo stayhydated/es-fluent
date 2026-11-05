@@ -1,4 +1,3 @@
-use fluent_fallback::env::LocalesProvider;
 use icu_locale::{Locale, fallback::LocaleFallbacker};
 use unic_langid::LanguageIdentifier;
 
@@ -55,11 +54,6 @@ pub fn locale_candidates(requested: &LanguageIdentifier) -> Vec<LanguageIdentifi
     }
 
     locales
-}
-
-/// Returns a CLDR-backed fallback locale list for the requested language.
-pub fn fallback_locales(requested: &LanguageIdentifier) -> impl LocalesProvider {
-    locale_candidates(requested)
 }
 
 /// Picks the first available language from the fallback chain.
@@ -138,9 +132,9 @@ mod tests {
     use unic_langid::langid;
 
     #[test]
-    fn fallback_locales_includes_primary_language() {
+    fn locale_candidates_include_primary_language() {
         let requested = langid!("en-US");
-        let locales: Vec<_> = fallback_locales(&requested).locales().collect();
+        let locales = locale_candidates(&requested);
 
         assert_eq!(locales, vec![langid!("en-US"), langid!("en")]);
     }

@@ -21,7 +21,9 @@ fn main() {
 ~~~
 
 Cargo rebuilds when configured locale files or directories change, and derives
-receive the fallback catalog. The helper supports both
+receive the fallback catalog. The helper also fingerprints `i18n.toml`, locale
+directories, and FTL contents for es-fluent macros, so compiler caches such as
+sccache or kache key their expansions on those inputs. The helper supports both
 [package-local missing-message policies][facade].
 
 [facade]: https://github.com/stayhydated/es-fluent/blob/master/crates/es-fluent/README.md

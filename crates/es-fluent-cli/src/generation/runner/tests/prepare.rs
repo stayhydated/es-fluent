@@ -93,17 +93,22 @@ fn prepare_monolithic_runner_crate_serializes_windows_style_paths() {
     let temp_dir = RunnerMetadataStore::temp_for_workspace(temp.path());
     fs::create_dir_all(temp_dir.base_dir()).expect("create .es-fluent");
     MetadataCache {
+        format: MetadataCache::FORMAT,
         cargo_lock_hash: MetadataCache::hash_cargo_lock(temp.path()).expect("hash lock"),
-        es_fluent_dep: cargo_manifest::Dependency::Detailed(cargo_manifest::DependencyDetail {
-            path: Some(r"C:\work\es-fluent".to_string()),
-            ..Default::default()
-        }),
-        es_fluent_cli_helpers_dep: cargo_manifest::Dependency::Detailed(
+        local_es_fluent_dep: Some(cargo_manifest::Dependency::Detailed(
+            cargo_manifest::DependencyDetail {
+                path: Some(r"C:\work\es-fluent".to_string()),
+                ..Default::default()
+            },
+        )),
+        local_es_fluent_cli_helpers_dep: Some(cargo_manifest::Dependency::Detailed(
             cargo_manifest::DependencyDetail {
                 path: Some(r"C:\work\es-fluent-cli-helpers".to_string()),
                 ..Default::default()
             },
-        ),
+        )),
+        workspace_members: Default::default(),
+        manifest_hashes: Default::default(),
     }
     .save(temp_dir.base_dir())
     .expect("save metadata cache");
@@ -222,4 +227,69 @@ fn prepare_monolithic_runner_crate_includes_manifest_overrides() {
         parsed_manifest["patch"]["crates-io"]["local-dependency"]["path"].as_str(),
         workspace.root_dir.join("vendor/local-dependency").to_str()
     );
+}
+
+#[test]
+fn prepare_monolithic_runner_crate_mirrors_workspace_profiles() {
+    let (_temp, workspace) = create_workspace_fixture("profile-mirror", true);
+    crate::test_fixtures::write_file(
+        &workspace.root_dir.join("Cargo.toml"),
+        "[package]\nname = \"profile-mirror\"\nversion = \"0.1.0\"\nedition = \"2024\"\n\n[profile.dev]\nopt-level = 1\ndebug = \"limited\"\n\n[profile.dev.package.\"*\"]\nopt-level = 3\n",
+    );
+
+    let runner_dir = prepare_monolithic_runner_crate(&workspace).expect("prepare runner");
+    let runner_manifest: Value = toml::from_str(
+        &fs::read_to_string(runner_dir.join("Cargo.toml")).expect("read runner Cargo.toml"),
+    )
+    .expect("parse generated runner manifest");
+
+    assert_eq!(
+        runner_manifest["profile"]["dev"]["opt-level"].as_integer(),
+        Some(1)
+    );
+    assert_eq!(
+        runner_manifest["profile"]["dev"]["debug"].as_str(),
+        Some("limited")
+    );
+    assert_eq!(
+        runner_manifest["profile"]["dev"]["package"]["*"]["opt-level"].as_integer(),
+        Some(3)
+    );
+    assert_eq!(
+        runner_manifest["profile"]["dev"]["package"]["profile-mirror"]["opt-level"].as_integer(),
+        Some(1),
+        "workspace members must keep their base profile instead of the \"*\" override"
+    );
+}
+
+#[test]
+fn prepare_monolithic_runner_crate_keeps_unchanged_files_untouched() {
+    let (_temp, workspace) = create_workspace_fixture("unchanged-runner", true);
+    crate::test_fixtures::write_file(&workspace.root_dir.join("Cargo.lock"), "version = 4\n");
+
+    let runner_dir = prepare_monolithic_runner_crate(&workspace).expect("prepare runner");
+    let generated = [
+        "Cargo.toml",
+        "Cargo.lock",
+        "src/main.rs",
+        ".cargo/config.toml",
+        ".gitignore",
+    ];
+    let past = std::time::SystemTime::UNIX_EPOCH + Duration::from_secs(1_000_000);
+    for path in generated {
+        std::fs::File::options()
+            .write(true)
+            .open(runner_dir.join(path))
+            .and_then(|file| file.set_modified(past))
+            .expect("backdate generated runner file");
+    }
+
+    prepare_monolithic_runner_crate(&workspace).expect("prepare runner again");
+
+    for path in generated {
+        let modified = fs::metadata(runner_dir.join(path))
+            .and_then(|metadata| metadata.modified())
+            .expect("generated file mtime");
+        assert_eq!(modified, past, "{path} should not be rewritten");
+    }
 }

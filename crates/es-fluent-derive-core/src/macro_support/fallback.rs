@@ -21,7 +21,7 @@ enum FallbackCatalog {
     Contents {
         package: String,
         fallback_root: String,
-        contents: Vec<u8>,
+        messages: std::sync::Arc<FallbackCatalogIndex>,
     },
 }
 
@@ -29,6 +29,10 @@ enum FallbackCatalog {
 pub struct FallbackValidation {
     policy: es_fluent_toml::MissingMessagePolicy,
     catalog: FallbackCatalog,
+    /// Exempts a test-only declaration from coverage diagnostics. Deciding
+    /// reads and parses the crate's module tree, so it runs only for a
+    /// diagnostic that would otherwise be reported.
+    source_exemption: Option<std::sync::Arc<DeclarationSource>>,
 }
 
 impl FallbackValidation {
@@ -40,6 +44,7 @@ impl FallbackValidation {
         Self {
             policy,
             catalog: FallbackCatalog::Unconfigured,
+            source_exemption: None,
         }
     }
 
@@ -64,6 +69,20 @@ impl FallbackValidation {
     }
 
     pub fn diagnostic(
+        &self,
+        domain: Option<&FluentDomain>,
+        id: &FluentMessageId,
+        source_name: &str,
+    ) -> Option<String> {
+        let diagnostic = self.unexempted_diagnostic(domain, id, source_name)?;
+        let exempt = self
+            .source_exemption
+            .as_ref()
+            .is_some_and(|declaration| declaration.requires_test());
+        (!exempt).then_some(diagnostic)
+    }
+
+    fn unexempted_diagnostic(
         &self,
         domain: Option<&FluentDomain>,
         id: &FluentMessageId,
@@ -94,10 +113,10 @@ impl FallbackValidation {
             FallbackCatalog::Contents {
                 package,
                 fallback_root,
-                contents,
+                messages,
             } if self.policy == es_fluent_toml::MissingMessagePolicy::Strict => {
                 let domain = domain.map_or(package.as_str(), FluentDomain::as_str);
-                (!fallback_catalog_contains(contents, domain, id.as_str())).then(|| {
+                (!messages.contains(domain, id.as_str())).then(|| {
                     format!(
                         "missing fallback Fluent message `{}` in domain `{domain}` for Rust item `{source_name}`\nexpected a message value under `{fallback_root}`\nhelp: run `cargo es-fluent generate --package {package}` or add the fallback value manually",
                         id.as_str()
@@ -151,8 +170,86 @@ fn fallback_validation_impl(
     let manifest_dir = std::env::var_os("CARGO_MANIFEST_DIR")
         .map(std::path::PathBuf::from)
         .unwrap_or_default();
+    let validation = cached_package_validation(package, manifest_dir);
+
+    // Coverage exemptions apply once the package configuration is valid.
+    let configured = matches!(
+        validation.catalog,
+        FallbackCatalog::Missing { .. }
+            | FallbackCatalog::Unreadable { .. }
+            | FallbackCatalog::Contents { .. }
+    );
+    if !configured {
+        return validation;
+    }
+    let coverage_exempt = || FallbackValidation {
+        policy: validation.policy,
+        catalog: FallbackCatalog::CoverageExempt,
+        source_exemption: None,
+    };
+    if std::env::var_os(INVENTORY_RUNNER_ENV).is_some()
+        || std::env::var_os("UNSTABLE_RUSTDOC_TEST_PATH").is_some()
+    {
+        return coverage_exempt();
+    }
+    match test_requirement(input, derive) {
+        TestRequirement::Required => coverage_exempt(),
+        TestRequirement::NotRequired => validation,
+        TestRequirement::FromSource(declaration) => FallbackValidation {
+            source_exemption: Some(std::sync::Arc::new(declaration)),
+            ..validation
+        },
+    }
+}
+
+/// Returns the package's validation state, reading `i18n.toml` and the
+/// fallback catalog once per package build.
+///
+/// A package with an `es-fluent-build` script has a build-inputs fingerprint
+/// covering everything read here, so the state is reused while the
+/// fingerprint and catalog path are unchanged. The cache keeps one entry per
+/// package, as a long-lived proc-macro server sees many packages and edits.
+/// Without a fingerprint the inputs are read for every expansion.
+fn cached_package_validation(
+    package: String,
+    manifest_dir: std::path::PathBuf,
+) -> FallbackValidation {
+    use std::{
+        collections::HashMap,
+        sync::{LazyLock, Mutex, PoisonError},
+    };
+
+    type CacheKey = (std::path::PathBuf, String);
+    type CacheInputs = (std::ffi::OsString, Option<std::ffi::OsString>);
+    static CACHE: LazyLock<Mutex<HashMap<CacheKey, (CacheInputs, FallbackValidation)>>> =
+        LazyLock::new(Mutex::default);
+
+    let Some(fingerprint) = std::env::var_os(BUILD_INPUTS_FINGERPRINT_ENV) else {
+        return package_validation(package, &manifest_dir);
+    };
+    let inputs = (fingerprint, std::env::var_os(FALLBACK_CATALOG_ENV));
+    let key = (manifest_dir, package);
+    if let Some((cached_inputs, validation)) = CACHE
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .get(&key)
+        && cached_inputs == &inputs
+    {
+        return validation.clone();
+    }
+
+    let validation = package_validation(key.1.clone(), &key.0);
+    CACHE
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .insert(key, (inputs, validation.clone()));
+    validation
+}
+
+/// Reads the package configuration and fallback catalog.
+fn package_validation(package: String, manifest_dir: &std::path::Path) -> FallbackValidation {
     let config_path = manifest_dir.join("i18n.toml");
-    let layout = match es_fluent_toml::ResolvedI18nLayout::from_manifest_dir(&manifest_dir) {
+    let layout = match es_fluent_toml::ResolvedI18nLayout::from_manifest_dir(manifest_dir) {
         Ok(layout) => layout,
         Err(es_fluent_toml::I18nConfigError::NotFound) => {
             return FallbackValidation::unconfigured();
@@ -165,6 +262,7 @@ fn fallback_validation_impl(
                     path: config_path.to_string_lossy().into_owned(),
                     details: error.to_string(),
                 },
+                source_exemption: None,
             };
         },
     };
@@ -177,15 +275,7 @@ fn fallback_validation_impl(
                 path: config_path.to_string_lossy().into_owned(),
                 details: error.to_string(),
             },
-        };
-    }
-    if derive_requires_test(input, derive)
-        || std::env::var_os(INVENTORY_RUNNER_ENV).is_some()
-        || std::env::var_os("UNSTABLE_RUSTDOC_TEST_PATH").is_some()
-    {
-        return FallbackValidation {
-            policy,
-            catalog: FallbackCatalog::CoverageExempt,
+            source_exemption: None,
         };
     }
 
@@ -203,6 +293,7 @@ fn fallback_validation_impl(
                 package,
                 fallback_root,
             },
+            source_exemption: None,
         };
     };
 
@@ -210,7 +301,7 @@ fn fallback_validation_impl(
         Ok(contents) => FallbackCatalog::Contents {
             package,
             fallback_root,
-            contents,
+            messages: FallbackCatalogIndex::decode(&contents).into(),
         },
         Err(error) => FallbackCatalog::Unreadable {
             package,
@@ -218,5 +309,9 @@ fn fallback_validation_impl(
             details: error.to_string(),
         },
     };
-    FallbackValidation { policy, catalog }
+    FallbackValidation {
+        policy,
+        catalog,
+        source_exemption: None,
+    }
 }

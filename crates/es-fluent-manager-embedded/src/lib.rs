@@ -13,9 +13,6 @@ use unic_langid::LanguageIdentifier;
 pub use es_fluent::__inventory;
 
 #[doc(hidden)]
-pub use rust_embed as __rust_embed;
-
-#[doc(hidden)]
 pub use es_fluent_manager_core as __manager_core;
 
 #[doc(hidden)]
@@ -230,7 +227,7 @@ mod tests {
         I18nModule, I18nModuleDescriptor, I18nModuleRegistration, Localizer, ModuleData,
     };
     use std::cell::RefCell;
-    use std::sync::{Mutex, Once, mpsc};
+    use std::sync::{Once, mpsc};
     use std::time::Duration;
     use unic_langid::langid;
 
@@ -259,7 +256,7 @@ mod tests {
     struct TestModule;
 
     struct TestLocalizer {
-        selected: Mutex<LanguageIdentifier>,
+        selected: LanguageIdentifier,
     }
 
     impl I18nModuleDescriptor for TestModule {
@@ -269,30 +266,20 @@ mod tests {
     }
 
     impl I18nModule for TestModule {
-        fn create_localizer(&self) -> Box<dyn Localizer> {
-            Box::new(TestLocalizer {
-                selected: Mutex::new(langid!("en-US")),
-            })
+        fn create_localizer(
+            &self,
+            lang: &LanguageIdentifier,
+        ) -> Result<Box<dyn Localizer>, LocalizationError> {
+            if !TEST_SUPPORTED_LANGUAGES.contains(lang) {
+                return Err(LocalizationError::LanguageNotSupported(lang.clone()));
+            }
+            Ok(Box::new(TestLocalizer {
+                selected: lang.clone(),
+            }))
         }
     }
 
     impl Localizer for TestLocalizer {
-        fn select_language(&self, lang: &LanguageIdentifier) -> Result<(), LocalizationError> {
-            if TEST_SUPPORTED_LANGUAGES
-                .iter()
-                .any(|candidate| candidate == lang)
-            {
-                let mut selected = self
-                    .selected
-                    .lock()
-                    .expect("test localizer language lock should not be poisoned");
-                *selected = lang.clone();
-                Ok(())
-            } else {
-                Err(LocalizationError::LanguageNotSupported(lang.clone()))
-            }
-        }
-
         fn localize<'a>(
             &self,
             key: StaticFluentMessageKey,
@@ -301,11 +288,7 @@ mod tests {
             if key.owner() != "embedded-test-module" || key.domain() != "embedded-test-module" {
                 return None;
             }
-            let selected = self
-                .selected
-                .lock()
-                .expect("test localizer language lock should not be poisoned")
-                .to_string();
+            let selected = self.selected.to_string();
             let value = match (selected.as_str(), key.id().as_str()) {
                 ("en-US", "hello") => "Hello",
                 ("fr", "hello") => "Bonjour",

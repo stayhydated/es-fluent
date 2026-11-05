@@ -190,3 +190,30 @@ fn runner_paths_ignore_application_target_dir_changes() {
         Some(runner_target_dir(temp.path()).to_string_lossy().as_ref())
     );
 }
+
+#[test]
+fn temp_crate_config_extracts_profiles_and_cargo_features() {
+    let temp_dir = tempfile::tempdir().unwrap();
+    let manifest_path = temp_dir.path().join("Cargo.toml");
+    crate::test_fixtures::write_file(
+        &manifest_path,
+        "cargo-features = [\"codegen-backend\"]\n\n[package]\nname = \"profile-test\"\nversion = \"0.1.0\"\n\n[profile.dev]\nopt-level = 1\n\n[profile.wasm-dev]\ninherits = \"dev\"\n",
+    );
+
+    let overrides = TempCrateConfig::extract_manifest_overrides(&manifest_path)
+        .expect("extract manifest overrides");
+
+    assert_eq!(
+        overrides["profile"]["dev"]["opt-level"].as_integer(),
+        Some(1)
+    );
+    assert_eq!(
+        overrides["profile"]["wasm-dev"]["inherits"].as_str(),
+        Some("dev")
+    );
+    assert_eq!(
+        overrides["cargo-features"].as_array().map(Vec::len),
+        Some(1)
+    );
+    assert!(!overrides.contains_key("package"));
+}

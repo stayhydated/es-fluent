@@ -5,7 +5,6 @@ use super::{
 use crate::asset_localization::ModuleData;
 use es_fluent_shared::registry::StaticFluentMessageKey;
 use parking_lot::RwLock;
-use std::io;
 use std::sync::Arc;
 use unic_langid::LanguageIdentifier;
 
@@ -45,9 +44,29 @@ impl std::fmt::Debug for DiscoveredRuntimeI18nModules {
     }
 }
 
+/// A module registration owned by a [`FluentManager`].
+#[derive(Clone)]
+pub(super) enum ManagedModule {
+    /// A registration from the static inventory.
+    Static(&'static dyn I18nModuleRegistration),
+    /// A registration created at runtime, such as a loaded asset module.
+    Shared(Arc<dyn I18nModuleRegistration>),
+}
+
+impl std::ops::Deref for ManagedModule {
+    type Target = dyn I18nModuleRegistration;
+
+    fn deref(&self) -> &Self::Target {
+        match self {
+            Self::Static(module) => *module,
+            Self::Shared(module) => module.as_ref(),
+        }
+    }
+}
+
 /// A manager for Fluent translations.
 pub struct FluentManager {
-    pub(super) modules: Vec<&'static dyn I18nModuleRegistration>,
+    pub(super) modules: Vec<ManagedModule>,
     pub(super) localizers: RwLock<Vec<ManagedLocalizer>>,
 }
 
@@ -82,22 +101,6 @@ fn load_runtime_follower_modules(
         .into_iter()
         .filter(|module| !module.contributes_to_language_selection())
         .collect()
-}
-
-fn unexpected_missing_localizer(module: &ModuleData) -> crate::localization::LocalizationError {
-    io::Error::other(format!(
-        "runtime i18n module '{}' did not create a localizer during language selection",
-        module.name
-    ))
-    .into()
-}
-
-fn format_module_discovery_errors(errors: Vec<ModuleDiscoveryError>) -> String {
-    errors
-        .into_iter()
-        .map(|error| format!("- {error}"))
-        .collect::<Vec<_>>()
-        .join("\n")
 }
 
 pub(crate) fn format_module_names(modules: &[&'static ModuleData]) -> String {
@@ -163,16 +166,6 @@ pub(crate) fn format_module_support_list(modules: &[&'static ModuleData]) -> Str
 }
 
 impl FluentManager {
-    /// Creates a new `FluentManager` with strict discovered-module validation.
-    pub fn new_with_discovered_modules() -> Self {
-        Self::try_new_with_discovered_modules().unwrap_or_else(|errors| {
-            panic!(
-                "failed strict i18n module discovery:\n{}",
-                format_module_discovery_errors(errors)
-            )
-        })
-    }
-
     /// Creates a new `FluentManager` with strict registry validation.
     ///
     /// Returns all invalid module metadata and unresolvable duplicate
@@ -215,8 +208,30 @@ impl FluentManager {
 
     /// Creates a new manager from already discovered runtime modules.
     pub fn from_discovered_modules(discovered: &DiscoveredRuntimeI18nModules) -> Self {
+        Self::from_modules(Vec::new(), discovered)
+    }
+
+    /// Creates a manager from runtime-created modules followed by already
+    /// discovered ones.
+    ///
+    /// Integrations that load module resources at runtime, such as asset
+    /// loaders, register those modules here. Lookups try modules in order.
+    pub fn from_modules(
+        modules: impl IntoIterator<Item = Arc<dyn I18nModuleRegistration>>,
+        discovered: &DiscoveredRuntimeI18nModules,
+    ) -> Self {
         Self {
-            modules: discovered.modules.iter().copied().collect(),
+            modules: modules
+                .into_iter()
+                .map(ManagedModule::Shared)
+                .chain(
+                    discovered
+                        .modules
+                        .iter()
+                        .copied()
+                        .map(ManagedModule::Static),
+                )
+                .collect(),
             localizers: RwLock::default(),
         }
     }
@@ -292,22 +307,8 @@ impl FluentManager {
 
         for module in &self.modules {
             let data = module.data();
-            let Some(localizer) = module.create_localizer() else {
-                let error = unexpected_missing_localizer(data);
-                tracing::error!(
-                    "Module '{}' failed to create a runtime localizer for '{}': {}",
-                    data.name,
-                    lang,
-                    error
-                );
-                if first_non_unsupported_failure.is_none() {
-                    first_non_unsupported_failure = Some((data, error));
-                }
-                continue;
-            };
-
-            match localizer.select_language(lang) {
-                Ok(()) => {
+            match module.create_localizer(lang) {
+                Ok(localizer) => {
                     any_runtime_selected = true;
                     selected_modules.push(data);
                     if module.contributes_to_language_selection() {
@@ -549,10 +550,6 @@ mod tests {
     }
 
     impl Localizer for ManagerInlineLocalizer {
-        fn select_language(&self, _lang: &LanguageIdentifier) -> Result<(), LocalizationError> {
-            Ok(())
-        }
-
         fn localize<'a>(
             &self,
             key: StaticFluentMessageKey,
@@ -563,10 +560,6 @@ mod tests {
     }
 
     impl Localizer for ManagerSharedDomainLocalizer {
-        fn select_language(&self, _lang: &LanguageIdentifier) -> Result<(), LocalizationError> {
-            Ok(())
-        }
-
         fn localize<'a>(
             &self,
             key: StaticFluentMessageKey,
@@ -599,10 +592,6 @@ mod tests {
     }
 
     impl Localizer for ManagerScopedLookupLocalizer {
-        fn select_language(&self, _lang: &LanguageIdentifier) -> Result<(), LocalizationError> {
-            Ok(())
-        }
-
         fn localize<'a>(
             &self,
             key: StaticFluentMessageKey,
@@ -637,8 +626,11 @@ mod tests {
     }
 
     impl I18nModule for ManagerInlineRuntimeModule {
-        fn create_localizer(&self) -> Box<dyn Localizer> {
-            Box::new(ManagerInlineLocalizer("runtime"))
+        fn create_localizer(
+            &self,
+            _lang: &LanguageIdentifier,
+        ) -> Result<Box<dyn Localizer>, LocalizationError> {
+            Ok(Box::new(ManagerInlineLocalizer("runtime")))
         }
     }
 
@@ -649,8 +641,11 @@ mod tests {
     }
 
     impl I18nModule for ManagerInlineFollowerModule {
-        fn create_localizer(&self) -> Box<dyn Localizer> {
-            Box::new(ManagerInlineLocalizer("follower"))
+        fn create_localizer(
+            &self,
+            _lang: &LanguageIdentifier,
+        ) -> Result<Box<dyn Localizer>, LocalizationError> {
+            Ok(Box::new(ManagerInlineLocalizer("follower")))
         }
 
         fn contributes_to_language_selection(&self) -> bool {
@@ -665,11 +660,14 @@ mod tests {
     }
 
     impl I18nModule for ManagerSharedDomainModule {
-        fn create_localizer(&self) -> Box<dyn Localizer> {
-            Box::new(ManagerSharedDomainLocalizer {
+        fn create_localizer(
+            &self,
+            _lang: &LanguageIdentifier,
+        ) -> Result<Box<dyn Localizer>, LocalizationError> {
+            Ok(Box::new(ManagerSharedDomainLocalizer {
                 id: self.id,
                 value: self.value,
-            })
+            }))
         }
     }
 
@@ -710,28 +708,6 @@ mod tests {
     }
 
     #[test]
-    fn private_diagnostic_helpers_format_errors_and_missing_localizers() {
-        let missing = unexpected_missing_localizer(&MANAGER_INLINE_RUNTIME_DATA);
-        assert!(matches!(missing, LocalizationError::IoError(_)));
-        assert!(missing.to_string().contains("manager-inline-runtime"));
-
-        let formatted = format_module_discovery_errors(vec![
-            ModuleDiscoveryError::InconsistentModuleMetadata {
-                name: "one".to_string(),
-                owner: "one-owner".to_string(),
-            },
-            ModuleDiscoveryError::DuplicateModuleRegistration {
-                name: "two".to_string(),
-                owner: "two-owner".to_string(),
-                kind: ModuleRegistrationKind::MetadataOnly,
-                count: 2,
-            },
-        ]);
-        assert!(formatted.contains("- module 'one'"));
-        assert!(formatted.contains("- module 'two'"));
-    }
-
-    #[test]
     fn discovered_runtime_modules_support_empty_debug_clone_and_construction() {
         let discovered = DiscoveredRuntimeI18nModules {
             modules: Vec::<&'static dyn I18nModuleRegistration>::new().into(),
@@ -751,7 +727,7 @@ mod tests {
     #[test]
     fn non_contributing_runtime_modules_follow_selection_without_declaring_support() {
         let manager = FluentManager {
-            modules: vec![&MANAGER_INLINE_FOLLOWER as &dyn I18nModuleRegistration],
+            modules: vec![ManagedModule::Static(&MANAGER_INLINE_FOLLOWER)],
             localizers: RwLock::default(),
         };
 
@@ -772,7 +748,7 @@ mod tests {
     #[test]
     fn non_contributing_runtime_modules_can_follow_externally_supported_locale() {
         let manager = FluentManager {
-            modules: vec![&MANAGER_INLINE_FOLLOWER as &dyn I18nModuleRegistration],
+            modules: vec![ManagedModule::Static(&MANAGER_INLINE_FOLLOWER)],
             localizers: RwLock::default(),
         };
 
@@ -796,7 +772,7 @@ mod tests {
     #[test]
     fn runtime_modules_select_and_replace_active_localizers() {
         let manager = FluentManager {
-            modules: vec![&MANAGER_INLINE_RUNTIME as &dyn I18nModuleRegistration],
+            modules: vec![ManagedModule::Static(&MANAGER_INLINE_RUNTIME)],
             localizers: RwLock::default(),
         };
 
@@ -817,8 +793,8 @@ mod tests {
     fn domain_scoped_lookup_searches_all_localizers_in_the_domain() {
         let manager = FluentManager {
             modules: vec![
-                &MANAGER_SHARED_DOMAIN_FIRST as &dyn I18nModuleRegistration,
-                &MANAGER_SHARED_DOMAIN_SECOND as &dyn I18nModuleRegistration,
+                ManagedModule::Static(&MANAGER_SHARED_DOMAIN_FIRST),
+                ManagedModule::Static(&MANAGER_SHARED_DOMAIN_SECOND),
             ],
             localizers: RwLock::default(),
         };

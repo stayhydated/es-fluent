@@ -82,14 +82,6 @@ fn resource_key(
 }
 
 impl Localizer for SetupTestLocalizer {
-    fn select_language(&self, lang: &LanguageIdentifier) -> Result<(), LocalizationError> {
-        if lang == &langid!("en") {
-            Ok(())
-        } else {
-            Err(LocalizationError::LanguageNotSupported(lang.clone()))
-        }
-    }
-
     fn localize<'a>(
         &self,
         _key: StaticFluentMessageKey,
@@ -100,14 +92,6 @@ impl Localizer for SetupTestLocalizer {
 }
 
 impl Localizer for SetupFollowerLocalizer {
-    fn select_language(&self, lang: &LanguageIdentifier) -> Result<(), LocalizationError> {
-        if lang == &langid!("fr") {
-            Ok(())
-        } else {
-            Err(LocalizationError::LanguageNotSupported(lang.clone()))
-        }
-    }
-
     fn localize<'a>(
         &self,
         key: StaticFluentMessageKey,
@@ -168,8 +152,14 @@ fn setup_test_resource_plan(lang: &LanguageIdentifier) -> Option<Vec<ModuleResou
 }
 
 impl I18nModuleRegistration for SetupTestModule {
-    fn create_localizer(&self) -> Option<Box<dyn Localizer>> {
-        Some(Box::new(SetupTestLocalizer))
+    fn create_localizer(
+        &self,
+        lang: &LanguageIdentifier,
+    ) -> Result<Box<dyn Localizer>, LocalizationError> {
+        if lang != &langid!("en") {
+            return Err(LocalizationError::LanguageNotSupported(lang.clone()));
+        }
+        Ok(Box::new(SetupTestLocalizer))
     }
 
     fn registration_kind(&self) -> ModuleRegistrationKind {
@@ -262,8 +252,14 @@ impl BevyI18nAssetRegistration for SetupEmbeddedAssetModule {
 }
 
 impl I18nModuleRegistration for SetupFollowerModule {
-    fn create_localizer(&self) -> Option<Box<dyn Localizer>> {
-        Some(Box::new(SetupFollowerLocalizer))
+    fn create_localizer(
+        &self,
+        lang: &LanguageIdentifier,
+    ) -> Result<Box<dyn Localizer>, LocalizationError> {
+        if lang != &langid!("fr") {
+            return Err(LocalizationError::LanguageNotSupported(lang.clone()));
+        }
+        Ok(Box::new(SetupFollowerLocalizer))
     }
 
     fn registration_kind(&self) -> ModuleRegistrationKind {

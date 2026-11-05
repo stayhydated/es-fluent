@@ -18,6 +18,30 @@ fn monolithic_runner_staleness_detects_hash_changes() {
 }
 
 #[test]
+fn monolithic_runner_staleness_keeps_inputs_edited_during_the_build_stale() {
+    let (_temp, workspace) = create_workspace_fixture("mid-build-edit", true);
+    let runner = MonolithicRunner::new(&workspace);
+    install_cached_runner(&runner, &workspace, &FakeRunnerBehavior::stdout("ok\n"));
+
+    let inputs_at_build_start = runner.current_inputs().expect("hash runner inputs");
+    let krate = &workspace.crates[0];
+    crate::test_fixtures::write_file(
+        &krate.src_dir.join("lib.rs"),
+        "pub struct EditedMidBuild;\n",
+    );
+    super::super::monolithic::write_runner_cache(
+        &runner,
+        std::time::SystemTime::now(),
+        inputs_at_build_start,
+    );
+
+    assert!(
+        runner.is_stale(),
+        "the cache must record the inputs the build started from"
+    );
+}
+
+#[test]
 fn monolithic_runner_staleness_detects_workspace_manifest_changes() {
     let (_temp, workspace) = create_workspace_fixture("manifest-stale", true);
     let runner = MonolithicRunner::new(&workspace);
@@ -222,5 +246,61 @@ fn monolithic_runner_staleness_rebuilds_when_mtime_changes() {
         cached.runner_mtime,
         current_mtime.saturating_sub(1),
         "staleness checks should not silently rewrite the cache"
+    );
+}
+
+#[test]
+fn monolithic_runner_staleness_detects_dep_info_input_changes() {
+    let (temp, workspace) = create_workspace_fixture("dep-info-input", true);
+    let runner = MonolithicRunner::new(&workspace);
+    install_cached_runner(
+        &runner,
+        &workspace,
+        &FakeRunnerBehavior::stdout("monolithic-runner\n"),
+    );
+
+    let path_dependency = temp.path().join("vendor/helper/src/lib.rs");
+    crate::test_fixtures::write_file(&path_dependency, "pub fn helper() {}\n");
+    let built_at = fs::metadata(&runner.binary_path)
+        .and_then(|metadata| metadata.modified())
+        .expect("runner mtime");
+    std::fs::File::options()
+        .write(true)
+        .open(&path_dependency)
+        .and_then(|file| file.set_modified(built_at - Duration::from_secs(10)))
+        .expect("backdate path dependency");
+    crate::test_fixtures::write_file(
+        &runner.binary_path.with_file_name("es-fluent-runner.d"),
+        &format!(
+            "{}: {}\n",
+            runner.binary_path.display(),
+            path_dependency.display().to_string().replace(' ', "\\ ")
+        ),
+    );
+
+    assert!(
+        !runner.is_stale(),
+        "inputs older than the runner should keep it fresh"
+    );
+
+    std::fs::File::options()
+        .write(true)
+        .open(&path_dependency)
+        .and_then(|file| file.set_modified(built_at + Duration::from_secs(10)))
+        .expect("touch path dependency");
+    assert!(
+        runner.is_stale(),
+        "a newer input outside the i18n crates should mark the runner stale"
+    );
+
+    let mut cache = crate::generation::cache::RunnerCache::load(runner.temp_store.base_dir())
+        .expect("runner cache");
+    cache.build_started_at = Some(built_at + Duration::from_secs(20));
+    cache
+        .save(runner.temp_store.base_dir())
+        .expect("save runner cache");
+    assert!(
+        !runner.is_stale(),
+        "a later build that Cargo did not relink should make the input fresh again"
     );
 }

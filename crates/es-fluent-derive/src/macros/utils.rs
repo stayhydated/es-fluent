@@ -531,6 +531,8 @@ fn generate_inventory_module(
         .map(|metadata| inventory_variant_tokens_for_model(context, metadata))
         .collect();
     let namespace_expr = namespace_rule_tokens(context, namespace.as_ref());
+    let source_file =
+        es_fluent_derive_core::macro_support::registry_source_file_tokens(ident.span());
     let domain_expr = domain
         .as_ref()
         .map(|domain| {
@@ -558,7 +560,7 @@ fn generate_inventory_module(
                         env!("CARGO_PKG_NAME"),
                         #domain_expr,
                     ),
-                    file!(),
+                    #source_file,
                     module_path!(),
                     #namespace_expr,
                 );

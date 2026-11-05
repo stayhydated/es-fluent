@@ -15,13 +15,21 @@ fn fallback_catalog_encodes_only_resolvable_messages() {
             "hello = Hello\nattr-only =\n    .label = Label\n-term = Term\n".to_string(),
         )
         .expect("catalog");
-    let encoded = catalog.encode();
+    let index = FallbackCatalogIndex::decode(&catalog.encode());
 
-    assert!(fallback_catalog_contains(&encoded, "demo", "hello"));
-    assert!(!fallback_catalog_contains(&encoded, "demo", "attr-only"));
-    assert!(!fallback_catalog_contains(&encoded, "demo", "term"));
-    assert!(!fallback_catalog_contains(&encoded, "other", "hello"));
-    assert!(fallback_catalog_contains(b"demo\thello", "demo", "hello"));
+    assert!(index.contains("demo", "hello"));
+    assert!(!index.contains("demo", "attr-only"));
+    assert!(!index.contains("demo", "term"));
+    assert!(!index.contains("other", "hello"));
+    assert!(FallbackCatalogIndex::decode(b"demo\thello").contains("demo", "hello"));
+    assert!(!index.contains("dem", "hello"));
+    assert!(!index.contains("demo", "hell"));
+    assert!(!index.contains("demo", "hello-world"));
+    assert!(!FallbackCatalogIndex::decode(b"demo\thello\n").contains("demo", ""));
+    assert_eq!(
+        FallbackCatalogIndex::decode(b""),
+        FallbackCatalogIndex::default()
+    );
 }
 
 #[test]

@@ -520,40 +520,36 @@ fn locale_setup_issues_for_crates(
             },
         }
 
-        if let Err(error) = crate::ftl::LocaleContext::from_crate(krate, true) {
-            issue_crates.insert(krate.name.to_string());
-            issues.push(ValidationIssue::ValidationExecution(
-                ValidationExecutionError {
-                    src: NamedSource::new(&krate.name, String::new()),
-                    crate_name: krate.name.to_string(),
-                    help: error.to_string(),
-                },
-            ));
-        }
+        let all_ctx = match crate::ftl::LocaleContext::from_crate(krate, true) {
+            Ok(all_ctx) => all_ctx,
+            Err(error) => {
+                issue_crates.insert(krate.name.to_string());
+                issues.push(ValidationIssue::ValidationExecution(
+                    ValidationExecutionError {
+                        src: NamedSource::new(&krate.name, String::new()),
+                        crate_name: krate.name.to_string(),
+                        help: error.to_string(),
+                    },
+                ));
+                continue;
+            },
+        };
 
-        if let Ok(all_ctx) = crate::ftl::LocaleContext::from_crate(krate, true) {
-            for locale in &all_ctx.locales {
-                let locale_dir = all_ctx.locale_dir(locale);
-                if !crate::ftl::is_real_locale_directory(&locale_dir) {
-                    continue;
-                }
+        for locale in &all_ctx.locales {
+            let locale_dir = all_ctx.locale_dir(locale);
+            if !crate::ftl::is_real_locale_directory(&locale_dir) {
+                continue;
+            }
 
-                if let Err(error) = crate::ftl::CrateFtlLayout::from_assets_dir(
-                    &all_ctx.assets_dir,
-                    locale,
-                    &all_ctx.crate_name,
-                )
-                .discover_files()
-                {
-                    issue_crates.insert(krate.name.to_string());
-                    issues.push(ValidationIssue::ValidationExecution(
-                        ValidationExecutionError {
-                            src: NamedSource::new(&krate.name, String::new()),
-                            crate_name: krate.name.to_string(),
-                            help: format!("FTL file layout could not be read: {error}"),
-                        },
-                    ));
-                }
+            if let Err(error) = all_ctx.discover_files(locale) {
+                issue_crates.insert(krate.name.to_string());
+                issues.push(ValidationIssue::ValidationExecution(
+                    ValidationExecutionError {
+                        src: NamedSource::new(&krate.name, String::new()),
+                        crate_name: krate.name.to_string(),
+                        help: format!("FTL file layout could not be read: {error}"),
+                    },
+                ));
             }
         }
     }

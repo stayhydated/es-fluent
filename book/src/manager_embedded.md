@@ -81,6 +81,6 @@ A failed switch keeps the previous ready locale. Cloned
 across the active locale and its cached selection policy. Construct a separate
 manager when independent locale state is required.
 
-WASM debug builds embed locale assets automatically. For other debug targets
-that cannot read assets from the filesystem, enable the manager's
-`debug-embed` feature.
+`define_i18n_module!` compiles the planned locale files into the binary in
+every profile and target, so a built binary runs without its source checkout.
+Locale file and `i18n.toml` changes rebuild the registering package.

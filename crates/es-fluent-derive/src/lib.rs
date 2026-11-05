@@ -5,6 +5,11 @@ mod macros;
 #[cfg(test)]
 mod snapshot_support;
 
+/// Appends the package's i18n input fingerprint reference to a derive expansion.
+fn with_build_inputs(expansion: proc_macro::TokenStream) -> proc_macro::TokenStream {
+    es_fluent_derive_core::macro_support::with_build_inputs(expansion).into()
+}
+
 /// Turns an enum or struct into a localizable message.
 ///
 /// - **Enums**: Each variant becomes a message ID (e.g., `MyEnum::Variant` -> `my_enum-Variant`).
@@ -44,7 +49,7 @@ mod snapshot_support;
 /// - `#[fluent_choice(rename_all = "...")]`: On a unit-only enum deriving `EsFluent`, changes the inferred selector value casing.
 #[proc_macro_derive(EsFluent, attributes(fluent, fluent_choice))]
 pub fn derive_es_fluent(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
-    macros::derive_es_fluent::from(input)
+    with_build_inputs(macros::derive_es_fluent::from(input))
 }
 
 /// Generates variant enums for struct fields.
@@ -76,7 +81,7 @@ pub fn derive_es_fluent(input: proc_macro::TokenStream) -> proc_macro::TokenStre
 /// - Generated enums infer `EsFluentChoice`; do not include `EsFluentChoice` in `derive(...)`.
 #[proc_macro_derive(EsFluentVariants, attributes(fluent_variants, fluent_label, fluent))]
 pub fn derive_es_fluent_variants(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
-    macros::derive_es_fluent_variants::from(input)
+    with_build_inputs(macros::derive_es_fluent_variants::from(input))
 }
 
 /// Allows an enum to be used inside another message as a selector (e.g., for gender or status).
@@ -111,7 +116,7 @@ pub fn derive_es_fluent_variants(input: proc_macro::TokenStream) -> proc_macro::
 /// - Derived variants return validated `StaticFluentVariantKey` values instead of raw selector strings.
 #[proc_macro_derive(EsFluentChoice, attributes(fluent_choice))]
 pub fn derive_fluent_choice(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
-    macros::derive_fluent_choice::from(input)
+    with_build_inputs(macros::derive_fluent_choice::from(input))
 }
 
 /// Generates a helper implementation of the `FluentLabel` trait and registers the type's name as a key.
@@ -144,5 +149,5 @@ pub fn derive_fluent_choice(input: proc_macro::TokenStream) -> proc_macro::Token
 /// - `#[fluent(namespace = "...")]`: Routes generated registrations to a namespaced FTL file.
 #[proc_macro_derive(EsFluentLabel, attributes(fluent_label, fluent))]
 pub fn derive_es_fluent_label(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
-    macros::derive_es_fluent_label::from(input)
+    with_build_inputs(macros::derive_es_fluent_label::from(input))
 }

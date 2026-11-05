@@ -98,7 +98,9 @@ async fn request_i18n() -> Result<(), Box<dyn std::error::Error>> {
 
 `request(...)` and `request_strict(...)` are asynchronous
 because asset reads are asynchronous. Blocking variants are available for
-static generation. Pass `SsrI18n` as a prop or provide it from the request's
+static generation. On native servers, requests share parsed locale files; a
+file is read and parsed again only after its size or modification time
+changes, so edits during development still apply. Pass `SsrI18n` as a prop or provide it from the request's
 component tree, and call `i18n.localize_message(&message)` there. Rebuild and
 render the tree through Dioxus:
 

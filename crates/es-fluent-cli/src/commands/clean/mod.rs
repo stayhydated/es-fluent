@@ -45,10 +45,8 @@ pub fn run_clean(args: CleanArgs) -> Result<(), CliError> {
         workspace.require_all_crates_valid()?;
     }
     validate_generation_paths(&workspace.valid, !args.orphaned)?;
-    if args.orphaned {
-        orphaned::validate_orphaned_scan_setup(&workspace, true)?;
-    }
 
+    // Planning validates the orphan scan setup before anything is written.
     let orphaned_plan = if args.orphaned {
         Some(orphaned::plan_orphaned_files(&workspace, true)?)
     } else {

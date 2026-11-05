@@ -18,10 +18,18 @@ pub(super) fn write_fallback_catalog(
     domains.extend(layout.config.domains.iter().cloned());
 
     let mut catalog = FallbackCatalog::default();
-    let crate_root_assets = assets_dir_is_manifest_root(layout);
+    let manifest_root_locales = if assets_dir_is_manifest_root(layout) {
+        Some(
+            layout
+                .available_locale_names()
+                .map_err(|error| error.to_string())?,
+        )
+    } else {
+        None
+    };
     for domain in domains {
-        let paths = if crate_root_assets {
-            fallback_root_resource_paths(layout, &domain)?
+        let paths = if let Some(locales) = &manifest_root_locales {
+            fallback_root_resource_paths(layout, locales, &domain)?
         } else {
             validate_sparse_catalog_inputs(layout, &domain)?;
             let plans = ResourcePlan::sparse_from_assets(domain.as_str(), &layout.assets_dir)
@@ -62,7 +70,7 @@ pub(super) fn write_fallback_catalog(
         .map_err(|error| format!("failed to write {}: {error}", path.display()))
 }
 
-fn assets_dir_is_manifest_root(layout: &ResolvedI18nLayout) -> bool {
+pub(super) fn assets_dir_is_manifest_root(layout: &ResolvedI18nLayout) -> bool {
     match (
         layout.manifest_dir.canonicalize(),
         layout.assets_dir.canonicalize(),
@@ -115,17 +123,14 @@ pub fn validate_sparse_catalog_inputs(
 
 fn fallback_root_resource_paths(
     layout: &ResolvedI18nLayout,
+    locales: &[String],
     domain: &FluentDomain,
 ) -> Result<Vec<PathBuf>, String> {
-    let locales = layout
-        .available_locale_names()
-        .map_err(|error| error.to_string())?;
-
     let mut fallback_paths = Vec::new();
     for locale in locales {
-        let locale_dir = layout.assets_dir.join(&locale);
+        let locale_dir = layout.assets_dir.join(locale);
         let paths = catalog_resource_paths_for_locale(domain, &locale_dir)?;
-        if locale == layout.fallback_language {
+        if *locale == layout.fallback_language {
             fallback_paths.extend(paths);
         }
     }

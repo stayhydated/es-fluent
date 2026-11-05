@@ -106,6 +106,57 @@ fn rustdoc_synthetic_crate_bypasses_strict_fallback_coverage() {
 }
 
 #[test]
+fn package_validation_is_reused_while_the_build_inputs_fingerprint_is_unchanged() {
+    let temp = tempfile::tempdir().expect("tempdir");
+    std::fs::write(
+        temp.path().join("i18n.toml"),
+        "fallback_language = \"en\"\nassets_dir = \"i18n\"\n",
+    )
+    .expect("write config");
+    let catalog = temp.path().join("fallback.catalog");
+    std::fs::write(&catalog, "cached-package\thello\n").expect("write catalog");
+    let id = FluentMessageId::try_new("hello").expect("valid message id");
+    let input: syn::DeriveInput = syn::parse_quote!(
+        struct Hello;
+    );
+    let diagnostic_with = |fingerprint: Option<&str>| {
+        temp_env::with_vars(
+            [
+                ("CARGO_MANIFEST_DIR", Some(temp.path().as_os_str())),
+                ("CARGO_PKG_NAME", Some(OsStr::new("cached-package"))),
+                (INVENTORY_RUNNER_ENV, None),
+                ("UNSTABLE_RUSTDOC_TEST_PATH", None),
+                (FALLBACK_CATALOG_ENV, Some(catalog.as_os_str())),
+                (
+                    BUILD_INPUTS_FINGERPRINT_ENV,
+                    fingerprint.map(OsStr::new),
+                ),
+            ],
+            || fallback_validation(&input).diagnostic(None, &id, "Hello"),
+        )
+    };
+
+    assert_eq!(diagnostic_with(Some("first")), None);
+    std::fs::write(&catalog, "").expect("clear catalog");
+    assert_eq!(
+        diagnostic_with(Some("first")),
+        None,
+        "an unchanged fingerprint reuses the package state"
+    );
+    assert!(
+        diagnostic_with(Some("second")).is_some(),
+        "a new fingerprint rereads the catalog"
+    );
+
+    std::fs::write(&catalog, "cached-package\thello\n").expect("restore catalog");
+    assert_eq!(
+        diagnostic_with(None),
+        None,
+        "without a fingerprint the catalog is read for every expansion"
+    );
+}
+
+#[test]
 fn cfg_predicates_only_exempt_items_that_require_test() {
     let test_only: syn::DeriveInput = syn::parse_quote! {
         #[cfg(all(unix, test))]
@@ -145,4 +196,50 @@ fn cfg_attr_exemption_is_specific_to_the_test_only_derive() {
         &input.attrs,
         Some(FallbackValidationDerive::EsFluentVariants)
     ));
+}
+
+#[test]
+fn registry_source_file_is_manifest_relative() {
+    use super::source_file::manifest_relative_path;
+    use std::path::Path;
+
+    let manifest_dir = Path::new("/workspace/examples/readme");
+    let cwd = Path::new("/workspace");
+
+    assert_eq!(
+        manifest_relative_path(
+            Path::new("examples/readme/src/namespaces/user/profile.rs"),
+            cwd,
+            manifest_dir,
+        )
+        .as_deref(),
+        Some("src/namespaces/user/profile.rs")
+    );
+    assert_eq!(
+        manifest_relative_path(
+            Path::new("/workspace/examples/readme/src/lib.rs"),
+            Path::new("/elsewhere"),
+            manifest_dir,
+        )
+        .as_deref(),
+        Some("src/lib.rs")
+    );
+    assert_eq!(
+        manifest_relative_path(
+            Path::new("/workspace/target/debug/build/out/generated.rs"),
+            cwd,
+            manifest_dir,
+        ),
+        None
+    );
+    assert_eq!(
+        manifest_relative_path(manifest_dir, cwd, manifest_dir),
+        None
+    );
+}
+
+#[test]
+fn registry_source_file_falls_back_to_file_macro_without_local_file() {
+    let tokens = registry_source_file_tokens(proc_macro2::Span::call_site());
+    assert_eq!(tokens.to_string(), quote!(file!()).to_string());
 }

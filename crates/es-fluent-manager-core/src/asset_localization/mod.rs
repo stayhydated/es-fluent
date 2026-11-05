@@ -5,11 +5,8 @@ mod module;
 mod resource;
 
 pub use loading::{
-    LocaleLoadReport, ResourceLoadError, ResourceLoadStatus, build_locale_load_report,
-    clear_locale_resource, collect_available_languages, collect_locale_resources,
-    load_locale_resource_entries, load_locale_resources, parse_and_store_locale_resource_content,
-    parse_fluent_resource_bytes, parse_fluent_resource_content, record_failed_locale_resource,
-    record_locale_resource_error, record_missing_locale_resource, store_locale_resource,
+    LocaleLoadReport, ResourceLoadError, ResourceLoadStatus, load_locale_resource_entries,
+    parse_fluent_resource_bytes, parse_fluent_resource_content,
 };
 pub use module::{
     I18nModuleDescriptor, ModuleData, ModuleDomain, ModuleRegistryError, StaticModuleDescriptor,
@@ -27,7 +24,7 @@ mod tests {
     use crate::ResourcePlanError;
     use es_fluent_shared::namespace::NamespacePathError;
     use fluent_bundle::FluentResource;
-    use std::collections::{HashMap, HashSet};
+    use std::collections::HashSet;
     use std::sync::Arc;
     use unic_langid::{LanguageIdentifier, langid};
 
@@ -340,7 +337,7 @@ mod tests {
     #[test]
     fn load_locale_resources_centralizes_report_bookkeeping() {
         let plan = resource_plan_for("app", &["ui"]);
-        let (resources, report) = load_locale_resources(&plan, |spec| {
+        let (resources, report) = load_locale_resource_entries(&plan, |spec| {
             if spec.key == ResourceKey::from_static_path("app/ui") {
                 ResourceLoadStatus::Loaded(
                     FluentResource::try_new("hello = Hello".to_string())
@@ -362,44 +359,5 @@ mod tests {
                 ..
             }
         ));
-    }
-
-    #[test]
-    fn locale_state_helpers_track_reports_resources_and_languages() {
-        let lang = langid!("en");
-        let spec = ModuleResourceSpec::new(
-            ResourceKey::from_static_path("app/ui"),
-            LocaleRelativeFtlPath::from_static_path("app/ui.ftl"),
-            true,
-        );
-
-        let mut specs = HashMap::new();
-        specs.insert((lang.clone(), spec.key.clone()), spec.clone());
-        let mut loaded = HashMap::new();
-        let mut errors = HashMap::new();
-
-        parse_and_store_locale_resource_content(
-            &mut loaded,
-            &mut errors,
-            &lang,
-            &spec,
-            "hello = Hello".to_string(),
-        )
-        .expect("store resource");
-
-        let report = build_locale_load_report(&specs, &loaded, &errors, &lang);
-        assert!(report.is_ready());
-        assert_eq!(collect_locale_resources(&loaded, &lang).len(), 1);
-        assert_eq!(collect_available_languages(&specs), vec![lang.clone()]);
-
-        let err =
-            record_failed_locale_resource(&mut loaded, &mut errors, &lang, &spec, "watcher error");
-        assert!(err.is_required());
-
-        let report = build_locale_load_report(&specs, &loaded, &errors, &lang);
-        assert!(!report.is_ready());
-
-        clear_locale_resource(&mut loaded, &mut errors, &lang, &spec.key);
-        assert!(collect_locale_resources(&loaded, &lang).is_empty());
     }
 }

@@ -1,18 +1,35 @@
-use crate::core::CliError;
+use crate::core::{CliError, CrateInfo};
+use crate::ftl::LocaleContext;
 
 use fs_err as fs;
 
 use std::collections::HashSet;
 
+/// A selected package with its fallback-only locale context, read once and
+/// shared by every preflight check.
+pub(super) struct SelectedCrate<'a> {
+    pub(super) krate: &'a CrateInfo,
+    pub(super) ctx: LocaleContext,
+}
+
+pub(super) fn selected_crates(crates: &[CrateInfo]) -> Result<Vec<SelectedCrate<'_>>, CliError> {
+    crates
+        .iter()
+        .map(|krate| {
+            LocaleContext::from_crate(krate, false)
+                .map(|ctx| SelectedCrate { krate, ctx })
+                .map_err(|error| CliError::Other(error.to_string()))
+        })
+        .collect()
+}
+
 pub(super) fn validate_explicit_targets_are_not_fallbacks(
-    crates: &[crate::core::CrateInfo],
+    crates: &[SelectedCrate<'_>],
     targets: &HashSet<String>,
 ) -> Result<(), CliError> {
     let mut invalid_targets = Vec::new();
 
-    for krate in crates {
-        let ctx = crate::ftl::LocaleContext::from_crate(krate, false)
-            .map_err(|error| CliError::Other(error.to_string()))?;
+    for SelectedCrate { krate, ctx } in crates {
         if targets.contains(&ctx.fallback) {
             invalid_targets.push(format!("{} for {}", ctx.fallback, krate.name));
         }
@@ -30,15 +47,13 @@ pub(super) fn validate_explicit_targets_are_not_fallbacks(
 }
 
 pub(super) fn validate_explicit_target_locales_exist(
-    crates: &[crate::core::CrateInfo],
+    crates: &[SelectedCrate<'_>],
     targets: &HashSet<String>,
 ) -> Result<(), CliError> {
     let mut missing = Vec::new();
     let mut not_directories = Vec::new();
 
-    for krate in crates {
-        let ctx = crate::ftl::LocaleContext::from_crate(krate, false)
-            .map_err(|error| CliError::Other(error.to_string()))?;
+    for SelectedCrate { krate, ctx } in crates {
         for target in targets {
             let target_dir = ctx.locale_dir(target);
             let target_path_exists = fs::symlink_metadata(&target_dir).is_ok();
@@ -77,14 +92,12 @@ pub(super) fn validate_explicit_target_locales_exist(
 }
 
 pub(super) fn validate_created_target_locales_visible_to_all_scans(
-    crates: &[crate::core::CrateInfo],
+    crates: &[SelectedCrate<'_>],
     targets: &HashSet<String>,
 ) -> Result<(), CliError> {
     let mut hidden_targets = Vec::new();
 
-    for krate in crates {
-        let ctx = crate::ftl::LocaleContext::from_crate(krate, false)
-            .map_err(|error| CliError::Other(error.to_string()))?;
+    for SelectedCrate { krate, ctx } in crates {
         if ctx.assets_dir != krate.manifest_dir.as_path() {
             continue;
         }
@@ -111,13 +124,11 @@ pub(super) fn validate_created_target_locales_visible_to_all_scans(
 }
 
 pub(super) fn validate_explicit_assets_dirs_are_directories(
-    crates: &[crate::core::CrateInfo],
+    crates: &[SelectedCrate<'_>],
 ) -> Result<(), CliError> {
     let mut invalid_paths = Vec::new();
 
-    for krate in crates {
-        let ctx = crate::ftl::LocaleContext::from_crate(krate, false)
-            .map_err(|error| CliError::Other(error.to_string()))?;
+    for SelectedCrate { krate, ctx } in crates {
         if !ctx.assets_dir.is_dir() {
             invalid_paths.push(format!(
                 "assets_dir for {} is missing or not a directory: {}",
@@ -136,13 +147,11 @@ pub(super) fn validate_explicit_assets_dirs_are_directories(
 }
 
 pub(super) fn validate_all_locale_paths_are_directories(
-    crates: &[crate::core::CrateInfo],
+    crates: &[SelectedCrate<'_>],
 ) -> Result<(), CliError> {
     let mut invalid_paths = Vec::new();
 
-    for krate in crates {
-        let ctx = crate::ftl::LocaleContext::from_crate(krate, false)
-            .map_err(|error| CliError::Other(error.to_string()))?;
+    for SelectedCrate { krate, ctx } in crates {
         if !ctx.assets_dir.is_dir() {
             invalid_paths.push(format!(
                 "assets_dir for {} is missing or not a directory: {}",

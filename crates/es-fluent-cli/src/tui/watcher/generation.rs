@@ -21,20 +21,20 @@ pub(super) fn compute_watch_inputs_hash(
 }
 
 /// Compute a hash of every crate-local and workspace-level input observed by the watcher.
+///
+/// `workspace_hash` comes from
+/// [`crate::generation::cache::compute_workspace_inputs_hash`]; callers
+/// compute it once for all the crates they check.
 pub(super) fn compute_observed_inputs_hash(
-    workspace_root: &Path,
-    manifest_dir: &Path,
-    src_dir: &Path,
-    i18n_config_path: &Path,
-    custom_build_target_path: Option<&Path>,
+    workspace_hash: &str,
+    krate: &CrateInfo,
 ) -> Option<String> {
     let crate_hash = compute_watch_inputs_hash(
-        manifest_dir,
-        src_dir,
-        i18n_config_path,
-        custom_build_target_path,
+        &krate.manifest_dir,
+        &krate.src_dir,
+        &krate.i18n_config_path,
+        krate.custom_build_target_path.as_deref(),
     )?;
-    let workspace_hash = crate::generation::cache::compute_workspace_inputs_hash(workspace_root);
     let mut hasher = blake3::Hasher::new();
     hasher.update(b"crate-inputs\0");
     hasher.update(crate_hash.as_bytes());

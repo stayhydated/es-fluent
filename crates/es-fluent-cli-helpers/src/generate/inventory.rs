@@ -29,11 +29,9 @@ pub(super) fn collect_type_infos(
 pub(super) fn validate_namespaces(
     type_infos: &[&'static FtlTypeInfo],
     manifest_dir: &Path,
+    layout: Option<&ResolvedI18nLayout>,
 ) -> Result<(), GeneratorError> {
-    let layout = ResolvedI18nLayout::from_manifest_dir(manifest_dir).ok();
-    let allowed = layout
-        .as_ref()
-        .and_then(ResolvedI18nLayout::allowed_namespaces);
+    let allowed = layout.and_then(ResolvedI18nLayout::allowed_namespaces);
 
     for info in type_infos {
         let Some(ns) = info

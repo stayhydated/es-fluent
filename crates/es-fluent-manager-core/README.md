@@ -11,18 +11,14 @@ manager alongside the [`es-fluent`][facade] facade.
 
 Requires Rust 1.99 or newer.
 
-## Features
-
-The default feature set enables `embedded`.
-
-| Feature | Default | Purpose |
-| --- | --- | --- |
-| `embedded` | Yes | Provides `rust-embed` asset discovery and embedded module localizers. |
-| `debug-embed` | No | Enables `embedded` and `rust-embed/debug-embed` for native debug assets. |
-
-Disable `embedded` when an asset-backed integration does not use `rust-embed`.
 The [public contracts][api] describe module discovery, language selection,
-typed keys, and final Fluent bundle lookup.
+typed keys, and final Fluent bundle lookup. A module creates one localizer for
+each selected locale. Custom modules can build a `ModuleLocalizer` from each
+fallback locale's resources; it assembles the fallback-chain bundles once and
+serves lookups from them. `FluentManager::from_modules` also accepts modules
+created at runtime, such as asset-loaded ones. `EmbeddedI18nModule` serves
+locale tables compiled into the binary by the embedded manager's registration
+macro.
 
 [facade]: https://github.com/stayhydated/es-fluent/blob/master/crates/es-fluent/README.md
 [embedded-manager]: https://github.com/stayhydated/es-fluent/blob/master/crates/es-fluent-manager-embedded/README.md

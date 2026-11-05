@@ -15,7 +15,7 @@ use proc_macro::TokenStream;
 ///
 /// 1.  Read the `i18n.toml` configuration file.
 /// 2.  Discover the available languages in the configured `assets_dir`.
-/// 3.  Generate a `RustEmbed` struct filtered to the discovered resource plan.
+/// 3.  Embed the discovered resource plan's files with `include_bytes!`.
 /// 4.  Generate an `EmbeddedI18nModule` for the crate.
 #[proc_macro]
 pub fn define_embedded_i18n_module(input: TokenStream) -> TokenStream {
