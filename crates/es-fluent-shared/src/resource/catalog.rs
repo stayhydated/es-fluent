@@ -1,4 +1,4 @@
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashMap, HashSet};
 
 use crate::fluent::{FluentDomain, FluentEntryId, FluentIdentifierError};
 
@@ -8,6 +8,16 @@ pub const FALLBACK_CATALOG_FILE_NAME: &str = "es-fluent-fallback.catalog";
 /// Rust compilation environment variable containing the generated catalog path.
 #[doc(hidden)]
 pub const FALLBACK_CATALOG_ENV: &str = "ES_FLUENT_FALLBACK_CATALOG";
+
+/// Rust compilation environment variable fingerprinting every i18n input that
+/// es-fluent macros read from disk.
+///
+/// `es-fluent-build` sets it, and macros reference it through `env!` so rustc
+/// records the fingerprint in dep-info. Compiler caches that key on dep-info,
+/// such as sccache or kache, then rebuild when `i18n.toml`, locale directories,
+/// or FTL files change.
+#[doc(hidden)]
+pub const BUILD_INPUTS_FINGERPRINT_ENV: &str = "ES_FLUENT_BUILD_INPUTS_FINGERPRINT";
 
 /// Internal environment marker for CLI inventory builds that defer catalog validation.
 #[doc(hidden)]
@@ -118,7 +128,7 @@ impl FallbackCatalog {
         Ok(())
     }
 
-    /// Encodes resolvable messages for const lookup from generated derive code.
+    /// Encodes resolvable messages as `domain\tid` lines for derive validation.
     pub fn encode(&self) -> Vec<u8> {
         let mut encoded = Vec::new();
         for ((domain, id), kind) in &self.entries {
@@ -134,39 +144,35 @@ impl FallbackCatalog {
     }
 }
 
-/// Checks an encoded fallback catalog from generated const validation code.
-pub const fn fallback_catalog_contains(catalog: &[u8], domain: &str, id: &str) -> bool {
-    let domain = domain.as_bytes();
-    let id = id.as_bytes();
-    let mut offset = 0;
+/// A decoded fallback catalog for repeated lookups.
+///
+/// Derives check every generated message against the catalog, so it is
+/// decoded once per package build instead of scanned for each message.
+#[derive(Clone, Debug, Default, Eq, PartialEq)]
+pub struct FallbackCatalogIndex {
+    messages: HashMap<Box<str>, HashSet<Box<str>>>,
+}
 
-    while offset < catalog.len() {
-        let mut cursor = offset;
-        let mut domain_index = 0;
-        while domain_index < domain.len()
-            && cursor < catalog.len()
-            && catalog[cursor] == domain[domain_index]
-        {
-            cursor += 1;
-            domain_index += 1;
+impl FallbackCatalogIndex {
+    /// Decodes a catalog written by [`FallbackCatalog::encode`].
+    pub fn decode(catalog: &[u8]) -> Self {
+        let mut messages = HashMap::<Box<str>, HashSet<Box<str>>>::new();
+        for line in catalog.split(|byte| *byte == b'\n') {
+            let Some((domain, id)) = std::str::from_utf8(line)
+                .ok()
+                .and_then(|line| line.split_once('\t'))
+            else {
+                continue;
+            };
+            messages.entry(domain.into()).or_default().insert(id.into());
         }
-        if domain_index == domain.len() && cursor < catalog.len() && catalog[cursor] == b'\t' {
-            cursor += 1;
-            let mut id_index = 0;
-            while id_index < id.len() && cursor < catalog.len() && catalog[cursor] == id[id_index] {
-                cursor += 1;
-                id_index += 1;
-            }
-            if id_index == id.len() && (cursor == catalog.len() || catalog[cursor] == b'\n') {
-                return true;
-            }
-        }
-
-        while offset < catalog.len() && catalog[offset] != b'\n' {
-            offset += 1;
-        }
-        offset += 1;
+        Self { messages }
     }
 
-    false
+    /// Returns whether the catalog resolves `id` in `domain`.
+    pub fn contains(&self, domain: &str, id: &str) -> bool {
+        self.messages
+            .get(domain)
+            .is_some_and(|ids| ids.contains(id))
+    }
 }

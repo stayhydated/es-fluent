@@ -2,12 +2,14 @@
 #![allow(clippy::needless_doctest_main)]
 
 use es_fluent_shared::resource::{
-    FALLBACK_CATALOG_ENV, FALLBACK_CATALOG_FILE_NAME, INVENTORY_RUNNER_ENV,
+    BUILD_INPUTS_FINGERPRINT_ENV, FALLBACK_CATALOG_ENV, FALLBACK_CATALOG_FILE_NAME,
+    INVENTORY_RUNNER_ENV,
 };
 use es_fluent_toml::ResolvedI18nLayout;
 use std::path::{Path, PathBuf};
 
 mod catalog;
+mod fingerprint;
 
 pub use catalog::validate_sparse_catalog_inputs;
 use catalog::write_fallback_catalog;
@@ -44,7 +46,13 @@ pub fn track_i18n_assets() {
         catalog_path.display()
     );
 
-    if std::env::var_os(INVENTORY_RUNNER_ENV).is_some() {
+    let inventory_runner = std::env::var_os(INVENTORY_RUNNER_ENV).is_some();
+    println!(
+        "cargo:rustc-env={BUILD_INPUTS_FINGERPRINT_ENV}={}",
+        fingerprint::build_inputs_fingerprint(&layout, inventory_runner)
+    );
+
+    if inventory_runner {
         std::fs::write(&catalog_path, b"")
             .expect("Failed to initialize fallback Fluent message catalog");
         return;

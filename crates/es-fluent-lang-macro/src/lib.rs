@@ -61,7 +61,11 @@ impl CratePaths {
 /// - Make your FTL files the source of truth for language labels
 #[proc_macro_attribute]
 pub fn es_fluent_language(attr: TokenStream, item: TokenStream) -> TokenStream {
-    expand_es_fluent_language(attr.into(), item.into()).into()
+    es_fluent_derive_core::macro_support::with_build_inputs(expand_es_fluent_language(
+        attr.into(),
+        item.into(),
+    ))
+    .into()
 }
 
 fn expand_es_fluent_language(
@@ -586,6 +590,8 @@ fn generate_inventory_submit(
     let type_name = enum_ident.to_string().trim_start_matches("r#").to_string();
     let module_suffix = type_name.to_snake_case();
     let mod_name = format_ident!("__es_fluent_language_inventory_{module_suffix}");
+    let source_file =
+        es_fluent_derive_core::macro_support::registry_source_file_tokens(enum_ident.span());
     let variants = inventory
         .messages()
         .iter()
@@ -610,7 +616,7 @@ fn generate_inventory_submit(
                         env!("CARGO_PKG_NAME"),
                         None,
                     ),
-                    file!(),
+                    #source_file,
                     module_path!(),
                     None,
                 );
