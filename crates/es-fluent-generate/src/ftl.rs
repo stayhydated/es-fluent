@@ -73,6 +73,23 @@ pub fn parse_ftl_file_with_errors(
 /// Parse an FTL file and reject parser errors.
 pub fn parse_ftl_file(ftl_path: &Path) -> std::io::Result<ast::Resource<String>> {
     let (resource, errors) = parse_ftl_file_with_errors(ftl_path)?;
+    reject_parse_errors(ftl_path, resource, errors)
+}
+
+/// Parse the already-read contents of `ftl_path` and reject parser errors.
+pub fn parse_ftl_file_content(
+    ftl_path: &Path,
+    content: String,
+) -> std::io::Result<ast::Resource<String>> {
+    let (resource, errors) = parse_ftl_content(content);
+    reject_parse_errors(ftl_path, resource, errors)
+}
+
+fn reject_parse_errors(
+    ftl_path: &Path,
+    resource: ast::Resource<String>,
+    errors: Vec<fluent_syntax::parser::ParserError>,
+) -> std::io::Result<ast::Resource<String>> {
     if errors.is_empty() {
         Ok(resource)
     } else {

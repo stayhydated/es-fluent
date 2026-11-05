@@ -24,13 +24,40 @@ pub fn plan_clean<P: AsRef<Path>, M: AsRef<Path>, I: AsRef<FtlTypeInfo>>(
     manifest_dir: M,
     items: &[I],
 ) -> EsFluentResult<FileTransaction> {
-    let i18n_path = i18n_path.as_ref();
-    let manifest_dir = manifest_dir.as_ref();
-    let mut transaction = FileTransaction::default();
+    plan_clean_locales(crate_name, [i18n_path], manifest_dir, items)
+}
 
-    let operation = crate::pipeline::OutputOperation::Clean;
-    let planned_outputs =
-        crate::pipeline::plan_outputs(crate_name, i18n_path, manifest_dir, items)?;
+/// Plans stale-entry and stale-file removal for several locale directories,
+/// reading the package's `i18n.toml` once.
+pub fn plan_clean_locales<P: AsRef<Path>, M: AsRef<Path>, I: AsRef<FtlTypeInfo>>(
+    crate_name: &str,
+    i18n_paths: impl IntoIterator<Item = P>,
+    manifest_dir: M,
+    items: &[I],
+) -> EsFluentResult<FileTransaction> {
+    let manifest_dir = manifest_dir.as_ref();
+    let owned_domains = owned_domains(crate_name, manifest_dir, items)?;
+    let mut transaction = FileTransaction::default();
+    for i18n_path in i18n_paths {
+        let planned = plan_clean_locale(
+            crate_name,
+            i18n_path.as_ref(),
+            manifest_dir,
+            items,
+            &owned_domains,
+        )?;
+        transaction.extend(planned).map_err(std::io::Error::other)?;
+    }
+    Ok(transaction)
+}
+
+/// Returns the package name, the domains of `items`, and the domains the
+/// package's `i18n.toml` declares.
+fn owned_domains<I: AsRef<FtlTypeInfo>>(
+    crate_name: &str,
+    manifest_dir: &Path,
+    items: &[I],
+) -> EsFluentResult<Vec<String>> {
     let mut owned_domains = vec![crate_name.to_string()];
     owned_domains.extend(items.iter().filter_map(|item| {
         item.as_ref()
@@ -49,6 +76,21 @@ pub fn plan_clean<P: AsRef<Path>, M: AsRef<Path>, I: AsRef<FtlTypeInfo>>(
     }
     owned_domains.sort();
     owned_domains.dedup();
+    Ok(owned_domains)
+}
+
+fn plan_clean_locale<I: AsRef<FtlTypeInfo>>(
+    crate_name: &str,
+    i18n_path: &Path,
+    manifest_dir: &Path,
+    items: &[I],
+    owned_domains: &[String],
+) -> EsFluentResult<FileTransaction> {
+    let mut transaction = FileTransaction::default();
+
+    let operation = crate::pipeline::OutputOperation::Clean;
+    let planned_outputs =
+        crate::pipeline::plan_outputs(crate_name, i18n_path, manifest_dir, items)?;
     let expected_main_files = planned_outputs
         .iter()
         .filter(|output| output.route.is_base())
@@ -70,7 +112,7 @@ pub fn plan_clean<P: AsRef<Path>, M: AsRef<Path>, I: AsRef<FtlTypeInfo>>(
         }
         plan_stale_namespace_files(
             &mut transaction,
-            &domain,
+            domain,
             i18n_path,
             &expected_namespace_files,
         )?;

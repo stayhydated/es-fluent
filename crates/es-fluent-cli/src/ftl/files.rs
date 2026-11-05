@@ -24,6 +24,7 @@ pub struct CrateFtlLayout {
 
 impl CrateFtlLayout {
     /// Create a layout from an assets directory and locale name.
+    #[cfg(test)]
     pub fn from_assets_dir(assets_dir: &Path, locale: &str, crate_name: &str) -> Self {
         Self::new(locale_output_dir(assets_dir, locale), crate_name)
     }
@@ -47,6 +48,7 @@ impl CrateFtlLayout {
     }
 
     /// Discover all FTL files for this crate in the locale.
+    #[cfg(test)]
     pub fn discover_files(&self) -> Result<Vec<FtlFileInfo>> {
         discover_crate_ftl_files_in_locale_dir(&self.locale_dir, &self.crate_name)
     }

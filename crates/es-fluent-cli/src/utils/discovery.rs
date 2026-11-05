@@ -4,8 +4,9 @@ use crate::core::{
 };
 use anyhow::{Context as _, Result};
 use cargo_metadata::{MetadataCommand, TargetKind};
-use es_fluent_runner::PackageName;
+use es_fluent_runner::{FileTransaction, PackageName};
 use es_fluent_toml::ResolvedI18nLayout;
+use std::collections::{BTreeSet, HashMap};
 use std::path::{Path, PathBuf};
 
 pub(crate) enum DiscoveryScope<'a> {
@@ -269,16 +270,45 @@ fn workspace_relative_path(path: &Path, workspace_root: &Path) -> String {
     crate::utils::paths::relative_slash_path(path, workspace_root)
 }
 
-/// Counts the number of FTL resources (message keys) for a specific crate.
-pub fn count_ftl_resources(ftl_output_dir: &Path, crate_name: &str) -> usize {
-    let Ok(files) = crate::ftl::discover_crate_ftl_files_in_locale_dir(ftl_output_dir, crate_name)
-    else {
-        return 0;
-    };
+/// Counts the messages and terms in a package's fallback FTL files as they
+/// will be once `transaction` is applied.
+///
+/// Files the transaction writes or removes use their planned contents; other
+/// files are read from disk. Files that fail to parse count as empty.
+pub fn count_ftl_resources(
+    ftl_output_dir: &Path,
+    domains: &[String],
+    transaction: &FileTransaction,
+) -> usize {
+    let planned = transaction
+        .mutations()
+        .iter()
+        .map(|mutation| (mutation.path(), mutation.replacement()))
+        .collect::<HashMap<_, _>>();
+    let mut paths = crate::ftl::discover_domain_ftl_files_in_locale_dir(ftl_output_dir, domains)
+        .map(|files| {
+            files
+                .into_iter()
+                .map(|file| file.abs_path)
+                .collect::<BTreeSet<_>>()
+        })
+        .unwrap_or_default();
+    paths.extend(
+        planned
+            .keys()
+            .filter(|path| is_domain_ftl_path(ftl_output_dir, domains, path))
+            .map(|path| path.to_path_buf()),
+    );
 
-    files
-        .into_iter()
-        .filter_map(|file| crate::ftl::parse_ftl_file(&file.abs_path).ok())
+    paths
+        .iter()
+        .filter_map(|path| match planned.get(path.as_path()) {
+            Some(replacement) => {
+                replacement.and_then(|bytes| String::from_utf8(bytes.to_vec()).ok())
+            },
+            None => std::fs::read_to_string(path).ok(),
+        })
+        .filter_map(|source| fluent_syntax::parser::parse(source).ok())
         .map(|resource| {
             resource
                 .body
@@ -292,6 +322,31 @@ pub fn count_ftl_resources(ftl_output_dir: &Path, crate_name: &str) -> usize {
                 .count()
         })
         .sum()
+}
+
+/// Whether `path` is a domain's main file or one of its namespace files.
+fn is_domain_ftl_path(ftl_output_dir: &Path, domains: &[String], path: &Path) -> bool {
+    let Ok(relative) = path.strip_prefix(ftl_output_dir) else {
+        return false;
+    };
+    if relative
+        .extension()
+        .is_none_or(|extension| extension != "ftl")
+    {
+        return false;
+    }
+    let mut components = relative.components();
+    let Some(first) = components.next() else {
+        return false;
+    };
+    let nested = components.next().is_some();
+    domains.iter().any(|domain| {
+        if nested {
+            first.as_os_str() == domain.as_str()
+        } else {
+            first.as_os_str() == format!("{domain}.ftl").as_str()
+        }
+    })
 }
 
 #[cfg(test)]
@@ -316,13 +371,13 @@ mod tests {
     #[test]
     fn test_count_ftl_resources_empty() {
         let temp = tempfile::tempdir().unwrap();
-        assert_eq!(count_ftl_resources(temp.path(), "test-crate"), 0);
+        assert_eq!(count(temp.path(), &FileTransaction::default()), 0);
     }
 
     #[test]
     fn test_count_ftl_resources_nonexistent() {
         assert_eq!(
-            count_ftl_resources(Path::new("/nonexistent/path"), "test-crate"),
+            count(Path::new("/nonexistent/path"), &FileTransaction::default()),
             0
         );
     }
@@ -450,8 +505,8 @@ mod tests {
         )
         .expect("write ftl");
 
-        // Count logic is line-based and should count `hello`, `-world`, and `plain`.
-        assert_eq!(count_ftl_resources(&locale_dir, "test-crate"), 3);
+        // Counts the `hello` message, the `-world` term, and the `plain` message.
+        assert_eq!(count(&locale_dir, &FileTransaction::default()), 3);
     }
 
     #[test]
@@ -513,6 +568,44 @@ mod tests {
         let locale_dir = temp.path().join("en");
         fs::create_dir_all(locale_dir.join("test-crate.ftl")).expect("create fake ftl dir");
 
-        assert_eq!(count_ftl_resources(&locale_dir, "test-crate"), 0);
+        assert_eq!(count(&locale_dir, &FileTransaction::default()), 0);
+    }
+
+    fn count(locale_dir: &Path, transaction: &FileTransaction) -> usize {
+        count_ftl_resources(locale_dir, &["test-crate".to_string()], transaction)
+    }
+
+    #[test]
+    fn count_ftl_resources_reflects_planned_writes_and_removals() {
+        let temp = tempfile::tempdir().expect("tempdir");
+        let locale_dir = temp.path().join("en");
+        fs::create_dir_all(&locale_dir).expect("create locale");
+        fs::write(locale_dir.join("test-crate.ftl"), "old = Old\n").expect("write main");
+        fs::write(locale_dir.join("other-domain.ftl"), "kept = Kept\n").expect("write domain");
+        fs::write(locale_dir.join("unrelated.ftl"), "skip = Skip\n").expect("write unrelated");
+        fs::create_dir_all(locale_dir.join("test-crate")).expect("create namespace dir");
+        fs::write(locale_dir.join("test-crate/stale.ftl"), "stale = Stale\n").expect("write stale");
+
+        let mut transaction = FileTransaction::default();
+        transaction
+            .plan_write(locale_dir.join("test-crate.ftl"), "a = A\nb = B\n")
+            .expect("plan main");
+        transaction
+            .plan_write(locale_dir.join("test-crate/ui.ftl"), "c = C\n")
+            .expect("plan new namespace");
+        transaction
+            .plan_remove(locale_dir.join("test-crate/stale.ftl"))
+            .expect("plan removal");
+        transaction
+            .plan_write(locale_dir.join("unrelated.ftl"), "x = X\ny = Y\n")
+            .expect("plan unrelated");
+
+        let domains = ["test-crate".to_string(), "other-domain".to_string()];
+        assert_eq!(count_ftl_resources(&locale_dir, &domains, &transaction), 4);
+        assert_eq!(
+            fs::read_to_string(locale_dir.join("test-crate.ftl")).expect("read main"),
+            "old = Old\n",
+            "counting leaves the disk untouched"
+        );
     }
 }

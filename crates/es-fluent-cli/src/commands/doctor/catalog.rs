@@ -17,17 +17,23 @@ pub(super) fn fallback_catalog_inputs(
     domains.extend(layout.config.domains.iter().cloned());
     let mut catalog = FallbackCatalog::default();
     let mut resource_count = 0;
+    let manifest_root_locales = if assets_dir_is_manifest_root(layout) {
+        Some(
+            layout
+                .available_locale_names()
+                .map_err(|error| error.to_string())?,
+        )
+    } else {
+        None
+    };
 
     for domain in domains {
-        let paths = if assets_dir_is_manifest_root(layout) {
-            let locales = layout
-                .available_locale_names()
-                .map_err(|error| error.to_string())?;
+        let paths = if let Some(locales) = &manifest_root_locales {
             let domain_names = [domain.as_str().to_string()];
             let mut fallback_paths = Vec::new();
             for locale in locales {
                 let resources = crate::ftl::discover_domain_ftl_files_in_locale_dir(
-                    &layout.assets_dir.join(&locale),
+                    &layout.assets_dir.join(locale),
                     &domain_names,
                 )
                 .map_err(|error| error.to_string())?;

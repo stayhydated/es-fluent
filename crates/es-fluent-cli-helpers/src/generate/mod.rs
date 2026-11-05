@@ -141,11 +141,22 @@ impl EsFluentGenerator {
     /// Plans all generated FTL changes without writing them.
     pub fn plan_generate(&self) -> Result<FileTransaction, GeneratorError> {
         let crate_name = self.resolve_crate_name()?;
-        let output_path = self.resolve_output_path()?;
         let manifest_dir = self.resolve_manifest_dir()?;
+        // Read the configuration once. An explicit output path works without
+        // `i18n.toml`, but an existing invalid file is still an error.
+        let layout = match ResolvedI18nLayout::from_manifest_dir(&manifest_dir) {
+            Ok(layout) => Some(layout),
+            Err(I18nConfigError::NotFound) if self.output_path.is_some() => None,
+            Err(error) => return Err(error.into()),
+        };
+        let output_path = self
+            .output_path
+            .clone()
+            .or_else(|| layout.as_ref().map(|layout| layout.output_dir.clone()))
+            .ok_or(I18nConfigError::NotFound)?;
         let type_infos = self::inventory::collect_type_infos(&crate_name)?;
 
-        self::inventory::validate_namespaces(&type_infos, &manifest_dir)?;
+        self::inventory::validate_namespaces(&type_infos, &manifest_dir, layout.as_ref())?;
 
         tracing::info!(
             "Generating FTL files for {} types in crate '{}'",
@@ -180,20 +191,12 @@ impl EsFluentGenerator {
         let manifest_dir = self.resolve_manifest_dir()?;
         let type_infos = self::inventory::collect_type_infos(&crate_name)?;
 
-        let mut transaction = FileTransaction::default();
-        for output_path in paths {
-            let planned = es_fluent_generate::clean::plan_clean(
-                &crate_name,
-                output_path,
-                &manifest_dir,
-                &type_infos,
-            )?;
-            transaction
-                .extend(planned)
-                .map_err(|error| GeneratorError::Generate(std::io::Error::other(error).into()))?;
-        }
-
-        Ok(transaction)
+        Ok(es_fluent_generate::clean::plan_clean_locales(
+            &crate_name,
+            paths,
+            &manifest_dir,
+            &type_infos,
+        )?)
     }
 
     fn resolve_clean_locale_dirs(&self, assets_dir: &Path) -> Result<Vec<PathBuf>, GeneratorError> {

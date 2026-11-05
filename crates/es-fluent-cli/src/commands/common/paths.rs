@@ -48,18 +48,14 @@ pub(crate) fn validate_generation_paths(
             ));
         }
 
-        if validate_fallback_locale && fallback_dir.is_dir() {
-            let layout = crate::ftl::CrateFtlLayout::from_assets_dir(
-                &ctx.assets_dir,
-                &ctx.fallback,
-                krate.name.as_str(),
-            );
-            if let Err(error) = layout.discover_files() {
-                invalid_paths.push(format!(
-                    "fallback locale FTL layout for {} could not be read: {}",
-                    krate.name, error
-                ));
-            }
+        if validate_fallback_locale
+            && fallback_dir.is_dir()
+            && let Err(error) = ctx.discover_files(&ctx.fallback)
+        {
+            invalid_paths.push(format!(
+                "fallback locale FTL layout for {} could not be read: {}",
+                krate.name, error
+            ));
         }
     }
 

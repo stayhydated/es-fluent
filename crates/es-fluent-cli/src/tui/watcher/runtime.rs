@@ -92,18 +92,14 @@ impl WatchRuntime {
         let watched_dirs = watch_modes_for_crates(&path_to_crate, &valid_crates);
         let mut crates_by_name = HashMap::new();
         let mut observed_hashes = HashMap::new();
+        let workspace_hash =
+            crate::generation::cache::compute_workspace_inputs_hash(&workspace.root_dir);
 
         for krate in &valid_crates {
             crates_by_name.insert(krate.name.to_string(), krate.clone());
             observed_hashes.insert(
                 krate.name.to_string(),
-                super::generation::compute_observed_inputs_hash(
-                    &workspace.root_dir,
-                    &krate.manifest_dir,
-                    &krate.src_dir,
-                    &krate.i18n_config_path,
-                    krate.custom_build_target_path.as_deref(),
-                ),
+                super::generation::compute_observed_inputs_hash(&workspace_hash, krate),
             );
         }
 
@@ -254,18 +250,17 @@ impl WatchRuntime {
         app: &mut TuiApp<'_>,
         crate_names: impl IntoIterator<Item = String>,
     ) {
+        // Workspace inputs are shared by every crate in the batch.
+        let mut workspace_hash = None;
         for crate_name in crate_names {
             let Some(krate) = self.crates_by_name.get(&crate_name).cloned() else {
                 continue;
             };
 
-            let new_hash = super::generation::compute_observed_inputs_hash(
-                &self.workspace.root_dir,
-                &krate.manifest_dir,
-                &krate.src_dir,
-                &krate.i18n_config_path,
-                krate.custom_build_target_path.as_deref(),
-            );
+            let workspace_hash = workspace_hash.get_or_insert_with(|| {
+                crate::generation::cache::compute_workspace_inputs_hash(&self.workspace.root_dir)
+            });
+            let new_hash = super::generation::compute_observed_inputs_hash(workspace_hash, &krate);
             if !self.observe_hash(&crate_name, new_hash) {
                 continue;
             }
