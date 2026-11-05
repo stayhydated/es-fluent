@@ -2,6 +2,7 @@
 
 mod bundle;
 mod manager;
+mod module_localizer;
 mod registry;
 
 #[cfg(test)]
@@ -10,21 +11,22 @@ mod tests;
 use crate::asset_localization::{
     I18nModuleDescriptor, ModuleResourceSpec, ResourceKey, StaticModuleDescriptor,
 };
-use es_fluent_shared::registry::{StaticFluentArgumentName, StaticFluentMessageKey};
-use fluent_bundle::FluentValue;
-use std::collections::HashMap;
+use es_fluent_shared::registry::StaticFluentMessageKey;
 use unic_langid::LanguageIdentifier;
 
 pub use bundle::{
-    LocalizationError, SyncFluentBundle, add_resources_to_bundle, build_fluent_args,
-    build_sync_bundle, fallback_errors_are_fatal, localize_with_bundle,
-    localize_with_fallback_resources,
+    LocalizationError, SyncFluentBundle, add_resources_to_bundle, build_sync_bundle,
+    localize_with_bundles,
 };
 pub use manager::{DiscoveredRuntimeI18nModules, FluentManager};
+#[doc(hidden)]
+pub use module_localizer::log_unready_locale;
+pub use module_localizer::{BundleBuildError, LocaleResources, ModuleLocalizer};
 pub use registry::{ModuleDiscoveryError, ModuleRegistrationKind, try_filter_module_registry};
 
 pub type LocalizationErrorResult<T> = Result<T, LocalizationError>;
-pub type FluentArgumentMap<'a> = HashMap<StaticFluentArgumentName, FluentValue<'a>>;
+/// Fluent arguments passed to a localizer, keyed by argument name.
+pub type FluentArgumentMap<'a> = fluent_bundle::FluentArgs<'a>;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum LanguageSelectionPolicy {
@@ -32,14 +34,11 @@ pub enum LanguageSelectionPolicy {
     Strict,
 }
 
+/// Message lookup for one module in one selected locale.
+///
+/// Modules create a localizer per selected locale with
+/// [`I18nModule::create_localizer`]; a localizer never changes locale.
 pub trait Localizer: Send + Sync {
-    /// Selects a language for the localizer.
-    ///
-    /// Implementations own their fallback behavior. Generated embedded
-    /// localizers resolve parent locales internally; custom localizers that
-    /// need the same behavior should perform that resolution here before
-    /// returning [`LocalizationError::LanguageNotSupported`].
-    fn select_language(&self, lang: &LanguageIdentifier) -> es_fluent_shared::EsFluentResult<()>;
     /// Localizes a fully scoped static message key.
     fn localize<'a>(
         &self,
@@ -53,9 +52,20 @@ pub trait Localizer: Send + Sync {
 /// Backends that only provide metadata (for example Bevy asset-driven loading)
 /// can return `None` from `create_localizer`.
 pub trait I18nModuleRegistration: I18nModuleDescriptor {
-    /// Creates a localizer when the registration supports runtime localization.
-    fn create_localizer(&self) -> Option<Box<dyn Localizer>> {
-        None
+    /// Creates a localizer for `lang` when the registration supports runtime
+    /// localization.
+    ///
+    /// Metadata-only registrations keep the default, which reports that the
+    /// module has no runtime localizer.
+    fn create_localizer(
+        &self,
+        _lang: &LanguageIdentifier,
+    ) -> LocalizationErrorResult<Box<dyn Localizer>> {
+        Err(std::io::Error::other(format!(
+            "i18n module '{}' has no runtime localizer",
+            self.data().name
+        ))
+        .into())
     }
 
     /// Returns the registration kind for duplicate-resolution and discovery.
@@ -112,8 +122,16 @@ pub trait I18nModuleRegistration: I18nModuleDescriptor {
 }
 
 pub trait I18nModule: I18nModuleDescriptor {
-    /// Creates a localizer for the module.
-    fn create_localizer(&self) -> Box<dyn Localizer>;
+    /// Creates a localizer for `lang`.
+    ///
+    /// Implementations own their fallback behavior. Generated localizers
+    /// resolve parent locales internally; custom localizers that need the same
+    /// behavior should resolve them here before returning
+    /// [`LocalizationError::LanguageNotSupported`].
+    fn create_localizer(
+        &self,
+        lang: &LanguageIdentifier,
+    ) -> LocalizationErrorResult<Box<dyn Localizer>>;
 
     /// Returns an optional manifest-derived resource plan for a language.
     fn resource_plan_for_language(
@@ -139,8 +157,11 @@ pub trait I18nModule: I18nModuleDescriptor {
 }
 
 impl<T: I18nModule> I18nModuleRegistration for T {
-    fn create_localizer(&self) -> Option<Box<dyn Localizer>> {
-        Some(I18nModule::create_localizer(self))
+    fn create_localizer(
+        &self,
+        lang: &LanguageIdentifier,
+    ) -> LocalizationErrorResult<Box<dyn Localizer>> {
+        I18nModule::create_localizer(self, lang)
     }
 
     fn registration_kind(&self) -> ModuleRegistrationKind {

@@ -2,11 +2,13 @@ use super::localizer::LoadedDioxusI18nAssetModule;
 
 use dioxus::prelude::Asset;
 
+#[cfg(target_arch = "wasm32")]
+use es_fluent_manager_core::parse_fluent_resource_bytes;
 use es_fluent_manager_core::{
     I18nModuleDescriptor, I18nModuleRegistration, LocaleRelativeFtlPath, ModuleData,
     ModuleRegistrationKind, ModuleResourceSpec, ResourceKey, ResourceLoadError,
-    parse_fluent_resource_bytes,
 };
+use fluent_bundle::FluentResource;
 
 use std::{
     collections::HashMap,
@@ -78,18 +80,12 @@ impl DioxusI18nAssetModule {
                 .or_default()
                 .push(spec.clone());
 
-            match read_dioxus_asset_bytes(&resource.asset, cache_bust).await {
-                Ok(bytes) => match parse_fluent_resource_bytes(&spec, &bytes) {
-                    Ok(parsed) => {
-                        loaded_resources.insert((lang, spec.key.clone()), parsed);
-                    },
-                    Err(error) => {
-                        load_errors.insert((lang, error.key().clone()), error);
-                    },
+            match load_dioxus_asset(&resource.asset, &spec, cache_bust).await {
+                Ok(parsed) => {
+                    loaded_resources.insert((lang, spec.key.clone()), parsed);
                 },
                 Err(error) => {
-                    let load_error = ResourceLoadError::load(&spec, error.to_string());
-                    load_errors.insert((lang, spec.key.clone()), load_error);
+                    load_errors.insert((lang, error.key().clone()), error);
                 },
             }
         }
@@ -136,16 +132,16 @@ impl I18nModuleRegistration for DioxusI18nAssetModule {
 
 inventory::collect!(&'static DioxusI18nAssetModule);
 
-async fn read_dioxus_asset_bytes(
+/// Reads and parses one locale asset.
+async fn load_dioxus_asset(
     asset: &Asset,
+    spec: &ModuleResourceSpec,
     cache_bust: Option<u64>,
-) -> Result<Vec<u8>, String> {
+) -> Result<Arc<FluentResource>, ResourceLoadError> {
     #[cfg(not(target_arch = "wasm32"))]
     {
         let _ = cache_bust;
-        let path = asset.resolve();
-        std::fs::read(&path)
-            .map_err(|error| format!("failed to read Dioxus asset '{}': {error}", path.display()))
+        native_assets::load(&asset.resolve(), spec)
     }
 
     #[cfg(target_arch = "wasm32")]
@@ -155,9 +151,134 @@ async fn read_dioxus_asset_bytes(
             .map(|revision| cache_busted_asset_path(&asset, revision))
             .unwrap_or(asset);
 
-        dioxus::asset_resolver::read_asset_bytes(asset)
+        let bytes = dioxus::asset_resolver::read_asset_bytes(asset)
             .await
-            .map_err(|error| error.to_string())
+            .map_err(|error| ResourceLoadError::load(spec, error.to_string()))?;
+        parse_fluent_resource_bytes(spec, &bytes)
+    }
+}
+
+/// Parsed native locale files shared by every load in the process.
+///
+/// Server rendering loads the modules for each request. A file is read and
+/// parsed again only when its size or modification time changes, so requests
+/// reuse parsed resources while edits during development still apply.
+#[cfg(not(target_arch = "wasm32"))]
+mod native_assets {
+    use es_fluent_manager_core::{
+        ModuleResourceSpec, ResourceLoadError, parse_fluent_resource_bytes,
+    };
+    use fluent_bundle::FluentResource;
+    use parking_lot::Mutex;
+    use std::{
+        collections::HashMap,
+        path::{Path, PathBuf},
+        sync::{Arc, LazyLock},
+        time::SystemTime,
+    };
+
+    struct ParsedFile {
+        stamp: (u64, SystemTime),
+        resource: Arc<FluentResource>,
+    }
+
+    static PARSED: LazyLock<Mutex<HashMap<PathBuf, ParsedFile>>> = LazyLock::new(Mutex::default);
+
+    fn stamp(path: &Path) -> Option<(u64, SystemTime)> {
+        let metadata = std::fs::metadata(path).ok()?;
+        Some((metadata.len(), metadata.modified().ok()?))
+    }
+
+    pub(super) fn load(
+        path: &Path,
+        spec: &ModuleResourceSpec,
+    ) -> Result<Arc<FluentResource>, ResourceLoadError> {
+        // Taken before reading: a write during the read leaves a stale stamp,
+        // which only causes another read next time.
+        let stamp = stamp(path);
+        if let Some(stamp) = stamp
+            && let Some(parsed) = PARSED.lock().get(path)
+            && parsed.stamp == stamp
+        {
+            return Ok(parsed.resource.clone());
+        }
+
+        let bytes = std::fs::read(path).map_err(|error| {
+            ResourceLoadError::load(
+                spec,
+                format!("failed to read Dioxus asset '{}': {error}", path.display()),
+            )
+        })?;
+        let resource = parse_fluent_resource_bytes(spec, &bytes)?;
+        if let Some(stamp) = stamp {
+            PARSED.lock().insert(
+                path.to_path_buf(),
+                ParsedFile {
+                    stamp,
+                    resource: resource.clone(),
+                },
+            );
+        }
+        Ok(resource)
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use super::*;
+        use es_fluent_manager_core::{LocaleRelativeFtlPath, ResourceKey};
+        use std::time::Duration;
+
+        fn spec() -> ModuleResourceSpec {
+            ModuleResourceSpec::new(
+                ResourceKey::from_static_path("app"),
+                LocaleRelativeFtlPath::from_static_path("app.ftl"),
+                true,
+            )
+        }
+
+        fn set_modified(path: &Path, modified: SystemTime) {
+            std::fs::File::options()
+                .write(true)
+                .open(path)
+                .and_then(|file| file.set_modified(modified))
+                .expect("set file mtime");
+        }
+
+        #[test]
+        fn unchanged_files_reuse_the_parsed_resource_and_edits_reparse() {
+            let temp = tempfile::tempdir().expect("tempdir");
+            let path = temp.path().join("app.ftl");
+            let modified = SystemTime::UNIX_EPOCH + Duration::from_secs(1_000_000);
+            std::fs::write(&path, "hello = Hello\n").expect("write ftl");
+            set_modified(&path, modified);
+
+            let first = load(&path, &spec()).expect("parse");
+            let second = load(&path, &spec()).expect("reuse");
+            assert!(Arc::ptr_eq(&first, &second));
+
+            std::fs::write(&path, "hello = Hallo\n").expect("rewrite ftl");
+            set_modified(&path, modified + Duration::from_secs(1));
+            let edited = load(&path, &spec()).expect("reparse");
+            assert!(!Arc::ptr_eq(&first, &edited));
+            assert_eq!(edited.source(), "hello = Hallo\n");
+        }
+
+        #[test]
+        fn unreadable_and_invalid_files_report_errors() {
+            let temp = tempfile::tempdir().expect("tempdir");
+            let missing = temp.path().join("missing.ftl");
+            assert!(matches!(
+                load(&missing, &spec()),
+                Err(ResourceLoadError::Load { .. })
+            ));
+
+            let invalid = temp.path().join("invalid.ftl");
+            std::fs::write(&invalid, "broken = {\n").expect("write ftl");
+            assert!(matches!(
+                load(&invalid, &spec()),
+                Err(ResourceLoadError::Parse { .. })
+            ));
+        }
     }
 }
 

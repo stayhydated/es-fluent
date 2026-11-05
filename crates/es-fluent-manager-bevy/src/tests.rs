@@ -4,7 +4,7 @@ use bevy::prelude::*;
 use es_fluent::{FluentLocalizerExt as _, FluentValue};
 use es_fluent_manager_core::{
     FluentArgumentMap, LocaleRelativeFtlPath, ModuleResourceSpec, ResourceKey, ResourceLoadError,
-    StaticFluentArgumentName, StaticFluentDomain, StaticFluentMessageKey,
+    StaticFluentDomain, StaticFluentMessageKey,
 };
 use fluent_bundle::FluentResource;
 use std::collections::HashMap;
@@ -29,10 +29,6 @@ fn static_key(
 
 fn app_key(id: &'static str) -> StaticFluentMessageKey {
     static_key("app", "app", id)
-}
-
-fn static_arg(value: &'static str) -> StaticFluentArgumentName {
-    es_fluent_manager_core::__macro::static_argument_name(value)
 }
 
 fn resource_key(owner: &'static str, key: &'static str) -> I18nResourceKey {
@@ -213,11 +209,11 @@ fn i18n_resource_localizes_and_falls_back_to_parent_locale() {
         FluentResource::try_new("shared = Shared fallback value".to_string()).expect("ftl"),
     );
     let mut domain_bundles = I18nDomainBundles::default();
-    domain_bundles.set_locale_resources(
+    domain_bundles.set_test_resources(
         requested.clone(),
         HashMap::from([(scope("app", "app"), vec![requested_resource])]),
     );
-    domain_bundles.set_locale_resources(
+    domain_bundles.set_test_resources(
         parent,
         HashMap::from([(scope("app", "app"), vec![parent_resource])]),
     );
@@ -228,7 +224,7 @@ fn i18n_resource_localizes_and_falls_back_to_parent_locale() {
     assert_eq!(i18n_resource.resolved_language(), &resolved);
 
     let mut args = FluentArgumentMap::default();
-    args.insert(static_arg("name"), FluentValue::from("Mark"));
+    args.set("name", FluentValue::from("Mark"));
     let localized = i18n_resource
         .localize(app_key("welcome"), Some(&args), &domain_bundles)
         .expect("localized text");
@@ -258,7 +254,7 @@ fn i18n_resource_uses_resolved_bundle_when_requested_locale_is_unavailable() {
             .expect("ftl"),
     );
     let mut domain_bundles = I18nDomainBundles::default();
-    domain_bundles.set_locale_resources(
+    domain_bundles.set_test_resources(
         resolved.clone(),
         HashMap::from([(scope("app", "app"), vec![resolved_resource])]),
     );
@@ -269,7 +265,7 @@ fn i18n_resource_uses_resolved_bundle_when_requested_locale_is_unavailable() {
     assert_eq!(i18n_resource.resolved_language(), &resolved);
 
     let mut args = FluentArgumentMap::default();
-    args.insert(static_arg("name"), FluentValue::from("Mark"));
+    args.set("name", FluentValue::from("Mark"));
     let localized = i18n_resource
         .localize(app_key("welcome"), Some(&args), &domain_bundles)
         .expect("localized text");
@@ -297,11 +293,11 @@ fn i18n_resource_prefers_partial_requested_locale_resources_over_resolved_parent
             .expect("ftl"),
     );
     let mut domain_bundles = I18nDomainBundles::default();
-    domain_bundles.set_locale_resources(
+    domain_bundles.set_test_resources(
         requested.clone(),
         HashMap::from([(scope("app", "app"), vec![requested_resource])]),
     );
-    domain_bundles.set_locale_resources(
+    domain_bundles.set_test_resources(
         resolved.clone(),
         HashMap::from([(scope("app", "app"), vec![resolved_resource])]),
     );
@@ -335,7 +331,7 @@ fn bevy_i18n_system_param_exposes_context_bound_localization() {
         lang.clone(),
         HashMap::from([(scope("app", "app"), Arc::new(domain_bundle))]),
     );
-    i18n_domain_bundles.set_locale_resources(
+    i18n_domain_bundles.set_test_resources(
         lang.clone(),
         HashMap::from([(scope("app", "app"), vec![resource])]),
     );
@@ -379,6 +375,51 @@ fn update_values_on_locale_change_updates_registered_fluent_text_values() {
         .get::<FluentText<RefreshableMessage>>(entity)
         .expect("entity should still exist");
     assert_eq!(updated.value.0, "fr-CA");
+}
+
+#[derive(Default)]
+struct RefreshCountingMessage {
+    refreshes: Vec<String>,
+}
+
+impl RefreshForLocale for RefreshCountingMessage {
+    fn refresh_for_locale(&mut self, lang: &LanguageIdentifier) {
+        self.refreshes.push(lang.to_string());
+    }
+}
+
+impl FluentMessage for RefreshCountingMessage {
+    fn to_fluent_string_with(&self, _localize: &mut es_fluent::FluentMessageLookup<'_>) -> String {
+        self.refreshes.join(",")
+    }
+}
+
+#[test]
+fn update_values_on_locale_change_refreshes_once_for_the_last_locale_of_a_frame() {
+    let mut app = App::new();
+    app.add_message::<LocaleChangedMessage>();
+    app.add_systems(
+        Update,
+        update_values_on_locale_change::<RefreshCountingMessage>,
+    );
+
+    let entity = app
+        .world_mut()
+        .spawn(FluentText::new(RefreshCountingMessage::default()))
+        .id();
+
+    app.world_mut()
+        .write_message(LocaleChangedMessage(langid!("fr-CA")));
+    app.world_mut()
+        .write_message(LocaleChangedMessage(langid!("de-DE")));
+    app.update();
+    app.update();
+
+    let updated = app
+        .world()
+        .get::<FluentText<RefreshCountingMessage>>(entity)
+        .expect("entity should still exist");
+    assert_eq!(updated.value.refreshes, ["de-DE"]);
 }
 
 #[test]

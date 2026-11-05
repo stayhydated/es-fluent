@@ -1,7 +1,7 @@
 use super::*;
-use es_fluent_manager_core::StaticFluentMessageKey;
 #[cfg(feature = "localized-langs")]
-use es_fluent_manager_core::{FluentArgumentMap, StaticFluentArgumentName};
+use es_fluent_manager_core::FluentArgumentMap;
+use es_fluent_manager_core::StaticFluentMessageKey;
 #[cfg(feature = "localized-langs")]
 use fluent_bundle::FluentValue;
 use unic_langid::langid;
@@ -12,11 +12,6 @@ fn static_entry(value: &'static str) -> StaticFluentMessageKey {
         es_fluent_manager_core::__macro::static_domain("es-fluent-lang"),
         es_fluent_manager_core::__macro::static_entry_id(value),
     )
-}
-
-#[cfg(feature = "localized-langs")]
-fn static_arg(value: &'static str) -> StaticFluentArgumentName {
-    es_fluent_manager_core::__macro::static_argument_name(value)
 }
 
 #[test]
@@ -45,10 +40,7 @@ fn language_module_creates_localizer_and_selects_language() {
     let module = EsFluentLanguageModule;
     assert_eq!(module.data().name, "es-fluent-lang");
     assert!(!I18nModule::contributes_to_language_selection(&module));
-
-    let localizer = I18nModule::create_localizer(&module);
-    localizer
-        .select_language(&langid!("en-US"))
+    let localizer = I18nModule::create_localizer(&module, &langid!("en-US"))
         .expect("language selection should succeed");
 
     #[cfg(not(feature = "localized-langs"))]
@@ -68,10 +60,8 @@ fn language_module_creates_localizer_and_selects_language() {
 #[test]
 fn autonym_mode_returns_native_language_names_regardless_of_selected_locale() {
     let module = EsFluentLanguageModule;
-    let localizer = I18nModule::create_localizer(&module);
 
-    localizer
-        .select_language(&langid!("en-US"))
+    let localizer = I18nModule::create_localizer(&module, &langid!("en-US"))
         .expect("language selection should succeed");
 
     assert_eq!(
@@ -87,8 +77,7 @@ fn autonym_mode_returns_native_language_names_regardless_of_selected_locale() {
         Some(expected_japanese_name())
     );
 
-    localizer
-        .select_language(&langid!("ja-JP"))
+    let localizer = I18nModule::create_localizer(&module, &langid!("ja-JP"))
         .expect("language selection should succeed");
 
     assert_eq!(
@@ -105,10 +94,8 @@ fn autonym_mode_returns_native_language_names_regardless_of_selected_locale() {
 #[test]
 fn localized_mode_returns_translated_language_names() {
     let module = EsFluentLanguageModule;
-    let localizer = I18nModule::create_localizer(&module);
 
-    localizer
-        .select_language(&langid!("en"))
+    let localizer = I18nModule::create_localizer(&module, &langid!("en"))
         .expect("English language selection should succeed");
     assert_eq!(
         localizer.localize(static_entry("es-fluent-lang-fr"), None),
@@ -123,8 +110,7 @@ fn localized_mode_returns_translated_language_names() {
         Some("Japanese".to_string())
     );
 
-    localizer
-        .select_language(&langid!("fr"))
+    let localizer = I18nModule::create_localizer(&module, &langid!("fr"))
         .expect("French language selection should succeed");
     assert_eq!(
         localizer.localize(static_entry("es-fluent-lang-fr"), None),
@@ -144,10 +130,8 @@ fn localized_mode_returns_translated_language_names() {
 #[test]
 fn localized_mode_falls_back_to_parent_display_locale() {
     let module = EsFluentLanguageModule;
-    let localizer = I18nModule::create_localizer(&module);
 
-    localizer
-        .select_language(&langid!("fr-FR"))
+    let localizer = I18nModule::create_localizer(&module, &langid!("fr-FR"))
         .expect("fr-FR should fall back to fr");
     assert_eq!(
         localizer.localize(static_entry("es-fluent-lang-en"), None),
@@ -159,12 +143,10 @@ fn localized_mode_falls_back_to_parent_display_locale() {
 #[test]
 fn localized_mode_ignores_unused_args() {
     let module = EsFluentLanguageModule;
-    let localizer = I18nModule::create_localizer(&module);
     let mut args = FluentArgumentMap::default();
-    args.insert(static_arg("unused"), FluentValue::from("value"));
+    args.set("unused", FluentValue::from("value"));
 
-    localizer
-        .select_language(&langid!("en"))
+    let localizer = I18nModule::create_localizer(&module, &langid!("en"))
         .expect("language selection should succeed");
     assert_eq!(
         localizer.localize(static_entry("es-fluent-lang-fr"), Some(&args)),
@@ -178,11 +160,8 @@ fn uses_standard_module_registration() {
         .find(|registration| registration.data().owner == "es-fluent-lang")
         .expect("es-fluent-lang module registration should be present");
     let localizer = registration
-        .create_localizer()
+        .create_localizer(&langid!("en-US"))
         .expect("es-fluent-lang should provide a localizer");
-    localizer
-        .select_language(&langid!("en-US"))
-        .expect("language selection should succeed");
 
     assert_eq!(
         localizer.localize(static_entry("es-fluent-lang-en"), None),

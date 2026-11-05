@@ -77,8 +77,8 @@ fn render_args(message: &impl FluentMessage) -> HashMap<String, String> {
     {
         let mut localize = |_key: StaticFluentMessageKey, args: Option<&FluentArgs<'_>>| {
             if let Some(args) = args {
-                for (name, value) in args.as_raw() {
-                    rendered.insert((*name).to_string(), describe_arg(value));
+                for (name, value) in args.as_raw().iter() {
+                    rendered.insert(name.to_string(), describe_arg(value));
                 }
             }
 

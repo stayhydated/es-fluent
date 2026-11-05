@@ -1,9 +1,8 @@
 use super::resource::{ModuleResourceSpec, ResourceKey};
 use fluent_bundle::FluentResource;
-use std::collections::{HashMap, HashSet};
+use std::collections::HashSet;
 use std::fmt;
 use std::sync::Arc;
-use unic_langid::LanguageIdentifier;
 
 /// Structured locale loading state shared across managers.
 #[derive(Clone, Debug, Default)]
@@ -145,6 +144,16 @@ impl ResourceLoadError {
         }
     }
 
+    /// Constructs a Fluent parse error for a resource spec.
+    pub fn parse(spec: &ModuleResourceSpec, details: impl Into<String>) -> Self {
+        Self::Parse {
+            key: spec.key.clone(),
+            path: spec.locale_relative_path.to_string(),
+            required: spec.required,
+            details: details.into(),
+        }
+    }
+
     /// Returns the key associated with this failure.
     pub fn key(&self) -> &ResourceKey {
         match self {
@@ -233,18 +242,6 @@ pub enum ResourceLoadStatus {
     Error(ResourceLoadError),
 }
 
-/// Loads a locale from a resource plan while keeping readiness/error bookkeeping centralized.
-pub fn load_locale_resources(
-    plan: &[ModuleResourceSpec],
-    load: impl FnMut(&ModuleResourceSpec) -> ResourceLoadStatus,
-) -> (Vec<Arc<FluentResource>>, LocaleLoadReport) {
-    let (entries, report) = load_locale_resource_entries(plan, load);
-    (
-        entries.into_iter().map(|(_, resource)| resource).collect(),
-        report,
-    )
-}
-
 /// Loads a locale while retaining the resource key for domain-aware bundling.
 pub fn load_locale_resource_entries(
     plan: &[ModuleResourceSpec],
@@ -271,148 +268,6 @@ pub fn load_locale_resource_entries(
     (resources, report)
 }
 
-/// Builds a detailed per-language load report from persistent localized resource state.
-pub fn build_locale_load_report(
-    resource_specs: &HashMap<(LanguageIdentifier, ResourceKey), ModuleResourceSpec>,
-    loaded_resources: &HashMap<(LanguageIdentifier, ResourceKey), Arc<FluentResource>>,
-    load_errors: &HashMap<(LanguageIdentifier, ResourceKey), ResourceLoadError>,
-    lang: &LanguageIdentifier,
-) -> LocaleLoadReport {
-    let specs = resource_specs
-        .iter()
-        .filter_map(|((language, _), spec)| if language == lang { Some(spec) } else { None })
-        .collect::<Vec<_>>();
-    let mut report = LocaleLoadReport::from_specs(specs.iter().copied());
-
-    for (language_key, resource_key) in loaded_resources.keys() {
-        if language_key == lang {
-            report.mark_loaded(resource_key.clone());
-        }
-    }
-
-    for ((language_key, _), load_error) in load_errors {
-        if language_key == lang {
-            report.record_error(load_error.clone());
-        }
-    }
-
-    report
-}
-
-/// Collects loaded `FluentResource`s for a locale in stable key order.
-pub fn collect_locale_resources<'a>(
-    loaded_resources: &'a HashMap<(LanguageIdentifier, ResourceKey), Arc<FluentResource>>,
-    lang: &LanguageIdentifier,
-) -> Vec<&'a Arc<FluentResource>> {
-    let mut resources = loaded_resources
-        .iter()
-        .filter_map(|((language_key, resource_key), resource)| {
-            if language_key == lang {
-                Some((resource_key, resource))
-            } else {
-                None
-            }
-        })
-        .collect::<Vec<_>>();
-    resources.sort_by_key(|(resource_key, _)| *resource_key);
-    resources
-        .into_iter()
-        .map(|(_, resource)| resource)
-        .collect()
-}
-
-/// Collects available languages from localized resource registrations.
-pub fn collect_available_languages<V>(
-    resources: &HashMap<(LanguageIdentifier, ResourceKey), V>,
-) -> Vec<LanguageIdentifier> {
-    let mut seen = HashSet::new();
-    let mut languages = Vec::new();
-
-    for (lang, _) in resources.keys() {
-        if seen.insert(lang.clone()) {
-            languages.push(lang.clone());
-        }
-    }
-
-    languages.sort_by_key(|lang| lang.to_string());
-    languages
-}
-
-/// Stores a successfully parsed localized resource and clears any prior error for the same key.
-pub fn store_locale_resource(
-    loaded_resources: &mut HashMap<(LanguageIdentifier, ResourceKey), Arc<FluentResource>>,
-    load_errors: &mut HashMap<(LanguageIdentifier, ResourceKey), ResourceLoadError>,
-    lang: &LanguageIdentifier,
-    spec: &ModuleResourceSpec,
-    resource: Arc<FluentResource>,
-) {
-    let key = (lang.clone(), spec.key.clone());
-    loaded_resources.insert(key.clone(), resource);
-    load_errors.remove(&key);
-}
-
-/// Parses source text and stores the resulting localized resource.
-pub fn parse_and_store_locale_resource_content(
-    loaded_resources: &mut HashMap<(LanguageIdentifier, ResourceKey), Arc<FluentResource>>,
-    load_errors: &mut HashMap<(LanguageIdentifier, ResourceKey), ResourceLoadError>,
-    lang: &LanguageIdentifier,
-    spec: &ModuleResourceSpec,
-    content: String,
-) -> Result<(), ResourceLoadError> {
-    let resource = parse_fluent_resource_content(spec, content)?;
-    store_locale_resource(loaded_resources, load_errors, lang, spec, resource);
-    Ok(())
-}
-
-/// Records a localized resource error and clears any loaded resource for the same key.
-pub fn record_locale_resource_error(
-    loaded_resources: &mut HashMap<(LanguageIdentifier, ResourceKey), Arc<FluentResource>>,
-    load_errors: &mut HashMap<(LanguageIdentifier, ResourceKey), ResourceLoadError>,
-    lang: &LanguageIdentifier,
-    error: ResourceLoadError,
-) {
-    let key = (lang.clone(), error.key().clone());
-    loaded_resources.remove(&key);
-    load_errors.insert(key, error);
-}
-
-/// Records a missing localized resource.
-pub fn record_missing_locale_resource(
-    loaded_resources: &mut HashMap<(LanguageIdentifier, ResourceKey), Arc<FluentResource>>,
-    load_errors: &mut HashMap<(LanguageIdentifier, ResourceKey), ResourceLoadError>,
-    lang: &LanguageIdentifier,
-    spec: &ModuleResourceSpec,
-) -> ResourceLoadError {
-    let error = ResourceLoadError::missing(spec);
-    record_locale_resource_error(loaded_resources, load_errors, lang, error.clone());
-    error
-}
-
-/// Records an asset-pipeline load failure for a localized resource.
-pub fn record_failed_locale_resource(
-    loaded_resources: &mut HashMap<(LanguageIdentifier, ResourceKey), Arc<FluentResource>>,
-    load_errors: &mut HashMap<(LanguageIdentifier, ResourceKey), ResourceLoadError>,
-    lang: &LanguageIdentifier,
-    spec: &ModuleResourceSpec,
-    details: impl Into<String>,
-) -> ResourceLoadError {
-    let error = ResourceLoadError::load(spec, details);
-    record_locale_resource_error(loaded_resources, load_errors, lang, error.clone());
-    error
-}
-
-/// Clears all tracked localized state for a resource key.
-pub fn clear_locale_resource(
-    loaded_resources: &mut HashMap<(LanguageIdentifier, ResourceKey), Arc<FluentResource>>,
-    load_errors: &mut HashMap<(LanguageIdentifier, ResourceKey), ResourceLoadError>,
-    lang: &LanguageIdentifier,
-    key: &ResourceKey,
-) {
-    let state_key = (lang.clone(), key.clone());
-    loaded_resources.remove(&state_key);
-    load_errors.remove(&state_key);
-}
-
 /// Parses UTF-8 bytes into a `FluentResource` using the shared load contract.
 pub fn parse_fluent_resource_bytes(
     spec: &ModuleResourceSpec,
@@ -436,19 +291,13 @@ pub fn parse_fluent_resource_content(
 ) -> Result<Arc<FluentResource>, ResourceLoadError> {
     FluentResource::try_new(content)
         .map(Arc::new)
-        .map_err(|(_, errs)| ResourceLoadError::Parse {
-            key: spec.key.clone(),
-            path: spec.locale_relative_path.to_string(),
-            required: spec.required,
-            details: format!("{errs:?}"),
-        })
+        .map_err(|(_, errs)| ResourceLoadError::parse(spec, format!("{errs:?}")))
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::asset_localization::LocaleRelativeFtlPath;
-    use unic_langid::langid;
 
     fn spec(key: &str, required: bool) -> ModuleResourceSpec {
         ModuleResourceSpec {
@@ -473,7 +322,7 @@ mod tests {
             FluentResource::try_new("hello = Hello".to_string()).expect("valid fluent resource"),
         );
 
-        let (resources, report) = load_locale_resources(&plan, |candidate| {
+        let (resources, report) = load_locale_resource_entries(&plan, |candidate| {
             if candidate.key == required.key {
                 ResourceLoadStatus::Loaded(loaded.clone())
             } else if candidate.key == optional_missing.key {
@@ -543,38 +392,6 @@ mod tests {
     }
 
     #[test]
-    fn build_locale_load_report_filters_by_language_and_loaded_state() {
-        let en = langid!("en");
-        let fr = langid!("fr");
-        let app = spec("app", true);
-        let optional = spec("optional", false);
-        let other = spec("other", true);
-        let resource = Arc::new(
-            FluentResource::try_new("hello = Hello".to_string()).expect("valid fluent resource"),
-        );
-        let resource_specs = HashMap::from([
-            ((en.clone(), app.key.clone()), app.clone()),
-            ((en.clone(), optional.key.clone()), optional.clone()),
-            ((fr, other.key.clone()), other.clone()),
-        ]);
-        let loaded_resources = HashMap::from([((en.clone(), app.key.clone()), resource)]);
-        let load_errors = HashMap::from([(
-            (en.clone(), optional.key.clone()),
-            ResourceLoadError::missing(&optional),
-        )]);
-
-        let report =
-            build_locale_load_report(&resource_specs, &loaded_resources, &load_errors, &en);
-
-        assert!(report.required_keys().contains(&app.key));
-        assert!(!report.required_keys().contains(&other.key));
-        assert!(report.optional_keys().contains(&optional.key));
-        assert!(report.loaded_keys().contains(&app.key));
-        assert_eq!(report.errors().len(), 1);
-        assert!(report.is_ready());
-    }
-
-    #[test]
     fn parse_fluent_resource_bytes_reports_invalid_utf8_with_resource_metadata() {
         let resource_spec = spec("app", true);
         let err = parse_fluent_resource_bytes(&resource_spec, &[0xff])
@@ -589,39 +406,5 @@ mod tests {
                 ..
             } if key == resource_spec.key && path == resource_spec.locale_relative_path.as_str()
         ));
-    }
-
-    #[test]
-    fn persistent_locale_resource_state_helpers_update_loaded_and_error_maps() {
-        let lang = langid!("en");
-        let resource_spec = spec("app", true);
-        let mut loaded_resources = HashMap::new();
-        let mut load_errors = HashMap::new();
-
-        parse_and_store_locale_resource_content(
-            &mut loaded_resources,
-            &mut load_errors,
-            &lang,
-            &resource_spec,
-            "hello = Hello".to_string(),
-        )
-        .expect("valid resource should store");
-        assert!(loaded_resources.contains_key(&(lang.clone(), resource_spec.key.clone())));
-        assert!(load_errors.is_empty());
-
-        let parse_err = parse_fluent_resource_content(&resource_spec, "hello = {".to_string())
-            .expect_err("invalid resource should report parse error");
-        record_locale_resource_error(&mut loaded_resources, &mut load_errors, &lang, parse_err);
-        assert!(!loaded_resources.contains_key(&(lang.clone(), resource_spec.key.clone())));
-        assert!(load_errors.contains_key(&(lang.clone(), resource_spec.key.clone())));
-
-        clear_locale_resource(
-            &mut loaded_resources,
-            &mut load_errors,
-            &lang,
-            &resource_spec.key,
-        );
-        assert!(loaded_resources.is_empty());
-        assert!(load_errors.is_empty());
     }
 }

@@ -127,10 +127,12 @@ fn strict_selection_rejects_partial_module_failures() {
 
 #[test]
 fn bundle_assembly_errors_are_returned_for_initial_locale() {
-    let error = duplicate_resource_module()
-        .create_localizer()
-        .select_language(&langid!("en"))
-        .expect_err("duplicate messages should fail the initial bundle");
+    let error = es_fluent_manager_core::I18nModule::create_localizer(
+        &duplicate_resource_module(),
+        &langid!("en"),
+    )
+    .err()
+    .expect("duplicate messages should fail the initial bundle");
 
     assert!(!matches!(error, LocalizationError::LanguageNotSupported(_)));
 }
