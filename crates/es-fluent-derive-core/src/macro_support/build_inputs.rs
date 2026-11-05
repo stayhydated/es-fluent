@@ -1,21 +1,20 @@
-use es_fluent_shared::resource::BUILD_INPUTS_FINGERPRINT_ENV;
+use es_fluent_shared::resource::BUILD_MANIFEST_HASH_ENV;
 use proc_macro2::TokenStream;
 use quote::quote;
 
-/// Returns tokens that make rustc record the package's i18n input fingerprint.
+/// Returns tokens that make rustc record the package's build manifest hash.
 ///
-/// Macros read `i18n.toml`, locale directories, and the fallback catalog from
-/// disk, which rustc cannot observe. `es-fluent-build` fingerprints those
-/// inputs into an environment variable; referencing it through `env!` lists it
-/// in dep-info, so compiler caches key the expansion on it. Returns no tokens
-/// when the package has no `es-fluent-build` script.
+/// Macros expand from the manifest `es-fluent-build` writes, which rustc
+/// cannot observe. Referencing the manifest's content hash through `env!`
+/// lists it in dep-info, so compiler caches key the expansion on it. Returns
+/// no tokens when the package has no `es-fluent-build` script.
 pub fn build_inputs_tokens() -> TokenStream {
-    if std::env::var_os(BUILD_INPUTS_FINGERPRINT_ENV).is_none() {
+    if std::env::var_os(BUILD_MANIFEST_HASH_ENV).is_none() {
         return TokenStream::new();
     }
 
     quote! {
-        const _: &str = env!(#BUILD_INPUTS_FINGERPRINT_ENV);
+        const _: &str = env!(#BUILD_MANIFEST_HASH_ENV);
     }
 }
 

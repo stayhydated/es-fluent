@@ -3,8 +3,9 @@
 [![crates.io: es-fluent-build][crate-badge]][crate]
 
 Build-script support for packages that own `es-fluent` messages. It tracks
-configured locale assets and writes the fallback catalog consumed by derive
-macros for compile-time missing-message diagnostics.
+configured locale assets and writes the build manifest es-fluent macros expand
+from, including the fallback catalog behind compile-time missing-message
+diagnostics.
 
 Requires Rust 1.99 or newer.
 
@@ -20,10 +21,12 @@ fn main() {
 }
 ~~~
 
-Cargo rebuilds when configured locale files or directories change, and derives
-receive the fallback catalog. The helper also fingerprints `i18n.toml`, locale
-directories, and FTL contents for es-fluent macros, so compiler caches such as
-sccache or kache key their expansions on those inputs. The helper supports both
+Cargo reruns the helper when `i18n.toml` or configured locale files and
+directories change. The manifest records `i18n.toml`, the discovered locales and
+resources, and the fallback catalog, so derive, language, and manager macros
+expand from it instead of reading the package. Macros reference the manifest's
+content hash, so compiler caches such as sccache or kache re-expand them exactly
+when it changes. The helper supports both
 [package-local missing-message policies][facade].
 
 [facade]: https://github.com/stayhydated/es-fluent/blob/master/crates/es-fluent/README.md

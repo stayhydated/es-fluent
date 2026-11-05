@@ -1,18 +1,14 @@
 use std::path::{Path, PathBuf};
 
 use es_fluent_shared::fluent::FluentDomain;
-use es_fluent_shared::resource::{FALLBACK_CATALOG_FILE_NAME, FallbackCatalog, ResourcePlan};
+use es_fluent_shared::resource::{FallbackCatalog, ResourcePlan};
 use es_fluent_toml::ResolvedI18nLayout;
 
-pub(super) fn write_fallback_catalog(
+/// Parses the fallback-locale resources of every package-owned domain.
+pub(super) fn collect_fallback_catalog(
     layout: &ResolvedI18nLayout,
     package_name: &str,
-    out_dir: &Path,
-) -> Result<(), String> {
-    layout
-        .config
-        .validate_for_package(package_name)
-        .map_err(|error| error.to_string())?;
+) -> Result<FallbackCatalog, String> {
     let mut domains =
         vec![FluentDomain::try_new(package_name.to_string()).map_err(|error| error.to_string())?];
     domains.extend(layout.config.domains.iter().cloned());
@@ -65,9 +61,7 @@ pub(super) fn write_fallback_catalog(
         }
     }
 
-    let path = out_dir.join(FALLBACK_CATALOG_FILE_NAME);
-    std::fs::write(&path, catalog.encode())
-        .map_err(|error| format!("failed to write {}: {error}", path.display()))
+    Ok(catalog)
 }
 
 pub(super) fn assets_dir_is_manifest_root(layout: &ResolvedI18nLayout) -> bool {

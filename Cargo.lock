@@ -4203,9 +4203,12 @@ dependencies = [
 name = "es-fluent-build"
 version = "0.21.2"
 dependencies = [
+ "blake3",
  "es-fluent-shared",
  "es-fluent-toml",
  "path-slash",
+ "serde",
+ "serde_json",
  "serial_test",
  "temp-env",
  "tempfile",
@@ -4312,6 +4315,7 @@ version = "0.21.2"
 dependencies = [
  "bon",
  "darling 0.24.1",
+ "es-fluent-build",
  "es-fluent-shared",
  "es-fluent-toml",
  "getset",
@@ -4372,7 +4376,6 @@ name = "es-fluent-lang-macro"
 version = "0.21.2"
 dependencies = [
  "es-fluent-derive-core",
- "es-fluent-toml",
  "heck",
  "insta",
  "path-slash",

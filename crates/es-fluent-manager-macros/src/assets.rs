@@ -1,11 +1,7 @@
 pub(crate) use es_fluent_shared::resource::ModuleResourceSpec as ResourceSpec;
 use es_fluent_shared::{LanguageIdentifier, fluent::FluentDomain, namespace::ResolvedNamespace};
 use quote::quote;
-use std::{
-    collections::{BTreeMap, BTreeSet},
-    fmt,
-    path::PathBuf,
-};
+use std::{fmt, path::PathBuf};
 
 pub(crate) struct I18nAssets {
     pub(crate) root_path: PathBuf,
@@ -87,7 +83,9 @@ pub(crate) fn module_data_static_tokens(
 
 impl I18nAssets {
     pub(crate) fn load(crate_name: &str) -> syn::Result<Self> {
-        let config = match es_fluent_toml::I18nConfig::read_from_manifest_dir() {
+        let inputs = es_fluent_derive_core::macro_support::PackageInputs::current()
+            .map_err(|error| macro_error(error.to_string()))?;
+        let config = match inputs.config() {
             Ok(config) => config,
             Err(es_fluent_toml::I18nConfigError::NotFound) => {
                 return Err(macro_error(
@@ -105,68 +103,16 @@ impl I18nAssets {
             .validate_for_package(crate_name)
             .map_err(|error| macro_error(error.to_string()))?;
 
-        let i18n_root_path = match config.assets_dir_from_manifest() {
-            Ok(path) => path,
-            Err(e) => {
-                return Err(macro_error(format!(
-                    "Failed to resolve assets directory from configuration: {}",
-                    e
-                )));
-            },
-        };
-
-        if let Err(e) = config.validate_assets_dir() {
-            return Err(macro_error(format!(
-                "Assets directory validation failed: {}",
-                e
-            )));
-        }
-
-        let (languages, namespaces, resource_specs_by_language) =
-            es_fluent_shared::resource::ResourcePlan::sparse_from_assets(
-                crate_name,
-                &i18n_root_path,
-            )
-            .map_err(|error| macro_error(error.to_string()))?
-            .into_parts();
-        let mut languages = languages.into_iter().collect::<BTreeSet<_>>();
-        let mut resource_specs_by_language = resource_specs_by_language
-            .into_iter()
-            .collect::<BTreeMap<_, _>>();
-        let mut domains = vec![(
-            FluentDomain::try_new(crate_name.to_string())
-                .map_err(|error| macro_error(error.to_string()))?,
-            namespaces,
-        )];
-
-        for domain in &config.domains {
-            let (domain_languages, domain_namespaces, domain_specs) =
-                es_fluent_shared::resource::ResourcePlan::sparse_from_assets(
-                    domain.as_str(),
-                    &i18n_root_path,
-                )
-                .map_err(|error| macro_error(error.to_string()))?
-                .into_parts();
-
-            languages.extend(domain_languages);
-            for (language, specs) in domain_specs {
-                resource_specs_by_language
-                    .entry(language)
-                    .or_default()
-                    .extend(specs);
-            }
-            domains.push((domain.clone(), domain_namespaces));
-        }
-
-        for specs in resource_specs_by_language.values_mut() {
-            specs.sort_by(|left, right| left.locale_relative_path.cmp(&right.locale_relative_path));
-        }
+        let resources = inputs.resources(&config, crate_name).map_err(macro_error)?;
+        let manifest_dir = std::env::var_os("CARGO_MANIFEST_DIR")
+            .map(PathBuf::from)
+            .ok_or_else(|| macro_error("CARGO_MANIFEST_DIR must be set"))?;
 
         Ok(Self {
-            root_path: i18n_root_path,
-            languages: languages.into_iter().collect(),
-            domains,
-            resource_specs_by_language: resource_specs_by_language.into_iter().collect(),
+            root_path: manifest_dir.join(&config.assets_dir),
+            languages: resources.languages,
+            domains: resources.domains,
+            resource_specs_by_language: resources.resource_specs_by_language,
         })
     }
 

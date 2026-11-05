@@ -3,6 +3,7 @@
 mod build_inputs;
 mod crate_path;
 mod fallback;
+mod package_inputs;
 mod source_file;
 mod test_context;
 mod tokens;
@@ -13,6 +14,7 @@ pub use fallback::{
     FallbackValidation, FallbackValidationDerive, fallback_validation,
     fallback_validation_for_derive,
 };
+pub use package_inputs::{ManifestReadError, PackageInputs, current_package_config};
 pub use source_file::registry_source_file_tokens;
 pub use tokens::{
     core_error_to_compile_error, static_argument_name_tokens, static_domain_tokens,
@@ -26,7 +28,7 @@ use es_fluent_shared::fluent::{
     FluentArgumentName, FluentDomain, FluentMessageId, FluentVariantKey,
 };
 use es_fluent_shared::resource::{
-    BUILD_INPUTS_FINGERPRINT_ENV, FALLBACK_CATALOG_ENV, FallbackCatalogIndex, INVENTORY_RUNNER_ENV,
+    BUILD_MANIFEST_ENV, BUILD_MANIFEST_HASH_ENV, FallbackCatalogIndex, INVENTORY_RUNNER_ENV,
 };
 use proc_macro_crate::{FoundCrate, crate_name};
 use proc_macro2::TokenStream;

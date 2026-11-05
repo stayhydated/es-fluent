@@ -6,7 +6,7 @@ use crate::namespace::NamespacePathError;
 use crate::namespace::ResolvedNamespace;
 
 #[test]
-fn fallback_catalog_encodes_only_resolvable_messages() {
+fn fallback_catalog_indexes_only_resolvable_messages() {
     let domain = FluentDomain::try_new("demo").expect("domain");
     let mut catalog = FallbackCatalog::default();
     catalog
@@ -15,19 +15,21 @@ fn fallback_catalog_encodes_only_resolvable_messages() {
             "hello = Hello\nattr-only =\n    .label = Label\n-term = Term\n".to_string(),
         )
         .expect("catalog");
-    let index = FallbackCatalogIndex::decode(&catalog.encode());
+    let index = catalog
+        .resolvable_messages()
+        .map(|(domain, id)| (domain.as_str(), id.as_str()))
+        .collect::<FallbackCatalogIndex>();
 
     assert!(index.contains("demo", "hello"));
     assert!(!index.contains("demo", "attr-only"));
     assert!(!index.contains("demo", "term"));
     assert!(!index.contains("other", "hello"));
-    assert!(FallbackCatalogIndex::decode(b"demo\thello").contains("demo", "hello"));
     assert!(!index.contains("dem", "hello"));
     assert!(!index.contains("demo", "hell"));
     assert!(!index.contains("demo", "hello-world"));
-    assert!(!FallbackCatalogIndex::decode(b"demo\thello\n").contains("demo", ""));
+    assert!(!index.contains("demo", ""));
     assert_eq!(
-        FallbackCatalogIndex::decode(b""),
+        std::iter::empty::<(&str, &str)>().collect::<FallbackCatalogIndex>(),
         FallbackCatalogIndex::default()
     );
 }

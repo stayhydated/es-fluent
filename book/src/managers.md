@@ -20,9 +20,10 @@ All concrete managers follow the same application model:
 5. Use fallible lookup only where the caller intentionally handles a missing
    translation.
 
-Manager macros scan configured locale assets at compile time. Add
-`es-fluent-build` to track those assets and produce the fallback-message catalog
-used by strict derive validation; see
+Manager macros embed configured locale assets at compile time. Add
+`es-fluent-build` so they expand from its build manifest, which tracks locale
+additions and removals and carries the fallback-message catalog used by strict
+derive validation; see
 [Incremental builds](incremental_builds.md).
 
 All managers route typed output through the owning package's missing-message

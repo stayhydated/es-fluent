@@ -69,7 +69,12 @@ or implementation work.
 - Keep orphan cleanup scoped to the selected package and conservative about
   unselected fallback-relative paths. Raw filenames alone do not establish
   global ownership.
-- `es-fluent-build` writes the fallback catalog consumed by derives. `strict`
+- `es-fluent-build` writes the build manifest that derive, language, and
+  manager macros expand from: `i18n.toml`, discovered locales and resources,
+  and the fallback catalog. Macros read package inputs only through
+  `es_fluent_derive_core::macro_support::PackageInputs` so rustc and compiler
+  caches track them through the manifest hash. Manifest shape changes bump its
+  format in `crates/es-fluent-build/src/manifest.rs`. `strict`
   is the default missing-message policy; `fallback-str` puts snake_case source
   fallbacks on that package's generated keys. Fallible lookup returns `None`.
   Strict and fallback-string packages can coexist in one build.
