@@ -11,7 +11,7 @@ mod runner;
 
 pub(crate) use cargo::{cargo_inputs, configured_cargo_home};
 pub use inputs::{compute_crate_inputs_hash, compute_workspace_inputs_hash};
-pub use metadata::MetadataCache;
+pub use metadata::{MetadataCache, WorkspaceMember};
 pub use runner::RunnerCache;
 
 #[cfg(test)]

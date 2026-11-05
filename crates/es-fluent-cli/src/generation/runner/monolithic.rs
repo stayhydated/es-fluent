@@ -39,64 +39,68 @@ impl<'a> MonolithicRunner<'a> {
         }
     }
 
+    /// Hashes the inputs the runner cache tracks, or returns `None` when a
+    /// crate's inputs cannot be hashed.
+    pub(super) fn current_inputs(&self) -> Option<RunnerInputs> {
+        let mut crate_hashes = indexmap::IndexMap::new();
+        for krate in &self.workspace.crates {
+            if krate.src_dir.exists() {
+                let hash = crate::generation::cache::compute_crate_inputs_hash(
+                    &krate.manifest_dir,
+                    &krate.src_dir,
+                    Some(&krate.i18n_config_path),
+                    krate.custom_build_target_path.as_deref(),
+                )?;
+                crate_hashes.insert(krate.name.clone(), hash);
+            }
+        }
+        Some(RunnerInputs {
+            workspace_inputs_hash: crate::generation::cache::compute_workspace_inputs_hash(
+                &self.workspace.root_dir,
+            ),
+            crate_hashes,
+        })
+    }
+
+    #[cfg(test)]
     pub(super) fn is_stale(&self) -> bool {
+        self.current_inputs()
+            .is_none_or(|inputs| self.is_stale_for(&inputs))
+    }
+
+    fn is_stale_for(&self, inputs: &RunnerInputs) -> bool {
         use crate::generation::cache::RunnerCache;
 
         let runner_mtime = match fs::metadata(&self.binary_path).and_then(|m| m.modified()) {
             Ok(t) => t,
             Err(_) => return true,
         };
-
-        let runner_mtime_secs = runner_mtime
-            .duration_since(std::time::SystemTime::UNIX_EPOCH)
-            .map(|d| d.as_secs())
-            .unwrap_or(0);
-        let workspace_inputs_hash =
-            crate::generation::cache::compute_workspace_inputs_hash(&self.workspace.root_dir);
-
-        let mut current_hashes = indexmap::IndexMap::new();
-        for krate in &self.workspace.crates {
-            if krate.src_dir.exists() {
-                let Some(hash) = crate::generation::cache::compute_crate_inputs_hash(
-                    &krate.manifest_dir,
-                    &krate.src_dir,
-                    Some(&krate.i18n_config_path),
-                    krate.custom_build_target_path.as_deref(),
-                ) else {
-                    return true;
-                };
-                current_hashes.insert(krate.name.clone(), hash);
-            }
-        }
-
-        if let Some(cache) = RunnerCache::load(self.temp_store.base_dir()) {
-            if cache.cli_version != CLI_VERSION
-                || cache.runner_protocol_version != es_fluent_runner::RUNNER_PROTOCOL_VERSION
-                || cache.workspace_inputs_hash != workspace_inputs_hash
-            {
-                return true;
-            }
-
-            if cache.runner_mtime == runner_mtime_secs {
-                for (name, current_hash) in &current_hashes {
-                    match cache.crate_hashes.get(name) {
-                        Some(cached_hash) if cached_hash == current_hash => continue,
-                        _ => return true,
-                    }
-                }
-                for cached_name in cache.crate_hashes.keys() {
-                    if !current_hashes.contains_key(cached_name) {
-                        return true;
-                    }
-                }
-                return false;
-            }
-
+        let Some(cache) = RunnerCache::load(self.temp_store.base_dir()) else {
             return true;
-        }
+        };
 
-        true
+        cache.cli_version != CLI_VERSION
+            || cache.runner_protocol_version != es_fluent_runner::RUNNER_PROTOCOL_VERSION
+            || cache.workspace_inputs_hash != inputs.workspace_inputs_hash
+            || cache.runner_mtime != mtime_secs(runner_mtime)
+            || cache.crate_hashes != inputs.crate_hashes
+            || super::dep_info::inputs_changed_since(
+                &super::dep_info::dep_info_path(&self.binary_path),
+                cache.build_started_at.unwrap_or(runner_mtime),
+            )
     }
+}
+
+/// Content hashes of the inputs the runner cache tracks.
+pub(super) struct RunnerInputs {
+    workspace_inputs_hash: String,
+    crate_hashes: indexmap::IndexMap<es_fluent_runner::PackageName, String>,
+}
+
+fn mtime_secs(time: std::time::SystemTime) -> u64 {
+    time.duration_since(std::time::SystemTime::UNIX_EPOCH)
+        .map(|d| d.as_secs())
+        .unwrap_or(0)
 }
 
 /// Cross-process guard for the shared `.es-fluent` runner workspace.
@@ -194,8 +198,8 @@ pub fn prepare_monolithic_runner_crate(workspace: &WorkspaceInfo) -> Result<Path
     validate_runner_temp_dir(temp_store.base_dir())?;
     fs::create_dir_all(&src_dir).context("Failed to create .es-fluent directory")?;
 
-    fs::write(
-        temp_store.base_dir().join(".gitignore"),
+    super::write_if_changed(
+        &temp_store.base_dir().join(".gitignore"),
         GitignoreTemplate
             .render()
             .context("Failed to render .es-fluent/.gitignore")?,
@@ -203,7 +207,7 @@ pub fn prepare_monolithic_runner_crate(workspace: &WorkspaceInfo) -> Result<Path
     .context("Failed to write .es-fluent/.gitignore")?;
 
     let root_manifest = workspace.root_dir.join("Cargo.toml");
-    let config =
+    let mut config =
         TempCrateConfig::from_manifest(&root_manifest, runner_target_dir(&workspace.root_dir))?;
 
     let crate_deps: Vec<MonolithicCrateDep> = workspace
@@ -224,13 +228,19 @@ pub fn prepare_monolithic_runner_crate(workspace: &WorkspaceInfo) -> Result<Path
         })
         .collect::<Result<_>>()?;
 
+    config.restore_member_profiles(
+        crate_deps
+            .iter()
+            .map(|dep| dep.name.as_str())
+            .chain(["es-fluent", "es-fluent-cli-helpers"]),
+    );
     runner_crate.write_cargo_toml(&render_monolithic_cargo_toml(&crate_deps, &config)?)?;
 
     runner_crate.write_cargo_config(&render_cargo_config_toml(&config.target_dir)?)?;
 
     let main_rs = MonolithicMainRsTemplate { crates: crate_deps };
-    fs::write(
-        src_dir.join("main.rs"),
+    super::write_if_changed(
+        &src_dir.join("main.rs"),
         main_rs
             .render()
             .context("Failed to render .es-fluent/src/main.rs")?,
@@ -240,7 +250,9 @@ pub fn prepare_monolithic_runner_crate(workspace: &WorkspaceInfo) -> Result<Path
     let workspace_lock = workspace.root_dir.join("Cargo.lock");
     let runner_lock = temp_store.base_dir().join("Cargo.lock");
     if workspace_lock.exists() {
-        fs::copy(&workspace_lock, &runner_lock)
+        let lock_contents =
+            fs::read(&workspace_lock).context("Failed to read workspace Cargo.lock")?;
+        super::write_if_changed(&runner_lock, lock_contents)
             .context("Failed to copy Cargo.lock to .es-fluent/")?;
     }
 
@@ -439,7 +451,15 @@ pub fn run_monolithic(
     validate_runner_temp_dir(runner.temp_store.base_dir())?;
     let encoded_request = request.encode()?;
 
-    if !force_run && runner.binary_path.exists() && !runner.is_stale() {
+    // Hash before building, so an input edited during the build makes the
+    // cached runner stale instead of being recorded as built.
+    let inputs = runner.current_inputs();
+    if !force_run
+        && runner.binary_path.exists()
+        && inputs
+            .as_ref()
+            .is_some_and(|inputs| !runner.is_stale_for(inputs))
+    {
         let mut cmd = Command::new(&runner.binary_path);
         cmd.arg(&encoded_request)
             .current_dir(runner.temp_store.base_dir());
@@ -459,49 +479,35 @@ pub fn run_monolithic(
     }
 
     let args = vec![encoded_request];
+    let build_started_at = std::time::SystemTime::now();
     let result = RunnerCrate::new(runner.temp_store.base_dir())
         .run_cargo(Some("es-fluent-runner"), &args)?;
 
-    write_runner_cache(&runner);
+    if let Some(inputs) = inputs {
+        write_runner_cache(&runner, build_started_at, inputs);
+    }
 
     Ok(result)
 }
 
-fn write_runner_cache(runner: &MonolithicRunner<'_>) {
+pub(super) fn write_runner_cache(
+    runner: &MonolithicRunner<'_>,
+    build_started_at: std::time::SystemTime,
+    inputs: RunnerInputs,
+) {
     use crate::generation::cache::RunnerCache;
 
-    if let Ok(meta) = fs::metadata(&runner.binary_path)
-        && let Ok(mtime) = meta.modified()
-    {
-        let runner_mtime_secs = mtime
-            .duration_since(std::time::SystemTime::UNIX_EPOCH)
-            .map(|d| d.as_secs())
-            .unwrap_or(0);
-
-        let mut crate_hashes = indexmap::IndexMap::new();
-        for krate in &runner.workspace.crates {
-            if krate.src_dir.exists() {
-                let Some(hash) = crate::generation::cache::compute_crate_inputs_hash(
-                    &krate.manifest_dir,
-                    &krate.src_dir,
-                    Some(&krate.i18n_config_path),
-                    krate.custom_build_target_path.as_deref(),
-                ) else {
-                    return;
-                };
-                crate_hashes.insert(krate.name.clone(), hash);
-            }
-        }
-
-        let cache = RunnerCache {
-            crate_hashes,
-            runner_mtime: runner_mtime_secs,
-            cli_version: CLI_VERSION.to_string(),
-            runner_protocol_version: es_fluent_runner::RUNNER_PROTOCOL_VERSION,
-            workspace_inputs_hash: crate::generation::cache::compute_workspace_inputs_hash(
-                &runner.workspace.root_dir,
-            ),
-        };
-        let _ = cache.save(runner.temp_store.base_dir());
-    }
+    let Ok(runner_mtime) = fs::metadata(&runner.binary_path).and_then(|meta| meta.modified())
+    else {
+        return;
+    };
+    let cache = RunnerCache {
+        crate_hashes: inputs.crate_hashes,
+        runner_mtime: mtime_secs(runner_mtime),
+        cli_version: CLI_VERSION.to_string(),
+        runner_protocol_version: es_fluent_runner::RUNNER_PROTOCOL_VERSION,
+        workspace_inputs_hash: inputs.workspace_inputs_hash,
+        build_started_at: Some(build_started_at),
+    };
+    let _ = cache.save(runner.temp_store.base_dir());
 }
