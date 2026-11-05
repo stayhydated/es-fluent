@@ -6,3 +6,5 @@ extend-exclude = [ "*.ftl", "*.snap" ]
 [default.extend-words]
 # French translation text in the locale-preservation regression fixture.
 Existant = "Existant"
+# French greeting in the module-localizer locale fallback fixture.
+Allo = "Allo"
