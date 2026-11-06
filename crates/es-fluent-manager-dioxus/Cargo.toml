@@ -44,7 +44,7 @@ dioxus-core-macro = { workspace = true }
 dioxus-signals = { workspace = true }
 dioxus-ssr = { workspace = true }
 futures = { workspace = true }
-iso-types = { features = [ "639-1" ], workspace = true }
+iso-types = { workspace = true }
 serde_json = { workspace = true }
 serial_test = { workspace = true }
 tempfile = { workspace = true }

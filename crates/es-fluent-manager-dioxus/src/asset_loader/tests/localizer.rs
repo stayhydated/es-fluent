@@ -39,29 +39,24 @@ fn loaded_dioxus_asset_i18n_localizes_runtime_follower_messages() {
     )
     .expect("initial language should load");
 
-    assert_eq!(
-        i18n.localize(static_key("iso-types", "iso-639-1-en"), None),
-        Some("English".to_string())
-    );
-    assert_eq!(
-        i18n.localize(static_key("iso-types", "iso-639-1-en"), None,),
-        Some("English".to_string())
-    );
+    // iso-types' runtime module follows the manager without owning its locales.
+    for _ in 0..2 {
+        assert_eq!(
+            i18n.localize(static_key("iso-types", "iso-locale-en"), None),
+            Some("English".to_string())
+        );
+    }
     let mut looked_up = None;
     i18n.with_lookup(&mut |lookup| {
-        looked_up = lookup(static_key("iso-types", "iso-639-1-en"), None);
+        looked_up = lookup(static_key("iso-types", "iso-locale-en-US"), None);
     });
-    assert_eq!(looked_up, Some("English".to_string()));
-    assert_eq!(
-        i18n.localize(static_key("iso-types", "iso-locale-en-US"), None),
-        Some("American English".to_string())
-    );
+    assert_eq!(looked_up, Some("American English".to_string()));
     assert_eq!(
         i18n.localize(static_key("iso-types", "iso-locale-iw-IL"), None),
         None
     );
     assert_eq!(
-        i18n.localize(static_key("iso-types", "iso-639-1-la"), None),
+        i18n.localize(static_key("other-owner", "iso-locale-en"), None),
         None
     );
 }

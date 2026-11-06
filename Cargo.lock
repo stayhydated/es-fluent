@@ -5991,11 +5991,10 @@ checksum = "a6cb138bb79a146c1bd460005623e142ef0181e3d0219cb493e02f7d08a35695"
 [[package]]
 name = "iso-types"
 version = "0.1.0"
-source = "git+https://github.com/stayhydated/iso-types?rev=f9f88dc60afb67b61865e44fc015e53170c91474#f9f88dc60afb67b61865e44fc015e53170c91474"
+source = "git+https://github.com/stayhydated/iso-types?rev=f75467a2d6151e4995af4b628cc7bda70c65205b#f75467a2d6151e4995af4b628cc7bda70c65205b"
 dependencies = [
  "es-fluent",
  "es-fluent-manager-core",
- "fluent-bundle",
  "icu_calendar",
  "icu_locale",
  "icu_provider",
@@ -6009,7 +6008,7 @@ dependencies = [
 [[package]]
 name = "iso-types-macros"
 version = "0.1.0"
-source = "git+https://github.com/stayhydated/iso-types?rev=f9f88dc60afb67b61865e44fc015e53170c91474#f9f88dc60afb67b61865e44fc015e53170c91474"
+source = "git+https://github.com/stayhydated/iso-types?rev=f75467a2d6151e4995af4b628cc7bda70c65205b#f75467a2d6151e4995af4b628cc7bda70c65205b"
 dependencies = [
  "es-fluent-derive-core",
  "heck",
