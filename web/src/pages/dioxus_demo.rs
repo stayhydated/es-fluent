@@ -7,10 +7,10 @@ use crate::site::{
 };
 use dioxus::prelude::*;
 use es_fluent_manager_dioxus::{DioxusAssetI18nProvider, use_i18n};
+use iso_types::IntoEnumIterator as _;
 use stayhydated_dioxus::{
     NavigationTarget, StayhydatedProjectPortalShell, select, surface_reveal_style,
 };
-use strum::IntoEnumIterator as _;
 
 #[component]
 pub(crate) fn DioxusPage() -> Element {

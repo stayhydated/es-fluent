@@ -85,7 +85,6 @@ struct FluentSpec;
 struct FluentVariantsSpec;
 struct FluentLabelSpec;
 struct FluentChoiceSpec;
-pub(super) struct LanguageSpec;
 struct LocaleSpec;
 
 impl AttributeSpec for FluentSpec {
@@ -102,28 +101,6 @@ impl AttributeSpec for FluentLabelSpec {
 
 impl AttributeSpec for FluentChoiceSpec {
     const FAMILY: AttributeFamily = AttributeFamily::FluentChoice;
-}
-
-impl AttributeSpec for LanguageSpec {
-    const FAMILY: AttributeFamily = AttributeFamily::EsFluentLanguage;
-
-    fn invalid_attribute_error(
-        item: AttributeItem,
-        location: AttributeLocation,
-        _owner: Option<&syn::Ident>,
-        span: Span,
-    ) -> AttrError {
-        AttrError {
-            context: location.context(),
-            message: format!("{} is not accepted", item.syntax()),
-            span: Some(span),
-            note: None,
-            help: Some(
-                "use #[es_fluent_language] for builtin mode or #[es_fluent_language(custom)] for custom mode"
-                    .to_string(),
-            ),
-        }
-    }
 }
 
 impl AttributeSpec for LocaleSpec {
@@ -298,9 +275,6 @@ pub(crate) fn validate_attribute_for_family(
         },
         AttributeFamily::FluentChoice => {
             AttributeSet::<FluentChoiceSpec>::validate_attribute(attr, location, owner)
-        },
-        AttributeFamily::EsFluentLanguage => {
-            AttributeSet::<LanguageSpec>::validate_attribute(attr, location, owner)
         },
         AttributeFamily::Locale => {
             AttributeSet::<LocaleSpec>::validate_attribute(attr, location, owner)

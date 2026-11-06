@@ -23,10 +23,10 @@ fn typed_names_accept_current_generated_shapes() {
         "custom-key"
     );
     assert_eq!(
-        parse_domain_name_in_context("es-fluent-lang", span, AttrContext::MessageContainer)
+        parse_domain_name_in_context("language-labels", span, AttrContext::MessageContainer)
             .expect("domain")
             .as_str(),
-        "es-fluent-lang"
+        "language-labels"
     );
 }
 

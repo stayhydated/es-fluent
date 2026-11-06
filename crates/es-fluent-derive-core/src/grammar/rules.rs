@@ -29,7 +29,6 @@ const VARIANTS_CONTAINER_HELP: &str = "accepted keys here are keys, derive, and 
 const VARIANTS_FIELD_HELP: &str = "accepted key here is skip";
 const LABEL_CONTAINER_HELP: &str = "accepted key here is namespace";
 const CHOICE_CONTAINER_HELP: &str = "accepted key here is rename_all";
-const LANGUAGE_CONTAINER_HELP: &str = "accepted flags here are builtin and custom";
 const LOCALE_FIELD_HELP: &str = "use #[locale] on a named struct field or named enum variant field";
 pub(super) const LOCALE_TUPLE_FIELD_HELP: &str =
     "move #[locale] to a named struct field or named enum variant field";
@@ -216,20 +215,6 @@ pub(crate) const ATTRIBUTE_RULES: &[AttributeRule] = &[
         key: AttributeKey::RenameAll,
         shape: AttributeValueShape::ChoiceCaseStyle,
         location_help: CHOICE_CONTAINER_HELP,
-    },
-    AttributeRule {
-        family: AttributeFamily::EsFluentLanguage,
-        location: AttributeLocation::LanguageContainer,
-        key: AttributeKey::Builtin,
-        shape: AttributeValueShape::Flag,
-        location_help: LANGUAGE_CONTAINER_HELP,
-    },
-    AttributeRule {
-        family: AttributeFamily::EsFluentLanguage,
-        location: AttributeLocation::LanguageContainer,
-        key: AttributeKey::Custom,
-        shape: AttributeValueShape::Flag,
-        location_help: LANGUAGE_CONTAINER_HELP,
     },
     AttributeRule {
         family: AttributeFamily::Locale,

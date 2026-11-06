@@ -16,7 +16,7 @@ targets Dioxus 0.7; the Bevy manager targets Bevy 0.20.
 ## Crates
 
 Applications start with [`es-fluent`][es-fluent-readme] and one concrete runtime
-manager. Add [`es-fluent-lang`][es-fluent-lang-readme] for a typed language picker;
+manager. Add [`iso-types`][iso-types] for a typed language picker;
 use [`es-fluent-cli`][es-fluent-cli-readme] to maintain translations.
 
 | Crate | Purpose |
@@ -24,7 +24,6 @@ use [`es-fluent-cli`][es-fluent-cli-readme] to maintain translations.
 | [`es-fluent`][es-fluent-readme] | Typed-message derives and runtime traits. |
 | [`es-fluent-build`][es-fluent-build-readme] | Build-script asset tracking and fallback-catalog generation. |
 | [`es-fluent-cli`][es-fluent-cli-readme] | FTL generation, validation, synchronization, and inspection. |
-| [`es-fluent-lang`][es-fluent-lang-readme] | Typed locale enums and localized language labels. |
 | [`es-fluent-manager-bevy`][es-fluent-manager-bevy-readme] | Bevy localization plugin and components. |
 | [`es-fluent-manager-core`][es-fluent-manager-core-readme] | Runtime contracts for custom manager integrations. |
 | [`es-fluent-manager-dioxus`][es-fluent-manager-dioxus-readme] | Dioxus client and SSR localization. |
@@ -67,7 +66,7 @@ rendering “Welcome Message John 5”.
 [es-fluent-readme]: crates/es-fluent/README.md
 [es-fluent-build-readme]: crates/es-fluent-build/README.md
 [es-fluent-cli-readme]: crates/es-fluent-cli/README.md
-[es-fluent-lang-readme]: crates/es-fluent-lang/README.md
+[iso-types]: https://github.com/stayhydated/iso-types
 [es-fluent-manager-bevy-readme]: crates/es-fluent-manager-bevy/README.md
 [es-fluent-manager-core-readme]: crates/es-fluent-manager-core/README.md
 [es-fluent-manager-dioxus-readme]: crates/es-fluent-manager-dioxus/README.md

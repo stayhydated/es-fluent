@@ -18,7 +18,6 @@ pub enum AttrContext {
     VariantsVariant,
     LabelContainer,
     ChoiceContainer,
-    LanguageContainer,
     LocaleField,
 }
 
@@ -35,7 +34,6 @@ impl fmt::Display for AttrContext {
             Self::VariantsVariant => "variants variant",
             Self::LabelContainer => "label container",
             Self::ChoiceContainer => "choice container",
-            Self::LanguageContainer => "language container",
             Self::LocaleField => "locale field",
         };
         f.write_str(label)

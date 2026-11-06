@@ -5,18 +5,12 @@ use proc_macro2::TokenStream;
 use crate::{
     attribute::{AttributeLocation, AttributeName, validate_attribute_for_location},
     error::EsFluentCoreError,
-    grammar::LanguageMode,
 };
 
 /// Validated inputs for attribute-like and argument-free macros.
 pub struct ValidatedMacroInput;
 
 impl ValidatedMacroInput {
-    /// Parses and validates `#[es_fluent_language(...)]` arguments.
-    pub fn language_mode(attr: TokenStream) -> Result<LanguageMode, EsFluentCoreError> {
-        LanguageMode::parse(attr)
-    }
-
     /// Returns true when `attr` is a valid bare `#[locale]` marker for `location`.
     pub fn locale_marker(
         attr: &syn::Attribute,

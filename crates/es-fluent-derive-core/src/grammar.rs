@@ -1,7 +1,6 @@
-//! Shared attribute grammar for derive and language macro validation.
+//! Shared attribute grammar for derive and locale field validation.
 
 mod definitions;
-mod language;
 mod rules;
 mod validation;
 
@@ -9,7 +8,6 @@ pub use definitions::{
     AttributeFamily, AttributeKey, AttributeLocation, AttributeName, AttributeValueShape,
     FluentAttributeKey,
 };
-pub use language::LanguageMode;
 pub use validation::AttributeItem;
 
 pub(crate) use rules::{ATTRIBUTE_RULES, AttributeRule, attribute_rule};

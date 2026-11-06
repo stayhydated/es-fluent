@@ -4357,39 +4357,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "es-fluent-lang"
-version = "0.21.2"
-dependencies = [
- "es-fluent-lang-macro",
- "es-fluent-manager-core",
- "fluent-bundle",
- "icu_experimental",
- "icu_locale",
- "icu_provider",
- "inventory",
- "tracing",
- "unic-langid",
-]
-
-[[package]]
-name = "es-fluent-lang-macro"
-version = "0.21.2"
-dependencies = [
- "es-fluent-derive-core",
- "heck",
- "insta",
- "path-slash",
- "prettyplease",
- "proc-macro2",
- "quote",
- "serial_test",
- "syn 3.0.9",
- "temp-env",
- "tempfile",
- "unic-langid",
-]
-
-[[package]]
 name = "es-fluent-manager-bevy"
 version = "0.21.2"
 dependencies = [
@@ -4431,12 +4398,12 @@ dependencies = [
  "dioxus-signals",
  "dioxus-ssr",
  "es-fluent",
- "es-fluent-lang",
  "es-fluent-manager-core",
  "es-fluent-manager-macros",
  "fluent-bundle",
  "futures",
  "inventory",
+ "iso-types",
  "parking_lot 0.13.0",
  "serde_json",
  "serial_test",
@@ -4464,6 +4431,7 @@ dependencies = [
 name = "es-fluent-manager-macros"
 version = "0.21.2"
 dependencies = [
+ "cargo_metadata",
  "es-fluent-build",
  "es-fluent-derive-core",
  "es-fluent-shared",
@@ -4571,10 +4539,9 @@ dependencies = [
  "bevy",
  "es-fluent",
  "es-fluent-build",
- "es-fluent-lang",
  "es-fluent-manager-bevy",
  "es-fluent-manager-embedded",
- "strum",
+ "iso-types",
 ]
 
 [[package]]
@@ -5635,12 +5602,16 @@ version = "2.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "fe8fa57bcddc15cb921582ee5259c5b77da39f946f188ca5213fad24d9241236"
 dependencies = [
+ "displaydoc",
+ "either",
  "icu_collections",
  "icu_locale_core",
  "icu_locale_data",
  "icu_locale_fallback",
+ "icu_pattern",
  "icu_provider",
  "tinystr",
+ "writeable",
  "zerovec",
 ]
 
@@ -6016,6 +5987,40 @@ name = "is_terminal_polyfill"
 version = "1.70.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a6cb138bb79a146c1bd460005623e142ef0181e3d0219cb493e02f7d08a35695"
+
+[[package]]
+name = "iso-types"
+version = "0.1.0"
+source = "git+https://github.com/stayhydated/iso-types?rev=f9f88dc60afb67b61865e44fc015e53170c91474#f9f88dc60afb67b61865e44fc015e53170c91474"
+dependencies = [
+ "es-fluent",
+ "es-fluent-manager-core",
+ "fluent-bundle",
+ "icu_calendar",
+ "icu_locale",
+ "icu_provider",
+ "inventory",
+ "iso-types-macros",
+ "strum",
+ "unic-langid",
+ "writeable",
+]
+
+[[package]]
+name = "iso-types-macros"
+version = "0.1.0"
+source = "git+https://github.com/stayhydated/iso-types?rev=f9f88dc60afb67b61865e44fc015e53170c91474#f9f88dc60afb67b61865e44fc015e53170c91474"
+dependencies = [
+ "es-fluent-derive-core",
+ "heck",
+ "icu_locale",
+ "proc-macro-crate",
+ "proc-macro2",
+ "quote",
+ "serde_json",
+ "syn 3.0.9",
+ "writeable",
+]
 
 [[package]]
 name = "itertools"
@@ -10724,11 +10729,10 @@ dependencies = [
  "dioxus",
  "es-fluent",
  "es-fluent-build",
- "es-fluent-lang",
  "es-fluent-manager-dioxus",
+ "iso-types",
  "stayhydated-dioxus",
  "stayhydated-site",
- "strum",
 ]
 
 [[package]]

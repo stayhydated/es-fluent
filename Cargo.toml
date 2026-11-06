@@ -10,8 +10,6 @@ members = [
   "crates/es-fluent-toml",
   "crates/es-fluent-derive",
   "crates/es-fluent-generate",
-  "crates/es-fluent-lang",
-  "crates/es-fluent-lang-macro",
   "crates/es-fluent-manager-core",
   "crates/es-fluent-manager-macros",
   "crates/es-fluent-manager-embedded",
@@ -66,8 +64,6 @@ es-fluent-build = { path = "crates/es-fluent-build", version = "0.21.2" }
 es-fluent-derive = { path = "crates/es-fluent-derive", version = "0.21.2" }
 es-fluent-derive-core = { path = "crates/es-fluent-derive-core", version = "0.21.2" }
 es-fluent-generate = { path = "crates/es-fluent-generate", version = "0.21.2" }
-es-fluent-lang = { path = "crates/es-fluent-lang", version = "0.21.2" }
-es-fluent-lang-macro = { path = "crates/es-fluent-lang-macro", version = "0.21.2" }
 es-fluent-manager-bevy = { default-features = false, path = "crates/es-fluent-manager-bevy", version = "0.21.2" }
 es-fluent-manager-core = { default-features = false, path = "crates/es-fluent-manager-core", version = "0.21.2" }
 es-fluent-manager-dioxus = { default-features = false, path = "crates/es-fluent-manager-dioxus", version = "0.21.2" }
@@ -93,6 +89,10 @@ indicatif = "0.18.6"
 insta = "1.49.0"
 intl-memoizer = "0.5.3"
 inventory = "0.3.25"
+iso-types = { default-features = false, features = [
+  "fluent",
+  "locales",
+], git = "https://github.com/stayhydated/iso-types", rev = "f9f88dc60afb67b61865e44fc015e53170c91474" }
 jiff = "0.2.39"
 miette = "7.6.0"
 notify = "8.2.1"
@@ -176,3 +176,13 @@ type_complexity = "allow"
 uninlined_format_args = "allow"
 unused_trait_names = "warn"
 useless_conversion = "warn"
+
+# iso-types requires es-fluent from crates.io; resolve it to this workspace.
+[patch.crates-io]
+es-fluent = { path = "crates/es-fluent" }
+es-fluent-build = { path = "crates/es-fluent-build" }
+es-fluent-derive = { path = "crates/es-fluent-derive" }
+es-fluent-derive-core = { path = "crates/es-fluent-derive-core" }
+es-fluent-manager-core = { path = "crates/es-fluent-manager-core" }
+es-fluent-shared = { path = "crates/es-fluent-shared" }
+es-fluent-toml = { path = "crates/es-fluent-toml" }

@@ -49,16 +49,6 @@ component_management:
       paths:
         - crates/es-fluent-manager-embedded/**
 
-    - component_id: es-fluent-lang
-      name: "es-fluent-lang"
-      paths:
-        - crates/es-fluent-lang/**
-
-    - component_id: es-fluent-lang-macro
-      name: "es-fluent-lang-macro"
-      paths:
-        - crates/es-fluent-lang-macro/**
-
     - component_id: es-fluent-toml
       name: "es-fluent-toml"
       paths:
