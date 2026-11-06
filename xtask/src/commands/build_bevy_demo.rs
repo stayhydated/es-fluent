@@ -1,7 +1,7 @@
 use stayhydated_xtask::trunk::{TrunkDemoBuildConfig, TrunkDemoCopyDir, TrunkDemoPageConfig};
 
-// The `#[iso_locale]` autonym of example-shared-lib's `fr-FR` locale proves that
-// the demo's language labels survive release optimization.
+// example-shared-lib's `fr-FR` autonym proves that the demo's language labels
+// survive release optimization.
 const REQUIRED_MARKER: &str = "français (France)";
 
 pub fn run() -> anyhow::Result<()> {

@@ -89,10 +89,6 @@ indicatif = "0.18.6"
 insta = "1.49.0"
 intl-memoizer = "0.5.3"
 inventory = "0.3.25"
-iso-types = { default-features = false, features = [
-  "fluent",
-  "locales",
-], git = "https://github.com/stayhydated/iso-types", rev = "80366c1533ce18494e2e49de044d20bdf1ec94d2" }
 jiff = "0.2.39"
 miette = "7.6.0"
 notify = "8.2.1"
@@ -176,13 +172,3 @@ type_complexity = "allow"
 uninlined_format_args = "allow"
 unused_trait_names = "warn"
 useless_conversion = "warn"
-
-# iso-types requires es-fluent from crates.io; resolve it to this workspace.
-[patch.crates-io]
-es-fluent = { path = "crates/es-fluent" }
-es-fluent-build = { path = "crates/es-fluent-build" }
-es-fluent-derive = { path = "crates/es-fluent-derive" }
-es-fluent-derive-core = { path = "crates/es-fluent-derive-core" }
-es-fluent-manager-core = { path = "crates/es-fluent-manager-core" }
-es-fluent-shared = { path = "crates/es-fluent-shared" }
-es-fluent-toml = { path = "crates/es-fluent-toml" }

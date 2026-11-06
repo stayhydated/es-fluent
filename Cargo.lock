@@ -4403,7 +4403,6 @@ dependencies = [
  "fluent-bundle",
  "futures",
  "inventory",
- "iso-types",
  "parking_lot 0.13.0",
  "serde_json",
  "serial_test",
@@ -4431,7 +4430,6 @@ dependencies = [
 name = "es-fluent-manager-macros"
 version = "0.21.2"
 dependencies = [
- "cargo_metadata",
  "es-fluent-build",
  "es-fluent-derive-core",
  "es-fluent-shared",
@@ -4541,7 +4539,6 @@ dependencies = [
  "es-fluent-build",
  "es-fluent-manager-bevy",
  "es-fluent-manager-embedded",
- "iso-types",
 ]
 
 [[package]]
@@ -5602,16 +5599,12 @@ version = "2.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "fe8fa57bcddc15cb921582ee5259c5b77da39f946f188ca5213fad24d9241236"
 dependencies = [
- "displaydoc",
- "either",
  "icu_collections",
  "icu_locale_core",
  "icu_locale_data",
  "icu_locale_fallback",
- "icu_pattern",
  "icu_provider",
  "tinystr",
- "writeable",
  "zerovec",
 ]
 
@@ -5987,39 +5980,6 @@ name = "is_terminal_polyfill"
 version = "1.70.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a6cb138bb79a146c1bd460005623e142ef0181e3d0219cb493e02f7d08a35695"
-
-[[package]]
-name = "iso-types"
-version = "0.1.0"
-source = "git+https://github.com/stayhydated/iso-types?rev=80366c1533ce18494e2e49de044d20bdf1ec94d2#80366c1533ce18494e2e49de044d20bdf1ec94d2"
-dependencies = [
- "es-fluent",
- "es-fluent-manager-core",
- "icu_calendar",
- "icu_locale",
- "icu_provider",
- "inventory",
- "iso-types-macros",
- "strum",
- "unic-langid",
- "writeable",
-]
-
-[[package]]
-name = "iso-types-macros"
-version = "0.1.0"
-source = "git+https://github.com/stayhydated/iso-types?rev=80366c1533ce18494e2e49de044d20bdf1ec94d2#80366c1533ce18494e2e49de044d20bdf1ec94d2"
-dependencies = [
- "es-fluent-derive-core",
- "heck",
- "icu_locale",
- "proc-macro-crate",
- "proc-macro2",
- "quote",
- "serde_json",
- "syn 3.0.9",
- "writeable",
-]
 
 [[package]]
 name = "itertools"
@@ -8598,7 +8558,6 @@ dependencies = [
  "es-fluent-build",
  "es-fluent-manager-embedded",
  "example-shared-lib",
- "strum",
 ]
 
 [[package]]
@@ -10729,7 +10688,6 @@ dependencies = [
  "es-fluent",
  "es-fluent-build",
  "es-fluent-manager-dioxus",
- "iso-types",
  "stayhydated-dioxus",
  "stayhydated-site",
 ]

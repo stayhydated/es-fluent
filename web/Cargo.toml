@@ -10,7 +10,6 @@ publish = false
 dioxus = { features = [ "router", "launch", "lib", "web" ], workspace = true }
 es-fluent = { features = [ "derive" ], workspace = true }
 es-fluent-manager-dioxus = { features = [ "client" ], workspace = true }
-iso-types = { workspace = true }
 stayhydated-dioxus = { workspace = true }
 stayhydated-site = { workspace = true }
 

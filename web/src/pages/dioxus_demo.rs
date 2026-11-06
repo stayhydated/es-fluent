@@ -7,7 +7,6 @@ use crate::site::{
 };
 use dioxus::prelude::*;
 use es_fluent_manager_dioxus::{DioxusAssetI18nProvider, use_i18n};
-use iso_types::IntoEnumIterator as _;
 use stayhydated_dioxus::{
     NavigationTarget, StayhydatedProjectPortalShell, select, surface_reveal_style,
 };
@@ -48,10 +47,11 @@ fn DioxusDemoContent() -> Element {
 
     let selected = use_memo({
         let i18n = i18n.clone();
-        move || Some(DemoLanguage::try_from(i18n.requested_language()).unwrap_or_default())
+        move || Some(DemoLanguage::try_from(&i18n.requested_language()).unwrap_or_default())
     });
     let selected_label = i18n.localize_message(&selected().unwrap_or_default());
-    let options = DemoLanguage::iter()
+    let options = DemoLanguage::ALL
+        .into_iter()
         .map(|language| (language, i18n.localize_message(&language)))
         .collect::<Vec<_>>();
     let i18n_for_select = i18n.clone();

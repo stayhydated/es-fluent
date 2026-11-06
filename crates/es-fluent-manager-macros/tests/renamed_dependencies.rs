@@ -23,20 +23,6 @@ fn manager_macros_compile_when_runtime_dependencies_are_renamed() {
     let embedded_path = workspace_root.join("crates/es-fluent-manager-embedded");
     let bevy_path = workspace_root.join("crates/es-fluent-manager-bevy");
     let dioxus_path = workspace_root.join("crates/es-fluent-manager-dioxus");
-    let metadata = cargo_metadata::MetadataCommand::new()
-        .manifest_path(workspace_root.join("Cargo.toml"))
-        .exec()
-        .expect("resolve iso-types source");
-    let lang_path = metadata
-        .packages
-        .iter()
-        .find(|package| package.name.as_str() == "iso-types")
-        .expect("iso-types dependency")
-        .manifest_path
-        .parent()
-        .expect("iso-types crate directory")
-        .as_std_path();
-
     std::fs::write(
         crate_dir.join("Cargo.toml"),
         format!(
@@ -51,29 +37,11 @@ localized = {{ package = "es-fluent", path = "{}" }}
 embedded_runtime = {{ package = "es-fluent-manager-embedded", path = "{}" }}
 bevy_runtime = {{ package = "es-fluent-manager-bevy", path = "{}", default-features = false, features = ["macros"] }}
 dioxus_runtime = {{ package = "es-fluent-manager-dioxus", path = "{}" }}
-language_pack = {{ package = "iso-types", path = "{}", features = ["locales", "fluent"] }}
-
-[patch.crates-io]
-es-fluent = {{ path = "{}" }}
-es-fluent-build = {{ path = "{}" }}
-es-fluent-derive = {{ path = "{}" }}
-es-fluent-derive-core = {{ path = "{}" }}
-es-fluent-manager-core = {{ path = "{}" }}
-es-fluent-shared = {{ path = "{}" }}
-es-fluent-toml = {{ path = "{}" }}
 "#,
             toml_path(&facade_path),
             toml_path(&embedded_path),
             toml_path(&bevy_path),
             toml_path(&dioxus_path),
-            toml_path(lang_path),
-            toml_path(&facade_path),
-            toml_path(&workspace_root.join("crates/es-fluent-build")),
-            toml_path(&workspace_root.join("crates/es-fluent-derive")),
-            toml_path(&workspace_root.join("crates/es-fluent-derive-core")),
-            toml_path(&workspace_root.join("crates/es-fluent-manager-core")),
-            toml_path(&workspace_root.join("crates/es-fluent-shared")),
-            toml_path(&workspace_root.join("crates/es-fluent-toml"))
         ),
     )
     .expect("write Cargo.toml");
@@ -94,11 +62,20 @@ assets_dir = "i18n"
 embedded_runtime::define_i18n_module!();
 dioxus_runtime::define_i18n_module!();
 
-use language_pack::iso_locale;
-
-#[iso_locale]
 #[derive(Clone, Copy)]
-pub enum Languages {}
+pub enum Languages {
+    En,
+}
+
+impl TryFrom<&localized::unic_langid::LanguageIdentifier> for Languages {
+    type Error = ();
+
+    fn try_from(
+        value: &localized::unic_langid::LanguageIdentifier,
+    ) -> Result<Self, Self::Error> {
+        (value.language.as_str() == "en").then_some(Self::En).ok_or(())
+    }
+}
 
 #[derive(bevy_runtime::BevyFluentText, Clone)]
 pub struct Message;
