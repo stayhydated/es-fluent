@@ -202,14 +202,14 @@ fn fallback_validation_impl(
     }
 }
 
-/// Returns the package's validation state, reading `i18n.toml` and the
-/// fallback catalog once per package build.
+/// Returns the package's validation state, reading the package configuration
+/// and fallback catalog once per package build.
 ///
-/// A package with an `es-fluent-build` script has a build-inputs fingerprint
-/// covering everything read here, so the state is reused while the
-/// fingerprint and catalog path are unchanged. The cache keeps one entry per
-/// package, as a long-lived proc-macro server sees many packages and edits.
-/// Without a fingerprint the inputs are read for every expansion.
+/// A package with an `es-fluent-build` script has a build manifest hash
+/// covering everything read here, so the state is reused while the hash and
+/// manifest path are unchanged. The cache keeps one entry per package, as a
+/// long-lived proc-macro server sees many packages and edits. Without a build
+/// manifest the configuration is read for every expansion.
 fn cached_package_validation(
     package: String,
     manifest_dir: std::path::PathBuf,
@@ -224,10 +224,10 @@ fn cached_package_validation(
     static CACHE: LazyLock<Mutex<HashMap<CacheKey, (CacheInputs, FallbackValidation)>>> =
         LazyLock::new(Mutex::default);
 
-    let Some(fingerprint) = std::env::var_os(BUILD_INPUTS_FINGERPRINT_ENV) else {
+    let Some(hash) = std::env::var_os(BUILD_MANIFEST_HASH_ENV) else {
         return package_validation(package, &manifest_dir);
     };
-    let inputs = (fingerprint, std::env::var_os(FALLBACK_CATALOG_ENV));
+    let inputs = (hash, std::env::var_os(BUILD_MANIFEST_ENV));
     let key = (manifest_dir, package);
     if let Some((cached_inputs, validation)) = CACHE
         .lock()
@@ -249,64 +249,64 @@ fn cached_package_validation(
 /// Reads the package configuration and fallback catalog.
 fn package_validation(package: String, manifest_dir: &std::path::Path) -> FallbackValidation {
     let config_path = manifest_dir.join("i18n.toml");
-    let layout = match es_fluent_toml::ResolvedI18nLayout::from_manifest_dir(manifest_dir) {
-        Ok(layout) => layout,
-        Err(es_fluent_toml::I18nConfigError::NotFound) => {
-            return FallbackValidation::unconfigured();
-        },
+    let inputs = match super::PackageInputs::current() {
+        Ok(inputs) => inputs,
         Err(error) => {
             return FallbackValidation {
                 policy: es_fluent_toml::MissingMessagePolicy::Strict,
-                catalog: FallbackCatalog::ConfigurationError {
+                catalog: FallbackCatalog::Unreadable {
                     package,
-                    path: config_path.to_string_lossy().into_owned(),
-                    details: error.to_string(),
+                    path: error.path.to_string_lossy().into_owned(),
+                    details: error.details,
                 },
                 source_exemption: None,
             };
         },
     };
-    let policy = layout.missing_message_policy();
-    if let Err(error) = layout.config.validate_for_package(&package) {
-        return FallbackValidation {
-            policy,
-            catalog: FallbackCatalog::ConfigurationError {
+    let configuration_error = |package, policy, details| FallbackValidation {
+        policy,
+        catalog: FallbackCatalog::ConfigurationError {
+            package,
+            path: config_path.to_string_lossy().into_owned(),
+            details,
+        },
+        source_exemption: None,
+    };
+    let config = match inputs.config() {
+        Ok(config) => config,
+        Err(es_fluent_toml::I18nConfigError::NotFound) => {
+            return FallbackValidation::unconfigured();
+        },
+        Err(error) => {
+            return configuration_error(
                 package,
-                path: config_path.to_string_lossy().into_owned(),
-                details: error.to_string(),
-            },
-            source_exemption: None,
-        };
+                es_fluent_toml::MissingMessagePolicy::Strict,
+                error.to_string(),
+            );
+        },
+    };
+    let policy = config.missing_message_policy;
+    if let Err(error) = config.validate_for_package(&package) {
+        return configuration_error(package, policy, error.to_string());
     }
 
-    let fallback_root = layout
-        .output_dir
-        .strip_prefix(&layout.manifest_dir)
-        .unwrap_or(&layout.output_dir)
+    let fallback_root = config
+        .assets_dir
+        .join(config.fallback_language_id())
+        .components()
+        .filter(|component| !matches!(component, std::path::Component::CurDir))
+        .collect::<std::path::PathBuf>()
         .to_string_lossy()
         .into_owned();
-    let Some(catalog_path) = std::env::var_os(FALLBACK_CATALOG_ENV).map(std::path::PathBuf::from)
-    else {
-        return FallbackValidation {
-            policy,
-            catalog: FallbackCatalog::Missing {
-                package,
-                fallback_root,
-            },
-            source_exemption: None,
-        };
-    };
-
-    let catalog = match std::fs::read(&catalog_path) {
-        Ok(contents) => FallbackCatalog::Contents {
+    let catalog = match inputs {
+        super::PackageInputs::Manifest(manifest) => FallbackCatalog::Contents {
             package,
             fallback_root,
-            messages: FallbackCatalogIndex::decode(&contents).into(),
+            messages: manifest.fallback_messages().unwrap_or_default().into(),
         },
-        Err(error) => FallbackCatalog::Unreadable {
+        super::PackageInputs::Files { .. } => FallbackCatalog::Missing {
             package,
-            path: catalog_path.to_string_lossy().into_owned(),
-            details: error.to_string(),
+            fallback_root,
         },
     };
     FallbackValidation {

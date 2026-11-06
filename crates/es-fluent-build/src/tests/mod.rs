@@ -1,4 +1,6 @@
 use super::*;
+use es_fluent_toml::ResolvedI18nLayout;
+use manifest::BuildManifest;
 use path_slash::PathExt as _;
 use std::fs;
 use std::path::Path;
@@ -17,6 +19,16 @@ fn with_manifest_env<T>(value: Option<&Path>, f: impl FnOnce() -> T) -> T {
         ],
         f,
     )
+}
+
+fn read_build_manifest(package_dir: &Path) -> BuildManifest {
+    let bytes = fs::read(
+        package_dir
+            .join("build-output")
+            .join(BUILD_MANIFEST_FILE_NAME),
+    )
+    .expect("read build manifest");
+    BuildManifest::from_bytes(&bytes).expect("parse build manifest")
 }
 
 fn toml_path(path: &Path) -> String {
@@ -116,3 +128,4 @@ fn main() {
 
 include!("catalog.rs");
 include!("integration.rs");
+include!("manifest.rs");

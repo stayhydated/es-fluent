@@ -2,22 +2,23 @@ use std::collections::{BTreeMap, HashMap, HashSet};
 
 use crate::fluent::{FluentDomain, FluentEntryId, FluentIdentifierError};
 
-/// File emitted by `es-fluent-build` for strict fallback-locale validation.
-pub const FALLBACK_CATALOG_FILE_NAME: &str = "es-fluent-fallback.catalog";
+/// File written to `OUT_DIR` by `es-fluent-build` with the i18n inputs
+/// es-fluent macros read: `i18n.toml`, discovered locales and resources, and
+/// the fallback-message catalog.
+pub const BUILD_MANIFEST_FILE_NAME: &str = "es-fluent-build-manifest.json";
 
-/// Rust compilation environment variable containing the generated catalog path.
+/// Rust compilation environment variable containing the build manifest path.
 #[doc(hidden)]
-pub const FALLBACK_CATALOG_ENV: &str = "ES_FLUENT_FALLBACK_CATALOG";
+pub const BUILD_MANIFEST_ENV: &str = "ES_FLUENT_BUILD_MANIFEST";
 
-/// Rust compilation environment variable fingerprinting every i18n input that
-/// es-fluent macros read from disk.
+/// Rust compilation environment variable containing the content hash of the
+/// build manifest.
 ///
-/// `es-fluent-build` sets it, and macros reference it through `env!` so rustc
-/// records the fingerprint in dep-info. Compiler caches that key on dep-info,
-/// such as sccache or kache, then rebuild when `i18n.toml`, locale directories,
-/// or FTL files change.
+/// Macros reference it through `env!` so rustc records the hash in dep-info.
+/// Compiler caches that key on dep-info, such as sccache or kache, then
+/// re-expand macros exactly when the manifest they read changes.
 #[doc(hidden)]
-pub const BUILD_INPUTS_FINGERPRINT_ENV: &str = "ES_FLUENT_BUILD_INPUTS_FINGERPRINT";
+pub const BUILD_MANIFEST_HASH_ENV: &str = "ES_FLUENT_BUILD_MANIFEST_HASH";
 
 /// Internal environment marker for CLI inventory builds that defer catalog validation.
 #[doc(hidden)]
@@ -128,51 +129,39 @@ impl FallbackCatalog {
         Ok(())
     }
 
-    /// Encodes resolvable messages as `domain\tid` lines for derive validation.
-    pub fn encode(&self) -> Vec<u8> {
-        let mut encoded = Vec::new();
-        for ((domain, id), kind) in &self.entries {
-            if !kind.resolves_message() {
-                continue;
-            }
-            encoded.extend_from_slice(domain.as_str().as_bytes());
-            encoded.push(b'\t');
-            encoded.extend_from_slice(id.as_str().as_bytes());
-            encoded.push(b'\n');
-        }
-        encoded
+    /// Returns the messages that resolve a typed lookup, ordered by domain and ID.
+    pub fn resolvable_messages(&self) -> impl Iterator<Item = (&FluentDomain, &FluentEntryId)> {
+        self.entries
+            .iter()
+            .filter(|(_, kind)| kind.resolves_message())
+            .map(|((domain, id), _)| (domain, id))
     }
 }
 
-/// A decoded fallback catalog for repeated lookups.
+/// Resolvable fallback messages indexed for repeated lookups.
 ///
 /// Derives check every generated message against the catalog, so it is
-/// decoded once per package build instead of scanned for each message.
+/// indexed once per package build instead of scanned for each message.
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
 pub struct FallbackCatalogIndex {
     messages: HashMap<Box<str>, HashSet<Box<str>>>,
 }
 
 impl FallbackCatalogIndex {
-    /// Decodes a catalog written by [`FallbackCatalog::encode`].
-    pub fn decode(catalog: &[u8]) -> Self {
-        let mut messages = HashMap::<Box<str>, HashSet<Box<str>>>::new();
-        for line in catalog.split(|byte| *byte == b'\n') {
-            let Some((domain, id)) = std::str::from_utf8(line)
-                .ok()
-                .and_then(|line| line.split_once('\t'))
-            else {
-                continue;
-            };
-            messages.entry(domain.into()).or_default().insert(id.into());
-        }
-        Self { messages }
-    }
-
     /// Returns whether the catalog resolves `id` in `domain`.
     pub fn contains(&self, domain: &str, id: &str) -> bool {
         self.messages
             .get(domain)
             .is_some_and(|ids| ids.contains(id))
+    }
+}
+
+impl<D: Into<Box<str>>, I: Into<Box<str>>> FromIterator<(D, I)> for FallbackCatalogIndex {
+    fn from_iter<T: IntoIterator<Item = (D, I)>>(messages: T) -> Self {
+        let mut index = HashMap::<Box<str>, HashSet<Box<str>>>::new();
+        for (domain, id) in messages {
+            index.entry(domain.into()).or_default().insert(id.into());
+        }
+        Self { messages: index }
     }
 }

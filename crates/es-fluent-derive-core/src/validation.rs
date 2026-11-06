@@ -16,7 +16,6 @@ use es_fluent_shared::{
     namer,
     namespace::{NamespaceRule, ResolvedNamespace},
 };
-use es_fluent_toml::{I18nConfig, I18nConfigError};
 use heck::ToPascalCase as _;
 use syn::DeriveInput;
 
@@ -560,9 +559,9 @@ pub fn validate_namespace(
     }
 
     // Try to read the config; if it doesn't exist, skip allowlist validation
-    let config = match I18nConfig::read_from_manifest_dir() {
-        Ok(c) => c,
-        Err(I18nConfigError::NotFound) => return Ok(()),
+    let config = match crate::macro_support::current_package_config() {
+        Ok(Some(config)) => config,
+        Ok(None) => return Ok(()),
         Err(error) => {
             return Err(EsFluentCoreError::AttributeError {
                 message: format!(
@@ -594,9 +593,9 @@ pub fn validate_domain(
     domain: &FluentDomain,
     span: Option<proc_macro2::Span>,
 ) -> EsFluentCoreResult<()> {
-    let config = match I18nConfig::read_from_manifest_dir() {
-        Ok(config) => config,
-        Err(I18nConfigError::NotFound) => {
+    let config = match crate::macro_support::current_package_config() {
+        Ok(Some(config)) => config,
+        Ok(None) => {
             return Err(EsFluentCoreError::AttributeError {
                 message: format!(
                     "domain '{}' requires an i18n.toml owned by the current package",

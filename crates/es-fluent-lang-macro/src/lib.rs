@@ -100,7 +100,11 @@ fn expand_es_fluent_language(
         .to_compile_error();
     }
 
-    let config = match es_fluent_toml::I18nConfig::read_from_manifest_dir() {
+    let inputs = match es_fluent_derive_core::macro_support::PackageInputs::current() {
+        Ok(inputs) => inputs,
+        Err(err) => return syn::Error::new(enum_span, err.to_string()).to_compile_error(),
+    };
+    let config = match inputs.config() {
         Ok(config) => config,
         Err(err) => {
             return syn::Error::new(
@@ -111,7 +115,7 @@ fn expand_es_fluent_language(
         },
     };
 
-    let mut languages = match config.available_languages() {
+    let mut languages = match inputs.languages(&config) {
         Ok(languages) => languages,
         Err(err) => {
             return syn::Error::new(

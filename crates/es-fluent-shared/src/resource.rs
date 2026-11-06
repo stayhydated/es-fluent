@@ -10,9 +10,9 @@ mod route;
 mod spec;
 
 pub use catalog::{
-    BUILD_INPUTS_FINGERPRINT_ENV, FALLBACK_CATALOG_ENV, FALLBACK_CATALOG_FILE_NAME,
-    FallbackCatalog, FallbackCatalogError, FallbackCatalogIndex, FluentCatalogEntry,
-    FluentCatalogEntryKind, INVENTORY_RUNNER_ENV, classify_fluent_entry,
+    BUILD_MANIFEST_ENV, BUILD_MANIFEST_FILE_NAME, BUILD_MANIFEST_HASH_ENV, FallbackCatalog,
+    FallbackCatalogError, FallbackCatalogIndex, FluentCatalogEntry, FluentCatalogEntryKind,
+    INVENTORY_RUNNER_ENV, classify_fluent_entry,
 };
 pub use discovery::SparseAssetResourcePlans;
 pub use errors::{ResourcePlanError, SparseAssetResourcePlanError};
