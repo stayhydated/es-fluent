@@ -8,16 +8,16 @@ request-scoped SSR, or applications that use both.
 ~~~toml
 [dependencies]
 dioxus = "0.7"
-es-fluent = "0.21"
+es-fluent = "0.22"
 
 # Client rendering:
-es-fluent-manager-dioxus = { version = "0.21", features = ["client"] }
+es-fluent-manager-dioxus = { version = "0.22", features = ["client"] }
 
 # SSR only:
-# es-fluent-manager-dioxus = { version = "0.21", features = ["ssr"] }
+# es-fluent-manager-dioxus = { version = "0.22", features = ["ssr"] }
 
 # Client and SSR:
-# es-fluent-manager-dioxus = { version = "0.21", features = ["client", "ssr"] }
+# es-fluent-manager-dioxus = { version = "0.22", features = ["client", "ssr"] }
 ~~~
 
 The crate has no default runtime feature. The module macro remains available

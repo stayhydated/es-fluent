@@ -18,7 +18,7 @@ Add `es-fluent-build` to your **build dependencies**:
 
 ```toml
 [build-dependencies]
-es-fluent-build = "0.21"
+es-fluent-build = "0.22"
 ```
 
 Call the tracking helper from Cargo's selected custom-build target. The default

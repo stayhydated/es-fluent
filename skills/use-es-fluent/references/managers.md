@@ -9,8 +9,8 @@ Use for general Rust applications:
 
 ~~~toml
 [dependencies]
-es-fluent = "0.21"
-es-fluent-manager-embedded = "0.21"
+es-fluent = "0.22"
+es-fluent-manager-embedded = "0.22"
 unic-langid = "0.9"
 ~~~
 
@@ -40,13 +40,13 @@ Enable exactly the runtime surfaces used by the application:
 ~~~toml
 [dependencies]
 dioxus = "0.7"
-es-fluent-manager-dioxus = { version = "0.21", features = ["client"] }
+es-fluent-manager-dioxus = { version = "0.22", features = ["client"] }
 
 # SSR:
-# es-fluent-manager-dioxus = { version = "0.21", features = ["ssr"] }
+# es-fluent-manager-dioxus = { version = "0.22", features = ["ssr"] }
 
 # Client and SSR:
-# es-fluent-manager-dioxus = { version = "0.21", features = ["client", "ssr"] }
+# es-fluent-manager-dioxus = { version = "0.22", features = ["client", "ssr"] }
 ~~~
 
 Register assets from a library module:
@@ -78,8 +78,8 @@ Dioxus hooks.
 ~~~toml
 [dependencies]
 bevy = "0.20"
-es-fluent = "0.21"
-es-fluent-manager-bevy = "0.21"
+es-fluent = "0.22"
+es-fluent-manager-bevy = "0.22"
 ~~~
 
 ~~~rust
