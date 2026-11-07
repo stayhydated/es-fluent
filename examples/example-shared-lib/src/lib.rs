@@ -1,5 +1,5 @@
-use es_fluent::{EsFluent, EsFluentLabel, EsFluentVariants};
 use es_fluent::unic_langid::LanguageIdentifier;
+use es_fluent::{EsFluent, EsFluentLabel, EsFluentVariants};
 
 #[cfg(feature = "bevy")]
 use bevy::prelude::*;
@@ -143,7 +143,13 @@ mod tests {
         let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
         let mut directories = std::fs::read_dir(root.join("i18n"))
             .expect("read locale directories")
-            .map(|entry| entry.expect("locale entry").file_name().into_string().unwrap())
+            .map(|entry| {
+                entry
+                    .expect("locale entry")
+                    .file_name()
+                    .into_string()
+                    .unwrap()
+            })
             .collect::<Vec<_>>();
         directories.sort();
         let mut codes = Languages::ALL.map(Languages::code).to_vec();

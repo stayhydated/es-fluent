@@ -98,7 +98,13 @@ mod tests {
         let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
         let mut directories = std::fs::read_dir(root.join("assets/locales"))
             .expect("read locale directories")
-            .map(|entry| entry.expect("locale entry").file_name().into_string().unwrap())
+            .map(|entry| {
+                entry
+                    .expect("locale entry")
+                    .file_name()
+                    .into_string()
+                    .unwrap()
+            })
             .collect::<Vec<_>>();
         directories.sort();
         let mut codes = DemoLanguage::ALL.map(DemoLanguage::code).to_vec();

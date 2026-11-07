@@ -5,7 +5,9 @@ use std::time::{Duration, UNIX_EPOCH};
 
 fn main() {
     let i18n = i18n::try_new_with_language(Languages::default()).expect("i18n should initialize");
-    Languages::ALL.into_iter().for_each(|language| run(&i18n, language));
+    Languages::ALL
+        .into_iter()
+        .for_each(|language| run(&i18n, language));
 }
 
 fn run(i18n: &i18n::I18n, locale: Languages) {
