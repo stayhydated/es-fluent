@@ -39,6 +39,9 @@ jobs:
   test:
     name: test (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
+    env:
+      # Windows long rustc command lines: https://github.com/mozilla/sccache/pull/3026
+      RUSTC_WRAPPER: ${{ matrix.os != 'windows-latest' && 'sccache' || '' }}
     strategy:
       fail-fast: false
       matrix:
@@ -58,6 +61,7 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
 
       - name: Setup sccache
+        if: runner.os != 'Windows'
         uses: mozilla-actions/sccache-action@v0.0.11
         with:
           version: "v0.16.0"
