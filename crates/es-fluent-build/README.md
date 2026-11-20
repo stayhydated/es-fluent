@@ -23,7 +23,7 @@ fn main() {
 
 Cargo reruns the helper when `i18n.toml` or configured locale files and
 directories change. The manifest records `i18n.toml`, the discovered locales and
-resources, and the fallback catalog, so derive and manager macros
+resources, and the fallback catalog, so derive, locale, and manager macros
 expand from it instead of reading the package. Macros reference the manifest's
 content hash, so compiler caches such as sccache or kache re-expand them exactly
 when it changes. The helper supports both

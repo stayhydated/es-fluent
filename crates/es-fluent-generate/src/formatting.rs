@@ -69,7 +69,7 @@ pub fn sort_ftl_resource(resource: &ast::Resource<String>) -> String {
                     .strip_suffix("_variants")
                     .map(normalize)
                     .filter(|fallback| *fallback != full_matcher_key);
-                current_section.header_sort_key = name.clone();
+                current_section.header_sort_key = name;
                 current_section.full_matcher_key = full_matcher_key;
                 current_section.fallback_matcher_key = fallback_matcher_key;
 

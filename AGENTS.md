@@ -69,7 +69,7 @@ or implementation work.
 - Keep orphan cleanup scoped to the selected package and conservative about
   unselected fallback-relative paths. Raw filenames alone do not establish
   global ownership.
-- `es-fluent-build` writes the build manifest that derive and
+- `es-fluent-build` writes the build manifest that derive, locale, and
   manager macros expand from: `i18n.toml`, discovered locales and resources,
   and the fallback catalog. Macros read package inputs only through
   `es_fluent_derive_core::macro_support::PackageInputs` so rustc and compiler

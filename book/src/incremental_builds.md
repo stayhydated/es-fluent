@@ -6,7 +6,7 @@ locale changes, additions, renames, and deletions trigger that work again.
 
 The `es-fluent-build` helper emits the rebuild directives and writes a build
 manifest with `i18n.toml`, the discovered locales and resources, and a catalog
-of resolvable fallback messages. Derive and manager macros expand
+of resolvable fallback messages. Derive, locale, and manager macros expand
 from that manifest, and derive output uses its catalog to make a missing
 fallback message value a compile-time error. Macros reference the manifest's
 content hash, so compiler caches such as sccache or kache re-expand them when
