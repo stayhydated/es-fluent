@@ -228,10 +228,6 @@ mod tests {
     struct RegistryNoopLocalizer;
 
     impl Localizer for RegistryNoopLocalizer {
-        fn select_language(&self, _lang: &LanguageIdentifier) -> Result<(), LocalizationError> {
-            Ok(())
-        }
-
         fn localize<'a>(
             &self,
             _key: crate::StaticFluentMessageKey,
@@ -248,8 +244,11 @@ mod tests {
     }
 
     impl I18nModule for RegistryRuntimeModule {
-        fn create_localizer(&self) -> Box<dyn Localizer> {
-            Box::new(RegistryNoopLocalizer)
+        fn create_localizer(
+            &self,
+            _lang: &LanguageIdentifier,
+        ) -> Result<Box<dyn Localizer>, LocalizationError> {
+            Ok(Box::new(RegistryNoopLocalizer))
         }
     }
 
@@ -260,8 +259,11 @@ mod tests {
     }
 
     impl I18nModule for RegistryRuntimeModuleTwo {
-        fn create_localizer(&self) -> Box<dyn Localizer> {
-            Box::new(RegistryNoopLocalizer)
+        fn create_localizer(
+            &self,
+            _lang: &LanguageIdentifier,
+        ) -> Result<Box<dyn Localizer>, LocalizationError> {
+            Ok(Box::new(RegistryNoopLocalizer))
         }
     }
 

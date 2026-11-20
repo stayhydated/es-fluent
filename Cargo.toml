@@ -32,7 +32,7 @@ publish = true
 readme = "README.md"
 repository = "https://github.com/stayhydated/es-fluent"
 rust-version = "1.99"
-version = "0.21.1"
+version = "0.21.2"
 
 [workspace.dependencies]
 anstream = "1.0.0"
@@ -40,7 +40,7 @@ anyhow = "1.0.104"
 askama = "0.16.1"
 assert_cmd = "2.2.2"
 assert_fs = "1.1.4"
-bevy = { default-features = false, version = "0.20.0" }
+bevy = { default-features = false, version = "0.20.1" }
 blake3 = "1.8.7"
 bon = "3.10.3"
 camino = "1.2.6"
@@ -61,28 +61,26 @@ dioxus-core-macro = { default-features = false, version = "0.7.10" }
 dioxus-hooks = { default-features = false, version = "0.7.10" }
 dioxus-signals = { default-features = false, version = "0.7.10" }
 dioxus-ssr = { default-features = false, version = "0.7.10" }
-es-fluent = { path = "crates/es-fluent", version = "0.21.1" }
-es-fluent-build = { path = "crates/es-fluent-build", version = "0.21.1" }
-es-fluent-derive = { path = "crates/es-fluent-derive", version = "0.21.1" }
-es-fluent-derive-core = { path = "crates/es-fluent-derive-core", version = "0.21.1" }
-es-fluent-generate = { path = "crates/es-fluent-generate", version = "0.21.1" }
-es-fluent-lang = { path = "crates/es-fluent-lang", version = "0.21.1" }
-es-fluent-lang-macro = { path = "crates/es-fluent-lang-macro", version = "0.21.1" }
-es-fluent-manager-bevy = { default-features = false, path = "crates/es-fluent-manager-bevy", version = "0.21.1" }
-es-fluent-manager-core = { default-features = false, path = "crates/es-fluent-manager-core", version = "0.21.1" }
-es-fluent-manager-dioxus = { default-features = false, path = "crates/es-fluent-manager-dioxus", version = "0.21.1" }
-es-fluent-manager-embedded = { path = "crates/es-fluent-manager-embedded", version = "0.21.1" }
-es-fluent-manager-macros = { path = "crates/es-fluent-manager-macros", version = "0.21.1" }
-es-fluent-runner = { path = "crates/es-fluent-runner", version = "0.21.1" }
-es-fluent-shared = { path = "crates/es-fluent-shared", version = "0.21.1" }
-es-fluent-toml = { path = "crates/es-fluent-toml", version = "0.21.1" }
+es-fluent = { path = "crates/es-fluent", version = "0.21.2" }
+es-fluent-build = { path = "crates/es-fluent-build", version = "0.21.2" }
+es-fluent-derive = { path = "crates/es-fluent-derive", version = "0.21.2" }
+es-fluent-derive-core = { path = "crates/es-fluent-derive-core", version = "0.21.2" }
+es-fluent-generate = { path = "crates/es-fluent-generate", version = "0.21.2" }
+es-fluent-lang = { path = "crates/es-fluent-lang", version = "0.21.2" }
+es-fluent-lang-macro = { path = "crates/es-fluent-lang-macro", version = "0.21.2" }
+es-fluent-manager-bevy = { default-features = false, path = "crates/es-fluent-manager-bevy", version = "0.21.2" }
+es-fluent-manager-core = { default-features = false, path = "crates/es-fluent-manager-core", version = "0.21.2" }
+es-fluent-manager-dioxus = { default-features = false, path = "crates/es-fluent-manager-dioxus", version = "0.21.2" }
+es-fluent-manager-embedded = { path = "crates/es-fluent-manager-embedded", version = "0.21.2" }
+es-fluent-manager-macros = { path = "crates/es-fluent-manager-macros", version = "0.21.2" }
+es-fluent-runner = { path = "crates/es-fluent-runner", version = "0.21.2" }
+es-fluent-shared = { path = "crates/es-fluent-shared", version = "0.21.2" }
+es-fluent-toml = { path = "crates/es-fluent-toml", version = "0.21.2" }
 fluent-bundle = "0.16.0"
-fluent-fallback = "0.7.2"
 fluent-syntax = "0.12.0"
 fs-err = "3.3.2"
 futures = "0.3.34"
 getset = "0.1.7"
-globset = "0.4.20"
 heck = "0.5.0"
 icu_calendar = "2.4.0"
 icu_datetime = "2.4.0"
@@ -95,9 +93,9 @@ indicatif = "0.18.6"
 insta = "1.49.0"
 intl-memoizer = "0.5.3"
 inventory = "0.3.25"
-jiff = "0.2.38"
+jiff = "0.2.39"
 miette = "7.6.0"
-notify = "8.2.0"
+notify = "8.2.1"
 notify-debouncer-full = "0.7.0"
 parking_lot = "0.13.0"
 path-slash = "0.2.1"
@@ -109,15 +107,13 @@ proptest = { default-features = false, features = [ "std" ], version = "1.12.0" 
 quote = "1.0.47"
 ratatui = "0.30.2"
 rstest = "0.28.0"
-rust-embed = "8.13.0"
-rustc-hash = "2.1.3"
 serde = "1.0.229"
 serde_json = "1.0.154"
 serial_test = "4.0.1"
-similar = "3.2.0"
-stayhydated-dioxus = { git = "https://github.com/stayhydated/shared", rev = "b3f91071b4e61702a63f57844560f70bbc9bf623" }
-stayhydated-site = { git = "https://github.com/stayhydated/shared", rev = "b3f91071b4e61702a63f57844560f70bbc9bf623" }
-stayhydated-xtask = { git = "https://github.com/stayhydated/shared", rev = "b3f91071b4e61702a63f57844560f70bbc9bf623" }
+similar = "3.2.1"
+stayhydated-dioxus = { git = "https://github.com/stayhydated/shared", rev = "1569baacf4fb2a94bbf7d9f02615332407e104df" }
+stayhydated-site = { git = "https://github.com/stayhydated/shared", rev = "1569baacf4fb2a94bbf7d9f02615332407e104df" }
+stayhydated-xtask = { git = "https://github.com/stayhydated/shared", rev = "1569baacf4fb2a94bbf7d9f02615332407e104df" }
 strum = "0.28.0"
 syn = "3.0.9"
 temp-env = "0.3.6"
@@ -132,9 +128,9 @@ treelog = "0.0.6"
 trybuild = "1.0.122"
 unic-langid = "0.9.6"
 walkdir = "2.5.0"
-wasm-bindgen = "0.2.129"
+wasm-bindgen = "0.2.130"
 web = { path = "web" }
-web-sys = "0.3.106"
+web-sys = "0.3.107"
 writeable = "0.6.4"
 
 [profile.dev]

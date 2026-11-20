@@ -136,3 +136,28 @@ fn collect_status_setup_errors_deduplicates_fallback_locale_path_symlink() {
             .any(|error| error.contains("locale path 'en' is not a directory"))
     );
 }
+
+#[test]
+fn status_setup_errors_cover_declared_domain_layouts() {
+    let temp = crate::test_fixtures::create_test_crate_workspace();
+    fs::write(
+        temp.path().join("i18n.toml"),
+        "assets_dir = \"i18n\"\nfallback_language = \"en\"\ndomains = [\"ui\"]\n",
+    )
+    .expect("declare extra domain");
+    fs::create_dir_all(temp.path().join("i18n/en/ui.ftl")).expect("create domain ftl directory");
+
+    let workspace = WorkspaceCrates::discover(WorkspaceArgs {
+        path: Some(temp.path().to_path_buf()),
+        package: None,
+    })
+    .expect("discover workspace");
+    let setup_errors = collect_status_setup_errors(&workspace);
+
+    assert!(
+        setup_errors.iter().any(|error| {
+            error.contains("Expected FTL path to be a file") && error.contains("ui.ftl")
+        }),
+        "status should check every declared domain's layout: {setup_errors:?}"
+    );
+}

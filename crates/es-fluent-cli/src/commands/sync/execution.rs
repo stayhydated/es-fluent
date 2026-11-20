@@ -1,7 +1,7 @@
 use super::{
     locale,
     preflight::{
-        validate_all_locale_paths_are_directories,
+        selected_crates, validate_all_locale_paths_are_directories,
         validate_created_target_locales_visible_to_all_scans,
         validate_explicit_assets_dirs_are_directories, validate_explicit_target_locales_exist,
         validate_explicit_targets_are_not_fallbacks,
@@ -79,82 +79,41 @@ pub(crate) fn run_sync_with_text_mode(
     }
 
     let crates = workspace.crates;
+    let dry_run = args.dry_run;
+    let fail = |error: String| {
+        if output.is_json() {
+            return sync_json_error_for_workspace(output, dry_run, error, &workspace_root);
+        }
+        Err(text_mode.text_error(error))
+    };
+    let selected = match selected_crates(&crates) {
+        Ok(selected) => selected,
+        Err(error) => return fail(error.to_string()),
+    };
 
     if args.all_locales
-        && let Err(error) = validate_all_locale_paths_are_directories(&crates)
+        && let Err(error) = validate_all_locale_paths_are_directories(&selected)
     {
-        if args.output.is_json() {
-            return sync_json_error_for_workspace(
-                args.output,
-                args.dry_run,
-                error,
-                &workspace_root,
-            );
-        }
-        return Err(text_mode.text_error(error));
+        return fail(error.to_string());
     }
 
     if show_text {
         text_mode.print_header();
     }
 
-    if target_locales.is_some()
-        && let Err(error) = validate_explicit_assets_dirs_are_directories(&crates)
-    {
-        if args.output.is_json() {
-            return sync_json_error_for_workspace(
-                args.output,
-                args.dry_run,
-                error,
-                &workspace_root,
-            );
+    if let Some(targets) = &target_locales {
+        let preflight = validate_explicit_assets_dirs_are_directories(&selected)
+            .and_then(|()| validate_explicit_targets_are_not_fallbacks(&selected, targets))
+            .and_then(|()| {
+                if args.create {
+                    validate_created_target_locales_visible_to_all_scans(&selected, targets)
+                } else {
+                    validate_explicit_target_locales_exist(&selected, targets)
+                }
+            });
+        if let Err(error) = preflight {
+            return fail(error.to_string());
         }
-        return Err(text_mode.text_error(error));
-    }
-
-    if let Some(ref targets) = target_locales
-        && let Err(error) = validate_explicit_targets_are_not_fallbacks(&crates, targets)
-    {
-        if args.output.is_json() {
-            return sync_json_error_for_workspace(
-                args.output,
-                args.dry_run,
-                error,
-                &workspace_root,
-            );
-        }
-        return Err(text_mode.text_error(error));
-    }
-
-    // Validate that specified locales exist
-    if let Some(ref targets) = target_locales
-        && !args.create
-        && let Err(error) = validate_explicit_target_locales_exist(&crates, targets)
-    {
-        if args.output.is_json() {
-            return sync_json_error_for_workspace(
-                args.output,
-                args.dry_run,
-                error,
-                &workspace_root,
-            );
-        }
-        return Err(text_mode.text_error(error));
-    }
-
-    if let Some(ref targets) = target_locales
-        && args.create
-        && let Err(error) = validate_created_target_locales_visible_to_all_scans(&crates, targets)
-    {
-        if args.output.is_json() {
-            return sync_json_error_for_workspace(
-                args.output,
-                args.dry_run,
-                error,
-                &workspace_root,
-            );
-        }
-        return Err(text_mode.text_error(error));
     }
 
     let pb = if show_text {
@@ -177,15 +136,7 @@ pub(crate) fn run_sync_with_text_mode(
             Ok(results) => results,
             Err(error) => {
                 pb.finish_and_clear();
-                if args.output.is_json() {
-                    return sync_json_error_for_workspace(
-                        args.output,
-                        args.dry_run,
-                        error,
-                        &workspace_root,
-                    );
-                }
-                return Err(text_mode.text_error(error));
+                return fail(error.to_string());
             },
         };
         planned_results.push((krate.name.to_string(), results));
@@ -196,16 +147,7 @@ pub(crate) fn run_sync_with_text_mode(
     if !args.dry_run
         && let Err(error) = transaction.commit()
     {
-        let error = format!("sync transaction failed: {error}");
-        if args.output.is_json() {
-            return sync_json_error_for_workspace(
-                args.output,
-                args.dry_run,
-                error,
-                &workspace_root,
-            );
-        }
-        return Err(text_mode.text_error(error));
+        return fail(format!("sync transaction failed: {error}"));
     }
 
     let mut total_keys_added = 0;

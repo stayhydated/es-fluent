@@ -1,20 +1,33 @@
-use bevy::asset::{Asset, AssetLoader, AsyncReadExt as _, LoadContext};
+use bevy::asset::{Asset, AssetId, AssetLoader, AsyncReadExt as _, LoadContext};
 use bevy::prelude::*;
 use es_fluent_manager_core::{
     FluentArgumentMap, FluentDomain, FluentManager, LocalizationError, ModuleResourceSpec,
     ResourceKey, ResourceLoadError, StaticFluentDomain, StaticFluentMessageKey, SyncFluentBundle,
 };
 use fluent_bundle::FluentResource;
-use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;
 use unic_langid::LanguageIdentifier;
 
-/// A Bevy asset representing a Fluent Translation List (`.ftl`) file.
-#[derive(Asset, Clone, Debug, Deserialize, Serialize, TypePath)]
+/// A Bevy asset representing a parsed Fluent Translation List (`.ftl`) file.
+///
+/// The asset loader parses the file on Bevy's task pool, so the main-thread
+/// systems only store the result.
+#[derive(Asset, Clone, Debug, TypePath)]
 pub struct FtlAsset {
-    /// The raw string content of the `.ftl` file.
-    pub content: String,
+    /// The parsed resource, or the parser's diagnostics.
+    pub(crate) parsed: Result<Arc<FluentResource>, String>,
+}
+
+impl FtlAsset {
+    /// Parses Fluent source text.
+    pub(crate) fn parse(content: String) -> Self {
+        Self {
+            parsed: FluentResource::try_new(content)
+                .map(Arc::new)
+                .map_err(|(_, errors)| format!("{errors:?}")),
+        }
+    }
 }
 
 /// An `AssetLoader` for loading `.ftl` files as `FtlAsset`s.
@@ -34,7 +47,7 @@ impl AssetLoader for FtlAssetLoader {
     ) -> Result<Self::Asset, Self::Error> {
         let mut content = String::new();
         reader.read_to_string(&mut content).await?;
-        Ok(FtlAsset { content })
+        Ok(FtlAsset::parse(content))
     }
 
     fn extensions(&self) -> &[&str] {
@@ -116,6 +129,8 @@ pub struct I18nAssets {
     pub loaded_resources: HashMap<(LanguageIdentifier, I18nResourceKey), Arc<FluentResource>>,
     /// Last load error per resource key.
     pub load_errors: HashMap<(LanguageIdentifier, I18nResourceKey), ResourceLoadError>,
+    /// The resource keys registered for each asset handle.
+    asset_keys: HashMap<AssetId<FtlAsset>, Vec<(LanguageIdentifier, I18nResourceKey)>>,
 }
 
 /// A Bevy resource tracking locales whose scoped resource caches are ready.
@@ -124,15 +139,15 @@ pub struct I18nReadyLocales {
     pub(crate) ready_cache_tokens: HashMap<LanguageIdentifier, Arc<()>>,
 }
 
-/// Per-language domain bundles plus accepted per-domain resources for generated
-/// domain-scoped lookup.
+/// Per-language Fluent bundles for each owner-scoped domain.
+///
+/// A language keeps its bundles while required resources are still loading, so
+/// lookups can use the resources that already arrived.
 #[doc(hidden)]
 #[derive(Clone, Default, Resource)]
 pub struct I18nDomainBundles {
     pub(crate) bundles:
         HashMap<LanguageIdentifier, HashMap<FluentResourceScope, Arc<SyncFluentBundle>>>,
-    pub(crate) locale_resources:
-        HashMap<LanguageIdentifier, HashMap<FluentResourceScope, Vec<Arc<FluentResource>>>>,
 }
 
 /// Bundle build failures that leave the last good cache active.
@@ -215,9 +230,32 @@ impl I18nAssets {
         spec: ModuleResourceSpec,
         handle: Handle<FtlAsset>,
     ) {
+        self.register_asset(owner, lang, spec, handle);
+    }
+
+    fn register_asset(
+        &mut self,
+        owner: StaticFluentDomain,
+        lang: LanguageIdentifier,
+        spec: ModuleResourceSpec,
+        handle: Handle<FtlAsset>,
+    ) {
         let key = (lang.clone(), I18nResourceKey::new(owner, spec.key.clone()));
         self.add_resource_spec(owner, lang, spec);
-        self.assets.insert(key, handle);
+        if let Some(previous) = self.assets.insert(key.clone(), handle.clone())
+            && let Some(keys) = self.asset_keys.get_mut(&previous.id())
+        {
+            keys.retain(|registered| registered != &key);
+        }
+        self.asset_keys.entry(handle.id()).or_default().push(key);
+    }
+
+    /// Returns the resource keys registered for an asset.
+    pub(crate) fn keys_for_asset(
+        &self,
+        id: AssetId<FtlAsset>,
+    ) -> &[(LanguageIdentifier, I18nResourceKey)] {
+        self.asset_keys.get(&id).map_or(&[], Vec::as_slice)
     }
 
     /// Adds an optional FTL asset to be managed.
@@ -246,9 +284,7 @@ impl I18nAssets {
         spec: ModuleResourceSpec,
         handle: Handle<FtlAsset>,
     ) {
-        let key = (lang.clone(), I18nResourceKey::new(owner, spec.key.clone()));
-        self.add_resource_spec(owner, lang, spec);
-        self.assets.insert(key, handle);
+        self.register_asset(owner, lang, spec, handle);
     }
 
     /// Checks if all required assets for a language are loaded and error-free.
@@ -332,14 +368,6 @@ impl I18nReadyLocales {
 }
 
 impl I18nDomainBundles {
-    pub(crate) fn set_locale_resources(
-        &mut self,
-        lang: LanguageIdentifier,
-        locale_resources: HashMap<FluentResourceScope, Vec<Arc<FluentResource>>>,
-    ) {
-        self.locale_resources.insert(lang, locale_resources);
-    }
-
     pub(crate) fn set_bundles(
         &mut self,
         lang: LanguageIdentifier,
@@ -348,30 +376,40 @@ impl I18nDomainBundles {
         self.bundles.insert(lang, bundles);
     }
 
-    pub(crate) fn remove_bundles(&mut self, lang: &LanguageIdentifier) {
-        self.bundles.remove(lang);
-    }
-
     pub(crate) fn remove(&mut self, lang: &LanguageIdentifier) {
         self.bundles.remove(lang);
-        self.locale_resources.remove(lang);
     }
 
-    pub(crate) fn fallback_locale_resources(
-        &self,
-        requested: &LanguageIdentifier,
-        scope: &FluentResourceScope,
-    ) -> Vec<(LanguageIdentifier, Vec<Arc<FluentResource>>)> {
-        es_fluent_manager_core::locale_candidates(requested)
+    /// Returns the bundles for `scope` along `chain`, skipping locales without one.
+    pub(crate) fn chain_bundles<'a>(
+        &'a self,
+        chain: &'a [LanguageIdentifier],
+        scope: &'a FluentResourceScope,
+    ) -> impl Iterator<Item = &'a SyncFluentBundle> + 'a {
+        chain.iter().filter_map(move |candidate| {
+            self.bundles
+                .get(candidate)
+                .and_then(|bundles| bundles.get(scope))
+                .map(AsRef::as_ref)
+        })
+    }
+
+    /// Builds bundles from resources, for tests that seed lookup state directly.
+    #[cfg(test)]
+    pub(crate) fn set_test_resources(
+        &mut self,
+        lang: LanguageIdentifier,
+        resources: HashMap<FluentResourceScope, Vec<Arc<FluentResource>>>,
+    ) {
+        let bundles = resources
             .into_iter()
-            .filter_map(|candidate| {
-                self.locale_resources
-                    .get(&candidate)
-                    .and_then(|bundles| bundles.get(scope))
-                    .cloned()
-                    .map(|resources| (candidate, resources))
+            .map(|(scope, resources)| {
+                let (bundle, errors) = es_fluent_manager_core::build_sync_bundle(&lang, resources);
+                assert!(errors.is_empty(), "test resources should form a bundle");
+                (scope, Arc::new(bundle))
             })
-            .collect()
+            .collect();
+        self.set_bundles(lang, bundles);
     }
 }
 
@@ -379,6 +417,8 @@ impl I18nDomainBundles {
 #[derive(Resource)]
 pub struct I18nResource {
     active_language: LanguageIdentifier,
+    /// Fallback chain of `active_language`, computed when it changes.
+    active_chain: Vec<LanguageIdentifier>,
     resolved_language: LanguageIdentifier,
     fallback_manager: Option<Arc<FluentManager>>,
 }
@@ -387,6 +427,7 @@ impl I18nResource {
     /// Creates a new `I18nResource` with the given initial language.
     pub fn new(initial_language: LanguageIdentifier) -> Self {
         Self {
+            active_chain: es_fluent_manager_core::locale_candidates(&initial_language),
             active_language: initial_language.clone(),
             resolved_language: initial_language,
             fallback_manager: None,
@@ -400,6 +441,7 @@ impl I18nResource {
         resolved_language: LanguageIdentifier,
     ) -> Self {
         Self {
+            active_chain: es_fluent_manager_core::locale_candidates(&active_language),
             active_language,
             resolved_language,
             fallback_manager: None,
@@ -430,7 +472,10 @@ impl I18nResource {
         active_language: LanguageIdentifier,
         resolved_language: LanguageIdentifier,
     ) {
-        self.active_language = active_language;
+        if self.active_language != active_language {
+            self.active_chain = es_fluent_manager_core::locale_candidates(&active_language);
+            self.active_language = active_language;
+        }
         self.resolved_language = resolved_language;
     }
 
@@ -477,29 +522,26 @@ impl I18nResource {
         i18n_domain_bundles: &I18nDomainBundles,
     ) -> Option<String> {
         let scope = FluentResourceScope::from_message_key(key);
-        let locale_resources =
-            i18n_domain_bundles.fallback_locale_resources(&self.active_language, &scope);
-        let (value, errors) = es_fluent_manager_core::localize_with_fallback_resources(
-            locale_resources.as_slice(),
-            key.id(),
-            args,
-        );
-        if es_fluent_manager_core::fallback_errors_are_fatal(&errors) {
-            error!(
-                "Fluent fallback formatting errors for '{}' in domain '{}' owned by '{}': {:?}",
-                key.id().as_str(),
-                key.domain(),
-                key.owner(),
-                errors
-            );
-            return None;
+        let bundles = i18n_domain_bundles.chain_bundles(&self.active_chain, &scope);
+        if let Some((value, errors)) =
+            es_fluent_manager_core::localize_with_bundles(bundles, key.id(), args)
+        {
+            if !errors.is_empty() {
+                error!(
+                    "Fluent formatting errors for '{}' in domain '{}' owned by '{}': {:?}",
+                    key.id().as_str(),
+                    key.domain(),
+                    key.owner(),
+                    errors
+                );
+                return None;
+            }
+            return Some(value);
         }
 
-        value.or_else(|| {
-            self.fallback_manager
-                .as_ref()
-                .and_then(|manager| manager.localize(key, args))
-        })
+        self.fallback_manager
+            .as_ref()
+            .and_then(|manager| manager.localize(key, args))
     }
 
     #[doc(hidden)]
@@ -538,6 +580,36 @@ mod tests {
 
     fn scope(owner: &'static str, domain: &'static str) -> FluentResourceScope {
         FluentResourceScope::new(static_domain(owner), static_domain(domain))
+    }
+
+    #[test]
+    fn asset_index_follows_registrations_and_handle_replacements() {
+        let mut ftl_assets = Assets::<FtlAsset>::default();
+        let shared = ftl_assets.add(FtlAsset::parse("hello = Hello".to_string()));
+        let replacement = ftl_assets.add(FtlAsset::parse("hello = Hi".to_string()));
+        let app = I18nAssets::inferred_spec_for_key("app", true);
+        let admin = I18nAssets::inferred_spec_for_key("admin", false);
+        let mut assets = I18nAssets::new();
+        assets.add_asset_spec(
+            static_domain("app"),
+            langid!("en"),
+            app.clone(),
+            shared.clone(),
+        );
+        assets.add_optional_asset_spec(static_domain("app"), langid!("fr"), admin, shared.clone());
+        assert_eq!(assets.keys_for_asset(shared.id()).len(), 2);
+
+        assets.add_asset_spec(
+            static_domain("app"),
+            langid!("en"),
+            app,
+            replacement.clone(),
+        );
+        let shared_keys = assets.keys_for_asset(shared.id());
+        assert_eq!(shared_keys.len(), 1);
+        assert_eq!(shared_keys[0].0, langid!("fr"));
+        assert_eq!(assets.keys_for_asset(replacement.id())[0].0, langid!("en"));
+        assert!(assets.keys_for_asset(AssetId::default()).is_empty());
     }
 
     #[test]
@@ -586,34 +658,50 @@ mod tests {
     }
 
     #[test]
-    fn domain_bundle_removal_can_preserve_or_clear_locale_resources() {
-        let lang = langid!("en");
+    fn chain_bundles_follow_the_chain_and_skip_missing_locales() {
         let mut domain_bundles = I18nDomainBundles::default();
-        domain_bundles.set_bundles(
-            lang.clone(),
-            HashMap::from([(
-                scope("app-owner", "app"),
-                Arc::new(SyncFluentBundle::new_concurrent(vec![lang.clone()])),
-            )]),
+        let app = scope("app-owner", "app");
+        domain_bundles.set_test_resources(
+            langid!("en"),
+            HashMap::from([(app.clone(), vec![resource("hello = Hello")])]),
         );
-        domain_bundles.set_locale_resources(
-            lang.clone(),
-            HashMap::from([(scope("app-owner", "app"), vec![resource("hello = Hello")])]),
+        domain_bundles.set_test_resources(
+            langid!("fr"),
+            HashMap::from([(app.clone(), vec![resource("hello = Bonjour")])]),
+        );
+        let chain = [langid!("fr-CA"), langid!("fr"), langid!("en")];
+
+        let locales = domain_bundles
+            .chain_bundles(&chain, &app)
+            .map(|bundle| bundle.locales[0].clone())
+            .collect::<Vec<_>>();
+        assert_eq!(locales, vec![langid!("fr"), langid!("en")]);
+
+        domain_bundles.remove(&langid!("fr"));
+        assert_eq!(domain_bundles.chain_bundles(&chain, &app).count(), 1);
+    }
+
+    #[test]
+    fn active_language_changes_refresh_the_lookup_chain() {
+        let mut domain_bundles = I18nDomainBundles::default();
+        let app = scope("app-owner", "app");
+        domain_bundles.set_test_resources(
+            langid!("fr"),
+            HashMap::from([(app, vec![resource("hello = Bonjour")])]),
+        );
+        let key = es_fluent_manager_core::__macro::static_message_key(
+            "app-owner",
+            static_domain("app"),
+            es_fluent_manager_core::__macro::static_entry_id("hello"),
         );
 
-        domain_bundles.remove_bundles(&lang);
+        let mut resource = I18nResource::new(langid!("en"));
+        assert_eq!(resource.localize(key, None, &domain_bundles), None);
+
+        resource.set_active_language(langid!("fr-CA"), langid!("fr"));
         assert_eq!(
-            domain_bundles
-                .fallback_locale_resources(&lang, &scope("app-owner", "app"))
-                .len(),
-            1
-        );
-
-        domain_bundles.remove(&lang);
-        assert!(
-            domain_bundles
-                .fallback_locale_resources(&lang, &scope("app-owner", "app"))
-                .is_empty()
+            resource.localize(key, None, &domain_bundles),
+            Some("Bonjour".to_string())
         );
     }
 }

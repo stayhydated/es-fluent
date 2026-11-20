@@ -99,7 +99,7 @@ fn build_sync_layout_plan(
         });
     }
 
-    preflight_sync_targets_parse(&fallback_files, &plans)?;
+    preflight_sync_target_paths(&fallback_files, &plans)?;
 
     Ok(SyncLayoutPlan {
         fallback_files,
@@ -179,7 +179,11 @@ pub(crate) fn sync_crate(
     Ok(results)
 }
 
-fn preflight_sync_targets_parse(
+/// Rejects target paths that sync cannot write before any file is planned.
+///
+/// Target contents are parsed while planning; the transaction is committed
+/// only after every target plans, so a parse error still writes nothing.
+fn preflight_sync_target_paths(
     fallback_files: &[crate::ftl::LoadedFtlFile],
     plans: &[SyncLocalePlan],
 ) -> Result<()> {
@@ -202,21 +206,6 @@ fn preflight_sync_targets_parse(
                 bail!(
                     "Refusing to sync '{}' because target FTL path exists but is not a file",
                     ftl_file.display()
-                );
-            }
-
-            if !ftl_file.exists() {
-                continue;
-            }
-
-            let existing_content = fs::read_to_string(&ftl_file)?;
-            let (_existing_resource, errors) =
-                es_fluent_generate::ftl::parse_ftl_content(existing_content);
-            if !errors.is_empty() {
-                bail!(
-                    "Refusing to sync '{}' because it contains Fluent parse errors: {}",
-                    ftl_file.display(),
-                    es_fluent_generate::ftl::format_parse_errors(&errors)
                 );
             }
         }
@@ -877,7 +866,7 @@ mod tests {
         let after = std::fs::read_to_string(target_main).expect("read target after sync");
         assert_eq!(
             before, after,
-            "sync should not write any target file after preflight parse errors"
+            "sync should not write any target file when a target fails to parse"
         );
     }
 

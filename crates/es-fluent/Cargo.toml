@@ -19,7 +19,6 @@ ignored = [ "icu_provider" ]
 
 [features]
 chrono = [ "dep:chrono", "icu-datetime", "icu_datetime/unstable_chrono_0_4" ]
-debug-embed = [ "es-fluent-manager-core/debug-embed" ]
 default = [ "derive" ]
 derive = [ "dep:es-fluent-derive" ]
 icu-datetime = [

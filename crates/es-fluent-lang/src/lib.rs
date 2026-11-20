@@ -27,7 +27,6 @@ use es_fluent_manager_core::{
 };
 use icu_experimental::displaynames::{DisplayNamesOptions, multi::LocaleDisplayNamesFormatter};
 use icu_locale::Locale;
-use parking_lot::RwLock;
 
 const ES_FLUENT_LANG_PREFIX: &str = "es-fluent-lang-";
 const DISPLAY_LANGUAGE_FALLBACKS: &[&str] = &["en", "en-001"];
@@ -60,12 +59,11 @@ fn formatter_candidates(requested: &LanguageIdentifier) -> Vec<LanguageIdentifie
     candidates
 }
 
-fn format_language_name(
+/// Builds a display-names formatter for the first usable locale in
+/// `display_language`'s fallback chain.
+fn display_names_formatter(
     display_language: &LanguageIdentifier,
-    target_language: &LanguageIdentifier,
-) -> Option<String> {
-    let target_locale = target_language.to_string().parse::<Locale>().ok()?;
-
+) -> Option<LocaleDisplayNamesFormatter> {
     for candidate in formatter_candidates(display_language) {
         let display_locale = match candidate.to_string().parse::<Locale>() {
             Ok(locale) => locale,
@@ -83,7 +81,7 @@ fn format_language_name(
             display_locale.into(),
             DisplayNamesOptions::default(),
         ) {
-            Ok(formatter) => return Some(formatter.of(&target_locale).into_owned()),
+            Ok(formatter) => return Some(formatter),
             Err(err) => tracing::debug!(
                 "ICU display names formatter not available for '{}': {}",
                 candidate,
@@ -93,6 +91,46 @@ fn format_language_name(
     }
 
     None
+}
+
+fn format_language_name(
+    formatter: &LocaleDisplayNamesFormatter,
+    target_language: &LanguageIdentifier,
+) -> Option<String> {
+    let target_locale = target_language.to_string().parse::<Locale>().ok()?;
+    Some(formatter.of(&target_locale).into_owned())
+}
+
+/// Returns the label naming `target_language` in that language.
+///
+/// The label does not depend on the selected locale, so it is formatted once
+/// per process and later lookups skip building an ICU formatter.
+#[cfg(not(feature = "localized-langs"))]
+fn autonym(target_language: &LanguageIdentifier) -> Option<String> {
+    use std::{
+        collections::HashMap,
+        sync::{LazyLock, PoisonError, RwLock},
+    };
+
+    static AUTONYMS: LazyLock<RwLock<HashMap<LanguageIdentifier, Option<String>>>> =
+        LazyLock::new(RwLock::default);
+
+    if let Some(label) = AUTONYMS
+        .read()
+        .unwrap_or_else(PoisonError::into_inner)
+        .get(target_language)
+    {
+        return label.clone();
+    }
+
+    let label = display_names_formatter(target_language)
+        .and_then(|formatter| format_language_name(&formatter, target_language));
+    AUTONYMS
+        .write()
+        .unwrap_or_else(PoisonError::into_inner)
+        .entry(target_language.clone())
+        .or_insert(label)
+        .clone()
 }
 
 #[doc(hidden)]
@@ -115,8 +153,11 @@ impl I18nModuleDescriptor for EsFluentLanguageModule {
 }
 
 impl I18nModule for EsFluentLanguageModule {
-    fn create_localizer(&self) -> Box<dyn Localizer> {
-        Box::new(EsFluentLanguageLocalizer::new(langid!("en-US")))
+    fn create_localizer(
+        &self,
+        lang: &LanguageIdentifier,
+    ) -> Result<Box<dyn Localizer>, LocalizationError> {
+        Ok(Box::new(EsFluentLanguageLocalizer::new(lang)))
     }
 
     fn contributes_to_language_selection(&self) -> bool {
@@ -124,27 +165,27 @@ impl I18nModule for EsFluentLanguageModule {
     }
 }
 
+/// Formats language labels for one selected locale.
 #[doc(hidden)]
 struct EsFluentLanguageLocalizer {
-    current_lang: RwLock<LanguageIdentifier>,
+    /// Formatter for labels in the selected locale, built once per selection.
+    #[cfg(feature = "localized-langs")]
+    formatter: Option<LocaleDisplayNamesFormatter>,
 }
 
 #[doc(hidden)]
 impl EsFluentLanguageLocalizer {
-    fn new(default_lang: LanguageIdentifier) -> Self {
+    #[cfg_attr(not(feature = "localized-langs"), allow(unused_variables))]
+    fn new(lang: &LanguageIdentifier) -> Self {
         Self {
-            current_lang: RwLock::new(default_lang),
+            #[cfg(feature = "localized-langs")]
+            formatter: display_names_formatter(lang),
         }
     }
 }
 
 #[doc(hidden)]
 impl Localizer for EsFluentLanguageLocalizer {
-    fn select_language(&self, lang: &LanguageIdentifier) -> Result<(), LocalizationError> {
-        *self.current_lang.write() = lang.clone();
-        Ok(())
-    }
-
     fn localize<'a>(
         &self,
         key: StaticFluentMessageKey,
@@ -155,7 +196,7 @@ impl Localizer for EsFluentLanguageLocalizer {
         {
             return None;
         }
-        if args.is_some_and(|args| !args.is_empty()) {
+        if args.is_some_and(|args| args.iter().next().is_some()) {
             tracing::debug!(
                 "Ignoring Fluent args for built-in language label '{}'; ICU-backed labels do not accept arguments",
                 key.id().as_str()
@@ -164,13 +205,13 @@ impl Localizer for EsFluentLanguageLocalizer {
 
         let target_language = parse_message_language(key.id().as_str())?;
 
+        // Each label names its language in the selected locale.
         #[cfg(feature = "localized-langs")]
-        let display_language = self.current_lang.read().clone();
+        return format_language_name(self.formatter.as_ref()?, &target_language);
 
+        // Each label names its language in that language.
         #[cfg(not(feature = "localized-langs"))]
-        let display_language = target_language.clone();
-
-        format_language_name(&display_language, &target_language)
+        autonym(&target_language)
     }
 }
 
@@ -186,7 +227,7 @@ mod force_link_support {
 
     pub(crate) fn force_link() -> usize {
         let module: &'static dyn I18nModuleRegistration = &ES_FLUENT_LANGUAGE_MODULE;
-        let _ = module.create_localizer();
+        let _ = module.create_localizer(&langid!("en-US"));
         usize::from(!module.data().owner.as_str().is_empty())
     }
 }

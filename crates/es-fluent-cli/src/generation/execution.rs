@@ -124,7 +124,11 @@ impl<'a> MonolithicExecutor<'a> {
                 GenerateResult::success(
                     krate.name.clone(),
                     duration,
-                    crate::utils::count_ftl_resources(&krate.ftl_output_dir, krate.name.as_str()),
+                    crate::utils::count_ftl_resources(
+                        &krate.ftl_output_dir,
+                        &package_domains(krate),
+                        &execution.transaction,
+                    ),
                     normalize_output(execution.output),
                     execution.changed,
                 ),
@@ -147,6 +151,20 @@ impl<'a> MonolithicExecutor<'a> {
         let request = action.to_runner_request(krate);
         self.execute_request(&request, force_run)
     }
+}
+
+/// Returns the package name and the domains its `i18n.toml` declares.
+fn package_domains(krate: &CrateInfo) -> Vec<String> {
+    let mut domains = vec![krate.name.to_string()];
+    if let Ok(config) = es_fluent_toml::I18nConfig::read_from_path(&krate.i18n_config_path) {
+        domains.extend(
+            config
+                .domains
+                .iter()
+                .map(|domain| domain.as_str().to_string()),
+        );
+    }
+    domains
 }
 
 fn normalize_output(output: String) -> Option<String> {

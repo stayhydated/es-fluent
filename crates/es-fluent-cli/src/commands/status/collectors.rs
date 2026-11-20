@@ -57,13 +57,7 @@ pub(super) fn collect_status_setup_errors(workspace: &WorkspaceCrates) -> Vec<St
                 continue;
             }
 
-            if let Err(error) = crate::ftl::CrateFtlLayout::from_assets_dir(
-                &ctx.assets_dir,
-                locale,
-                &ctx.crate_name,
-            )
-            .discover_files()
-            {
+            if let Err(error) = ctx.discover_files(locale) {
                 setup_errors.push(format!("{}: {}", krate.name, error));
             }
         }

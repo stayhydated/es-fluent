@@ -8,9 +8,8 @@ desktop apps, and services. Depend on this concrete manager alongside the
 [`es-fluent`][facade] message facade; retain a cloneable `EmbeddedI18n` handle in
 application state.
 
-Requires Rust 1.99 or newer. Release builds and Wasm debug builds embed the
-configured assets. Native debug builds read them from disk unless `debug-embed`
-is enabled.
+Requires Rust 1.99 or newer. The registration macro compiles the configured
+locale files into the binary in every profile and target.
 
 ## Features
 
@@ -21,7 +20,6 @@ The default feature set enables `macros` and its implicit
 | --- | --- | --- |
 | `macros` | Yes | Re-exports the embedded `define_i18n_module!` registration macro. |
 | `es-fluent-manager-macros` | Yes | Implicit feature enabling the optional registration-macro dependency. |
-| `debug-embed` | No | Embeds assets in native debug builds through manager-core, the facade, and `rust-embed`. |
 
 ## Example
 

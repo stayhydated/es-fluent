@@ -4,14 +4,26 @@ use crate::ftl::LocaleContext;
 use anstream::println;
 use colored::Colorize as _;
 use fs_err as fs;
-use std::collections::{BTreeSet, HashSet};
+use std::collections::{BTreeMap, HashMap, HashSet};
 use std::path::{Path, PathBuf};
+use std::rc::Rc;
 
-#[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
+/// A non-fallback locale directory to scan, with the files listed while its
+/// layout was checked and the relative paths its fallback locale expects.
 struct LocaleCleanupTarget {
-    fallback_locale_dir: PathBuf,
     locale: String,
     locale_dir: PathBuf,
+    files: Vec<crate::ftl::FtlFileInfo>,
+    expected: Rc<HashSet<PathBuf>>,
+}
+
+impl LocaleCleanupTarget {
+    fn orphaned_files(self) -> impl Iterator<Item = crate::ftl::FtlFileInfo> {
+        let expected = self.expected;
+        self.files
+            .into_iter()
+            .filter(move |file| !expected.contains(&file.relative_path))
+    }
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -32,16 +44,13 @@ impl OrphanedCleanupPlan {
     }
 }
 
-/// Get the expected FTL file paths for a locale by mirroring every relative
-/// FTL path that exists in the fallback locale.
-fn expected_files_for_locale(
-    locale_dir: &Path,
-    fallback_locale_dir: &Path,
-) -> Result<HashSet<PathBuf>, CliError> {
-    Ok(crate::ftl::discover_locale_ftl_files(fallback_locale_dir)?
+/// Returns the relative FTL paths every other locale should mirror from the
+/// fallback locale.
+fn expected_relative_paths(fallback_files: Vec<crate::ftl::FtlFileInfo>) -> HashSet<PathBuf> {
+    fallback_files
         .into_iter()
-        .map(|file| locale_dir.join(file.relative_path))
-        .collect())
+        .map(|file| file.relative_path)
+        .collect()
 }
 
 /// Clean orphaned FTL files that are absent from the fallback locale.
@@ -71,23 +80,18 @@ pub(super) fn plan_orphaned_files(
     let cleanup_targets = orphaned_scan_context(&workspace.crates, all_locales)?;
 
     for target in cleanup_targets {
-        let expected_files =
-            expected_files_for_locale(&target.locale_dir, &target.fallback_locale_dir)?;
-
-        for file_info in crate::ftl::discover_locale_ftl_files(&target.locale_dir)? {
-            files_checked += 1;
-
-            if !expected_files.contains(&file_info.abs_path) {
-                let display_path =
-                    orphaned_display_path(workspace, &file_info.abs_path, &file_info.relative_path);
-                transaction
-                    .plan_remove(&file_info.abs_path)
-                    .map_err(|error| CliError::Other(error.to_string()))?;
-                if let Some(parent) = file_info.abs_path.parent() {
-                    plan_empty_parent_dirs(&mut transaction, parent, &target.locale_dir);
-                }
-                files.push((file_info.abs_path, display_path));
+        files_checked += target.files.len();
+        let locale_dir = target.locale_dir.clone();
+        for file_info in target.orphaned_files() {
+            let display_path =
+                orphaned_display_path(workspace, &file_info.abs_path, &file_info.relative_path);
+            transaction
+                .plan_remove(&file_info.abs_path)
+                .map_err(|error| CliError::Other(error.to_string()))?;
+            if let Some(parent) = file_info.abs_path.parent() {
+                plan_empty_parent_dirs(&mut transaction, parent, &locale_dir);
             }
+            files.push((file_info.abs_path, display_path));
         }
     }
 
@@ -147,14 +151,6 @@ fn orphaned_display_path(
     )
 }
 
-pub(super) fn validate_orphaned_scan_setup(
-    workspace: &WorkspaceCrates,
-    all_locales: bool,
-) -> Result<(), CliError> {
-    orphaned_scan_context(&workspace.crates, all_locales)?;
-    Ok(())
-}
-
 fn plan_empty_parent_dirs(
     transaction: &mut es_fluent_runner::FileTransaction,
     start: &std::path::Path,
@@ -190,28 +186,28 @@ pub(crate) fn find_orphaned_file_infos(
     let mut orphaned = Vec::new();
 
     for target in cleanup_targets {
-        let expected_files =
-            expected_files_for_locale(&target.locale_dir, &target.fallback_locale_dir)?;
-
-        for file_info in crate::ftl::discover_locale_ftl_files(&target.locale_dir)? {
-            if !expected_files.contains(&file_info.abs_path) {
-                orphaned.push(OrphanedFtlFile {
-                    abs_path: file_info.abs_path,
-                    locale: target.locale.clone(),
-                });
-            }
-        }
+        let locale = target.locale.clone();
+        orphaned.extend(target.orphaned_files().map(|file| OrphanedFtlFile {
+            abs_path: file.abs_path,
+            locale: locale.clone(),
+        }));
     }
 
     orphaned.sort_by(|a, b| a.abs_path.cmp(&b.abs_path));
     Ok(orphaned)
 }
 
+/// Validates every selected package's locale layout and returns the locale
+/// directories to scan.
+///
+/// Each locale directory is listed once, and each fallback directory once no
+/// matter how many locales or packages share it.
 fn orphaned_scan_context(
     scan_crates: &[CrateInfo],
     all_locales: bool,
-) -> Result<BTreeSet<LocaleCleanupTarget>, CliError> {
-    let mut cleanup_targets = BTreeSet::new();
+) -> Result<Vec<LocaleCleanupTarget>, CliError> {
+    let mut expected_by_fallback = HashMap::<PathBuf, Rc<HashSet<PathBuf>>>::new();
+    let mut cleanup_targets = BTreeMap::new();
 
     for krate in scan_crates {
         let ctx = LocaleContext::from_crate(krate, all_locales)
@@ -222,7 +218,16 @@ fn orphaned_scan_context(
             krate.name.as_str(),
             &fallback_locale_dir,
         )?;
-        validate_orphaned_locale_ftl_paths(&fallback_locale_dir, krate.name.as_str())?;
+        let expected = match expected_by_fallback.get(&fallback_locale_dir) {
+            Some(expected) => Rc::clone(expected),
+            None => {
+                let fallback_files =
+                    list_orphaned_locale_ftl_files(&fallback_locale_dir, krate.name.as_str())?;
+                let expected = Rc::new(expected_relative_paths(fallback_files));
+                expected_by_fallback.insert(fallback_locale_dir.clone(), Rc::clone(&expected));
+                expected
+            },
+        };
 
         if all_locales {
             let mut invalid_paths = Vec::new();
@@ -246,18 +251,28 @@ fn orphaned_scan_context(
 
         for (locale, _ftl_path) in ctx.iter_non_fallback() {
             let locale_dir = ctx.locale_dir(locale);
-            validate_orphaned_locale_ftl_paths(&locale_dir, krate.name.as_str())?;
-            cleanup_targets.insert(LocaleCleanupTarget {
-                fallback_locale_dir: fallback_locale_dir.clone(),
-                locale: locale.to_string(),
-                locale_dir,
-            });
+            let key = (
+                fallback_locale_dir.clone(),
+                locale.to_string(),
+                locale_dir.clone(),
+            );
+            if cleanup_targets.contains_key(&key) {
+                continue;
+            }
+            let files = list_orphaned_locale_ftl_files(&locale_dir, krate.name.as_str())?;
+            cleanup_targets.insert(
+                key,
+                LocaleCleanupTarget {
+                    locale: locale.to_string(),
+                    locale_dir,
+                    files,
+                    expected: Rc::clone(&expected),
+                },
+            );
         }
     }
 
-    validate_expected_files_for_cleanup_targets(&cleanup_targets)?;
-
-    Ok(cleanup_targets)
+    Ok(cleanup_targets.into_values().collect())
 }
 
 fn validate_orphaned_fallback_locale_dir(
@@ -290,35 +305,15 @@ fn validate_orphaned_fallback_locale_dir(
     Ok(())
 }
 
-fn validate_expected_files_for_cleanup_targets(
-    cleanup_targets: &BTreeSet<LocaleCleanupTarget>,
-) -> Result<(), CliError> {
-    for target in cleanup_targets {
-        expected_files_for_locale(&target.locale_dir, &target.fallback_locale_dir).map_err(
-            |error| {
-                CliError::Other(format!(
-                    "FTL file layout could not be read while preparing orphaned file expectations for locale '{}' at {}: {}; refusing to scan orphaned files",
-                    target.locale,
-                    target.locale_dir.display(),
-                    error
-                ))
-            },
-        )?;
-    }
-
-    Ok(())
-}
-
-fn validate_orphaned_locale_ftl_paths(
-    locale_dir: &std::path::Path,
+fn list_orphaned_locale_ftl_files(
+    locale_dir: &Path,
     crate_name: &str,
-) -> Result<(), CliError> {
+) -> Result<Vec<crate::ftl::FtlFileInfo>, CliError> {
     crate::ftl::discover_locale_ftl_files(locale_dir).map_err(|error| {
         CliError::Other(format!(
             "FTL file layout could not be read for {crate_name}: {error}; refusing to scan orphaned files"
         ))
-    })?;
-    Ok(())
+    })
 }
 
 #[cfg(test)]
@@ -345,11 +340,12 @@ mod tests {
         )
         .expect("write fallback namespaced");
 
-        let expected =
-            expected_files_for_locale(&locale_dir, &fallback_dir).expect("build expected files");
+        let expected = expected_relative_paths(
+            crate::ftl::discover_locale_ftl_files(&fallback_dir).expect("list fallback"),
+        );
 
-        assert!(expected.contains(&locale_dir.join("test-app-a.ftl")));
-        assert!(expected.contains(&locale_dir.join("test-app-a/ui/button.ftl")));
+        assert!(expected.contains(Path::new("test-app-a.ftl")));
+        assert!(expected.contains(Path::new("test-app-a/ui/button.ftl")));
     }
 
     #[test]
@@ -364,20 +360,12 @@ mod tests {
         std::fs::write(fallback_dir.join("crate-a.ftl"), "a = A\n").expect("write fallback a");
         std::fs::write(fallback_dir.join("crate-b.ftl"), "b = B\n").expect("write fallback b");
 
-        let expected =
-            expected_files_for_locale(&locale_dir, &fallback_dir).expect("build expected files");
+        let expected = expected_relative_paths(
+            crate::ftl::discover_locale_ftl_files(&fallback_dir).expect("list fallback"),
+        );
 
-        assert!(expected.contains(&locale_dir.join("crate-a.ftl")));
-        assert!(expected.contains(&locale_dir.join("crate-b.ftl")));
-    }
-
-    #[test]
-    fn expected_files_are_empty_for_missing_fallback_directory() {
-        let temp = tempfile::tempdir().expect("tempdir");
-        let files =
-            expected_files_for_locale(&temp.path().join("locale"), &temp.path().join("missing"))
-                .expect("missing dir should be ok");
-        assert!(files.is_empty());
+        assert!(expected.contains(Path::new("crate-a.ftl")));
+        assert!(expected.contains(Path::new("crate-b.ftl")));
     }
 
     fn build_workspace(temp: &tempfile::TempDir) -> WorkspaceCrates {

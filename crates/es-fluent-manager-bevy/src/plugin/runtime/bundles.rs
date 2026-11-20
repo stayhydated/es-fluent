@@ -11,12 +11,6 @@ use std::sync::Arc;
 use unic_langid::LanguageIdentifier;
 
 type DomainBundleMap = HashMap<FluentResourceScope, Arc<SyncFluentBundle>>;
-type DomainResourceMap = HashMap<FluentResourceScope, Vec<Arc<FluentResource>>>;
-
-struct BundleCaches {
-    domain_bundles: DomainBundleMap,
-    domain_locale_resources: DomainResourceMap,
-}
 
 fn dirty_asset_ids(
     asset_events: &mut MessageReader<AssetEvent<FtlAsset>>,
@@ -43,13 +37,8 @@ fn dirty_languages_for_assets(
 ) -> HashSet<LanguageIdentifier> {
     let mut dirty_languages = dirty_asset_ids
         .into_iter()
-        .filter_map(|id| {
-            i18n_assets
-                .assets
-                .iter()
-                .find(|(_, handle)| handle.id() == id)
-                .map(|((lang, _), _)| lang.clone())
-        })
+        .flat_map(|id| i18n_assets.keys_for_asset(id).iter())
+        .map(|(lang, _)| lang.clone())
         .collect::<HashSet<_>>();
 
     if i18n_assets.is_added() {
@@ -80,7 +69,6 @@ fn rebuild_bundle_for_language(
             && i18n_assets.is_language_loaded(lang)
         {
             i18n_bundle.mark_ready(lang.clone());
-            i18n_domain_bundles.set_locale_resources(lang.clone(), HashMap::new());
             i18n_domain_bundles.set_bundles(lang.clone(), HashMap::new());
             debug!("Marked empty ready fluent resource cache for {}", lang);
         } else {
@@ -91,25 +79,18 @@ fn rebuild_bundle_for_language(
         return;
     }
 
-    match build_bundle_caches(lang, resources) {
-        Ok(caches) => {
-            let BundleCaches {
-                domain_bundles,
-                domain_locale_resources,
-            } = caches;
-
-            i18n_domain_bundles.set_locale_resources(lang.clone(), domain_locale_resources);
+    match build_domain_bundles(lang, resources) {
+        Ok(domain_bundles) => {
+            i18n_domain_bundles.set_bundles(lang.clone(), domain_bundles);
             bundle_build_failures.0.remove(lang);
 
             if i18n_assets.is_language_loaded(lang) {
                 i18n_bundle.mark_ready(lang.clone());
-                i18n_domain_bundles.set_bundles(lang.clone(), domain_bundles);
                 debug!("Updated fluent bundle cache for {}", lang);
             } else {
                 i18n_bundle.remove(lang);
-                i18n_domain_bundles.remove_bundles(lang);
                 debug!(
-                    "Stored partial fluent resource cache for {} while waiting on required resources",
+                    "Stored partial fluent bundle cache for {} while waiting on required resources",
                     lang
                 );
             }
@@ -125,42 +106,23 @@ fn rebuild_bundle_for_language(
     }
 }
 
-fn build_bundle_caches(
-    lang: &LanguageIdentifier,
-    resources: Vec<(I18nResourceKey, Arc<FluentResource>)>,
-) -> Result<BundleCaches, Vec<String>> {
-    let (domain_bundles, domain_locale_resources) = build_domain_bundles(lang, &resources)?;
-
-    Ok(BundleCaches {
-        domain_bundles,
-        domain_locale_resources,
-    })
-}
-
 fn build_bundle_from_resources(
     lang: &LanguageIdentifier,
     resources: Vec<(I18nResourceKey, Arc<FluentResource>)>,
-) -> Result<
-    (
-        Arc<SyncFluentBundle>,
-        Vec<(I18nResourceKey, Arc<FluentResource>)>,
-    ),
-    Vec<String>,
-> {
-    let mut bundle =
-        SyncFluentBundle::new_concurrent(es_fluent_manager_core::locale_candidates(lang));
-    let mut accepted_resources = Vec::with_capacity(resources.len());
-    let mut diagnostics = Vec::new();
-
-    for (resource_key, resource) in resources {
-        match bundle.add_resource(resource.clone()) {
-            Ok(()) => accepted_resources.push((resource_key, resource)),
-            Err(errors) => diagnostics.push(format_add_errors(&resource_key, errors)),
-        }
-    }
+) -> Result<SyncFluentBundle, Vec<String>> {
+    let mut bundle = SyncFluentBundle::new_concurrent(vec![lang.clone()]);
+    let diagnostics = resources
+        .into_iter()
+        .filter_map(|(resource_key, resource)| {
+            bundle
+                .add_resource(resource)
+                .err()
+                .map(|errors| format_add_errors(&resource_key, errors))
+        })
+        .collect::<Vec<_>>();
 
     if diagnostics.is_empty() {
-        Ok((Arc::new(bundle), accepted_resources))
+        Ok(bundle)
     } else {
         Err(diagnostics)
     }
@@ -168,11 +130,11 @@ fn build_bundle_from_resources(
 
 fn build_domain_bundles(
     lang: &LanguageIdentifier,
-    accepted_resources: &[(I18nResourceKey, Arc<FluentResource>)],
-) -> Result<(DomainBundleMap, DomainResourceMap), Vec<String>> {
+    resources: Vec<(I18nResourceKey, Arc<FluentResource>)>,
+) -> Result<DomainBundleMap, Vec<String>> {
     let mut grouped =
         HashMap::<FluentResourceScope, Vec<(I18nResourceKey, Arc<FluentResource>)>>::new();
-    for (resource_key, resource) in accepted_resources.iter().cloned() {
+    for (resource_key, resource) in resources {
         grouped
             .entry(resource_key.domain())
             .or_default()
@@ -180,27 +142,18 @@ fn build_domain_bundles(
     }
 
     let mut domain_bundles = HashMap::with_capacity(grouped.len());
-    let mut domain_locale_resources = HashMap::with_capacity(grouped.len());
     for (domain, mut resources) in grouped {
         resources.sort_by(|(left_key, _), (right_key, _)| left_key.cmp(right_key));
-        let (bundle, accepted_resources) =
-            build_bundle_from_resources(lang, resources).map_err(|diagnostics| {
-                diagnostics
-                    .into_iter()
-                    .map(|diagnostic| format!("domain '{}': {}", domain, diagnostic))
-                    .collect::<Vec<_>>()
-            })?;
-        domain_bundles.insert(domain.clone(), bundle);
-        domain_locale_resources.insert(
-            domain,
-            accepted_resources
+        let bundle = build_bundle_from_resources(lang, resources).map_err(|diagnostics| {
+            diagnostics
                 .into_iter()
-                .map(|(_, resource)| resource)
-                .collect(),
-        );
+                .map(|diagnostic| format!("domain '{}': {}", domain, diagnostic))
+                .collect::<Vec<_>>()
+        })?;
+        domain_bundles.insert(domain, Arc::new(bundle));
     }
 
-    Ok((domain_bundles, domain_locale_resources))
+    Ok(domain_bundles)
 }
 
 fn format_add_errors(resource_key: &I18nResourceKey, errors: Vec<FluentError>) -> String {
@@ -284,15 +237,13 @@ mod tests {
     }
 
     fn empty_bundle(lang: &LanguageIdentifier) -> Arc<SyncFluentBundle> {
-        Arc::new(SyncFluentBundle::new_concurrent(
-            es_fluent_manager_core::locale_candidates(lang),
-        ))
+        Arc::new(SyncFluentBundle::new_concurrent(vec![lang.clone()]))
     }
 
     #[test]
-    fn build_bundle_caches_creates_independent_scoped_bundles() {
+    fn build_domain_bundles_creates_independent_scoped_bundles() {
         let lang = langid!("en");
-        let caches = build_bundle_caches(
+        let domain_bundles = build_domain_bundles(
             &lang,
             vec![
                 (resource_key("app"), resource("app-title = App")),
@@ -302,22 +253,20 @@ mod tests {
         .expect("valid resources should build caches");
 
         assert!(
-            caches.domain_bundles[&scope("app")]
+            domain_bundles[&scope("app")]
                 .get_message("app-title")
                 .is_some()
         );
         assert!(
-            caches.domain_bundles[&scope("app")]
+            domain_bundles[&scope("app")]
                 .get_message("admin-title")
                 .is_none()
         );
-        assert_eq!(caches.domain_locale_resources[&scope("app")].len(), 1);
-        assert_eq!(caches.domain_locale_resources[&scope("admin")].len(), 1);
     }
 
     #[test]
-    fn build_bundle_caches_allows_duplicate_ids_across_scopes() {
-        let caches = build_bundle_caches(
+    fn build_domain_bundles_allows_duplicate_ids_across_scopes() {
+        let domain_bundles = build_domain_bundles(
             &langid!("en"),
             vec![
                 (resource_key("app"), resource("shared = First")),
@@ -327,17 +276,15 @@ mod tests {
         .expect("cross-domain duplicate IDs should build independent caches");
 
         assert!(
-            caches.domain_bundles[&scope("app")]
+            domain_bundles[&scope("app")]
                 .get_message("shared")
                 .is_some()
         );
         assert!(
-            caches.domain_bundles[&scope("admin")]
+            domain_bundles[&scope("admin")]
                 .get_message("shared")
                 .is_some()
         );
-        assert_eq!(caches.domain_locale_resources[&scope("app")].len(), 1);
-        assert_eq!(caches.domain_locale_resources[&scope("admin")].len(), 1);
     }
 
     #[test]
@@ -364,7 +311,7 @@ mod tests {
     fn build_domain_bundles_reports_domain_context_for_duplicate_message_ids() {
         let diagnostics = match build_domain_bundles(
             &langid!("en"),
-            &[
+            vec![
                 (resource_key("app/main"), resource("shared = First")),
                 (resource_key("app/extra"), resource("shared = Second")),
             ],
@@ -428,9 +375,7 @@ mod tests {
         let lang = langid!("en");
         let resource_spec = spec("app", true);
         let mut ftl_assets = Assets::<FtlAsset>::default();
-        let handle = ftl_assets.add(FtlAsset {
-            content: "hello = Hello".to_string(),
-        });
+        let handle = ftl_assets.add(FtlAsset::parse("hello = Hello".to_string()));
         let mut i18n_assets = I18nAssets::new();
         i18n_assets.add_asset_spec(owner(), lang.clone(), resource_spec.clone(), handle.clone());
         i18n_assets.loaded_resources.insert(
@@ -476,10 +421,6 @@ mod tests {
             lang.clone(),
             HashMap::from([(scope("app"), empty_bundle(&lang))]),
         );
-        i18n_domain_bundles.set_locale_resources(
-            lang.clone(),
-            HashMap::from([(scope("app"), vec![resource("old = Old")])]),
-        );
         bundle_build_failures
             .0
             .insert(lang.clone(), vec!["old failure".to_string()]);
@@ -494,7 +435,6 @@ mod tests {
 
         assert!(i18n_bundle.ready_cache_id(&lang).is_none());
         assert!(!i18n_domain_bundles.bundles.contains_key(&lang));
-        assert!(!i18n_domain_bundles.locale_resources.contains_key(&lang));
         assert!(!bundle_build_failures.0.contains_key(&lang));
     }
 
@@ -518,10 +458,6 @@ mod tests {
             lang.clone(),
             HashMap::from([(scope("app"), empty_bundle(&lang))]),
         );
-        i18n_domain_bundles.set_locale_resources(
-            lang.clone(),
-            HashMap::from([(scope("app"), vec![resource("old = Old")])]),
-        );
         bundle_build_failures
             .0
             .insert(lang.clone(), vec!["old failure".to_string()]);
@@ -543,18 +479,11 @@ mod tests {
                 .expect("ready empty domain bundle map should be published")
                 .is_empty()
         );
-        assert!(
-            i18n_domain_bundles
-                .locale_resources
-                .get(&lang)
-                .expect("ready empty domain resource map should be published")
-                .is_empty()
-        );
         assert!(!bundle_build_failures.0.contains_key(&lang));
     }
 
     #[test]
-    fn rebuild_bundle_for_language_stores_partial_resources_without_ready_bundle() {
+    fn rebuild_bundle_for_language_stores_partial_bundles_without_marking_ready() {
         let lang = langid!("en");
         let optional_spec = spec("app", false);
         let required_spec = spec("admin", true);
@@ -584,9 +513,10 @@ mod tests {
         );
 
         assert!(i18n_bundle.ready_cache_id(&lang).is_none());
-        assert_eq!(
-            i18n_domain_bundles.locale_resources[&lang][&scope("app")].len(),
-            1
+        assert!(
+            i18n_domain_bundles.bundles[&lang][&scope("app")]
+                .get_message("app-title")
+                .is_some()
         );
         assert!(!bundle_build_failures.0.contains_key(&lang));
     }
@@ -649,12 +579,11 @@ mod tests {
         let mut i18n_domain_bundles = I18nDomainBundles::default();
         let mut bundle_build_failures = BundleBuildFailures::default();
 
-        let (old_domain_bundles, old_domain_resources) =
-            build_domain_bundles(&lang, &[(resource_key("app"), old_resource)])
+        let old_domain_bundles =
+            build_domain_bundles(&lang, vec![(resource_key("app"), old_resource)])
                 .expect("old domain cache should build");
         i18n_bundle.mark_ready(lang.clone());
         i18n_domain_bundles.set_bundles(lang.clone(), old_domain_bundles);
-        i18n_domain_bundles.set_locale_resources(lang.clone(), old_domain_resources);
         let old_ready_id = i18n_bundle
             .ready_cache_id(&lang)
             .expect("old cache should be marked ready");

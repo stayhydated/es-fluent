@@ -448,6 +448,36 @@ fn collect_check_run_reports_missing_fallback_locale_as_setup_issue() {
     assert_eq!(run.issues.len(), 1);
 }
 
+#[test]
+fn collect_check_run_reports_declared_domain_layout_errors_as_setup_issues() {
+    let temp = crate::test_fixtures::create_test_crate_workspace();
+    setup_fake_runner_and_cache(&temp);
+    fs::write(
+        temp.path().join("i18n.toml"),
+        "assets_dir = \"i18n\"\nfallback_language = \"en\"\ndomains = [\"ui\"]\n",
+    )
+    .expect("declare extra domain");
+    fs::create_dir_all(temp.path().join("i18n/en/ui.ftl")).expect("create domain ftl directory");
+    let workspace = WorkspaceCrates::discover(WorkspaceArgs {
+        path: Some(temp.path().to_path_buf()),
+        package: None,
+    })
+    .expect("discover workspace");
+
+    let run = collect_check_run(&workspace, false, &[], false, true, false).expect("collect check");
+
+    assert!(
+        run.issues.iter().any(|issue| matches!(
+            issue,
+            ValidationIssue::ValidationExecution(error)
+                if error.help.contains("FTL file layout could not be read")
+                    && error.help.contains("ui.ftl")
+        )),
+        "check should report every declared domain's layout at setup: {:?}",
+        run.issues
+    );
+}
+
 #[cfg(unix)]
 #[test]
 fn collect_check_run_reports_symlinked_fallback_locale_as_setup_issue() {

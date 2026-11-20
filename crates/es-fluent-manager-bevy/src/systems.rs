@@ -14,22 +14,22 @@ pub(crate) fn update_fluent_text_system<T: FluentMessage + Send + Sync + 'static
     let locale_changed = !locale_changed_messages.is_empty();
     locale_changed_messages.clear();
 
-    if !i18n_assets.is_language_loaded(i18n.resolved_language()) {
-        return;
-    }
-
     let refresh_all = locale_changed || i18n.is_bundle_changed();
+    // Readiness scans every registered resource spec, so check it only on
+    // frames where some text needs updating.
+    let mut language_loaded = None;
     let mut text_changed = false;
     for (entity, fluent_text, children) in &fluent_text_query {
-        if refresh_all || fluent_text.is_changed() {
-            text_changed |= update_text_for_entity(
-                &mut text_query,
-                entity,
-                children,
-                &fluent_text.value,
-                &i18n,
-            );
+        if !refresh_all && !fluent_text.is_changed() {
+            continue;
         }
+        if !*language_loaded
+            .get_or_insert_with(|| i18n_assets.is_language_loaded(i18n.resolved_language()))
+        {
+            return;
+        }
+        text_changed |=
+            update_text_for_entity(&mut text_query, entity, children, &fluent_text.value, &i18n);
     }
 
     if text_changed && let Some(redraw_requests) = redraw_requests.as_mut() {
@@ -68,9 +68,7 @@ mod tests {
         ActiveLanguageId, FluentResourceScope, FluentTextRegistration as _, FtlAsset,
         I18nDomainBundles, I18nReadyLocales, I18nResource, I18nResourceKey, RequestedLanguageId,
     };
-    use es_fluent_manager_core::{
-        ModuleResourceSpec, ResourceKey, StaticFluentDomain, SyncFluentBundle,
-    };
+    use es_fluent_manager_core::{ModuleResourceSpec, ResourceKey, StaticFluentDomain};
     use fluent_bundle::FluentResource;
     use std::collections::HashMap;
     use std::sync::Arc;
@@ -124,17 +122,6 @@ mod tests {
 
     fn resource_key(key: &'static str) -> I18nResourceKey {
         I18nResourceKey::new(static_domain("app"), ResourceKey::from_static_path(key))
-    }
-
-    fn bundle_for(
-        lang: &unic_langid::LanguageIdentifier,
-        resource: Arc<FluentResource>,
-    ) -> Arc<SyncFluentBundle> {
-        let mut bundle = SyncFluentBundle::new_concurrent(vec![lang.clone()]);
-        bundle
-            .add_resource(resource)
-            .expect("resource should be valid");
-        Arc::new(bundle)
     }
 
     fn loaded_assets_for(lang: unic_langid::LanguageIdentifier) -> I18nAssets {
@@ -332,26 +319,15 @@ mod tests {
         }
 
         let mut domain_bundles = I18nDomainBundles::default();
-        domain_bundles.set_bundles(
-            requested.clone(),
-            HashMap::from([
-                (scope("app"), bundle_for(&requested, app_exact.clone())),
-                (scope("admin"), bundle_for(&requested, admin_exact.clone())),
-            ]),
-        );
-        domain_bundles.set_locale_resources(
+        domain_bundles.set_test_resources(
             requested.clone(),
             HashMap::from([
                 (scope("app"), vec![app_exact]),
                 (scope("admin"), vec![admin_exact]),
             ]),
         );
-        domain_bundles.set_bundles(
-            parent.clone(),
-            HashMap::from([(scope("app"), bundle_for(&parent, app_parent.clone()))]),
-        );
         domain_bundles
-            .set_locale_resources(parent, HashMap::from([(scope("app"), vec![app_parent])]));
+            .set_test_resources(parent, HashMap::from([(scope("app"), vec![app_parent])]));
 
         let mut app = App::new();
         app.insert_resource(assets);

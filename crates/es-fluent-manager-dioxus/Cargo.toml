@@ -47,6 +47,7 @@ es-fluent-lang = { workspace = true }
 futures = { workspace = true }
 serde_json = { workspace = true }
 serial_test = { workspace = true }
+tempfile = { workspace = true }
 trybuild = { workspace = true }
 
 [lints]

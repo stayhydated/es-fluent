@@ -49,6 +49,32 @@ pub use registration::BevyI18nAssetRegistration;
 #[doc(hidden)]
 pub use registration::BevyI18nEmbeddedAsset;
 
+/// Expands to the on-disk source path that `file_watcher` polls for a
+/// package-relative i18n asset.
+///
+/// With `file_watcher`, the path comes from the registering package's
+/// `CARGO_MANIFEST_DIR`, which rustc records as an input, so a compiler-cache
+/// hit cannot point the watcher at another checkout. Otherwise the watcher is
+/// absent and the package-relative path is kept, leaving the expansion
+/// independent of the checkout location.
+#[doc(hidden)]
+#[cfg(feature = "file_watcher")]
+#[macro_export]
+macro_rules! __i18n_asset_source_path {
+    ($relative:literal) => {
+        concat!(env!("CARGO_MANIFEST_DIR"), "/", $relative)
+    };
+}
+
+#[doc(hidden)]
+#[cfg(not(feature = "file_watcher"))]
+#[macro_export]
+macro_rules! __i18n_asset_source_path {
+    ($relative:literal) => {
+        $relative
+    };
+}
+
 pub(crate) use assets::{
     BundleBuildFailures, FluentResourceScope, FtlAsset, FtlAssetLoader, I18nAssets,
     I18nDomainBundles, I18nReadyLocales, I18nResource, I18nResourceKey,

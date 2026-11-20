@@ -48,12 +48,15 @@ impl<'a> TreeRenderer<'a> {
     /// Build a tree for a single FTL file.
     pub(super) fn build_file_tree(&self, relative_path: &str, abs_path: &Path) -> Result<Tree> {
         let file_label = self.path_link_label(relative_path.yellow().to_string(), abs_path, None);
-        let resource = crate::ftl::parse_ftl_file(abs_path).map_err(|error| {
-            anyhow::anyhow!("failed to parse FTL file '{relative_path}': {error}")
-        })?;
+        // One read serves both the parse and the line positions, so they
+        // always describe the same contents.
         let source = fs::read_to_string(abs_path).map_err(|error| {
             anyhow::anyhow!("failed to read FTL file '{relative_path}': {error}")
         })?;
+        let resource =
+            crate::ftl::parse_ftl_file_content(abs_path, source.clone()).map_err(|error| {
+                anyhow::anyhow!("failed to parse FTL file '{relative_path}': {error}")
+            })?;
         let source_map = FtlSourceMap::new(&source);
 
         let entries: Vec<Tree> = resource

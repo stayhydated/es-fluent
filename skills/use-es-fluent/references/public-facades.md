@@ -73,7 +73,8 @@ symlinks.
 ## Track asset changes
 
 Configured derives and manager macros consume locale data at compile time. Add
-the helper to track changes and write the fallback-message catalog:
+the helper to track changes and write the build manifest those macros expand
+from, including the fallback-message catalog:
 
 ~~~toml
 [build-dependencies]

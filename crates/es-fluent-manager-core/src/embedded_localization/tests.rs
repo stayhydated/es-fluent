@@ -1,10 +1,13 @@
 use super::*;
-use crate::asset_localization::{LocaleRelativeFtlPath, ResourceKey};
-use crate::{I18nModule as _, I18nModuleDescriptor as _, Localizer as _};
+use crate::I18nModuleDescriptor as _;
+use crate::asset_localization::ModuleData;
+use crate::localization::{
+    BundleBuildError, FluentArgumentMap, I18nModule, LocalizationError, Localizer, ModuleLocalizer,
+};
+use es_fluent_shared::registry::StaticFluentMessageKey;
 use fluent_bundle::FluentValue;
-use rust_embed::RustEmbed;
-use std::borrow::Cow;
-use unic_langid::langid;
+use std::sync::LazyLock;
+use unic_langid::{LanguageIdentifier, langid};
 
 fn static_entry(value: &'static str) -> StaticFluentMessageKey {
     crate::__macro::static_message_key(
@@ -14,134 +17,123 @@ fn static_entry(value: &'static str) -> StaticFluentMessageKey {
     )
 }
 
-fn static_arg(value: &'static str) -> crate::StaticFluentArgumentName {
-    crate::__macro::static_argument_name(value)
+fn leak(value: &str) -> &'static str {
+    Box::leak(value.to_owned().into_boxed_str())
 }
 
-macro_rules! impl_test_embedded_assets {
-    ($assets:ty, $namespaces:expr) => {
-        impl EmbeddedAssets for $assets {
-            fn domains() -> &'static [ModuleDomain] {
-                const DOMAINS: &[ModuleDomain] = &[ModuleDomain {
-                    domain: crate::__macro::static_domain("test-domain"),
-                    namespaces: $namespaces,
-                }];
-                DOMAINS
+/// Builds a fixture's embedded table from the planner `define_i18n_module!`
+/// runs at build time, so the table matches what the macro generates.
+fn fixture_languages(
+    fixture: &str,
+    files: &[(&str, &'static [u8])],
+) -> &'static [EmbeddedLanguage] {
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("tests/fixtures")
+        .join(fixture);
+    let (_, _, plans) =
+        es_fluent_shared::resource::ResourcePlan::sparse_from_assets("test-domain", &root)
+            .expect("fixture resource plan")
+            .into_parts();
+    let languages = plans
+        .into_iter()
+        .map(|(language, specs)| {
+            let resources = specs
+                .into_iter()
+                .map(|spec| {
+                    let path = format!("{language}/{}", spec.locale_relative_path);
+                    let contents = files
+                        .iter()
+                        .find(|(file, _)| *file == path)
+                        .map(|(_, contents)| *contents)
+                        .unwrap_or_else(|| panic!("planned fixture file {path} is not embedded"));
+                    EmbeddedResource::new(
+                        leak(spec.key.as_str()),
+                        leak(spec.locale_relative_path.as_str()),
+                        spec.required,
+                        contents,
+                    )
+                })
+                .collect::<Vec<_>>();
+            EmbeddedLanguage {
+                language,
+                resources: Box::leak(resources.into_boxed_slice()),
             }
-        }
+        })
+        .collect::<Vec<_>>();
+    Box::leak(languages.into_boxed_slice())
+}
+
+macro_rules! test_embedded_languages {
+    ($name:ident, $fixture:literal, [$($path:literal),* $(,)?]) => {
+        static $name: LazyLock<&'static [EmbeddedLanguage]> = LazyLock::new(|| {
+            fixture_languages(
+                $fixture,
+                &[$((
+                    $path,
+                    include_bytes!(concat!(
+                        env!("CARGO_MANIFEST_DIR"),
+                        "/tests/fixtures/",
+                        $fixture,
+                        "/",
+                        $path
+                    )) as &[u8],
+                )),*],
+            )
+        });
     };
 }
 
-#[derive(RustEmbed)]
-#[folder = "tests/fixtures/embedded_i18n"]
-struct TestAssets;
+test_embedded_languages!(
+    TEST_LANGUAGES,
+    "embedded_i18n",
+    [
+        "en-GB/test-domain.ftl",
+        "en/test-domain.ftl",
+        "en/test-domain/ui.ftl",
+        "fr/test-domain.ftl",
+    ]
+);
 
-impl_test_embedded_assets!(TestAssets, &["ui"]);
+test_embedded_languages!(
+    NAMESPACE_ERROR_LANGUAGES,
+    "embedded_i18n_ns_errors",
+    [
+        "ab/test-domain.ftl",
+        "ab/test-domain/ui.ftl",
+        "ef/test-domain.ftl",
+    ]
+);
 
-#[derive(RustEmbed)]
-#[folder = "tests/fixtures/embedded_i18n"]
-struct BaseFileAssets;
+test_embedded_languages!(
+    STRAY_BASE_FILE_LANGUAGES,
+    "embedded_i18n_stray_base_file",
+    ["en/test-domain.ftl", "en/test-domain/ui.ftl"]
+);
 
-impl_test_embedded_assets!(BaseFileAssets, &[]);
+test_embedded_languages!(
+    NESTED_NAMESPACE_LANGUAGES,
+    "embedded_i18n_nested",
+    ["en/test-domain/ui/button.ftl"]
+);
 
-#[derive(RustEmbed)]
-#[folder = "tests/fixtures/embedded_i18n_ns_errors"]
-struct NamespaceErrorAssets;
+test_embedded_languages!(
+    BUNDLE_ADD_ERROR_LANGUAGES,
+    "embedded_i18n_bundle_add_error",
+    [
+        "en/test-domain.ftl",
+        "en/test-domain/errors.ftl",
+        "en/test-domain/ui.ftl",
+        "fr/test-domain.ftl",
+        "fr/test-domain/errors.ftl",
+        "fr/test-domain/ui.ftl",
+    ]
+);
 
-impl_test_embedded_assets!(NamespaceErrorAssets, &["ui"]);
-
-#[derive(RustEmbed)]
-#[folder = "tests/fixtures/embedded_i18n_stray_base_file"]
-struct StrayBaseFileAssets;
-
-impl_test_embedded_assets!(StrayBaseFileAssets, &["ui"]);
-
-#[derive(RustEmbed)]
-#[folder = "tests/fixtures/embedded_i18n_nested"]
-struct NestedNamespaceAssets;
-
-impl_test_embedded_assets!(NestedNamespaceAssets, &["ui/button"]);
-
-#[derive(RustEmbed)]
-#[folder = "tests/fixtures/embedded_i18n_bundle_add_error"]
-struct BundleAddErrorAssets;
-
-impl_test_embedded_assets!(BundleAddErrorAssets, &["ui", "errors"]);
-
-#[derive(RustEmbed)]
-#[folder = "tests/fixtures/embedded_i18n_partial_fallback"]
-struct PartialFallbackAssets;
-
-impl_test_embedded_assets!(PartialFallbackAssets, &["ui"]);
-
-struct OptionalOnlyAssets;
-
-impl RustEmbed for OptionalOnlyAssets {
-    fn get(_file_path: &str) -> Option<rust_embed::EmbeddedFile> {
-        None
-    }
-
-    fn iter() -> impl Iterator<Item = Cow<'static, str>> + 'static {
-        std::iter::empty()
-    }
-}
-
-impl EmbeddedAssets for OptionalOnlyAssets {
-    fn domains() -> &'static [ModuleDomain] {
-        const DOMAINS: &[ModuleDomain] = &[ModuleDomain {
-            domain: crate::__macro::static_domain("test-domain"),
-            namespaces: &[],
-        }];
-        DOMAINS
-    }
-
-    fn resource_plan_for_language(_lang: &LanguageIdentifier) -> Option<Vec<ModuleResourceSpec>> {
-        Some(vec![ModuleResourceSpec::new(
-            ResourceKey::from_static_path("test-domain"),
-            LocaleRelativeFtlPath::from_static_path("test-domain.ftl"),
-            false,
-        )])
-    }
-}
-
-#[test]
-fn embedded_asset_test_types_expose_expected_domains_and_namespaces() {
-    assert_eq!(TestAssets::domains()[0].domain.as_str(), "test-domain");
-    assert_eq!(TestAssets::domains()[0].namespaces, &["ui"]);
-    assert_eq!(BaseFileAssets::domains()[0].domain.as_str(), "test-domain");
-    assert!(BaseFileAssets::domains()[0].namespaces.is_empty());
-    assert_eq!(
-        NamespaceErrorAssets::domains()[0].domain.as_str(),
-        "test-domain"
-    );
-    assert_eq!(NamespaceErrorAssets::domains()[0].namespaces, &["ui"]);
-    assert_eq!(
-        StrayBaseFileAssets::domains()[0].domain.as_str(),
-        "test-domain"
-    );
-    assert_eq!(StrayBaseFileAssets::domains()[0].namespaces, &["ui"]);
-    assert_eq!(
-        NestedNamespaceAssets::domains()[0].domain.as_str(),
-        "test-domain"
-    );
-    assert_eq!(
-        NestedNamespaceAssets::domains()[0].namespaces,
-        &["ui/button"]
-    );
-    assert_eq!(
-        BundleAddErrorAssets::domains()[0].domain.as_str(),
-        "test-domain"
-    );
-    assert_eq!(
-        BundleAddErrorAssets::domains()[0].namespaces,
-        &["ui", "errors"]
-    );
-    assert_eq!(
-        PartialFallbackAssets::domains()[0].domain.as_str(),
-        "test-domain"
-    );
-    assert_eq!(PartialFallbackAssets::domains()[0].namespaces, &["ui"]);
-}
+test_embedded_languages!(
+    PARTIAL_FALLBACK_LANGUAGES,
+    "embedded_i18n_partial_fallback",
+    ["en-US/test-domain/ui.ftl", "en/test-domain/ui.ftl"]
+);
 
 static SUPPORTED_LANGUAGES: &[LanguageIdentifier] = &[
     langid!("en"),
@@ -221,110 +213,17 @@ static PARTIAL_FALLBACK_MODULE_DATA: ModuleData = ModuleData {
         namespaces: NAMESPACES,
     }],
 };
-static OPTIONAL_ONLY_SUPPORTED_LANGUAGES: &[LanguageIdentifier] = &[langid!("en")];
-static OPTIONAL_ONLY_MODULE_DATA: ModuleData = ModuleData {
-    name: "optional-only-module",
-    owner: crate::__macro::static_domain("test-domain"),
-    supported_languages: OPTIONAL_ONLY_SUPPORTED_LANGUAGES,
-    domains: &[crate::ModuleDomain {
-        domain: crate::__macro::static_domain("test-domain"),
-        namespaces: &[],
-    }],
-};
-
-#[test]
-fn discover_languages_collects_and_sorts_unique_languages() {
-    let languages = EmbeddedI18nModule::<TestAssets>::discover_languages();
-    assert_eq!(
-        languages,
-        vec![langid!("en"), langid!("en-GB"), langid!("fr")]
-    );
-}
-
-#[test]
-fn discover_languages_supports_base_files_when_no_namespaces_are_configured() {
-    assert!(BaseFileAssets::domains()[0].namespaces.is_empty());
-
-    let languages = EmbeddedI18nModule::<BaseFileAssets>::discover_languages();
-    assert_eq!(
-        languages,
-        vec![langid!("en"), langid!("en-GB"), langid!("fr")]
-    );
-}
-
-#[test]
-fn discover_languages_includes_locales_with_only_nested_namespace_files() {
-    let languages = EmbeddedI18nModule::<NestedNamespaceAssets>::discover_languages();
-    assert_eq!(languages, vec![langid!("en")]);
-}
-
-#[test]
-fn embedded_language_discovery_only_accepts_canonical_resources() {
-    assert_eq!(
-        embedded_resource_from_asset_path("en/test-domain.ftl", "test-domain", &["ui"]),
-        Some((langid!("en"), None))
-    );
-    assert_eq!(
-        embedded_resource_from_asset_path("en/test-domain/ui.ftl", "test-domain", &["ui"]),
-        Some((langid!("en"), Some("ui".to_string())))
-    );
-    assert_eq!(
-        embedded_resource_from_asset_path(
-            "en/test-domain/ui/button.ftl",
-            "test-domain",
-            &["ui/button"]
-        ),
-        Some((langid!("en"), Some("ui/button".to_string())))
-    );
-    assert_eq!(
-        embedded_resource_from_asset_path("en/test-domain/readme.txt", "test-domain", &["ui"]),
-        None
-    );
-    assert_eq!(
-        embedded_resource_from_asset_path("en/test-domain/misc.ftl", "test-domain", &["ui"]),
-        None
-    );
-    assert_eq!(
-        embedded_resource_from_asset_path("iw/test-domain/ui.ftl", "test-domain", &["ui"]),
-        None
-    );
-    assert_eq!(
-        embedded_resource_from_asset_path("", "test-domain", &["ui"]),
-        None
-    );
-    assert_eq!(
-        embedded_resource_from_asset_path("en", "test-domain", &["ui"]),
-        None
-    );
-    assert_eq!(
-        embedded_resource_from_asset_path("en/other-domain/ui.ftl", "test-domain", &["ui"]),
-        None
-    );
-    assert_eq!(
-        embedded_resource_from_asset_path("en/test-domain.ftl/extra", "test-domain", &[]),
-        None
-    );
-    assert_eq!(
-        embedded_resource_from_asset_path("en/test-domain/.ftl", "test-domain", &["ui"]),
-        None
-    );
-    assert_eq!(
-        embedded_resource_from_asset_path("en-us/test-domain/ui.ftl", "test-domain", &["ui"]),
-        None
-    );
-    assert_eq!(
-        parse_embedded_language_identifier("en-US"),
-        Some(langid!("en-US"))
-    );
-    assert_eq!(parse_embedded_language_identifier("en-us"), None);
+fn localizer(
+    data: &'static ModuleData,
+    languages: &'static [EmbeddedLanguage],
+    lang: LanguageIdentifier,
+) -> Result<Box<dyn Localizer>, LocalizationError> {
+    I18nModule::create_localizer(&EmbeddedI18nModule::new(data, languages), &lang)
 }
 
 #[test]
 fn embedded_localizer_loads_base_file_modules_without_namespaces() {
-    let localizer = EmbeddedLocalizer::<BaseFileAssets>::new(&BASE_FILE_MODULE_DATA);
-
-    localizer
-        .select_language(&langid!("en"))
+    let localizer = localizer(&BASE_FILE_MODULE_DATA, *TEST_LANGUAGES, langid!("en"))
         .expect("base file should make the locale ready");
 
     assert_eq!(
@@ -335,26 +234,16 @@ fn embedded_localizer_loads_base_file_modules_without_namespaces() {
 
 #[test]
 fn embedded_localizer_uses_fallback_and_formats_with_args() {
-    let localizer = EmbeddedLocalizer::<TestAssets>::new(&MODULE_DATA);
-
-    assert_eq!(localizer.localize(static_entry("hello"), None), None);
-
-    localizer
-        .select_language(&langid!("en-US"))
+    let localizer = localizer(&MODULE_DATA, *TEST_LANGUAGES, langid!("en-US"))
         .expect("fallback to en should work");
 
     let mut args = FluentArgumentMap::default();
-    args.insert(static_arg("name"), FluentValue::from("Mark"));
+    args.set("name", FluentValue::from("Mark"));
     let welcome = localizer.localize(static_entry("welcome"), Some(&args));
     assert!(
         welcome
             .as_deref()
-            .is_some_and(|value| value.contains("Welcome"))
-    );
-    assert!(
-        welcome
-            .as_deref()
-            .is_some_and(|value| value.contains("Mark"))
+            .is_some_and(|value| value.contains("Welcome") && value.contains("Mark"))
     );
     assert_eq!(
         localizer.localize(static_entry("base-only"), None),
@@ -364,45 +253,32 @@ fn embedded_localizer_uses_fallback_and_formats_with_args() {
         localizer.localize(static_entry("ui-title"), None),
         Some("UI Title".to_string())
     );
-
-    localizer
-        .select_language(&langid!("en"))
-        .expect("re-selecting current language should no-op");
-    localizer
-        .select_language(&langid!("en"))
-        .expect("re-selecting exactly the active language should no-op");
 }
 
 #[test]
-fn embedded_localizer_preserves_requested_locale_in_bundle_metadata() {
-    let localizer = EmbeddedLocalizer::<TestAssets>::new(&MODULE_DATA);
+fn embedded_localizer_fallback_bundles_keep_their_own_locale() {
+    let module = EmbeddedI18nModule::new(&MODULE_DATA, *TEST_LANGUAGES);
+    let localizer = ModuleLocalizer::new(&MODULE_DATA, &langid!("en-US"), |candidate| {
+        module.load_language(candidate)
+    })
+    .expect("fallback to en should work");
 
-    localizer
-        .select_language(&langid!("en-US"))
-        .expect("fallback to en should work");
-
-    assert_eq!(
-        localizer.state.read().current_lang.clone(),
-        Some(langid!("en-US"))
-    );
-
-    let bundle = localizer
-        .state
-        .read()
-        .current_bundles
-        .get("test-domain")
-        .cloned()
-        .expect("bundle should be built");
-    assert_eq!(bundle.locales, vec![langid!("en-US"), langid!("en")]);
+    let bundles = localizer
+        .bundles("test-domain")
+        .expect("bundles should be built");
+    // Fluent picks plural rules from a bundle's first locale when it is built,
+    // so a fallback bundle formats with the locale its resources were written in.
+    assert_eq!(bundles[0].locales, vec![langid!("en")]);
 }
 
 #[test]
-fn embedded_localizer_uses_fluent_fallback_for_missing_messages() {
-    let localizer = EmbeddedLocalizer::<PartialFallbackAssets>::new(&PARTIAL_FALLBACK_MODULE_DATA);
-
-    localizer
-        .select_language(&langid!("en-US"))
-        .expect("partial locale should fall back to en for missing messages");
+fn embedded_localizer_falls_back_per_message() {
+    let localizer = localizer(
+        &PARTIAL_FALLBACK_MODULE_DATA,
+        *PARTIAL_FALLBACK_LANGUAGES,
+        langid!("en-US"),
+    )
+    .expect("partial locale should fall back to en for missing messages");
 
     assert_eq!(
         localizer.localize(static_entry("hello"), None),
@@ -415,91 +291,41 @@ fn embedded_localizer_uses_fluent_fallback_for_missing_messages() {
 }
 
 #[test]
-fn embedded_localizer_treats_missing_optional_only_resources_as_ready() {
-    let localizer = EmbeddedLocalizer::<OptionalOnlyAssets>::new(&OPTIONAL_ONLY_MODULE_DATA);
-
-    localizer
-        .select_language(&langid!("en"))
-        .expect("missing optional-only resources should still make the locale ready");
-
-    assert_eq!(
-        localizer.state.read().current_lang.clone(),
-        Some(langid!("en"))
-    );
-    assert_eq!(
-        localizer.localize(static_entry("missing-message"), None),
-        None
-    );
-}
-
-#[test]
 fn embedded_localizer_exercises_fallback_and_missing_resource_paths() {
-    let localizer = EmbeddedLocalizer::<TestAssets>::new(&MODULE_DATA);
-
-    // en-GB does not have a ready canonical namespace resource, so
-    // selection should fall back to en.
-    localizer
-        .select_language(&langid!("en-GB"))
+    // en-GB does not have a ready canonical namespace resource, so creation
+    // falls back to en.
+    let en_gb = localizer(&MODULE_DATA, *TEST_LANGUAGES, langid!("en-GB"))
         .expect("should fall back from en-GB to en");
-
     // Missing required argument should produce formatting errors and return None.
-    assert_eq!(localizer.localize(static_entry("welcome"), None), None);
+    assert_eq!(en_gb.localize(static_entry("welcome"), None), None);
 
-    // fr has only a partial resource plan, so it can activate the ready
-    // resources it has and fall back for anything missing.
-    localizer
-        .select_language(&langid!("fr"))
+    // fr has only a partial resource plan, so it activates the ready resources
+    // it has without borrowing other locales.
+    let fr = localizer(&MODULE_DATA, *TEST_LANGUAGES, langid!("fr"))
         .expect("partial locale should activate available resources");
     assert_eq!(
-        localizer.localize(static_entry("hello"), None),
+        fr.localize(static_entry("hello"), None),
         Some("Bonjour depuis le fichier de base FR".to_string())
     );
+    assert_eq!(fr.localize(static_entry("ui-title"), None), None);
 
     // it is declared as supported but has no resources.
-    let it_err = localizer
-        .select_language(&langid!("it"))
-        .expect_err("missing files should fail");
+    let it_err = localizer(&MODULE_DATA, *TEST_LANGUAGES, langid!("it"))
+        .err()
+        .expect("missing files should fail");
     assert!(matches!(it_err, LocalizationError::LanguageNotSupported(_)));
 
     // de is not in the supported list.
-    let de_err = localizer
-        .select_language(&langid!("de"))
-        .expect_err("unsupported language should fail");
+    let de_err = localizer(&MODULE_DATA, *TEST_LANGUAGES, langid!("de"))
+        .err()
+        .expect("unsupported language should fail");
     assert!(matches!(de_err, LocalizationError::LanguageNotSupported(_)));
 }
 
 #[test]
-fn embedded_localizer_keeps_previous_bundle_when_selection_fails() {
-    let localizer = EmbeddedLocalizer::<TestAssets>::new(&MODULE_DATA);
-
-    localizer
-        .select_language(&langid!("en"))
-        .expect("en should load successfully");
-    assert_eq!(
-        localizer.localize(static_entry("ui-title"), None),
-        Some("UI Title".to_string())
-    );
-
-    localizer
-        .select_language(&langid!("fr"))
-        .expect("partial locale should switch successfully");
-    assert_eq!(
-        localizer.localize(static_entry("hello"), None),
-        Some("Bonjour depuis le fichier de base FR".to_string())
-    );
-    assert_eq!(
-        localizer.localize(static_entry("ui-title"), None),
-        None,
-        "partial locales should not keep resources from the previous active locale"
-    );
-}
-
-#[test]
-fn embedded_module_data_and_factory_work() {
-    let module = EmbeddedI18nModule::<TestAssets>::new(&MODULE_DATA);
+fn embedded_module_data_and_resource_plans() {
+    let module = EmbeddedI18nModule::new(&MODULE_DATA, *TEST_LANGUAGES);
     assert_eq!(module.data().name, "test-module");
-    let localizer = module.create_localizer();
-    assert_eq!(localizer.localize(static_entry("hello"), None), None);
 
     let registration = &module as &dyn crate::I18nModuleRegistration;
     let plan = registration
@@ -517,33 +343,47 @@ fn embedded_module_data_and_factory_work() {
 }
 
 #[test]
-fn embedded_localizer_exercises_namespaced_parse_and_missing_namespace_paths() {
-    let localizer = EmbeddedLocalizer::<NamespaceErrorAssets>::new(&NS_ERROR_MODULE_DATA);
+fn embedded_resources_are_parsed_once() {
+    let resource = &TEST_LANGUAGES[0].resources[0];
+    let first = resource.resource().expect("fixture should parse");
+    let second = resource.resource().expect("fixture should parse");
+    assert!(std::sync::Arc::ptr_eq(&first, &second));
+}
 
-    let parse_err = localizer
-        .select_language(&langid!("ab"))
-        .expect_err("invalid namespaced FTL should fail");
+#[test]
+fn embedded_localizer_exercises_namespaced_parse_and_missing_namespace_paths() {
+    let parse_err = localizer(
+        &NS_ERROR_MODULE_DATA,
+        *NAMESPACE_ERROR_LANGUAGES,
+        langid!("ab"),
+    )
+    .err()
+    .expect("invalid namespaced FTL should fail");
     assert!(matches!(
         parse_err,
         LocalizationError::LanguageNotSupported(_)
     ));
 
-    localizer
-        .select_language(&langid!("ef"))
-        .expect("base-only locale should activate its exact resource plan");
+    let ef = localizer(
+        &NS_ERROR_MODULE_DATA,
+        *NAMESPACE_ERROR_LANGUAGES,
+        langid!("ef"),
+    )
+    .expect("base-only locale should activate its exact resource plan");
     assert_eq!(
-        localizer.localize(static_entry("hello"), None),
+        ef.localize(static_entry("hello"), None),
         Some("Hello from EF".to_string())
     );
 }
 
 #[test]
 fn embedded_localizer_ignores_noncanonical_base_files() {
-    let localizer = EmbeddedLocalizer::<StrayBaseFileAssets>::new(&STRAY_BASE_FILE_MODULE_DATA);
-
-    localizer
-        .select_language(&langid!("en"))
-        .expect("noncanonical base files should not block namespaced readiness");
+    let localizer = localizer(
+        &STRAY_BASE_FILE_MODULE_DATA,
+        *STRAY_BASE_FILE_LANGUAGES,
+        langid!("en"),
+    )
+    .expect("noncanonical base files should not block namespaced readiness");
     assert_eq!(
         localizer.localize(static_entry("hello"), None),
         Some("Hello from stray-base fixture".to_string())
@@ -552,11 +392,12 @@ fn embedded_localizer_ignores_noncanonical_base_files() {
 
 #[test]
 fn embedded_localizer_loads_nested_namespace_files() {
-    let localizer = EmbeddedLocalizer::<NestedNamespaceAssets>::new(&NESTED_NAMESPACE_MODULE_DATA);
-
-    localizer
-        .select_language(&langid!("en"))
-        .expect("nested namespace file should make the locale ready");
+    let localizer = localizer(
+        &NESTED_NAMESPACE_MODULE_DATA,
+        *NESTED_NAMESPACE_LANGUAGES,
+        langid!("en"),
+    )
+    .expect("nested namespace file should make the locale ready");
     assert_eq!(
         localizer.localize(static_entry("nested-title"), None),
         Some("Nested UI Button".to_string())
@@ -564,20 +405,25 @@ fn embedded_localizer_loads_nested_namespace_files() {
 }
 
 #[test]
-fn embedded_localizer_rejects_bundle_add_errors_and_preserves_previous_bundle() {
-    let localizer = EmbeddedLocalizer::<BundleAddErrorAssets>::new(&BUNDLE_ADD_ERROR_MODULE_DATA);
-
-    localizer
-        .select_language(&langid!("en"))
-        .expect("en should load successfully");
+fn embedded_localizer_rejects_bundle_add_errors() {
+    let en = localizer(
+        &BUNDLE_ADD_ERROR_MODULE_DATA,
+        *BUNDLE_ADD_ERROR_LANGUAGES,
+        langid!("en"),
+    )
+    .expect("en should load successfully");
     assert_eq!(
-        localizer.localize(static_entry("hello"), None),
+        en.localize(static_entry("hello"), None),
         Some("Hello from bundle-add fixture".to_string())
     );
 
-    let err = localizer
-        .select_language(&langid!("fr"))
-        .expect_err("duplicate ids across bundle resources should fail selection");
+    let err = localizer(
+        &BUNDLE_ADD_ERROR_MODULE_DATA,
+        *BUNDLE_ADD_ERROR_LANGUAGES,
+        langid!("fr"),
+    )
+    .err()
+    .expect("duplicate ids across bundle resources should fail");
     let bundle_error = match err {
         LocalizationError::IoError(io_error) => io_error
             .get_ref()
@@ -600,10 +446,5 @@ fn embedded_localizer_rejects_bundle_add_errors_and_preserves_previous_bundle() 
             .iter()
             .any(|message| message.contains("hello")),
         "bundle build diagnostics should mention the duplicate message"
-    );
-    assert_eq!(
-        localizer.localize(static_entry("hello"), None),
-        Some("Hello from bundle-add fixture".to_string()),
-        "failed switches should keep the last ready locale active"
     );
 }

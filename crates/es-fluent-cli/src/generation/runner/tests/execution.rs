@@ -224,3 +224,59 @@ fn main() {
         assert_eq!(actual, expected, "decoding case: {case}");
     }
 }
+
+#[test]
+#[serial_test::serial(rustflags_env)]
+fn run_cargo_preserves_configured_rustflags() {
+    let temp = tempfile::tempdir().expect("tempdir");
+    fs::create_dir_all(temp.path().join("src")).expect("create src");
+    crate::test_fixtures::toml_helpers::write_toml(
+        &temp.path().join("Cargo.toml"),
+        &package_manifest("runner-rustflags"),
+    );
+    crate::test_fixtures::write_file(
+        &temp.path().join(".cargo/config.toml"),
+        "[target.'cfg(all())']\nrustflags = [\"--cfg\", \"es_fluent_runner_configured\"]\n",
+    );
+    crate::test_fixtures::write_file(
+        &temp.path().join("src/main.rs"),
+        "#![allow(unexpected_cfgs)]\nfn main() {\n    let unused = 0;\n    println!(\"configured={}\", cfg!(es_fluent_runner_configured));\n}\n",
+    );
+
+    let output = temp_env::with_vars_unset(["RUSTFLAGS", "CARGO_ENCODED_RUSTFLAGS"], || {
+        run_cargo_with_output(temp.path(), None, &[]).expect("run cargo")
+    });
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(stdout.contains("configured=true"), "stdout: {stdout}");
+    assert!(
+        !stderr.contains("unused variable"),
+        "runner builds should hide compiler warnings: {stderr}"
+    );
+}
+
+#[test]
+#[serial_test::serial(rustflags_env)]
+fn run_cargo_allows_warnings_denied_by_environment_rustflags() {
+    let temp = tempfile::tempdir().expect("tempdir");
+    fs::create_dir_all(temp.path().join("src")).expect("create src");
+    crate::test_fixtures::toml_helpers::write_toml(
+        &temp.path().join("Cargo.toml"),
+        &package_manifest("runner-denied-warnings"),
+    );
+    crate::test_fixtures::write_file(
+        &temp.path().join("src/main.rs"),
+        "fn main() {\n    let unused = 0;\n    println!(\"ran\");\n}\n",
+    );
+
+    let output = temp_env::with_vars(
+        [
+            ("RUSTFLAGS", Some("-D warnings")),
+            ("CARGO_ENCODED_RUSTFLAGS", None),
+        ],
+        || run_cargo_with_output(temp.path(), None, &[]).expect("run cargo"),
+    );
+
+    assert!(String::from_utf8_lossy(&output.stdout).contains("ran"));
+}
