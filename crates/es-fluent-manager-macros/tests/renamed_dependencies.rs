@@ -59,6 +59,7 @@ es-fluent-build = {{ path = "{}" }}
 
 [patch.crates-io]
 es-fluent = {{ path = "{}" }}
+es-fluent-derive-core = {{ path = "{}" }}
 es-fluent-manager-core = {{ path = "{}" }}
 es-fluent-toml = {{ path = "{}" }}
 "#,
@@ -69,6 +70,7 @@ es-fluent-toml = {{ path = "{}" }}
             toml_path(lang_path),
             toml_path(&build_path),
             toml_path(&facade_path),
+            toml_path(&workspace_root.join("crates/es-fluent-derive-core")),
             toml_path(&workspace_root.join("crates/es-fluent-manager-core")),
             toml_path(&workspace_root.join("crates/es-fluent-toml"))
         ),

@@ -6,12 +6,37 @@ directories, includes the fallback locale, and supplies manager conversions.
 
 ## Configure the dependency
 
-Enable `locales` and `fluent` for an es-fluent application:
+This source migration targets the next incompatible release after `0.21`.
+The ISO companion uses the unreleased manager and build-manifest APIs; it is
+not a standalone release compatible with registry-only `es-fluent` dependencies.
+Keep its revision and the es-fluent source overrides together.
+
+For an external application using the embedded manager, this pinned setup
+matches the integration in this repository:
 
 ```toml
 [dependencies]
-iso-types = { git = "https://github.com/stayhydated/iso-types", features = ["locales", "fluent"] }
+es-fluent = "0.21.2"
+es-fluent-manager-embedded = "0.21.2"
+iso-types = { git = "https://github.com/stayhydated/iso-types", rev = "8d9d025312c0cbac84471e02b17816b83448361c", features = ["locales", "fluent"] }
+
+[build-dependencies]
+es-fluent-build = "0.21.2"
+
+[patch.crates-io]
+es-fluent = { git = "https://github.com/stayhydated/es-fluent", rev = "8ff7e6852ba08081dce125656a32ee42125d5804" }
+es-fluent-build = { git = "https://github.com/stayhydated/es-fluent", rev = "8ff7e6852ba08081dce125656a32ee42125d5804" }
+es-fluent-derive-core = { git = "https://github.com/stayhydated/es-fluent", rev = "8ff7e6852ba08081dce125656a32ee42125d5804" }
+es-fluent-manager-core = { git = "https://github.com/stayhydated/es-fluent", rev = "8ff7e6852ba08081dce125656a32ee42125d5804" }
+es-fluent-manager-embedded = { git = "https://github.com/stayhydated/es-fluent", rev = "8ff7e6852ba08081dce125656a32ee42125d5804" }
+es-fluent-toml = { git = "https://github.com/stayhydated/es-fluent", rev = "8ff7e6852ba08081dce125656a32ee42125d5804" }
 ```
+
+Place the patches in the consuming workspace root: patches declared by a
+dependency do not propagate to its consumers. This repository instead patches
+the same contracts to its local workspace crates. If using the Dioxus or Bevy
+manager, select it from the same es-fluent revision too. Replace this setup with
+matching released versions when the incompatible migration is published.
 
 Keep the package's `es-fluent-build` build script tracking its locale assets.
 Define an empty enum in the package's library:
@@ -55,7 +80,7 @@ use iso_types::IntoEnumIterator as _;
 
 let i18n = es_fluent_manager_embedded::EmbeddedI18n::try_new_with_language(Languages::En)?;
 for language in Languages::iter() {
-    println!("{}: {}", language.code(), i18n.localize_message(language));
+    println!("{}: {}", language.code(), i18n.localize_message(&language));
 }
 i18n.select_language(Languages::FrFr)?;
 ```

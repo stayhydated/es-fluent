@@ -6,12 +6,13 @@ and English labels; `#[iso_enum]` declares an application-specific subset.
 
 ## Choose catalog features
 
-The default catalogs include countries and active tender currencies. Enable
-subdivision and measurement features for those workflows:
+The default catalogs include countries and active tender currencies. Start with
+the [pinned source setup and workspace patches](language_enum.md#configure-the-dependency),
+then enable subdivision and measurement features for those workflows:
 
 ```toml
 [dependencies]
-iso-types = { git = "https://github.com/stayhydated/iso-types", features = ["fluent", "3166-2", "units", "unit-conversion"] }
+iso-types = { git = "https://github.com/stayhydated/iso-types", rev = "8d9d025312c0cbac84471e02b17816b83448361c", features = ["fluent", "3166-2", "units", "unit-conversion"] }
 ```
 
 `3166-2` supplies states, provinces, territories, districts, and other ISO

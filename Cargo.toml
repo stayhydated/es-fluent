@@ -92,7 +92,7 @@ inventory = "0.3.25"
 iso-types = { features = [
   "locales",
   "fluent",
-], git = "https://github.com/stayhydated/iso-types", rev = "76f5fd98377720c345ea3f94d77ed3a1741ef3ad" }
+], git = "https://github.com/stayhydated/iso-types", rev = "8d9d025312c0cbac84471e02b17816b83448361c" }
 jiff = "0.2.39"
 miette = "7.6.0"
 notify = "8.2.1"
@@ -180,5 +180,6 @@ useless_conversion = "warn"
 # Share the workspace's localization types with iso-types' pinned integration.
 [patch.crates-io]
 es-fluent = { path = "crates/es-fluent" }
+es-fluent-derive-core = { path = "crates/es-fluent-derive-core" }
 es-fluent-manager-core = { path = "crates/es-fluent-manager-core" }
 es-fluent-toml = { path = "crates/es-fluent-toml" }
