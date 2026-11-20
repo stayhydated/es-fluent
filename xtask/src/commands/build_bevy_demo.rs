@@ -1,7 +1,7 @@
 use stayhydated_xtask::trunk::{TrunkDemoBuildConfig, TrunkDemoCopyDir, TrunkDemoPageConfig};
 
-// Must match `es_fluent_lang::WASM_FORCE_LINK_MARKER`.
-const REQUIRED_MARKER: &str = "es-fluent-lang-wasm-force-link";
+// Must match `iso_types::i18n::WASM_FORCE_LINK_MARKER`.
+const REQUIRED_MARKER: &str = "iso-types-wasm-force-link";
 
 pub fn run() -> anyhow::Result<()> {
     let workspace_root = stayhydated_xtask::workspace_root_from_xtask_manifest()?;

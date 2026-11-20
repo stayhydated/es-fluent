@@ -10,7 +10,7 @@ Start with the owning crate below and `just --list` for repository commands.
 | Application API | `crates/es-fluent`: public traits and derive re-exports. |
 | CLI and GitHub Action | `crates/es-fluent-cli`: commands, workspace selection, watching, and the action wrapper. |
 | Runtime integrations | `crates/es-fluent-manager-embedded`, `es-fluent-manager-dioxus`, and `es-fluent-manager-bevy`: application managers. |
-| Language picker | `crates/es-fluent-lang` and `es-fluent-lang-macro`: locale enums and language labels. |
+| Language picker | The separate `iso-types` repository: configured locale enums and English ISO labels. |
 | Derive implementation | `crates/es-fluent-derive` and `es-fluent-derive-core`: macro expansion and validation. |
 | Shared runtime contracts | `crates/es-fluent-manager-core` and `es-fluent-manager-macros`: custom integrations and module registration. |
 | Configuration and generation | `crates/es-fluent-toml`, `es-fluent-build`, and `es-fluent-generate`: layouts, fallback catalogs, and FTL maintenance. |
@@ -69,7 +69,7 @@ or implementation work.
 - Keep orphan cleanup scoped to the selected package and conservative about
   unselected fallback-relative paths. Raw filenames alone do not establish
   global ownership.
-- `es-fluent-build` writes the build manifest that derive, language, and
+- `es-fluent-build` writes the build manifest that derive, locale, and
   manager macros expand from: `i18n.toml`, discovered locales and resources,
   and the fallback catalog. Macros read package inputs only through
   `es_fluent_derive_core::macro_support::PackageInputs` so rustc and compiler
