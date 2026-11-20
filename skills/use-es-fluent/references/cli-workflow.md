@@ -48,7 +48,12 @@ The CLI inventory runner uses a hidden environment mode so it can collect newly
 derived keys before the application's strict fallback catalog contains them.
 Catalog parsing is deferred to the requested CLI operation so its normal
 validation and transaction diagnostics remain authoritative. The runner does
-not change the package's configured missing-message policy.
+not change the package's configured missing-message policy. It mirrors the
+workspace `[profile]` settings without applying `package."*"` overrides to
+workspace members, keeps configured Cargo `rustflags`, never fails on compiler
+warnings, and rebuilds
+cached inventory when any local source Cargo compiled into it changes, so
+`--force-run` is needed only to refresh inventory unconditionally.
 
 Generation uses conservative mode by default: it adds derived entries and
 updates their variables while preserving existing translations. Preview

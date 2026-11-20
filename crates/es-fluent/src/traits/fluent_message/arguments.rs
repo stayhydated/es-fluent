@@ -4,7 +4,10 @@ use crate::{
 };
 
 /// Generated Fluent arguments keyed by validated static argument names.
-#[derive(Clone, Debug, Default)]
+///
+/// The arguments are stored in the form Fluent formats with, so lookups pass
+/// them through without conversion.
+#[derive(Debug, Default)]
 pub struct FluentArgs<'a> {
     values: es_fluent_manager_core::FluentArgumentMap<'a>,
 }
@@ -17,7 +20,7 @@ impl<'a> FluentArgs<'a> {
     }
 
     pub fn insert(&mut self, name: StaticFluentArgumentName, value: FluentValue<'a>) {
-        self.values.insert(name, value);
+        self.values.set(name.as_str(), value);
     }
 
     pub fn as_raw(&self) -> &es_fluent_manager_core::FluentArgumentMap<'a> {
@@ -25,7 +28,7 @@ impl<'a> FluentArgs<'a> {
     }
 
     pub fn is_empty(&self) -> bool {
-        self.values.is_empty()
+        self.values.iter().next().is_none()
     }
 }
 

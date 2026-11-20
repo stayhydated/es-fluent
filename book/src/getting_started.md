@@ -48,7 +48,7 @@ mkdir -p assets/locales/en
 ~~~
 
 Create Cargo's default custom-build target to track locale changes and write the
-strict fallback-message catalog:
+build manifest, including the strict fallback-message catalog:
 
 ~~~rust,no_run
 // build.rs

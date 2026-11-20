@@ -372,7 +372,8 @@ pub struct FtlTypeInfo {
     variants: &'static [FtlVariant],
     /// The Cargo package and optional explicit output domain.
     scope: FtlScope,
-    /// The file path where this type is defined (from `file!()` macro).
+    /// The file defining this type, relative to the package manifest directory
+    /// when known, otherwise as reported by `file!()`.
     file_path: &'static str,
     /// The module path where this type is defined (from `module_path!()` macro).
     module_path: &'static str,

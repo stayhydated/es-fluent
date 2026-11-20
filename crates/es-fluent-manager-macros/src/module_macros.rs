@@ -91,13 +91,19 @@ fn expand_define_i18n_module_tokens(
         &domains,
     );
 
-    generate_tokens(
+    let build_inputs = es_fluent_derive_core::macro_support::build_inputs_tokens();
+    let generated = generate_tokens(
         crate_name,
         assets,
         module_data_name,
         module_data_static,
         &manager_paths,
-    )
+    )?;
+
+    Ok(quote! {
+        #build_inputs
+        #generated
+    })
 }
 
 fn expand_define_i18n_module(
@@ -141,62 +147,33 @@ fn generate_embedded_tokens(
     module_data_static: proc_macro2::TokenStream,
     manager_paths: &ManagerPaths,
 ) -> syn::Result<proc_macro2::TokenStream> {
-    let assets_struct_name = syn::Ident::new(
-        &format!(
-            "{}I18nAssets",
-            crate_name.replace('-', "_").to_pascal_case()
-        ),
+    let crate_ident = crate_name.to_uppercase().replace('-', "_");
+    let languages_name = syn::Ident::new(
+        &format!("{crate_ident}_EMBEDDED_LANGUAGES"),
         proc_macro2::Span::call_site(),
     );
-
     let module_instance_name = syn::Ident::new(
-        &format!(
-            "{}_I18N_MODULE",
-            crate_name.to_uppercase().replace('-', "_")
-        ),
+        &format!("{crate_ident}_I18N_MODULE"),
         proc_macro2::Span::call_site(),
     );
 
-    let i18n_root_str = utf8_folder_literal(&assets.root_path)?;
-    let manager_path = manager_paths.manager_path.tokens();
-    let rust_embed_path = quote! { #manager_path::__rust_embed };
-    let rust_embed_attr_path = syn::LitStr::new(
-        &format!("{}::__rust_embed", manager_paths.manager_path.rust_path()),
-        proc_macro2::Span::call_site(),
-    );
-    let embedded_asset_filter_attributes = embedded_asset_filter_attributes(&assets);
+    let (resource_statics, embedded_languages) =
+        embedded_language_tokens(&crate_ident, &assets, manager_paths)?;
     let manager_core_path = &manager_paths.manager_core_path;
-    let langid_path = &manager_paths.langid_path;
+    let manager_path = manager_paths.manager_path.tokens();
     let inventory_path = quote! { #manager_path::__inventory };
-    let manifest_match_arms = assets.resource_plan_match_arms(manager_core_path, langid_path);
 
     let expanded = quote! {
-        #[derive(#rust_embed_path::RustEmbed)]
-        #[crate_path = #rust_embed_attr_path]
-        #[folder = #i18n_root_str]
-        #embedded_asset_filter_attributes
-        struct #assets_struct_name;
+        #(#resource_statics)*
 
-        impl #manager_core_path::EmbeddedAssets for #assets_struct_name {
-            fn domains() -> &'static [#manager_core_path::ModuleDomain] {
-                #module_data_name.domains
-            }
-
-            fn resource_plan_for_language(
-                lang: &#langid_path::LanguageIdentifier,
-            ) -> Option<Vec<#manager_core_path::ModuleResourceSpec>> {
-                match lang {
-                    #(#manifest_match_arms,)*
-                    _ => None,
-                }
-            }
-        }
+        static #languages_name: &[#manager_core_path::EmbeddedLanguage] = &[
+            #(#embedded_languages,)*
+        ];
 
         #module_data_static
 
-        static #module_instance_name:
-            #manager_core_path::EmbeddedI18nModule<#assets_struct_name> =
-            #manager_core_path::EmbeddedI18nModule::<#assets_struct_name>::new(&#module_data_name);
+        static #module_instance_name: #manager_core_path::EmbeddedI18nModule =
+            #manager_core_path::EmbeddedI18nModule::new(&#module_data_name, #languages_name);
 
         #inventory_path::submit!(
             &#module_instance_name
@@ -207,24 +184,62 @@ fn generate_embedded_tokens(
     Ok(expanded)
 }
 
-fn embedded_asset_filter_attributes(assets: &I18nAssets) -> proc_macro2::TokenStream {
-    let include_paths = assets
-        .resource_specs_by_language
-        .iter()
-        .flat_map(|(language, specs)| {
-            specs.iter().map(move |spec| {
-                let path = format!("{language}/{}", spec.locale_relative_path);
-                let escaped_path = globset::escape(&path);
-                syn::LitStr::new(&escaped_path, proc_macro2::Span::call_site())
-            })
-        })
-        .collect::<Vec<_>>();
+/// Returns one resource `static` per language and the language table entries.
+///
+/// Embedded resources cache their parsed form in a `OnceLock`, so each
+/// language's resources live in a named `static` rather than a promoted
+/// temporary.
+fn embedded_language_tokens(
+    crate_ident: &str,
+    assets: &I18nAssets,
+    manager_paths: &ManagerPaths,
+) -> syn::Result<(Vec<proc_macro2::TokenStream>, Vec<proc_macro2::TokenStream>)> {
+    let manager_core_path = &manager_paths.manager_core_path;
+    let langid_path = &manager_paths.langid_path;
+    let mut statics = Vec::new();
+    let mut languages = Vec::new();
 
-    if include_paths.is_empty() {
-        quote! { #[exclude = "*"] }
-    } else {
-        quote! { #(#[include = #include_paths])* }
+    for (index, (language, specs)) in assets.resource_specs_by_language.iter().enumerate() {
+        let language = language.to_string();
+        let resources = specs
+            .iter()
+            .map(|spec| {
+                let key = spec.key.as_str();
+                let locale_relative_path = spec.locale_relative_path.as_str();
+                let required = spec.required;
+                let source_path = utf8_path_literal_value(
+                    &assets.root_path.join(&language).join(locale_relative_path),
+                )?;
+                Ok(quote! {
+                    #manager_core_path::EmbeddedResource::new(
+                        #key,
+                        #locale_relative_path,
+                        #required,
+                        include_bytes!(#source_path),
+                    )
+                })
+            })
+            .collect::<syn::Result<Vec<_>>>()?;
+        let resource_count = resources.len();
+        let resources_name = syn::Ident::new(
+            &format!("{crate_ident}_EMBEDDED_RESOURCES_{index}"),
+            proc_macro2::Span::call_site(),
+        );
+
+        statics.push(quote! {
+            static #resources_name: [#manager_core_path::EmbeddedResource; #resource_count] = [
+                #(#resources,)*
+            ];
+        });
+        languages.push(quote! {
+            #manager_core_path::EmbeddedLanguage {
+                language: #langid_path::langid!(#language),
+                resources: &#resources_name,
+            }
+        });
     }
+
+    Ok((statics, languages))
 }
 
 fn generate_bevy_tokens(
@@ -339,10 +354,20 @@ fn generate_bevy_tokens(
     Ok(expanded)
 }
 
+struct BevyEmbeddedAssetData {
+    language: String,
+    key: String,
+    /// Absolute path read by `include_bytes!`.
+    source_path: String,
+    /// Path relative to the package manifest directory, with `/` separators.
+    package_path: String,
+    embedded_path: String,
+}
+
 fn bevy_embedded_asset_data(
     crate_name: &str,
     assets: &I18nAssets,
-) -> syn::Result<Vec<(String, String, String, String)>> {
+) -> syn::Result<Vec<BevyEmbeddedAssetData>> {
     let manifest_dir = std::env::var("CARGO_MANIFEST_DIR")
         .map(PathBuf::from)
         .map_err(|_| crate::assets::macro_error("CARGO_MANIFEST_DIR must be set"))?;
@@ -357,20 +382,17 @@ fn bevy_embedded_asset_data(
     for (language, specs) in &assets.resource_specs_by_language {
         let language = language.to_string();
         for spec in specs {
-            let key = spec.key.as_str();
             let locale_relative_path = spec.locale_relative_path.as_str();
             let source_path = assets.root_path.join(&language).join(locale_relative_path);
-            let embedded_path = Path::new(crate_name)
-                .join(relative_root)
-                .join(&language)
-                .join(locale_relative_path);
-            let embedded_path = embedded_path.to_slash_lossy().to_string();
-            entries.push((
-                language.clone(),
-                key.to_string(),
-                utf8_path_literal_value(&source_path)?,
-                embedded_path,
-            ));
+            let package_path = relative_root.join(&language).join(locale_relative_path);
+            let embedded_path = Path::new(crate_name).join(&package_path);
+            entries.push(BevyEmbeddedAssetData {
+                language: language.clone(),
+                key: spec.key.as_str().to_string(),
+                source_path: utf8_path_literal_value(&source_path)?,
+                package_path: package_path.to_slash_lossy().to_string(),
+                embedded_path: embedded_path.to_slash_lossy().to_string(),
+            });
         }
     }
 
@@ -380,22 +402,30 @@ fn bevy_embedded_asset_data(
 fn bevy_embedded_asset_insertion_tokens(
     crate_name: &str,
     assets: &I18nAssets,
-    _manager_paths: &ManagerPaths,
+    manager_paths: &ManagerPaths,
 ) -> syn::Result<Vec<proc_macro2::TokenStream>> {
-    bevy_embedded_asset_data(crate_name, assets)?
+    let manager_path = manager_paths.manager_path.tokens();
+
+    Ok(bevy_embedded_asset_data(crate_name, assets)?
         .into_iter()
-        .map(|(_, _, source_path, embedded_path)| {
-            let source_path = syn::LitStr::new(&source_path, proc_macro2::Span::call_site());
-            let embedded_path = syn::LitStr::new(&embedded_path, proc_macro2::Span::call_site());
-            Ok(quote! {
+        .map(|asset| {
+            let BevyEmbeddedAssetData {
+                source_path,
+                package_path,
+                embedded_path,
+                ..
+            } = asset;
+            quote! {
                 embedded.insert_asset(
-                    ::std::path::PathBuf::from(#source_path),
+                    ::std::path::PathBuf::from(
+                        #manager_path::__i18n_asset_source_path!(#package_path),
+                    ),
                     ::std::path::Path::new(#embedded_path),
                     include_bytes!(#source_path),
                 );
-            })
+            }
         })
-        .collect()
+        .collect())
 }
 
 fn bevy_embedded_asset_descriptor_tokens(
@@ -405,22 +435,24 @@ fn bevy_embedded_asset_descriptor_tokens(
 ) -> syn::Result<Vec<proc_macro2::TokenStream>> {
     let manager_path = manager_paths.manager_path.tokens();
 
-    bevy_embedded_asset_data(crate_name, assets)?
+    Ok(bevy_embedded_asset_data(crate_name, assets)?
         .into_iter()
-        .map(|(_, _, source_path, embedded_path)| {
+        .map(|asset| {
+            let BevyEmbeddedAssetData {
+                package_path,
+                embedded_path,
+                ..
+            } = asset;
             let asset_path = format!("embedded://{embedded_path}");
-            let source_path = syn::LitStr::new(&source_path, proc_macro2::Span::call_site());
-            let embedded_path = syn::LitStr::new(&embedded_path, proc_macro2::Span::call_site());
-            let asset_path = syn::LitStr::new(&asset_path, proc_macro2::Span::call_site());
-            Ok(quote! {
+            quote! {
                 #manager_path::BevyI18nEmbeddedAsset {
-                    source_path: #source_path,
+                    source_path: #manager_path::__i18n_asset_source_path!(#package_path),
                     embedded_path: #embedded_path,
                     asset_path: #asset_path,
                 }
-            })
+            }
         })
-        .collect()
+        .collect())
 }
 
 fn bevy_embedded_asset_path_match_arms(
@@ -430,17 +462,23 @@ fn bevy_embedded_asset_path_match_arms(
 ) -> syn::Result<Vec<proc_macro2::TokenStream>> {
     let langid_path = &manager_paths.langid_path;
 
-    bevy_embedded_asset_data(crate_name, assets)?
+    Ok(bevy_embedded_asset_data(crate_name, assets)?
         .into_iter()
-        .map(|(language, key, _, embedded_path)| {
+        .map(|asset| {
+            let BevyEmbeddedAssetData {
+                language,
+                key,
+                embedded_path,
+                ..
+            } = asset;
             let asset_path = format!("embedded://{embedded_path}");
-            Ok(quote! {
+            quote! {
                 (value, key)
                     if value == &#langid_path::langid!(#language)
                         && key.as_str() == #key => Some(#asset_path)
-            })
+            }
         })
-        .collect()
+        .collect())
 }
 
 fn utf8_path_literal_value(path: &Path) -> syn::Result<String> {
@@ -448,7 +486,7 @@ fn utf8_path_literal_value(path: &Path) -> syn::Result<String> {
         syn::Error::new(
             proc_macro2::Span::call_site(),
             format!(
-                "i18n asset file path must be valid UTF-8 for Bevy embedded assets: {:?}",
+                "i18n asset file path must be valid UTF-8 to embed it: {:?}",
                 path
             ),
         )
@@ -489,7 +527,13 @@ fn generate_dioxus_asset_loader_tokens(
     let inventory_path = quote! { #manager_path::__inventory };
     let asset_tokens = dioxus_asset_resource_tokens(&assets, manager_paths)?;
 
+    // Dioxus `asset!()` records each asset's absolute source path for the
+    // bundler. Referencing `CARGO_MANIFEST_DIR` makes rustc record the package
+    // location as an input, so compiler caches cannot serve these records from
+    // another checkout.
     let expanded = quote! {
+        const _: &str = env!("CARGO_MANIFEST_DIR");
+
         #module_data_static
 
         static #resources_name: &[#manager_path::DioxusI18nAssetResource] = &[
@@ -612,19 +656,6 @@ fn dioxus_asset_path(
     Ok(syn::LitStr::new(&path, proc_macro2::Span::call_site()))
 }
 
-fn utf8_folder_literal(path: &Path) -> syn::Result<syn::LitStr> {
-    let path = path.to_str().ok_or_else(|| {
-        syn::Error::new(
-            proc_macro2::Span::call_site(),
-            format!(
-                "i18n assets directory path must be valid UTF-8 for RustEmbed: {:?}",
-                path
-            ),
-        )
-    })?;
-    Ok(syn::LitStr::new(path, proc_macro2::Span::call_site()))
-}
-
 #[cfg(all(test, target_os = "linux"))]
 mod tests {
     use super::*;
@@ -686,9 +717,9 @@ mod tests {
     }
 
     #[test]
-    fn utf8_folder_literal_rejects_non_utf8_paths() {
+    fn utf8_path_literal_value_rejects_non_utf8_paths() {
         let path = PathBuf::from(OsString::from_vec(vec![b'i', b'1', 0xff]));
-        let err = utf8_folder_literal(&path).expect_err("non-UTF-8 paths should be rejected");
+        let err = utf8_path_literal_value(&path).expect_err("non-UTF-8 paths should be rejected");
 
         assert!(err.to_string().contains("valid UTF-8"));
     }
@@ -724,11 +755,18 @@ mod tests {
             )
             .expect("embedded tokens"),
         );
-        assert!(embedded.contains("struct MyCrateI18nAssets"));
-        assert!(embedded.contains("RustEmbed"));
-        assert!(embedded.contains("#[include = \"en-US/my-crate.ftl\"]"));
-        assert!(embedded.contains("#[include = \"en-US/my-crate/ui.ftl\"]"));
-        assert!(embedded.contains("#[include = \"fr/my-crate/ui.ftl\"]"));
+        assert!(embedded.contains("MY_CRATE_EMBEDDED_LANGUAGES"));
+        assert!(embedded.contains("langid!(\"en-US\")"));
+        for asset_path in [
+            "en-US/my-crate.ftl",
+            "en-US/my-crate/ui.ftl",
+            "fr/my-crate/ui.ftl",
+        ] {
+            let source_path = assets_root.join(asset_path);
+            assert!(embedded.contains(&format!("\"{}\"", source_path.display())));
+        }
+        assert!(embedded.contains("include_bytes!"));
+        assert!(!embedded.contains(&format!("\"{}\"", assets_root.display())));
         assert!(embedded.contains("MY_CRATE_I18N_MODULE"));
         assert!(embedded.contains("inventory"));
 
@@ -751,6 +789,8 @@ mod tests {
             assert!(bevy.contains("asset_path_for_language"));
             assert!(bevy.contains("embedded_assets"));
             assert!(bevy.contains("source_path"));
+            assert!(bevy.contains("__i18n_asset_source_path!"));
+            assert!(bevy.contains("\"assets/locales/en-US/my-crate.ftl\""));
             assert!(bevy.contains("include_bytes"));
             assert!(bevy.contains("embedded://my-crate/assets/locales/en-US/my-crate.ftl"));
             assert!(bevy.contains("MetadataOnly"));
@@ -769,6 +809,7 @@ mod tests {
             );
 
             assert!(dioxus.contains("DioxusI18nAssetResource"));
+            assert!(dioxus.contains("env!(\"CARGO_MANIFEST_DIR\")"));
             assert!(dioxus.contains("dioxus_i18n_asset_module"));
             assert!(dioxus.contains("load_dioxus_i18n_assets_with_policy"));
             assert!(dioxus.contains("submit"));
@@ -778,7 +819,7 @@ mod tests {
     }
 
     #[test]
-    fn embedded_manager_with_no_planned_resources_embeds_no_assets() {
+    fn embedded_manager_with_no_planned_resources_embeds_no_files() {
         let module_data_name = syn::Ident::new("EMPTY_MODULE_DATA", proc_macro2::Span::call_site());
         let embedded = format_tokens(
             generate_embedded_tokens(
@@ -796,7 +837,8 @@ mod tests {
             .expect("embedded tokens"),
         );
 
-        assert!(embedded.contains("#[exclude = \"*\"]"));
+        assert!(embedded.contains("EMPTY_CRATE_EMBEDDED_LANGUAGES"));
+        assert!(!embedded.contains("include_bytes!"));
     }
 
     #[test]
@@ -827,7 +869,8 @@ mod tests {
                 );
 
                 assert!(expanded.contains("MY_CRATE_EMBEDDED_I18N_MODULE_DATA"));
-                assert!(expanded.contains("MyCrateI18nAssets"));
+
+                assert!(expanded.contains("MY_CRATE_EMBEDDED_LANGUAGES"));
                 assert!(expanded.contains("en-US"));
             },
         );

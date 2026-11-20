@@ -8,8 +8,10 @@ use camino::Utf8Path;
 use std::path::Path;
 
 mod config;
+mod dep_info;
 mod exec;
 mod monolithic;
+mod profiles;
 
 const CLI_VERSION: &str = env!("CARGO_PKG_VERSION");
 
@@ -17,6 +19,18 @@ fn utf8_path_string(path: &Path, context: &str) -> Result<String> {
     Utf8Path::from_path(path)
         .map(|path| path.as_str().to_string())
         .ok_or_else(|| anyhow!("{context} must be valid UTF-8: {}", path.display()))
+}
+
+/// Writes `contents` to `path` only when the file content differs.
+///
+/// Unchanged runner sources keep their modification time, so Cargo does not
+/// relink the runner and dep-info staleness checks stay meaningful.
+fn write_if_changed(path: &Path, contents: impl AsRef<[u8]>) -> std::io::Result<()> {
+    let contents = contents.as_ref();
+    if std::fs::read(path).is_ok_and(|existing| existing == contents) {
+        return Ok(());
+    }
+    fs_err::write(path, contents)
 }
 
 #[cfg(test)]

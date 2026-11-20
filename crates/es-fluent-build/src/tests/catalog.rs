@@ -16,7 +16,7 @@ fn track_i18n_assets_reads_config_and_assets_path() {
 
 #[serial_test::serial(manifest)]
 #[test]
-fn inventory_runner_initializes_catalog_without_parsing_fallback_ftl() {
+fn inventory_runner_defers_fallback_catalog_without_parsing_fallback_ftl() {
     let temp = tempfile::tempdir().expect("tempdir");
     let locale_dir = temp.path().join("i18n/en");
     fs::create_dir_all(&locale_dir).expect("create locale dir");
@@ -31,14 +31,14 @@ fn inventory_runner_initializes_catalog_without_parsing_fallback_ftl() {
         with_manifest_env(Some(temp.path()), track_i18n_assets);
     });
 
-    assert_eq!(
-        fs::read(
-            temp.path()
-                .join("build-output")
-                .join(FALLBACK_CATALOG_FILE_NAME)
-        )
-        .expect("read catalog"),
-        b""
+    let manifest = read_build_manifest(temp.path());
+    assert_eq!(manifest.fallback_messages(), None);
+    assert!(
+        manifest
+            .config()
+            .expect("config")
+            .assets_dir
+            .ends_with("i18n")
     );
 }
 
@@ -65,22 +65,11 @@ fn crate_root_assets_ignore_project_directories_when_building_catalog() {
 
     with_manifest_env(Some(temp.path()), track_i18n_assets);
 
-    let catalog = fs::read(
-        temp.path()
-            .join("build-output")
-            .join(FALLBACK_CATALOG_FILE_NAME),
-    )
-    .expect("read catalog");
-    assert!(
-        catalog
-            .windows(b"test-package\thello\n".len())
-            .any(|window| { window == b"test-package\thello\n" })
-    );
-    assert!(
-        catalog
-            .windows(b"test-package\ttitle\n".len())
-            .any(|window| { window == b"test-package\ttitle\n" })
-    );
+    let messages = read_build_manifest(temp.path())
+        .fallback_messages()
+        .expect("fallback catalog");
+    assert!(messages.contains("test-package", "hello"));
+    assert!(messages.contains("test-package", "title"));
 }
 
 #[serial_test::serial(manifest)]
@@ -102,17 +91,10 @@ fn normalized_crate_root_assets_ignore_project_directories_when_building_catalog
 
     with_manifest_env(Some(temp.path()), track_i18n_assets);
 
-    let catalog = fs::read(
-        temp.path()
-            .join("build-output")
-            .join(FALLBACK_CATALOG_FILE_NAME),
-    )
-    .expect("read catalog");
-    assert!(
-        catalog
-            .windows(b"test-package\thello\n".len())
-            .any(|window| { window == b"test-package\thello\n" })
-    );
+    let messages = read_build_manifest(temp.path())
+        .fallback_messages()
+        .expect("fallback catalog");
+    assert!(messages.contains("test-package", "hello"));
 }
 
 #[cfg(unix)]

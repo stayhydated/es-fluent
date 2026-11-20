@@ -104,8 +104,16 @@ cargo es-fluent generate --mode aggressive --dry-run
 ~~~
 
 `--dry-run` previews changes without writing them.
-`--force-run` refreshes cached derive inventory. Generation may
-compile selected library targets. A hidden inventory mode defers strict
+`--force-run` refreshes cached derive inventory. Cached inventory is also
+rebuilt when any local source Cargo compiled into the inventory runner changes,
+including path dependencies and build-script inputs. Generation may
+compile selected library targets. The runner mirrors the workspace `[profile]`
+settings, keeps workspace members on their member-level settings rather than
+`package."*"` overrides, with explicit `build-override` settings for members
+built only for the host, such as proc macros. It keeps configured Cargo
+`rustflags`, so compiler caches can reuse units from the application's own
+builds. Compiler warnings never fail runner builds, including when
+`RUSTFLAGS` contains `-D warnings`. A hidden inventory mode defers strict
 missing-key coverage only for that temporary build, so new keys can be collected
 without changing the package's configured runtime policy. Catalog parsing is
 deferred to the requested operation so its normal validation and transaction

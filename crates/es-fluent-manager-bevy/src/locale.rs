@@ -84,15 +84,19 @@ pub struct LocaleChangedMessage(pub LanguageIdentifier);
 
 /// A Bevy system that listens for `LocaleChangedMessage`s and updates components
 /// that implement `RefreshForLocale`.
+///
+/// Values are refreshed once per frame, for the last locale published that
+/// frame.
 pub fn update_values_on_locale_change<T>(
     mut locale_changed_messages: MessageReader<LocaleChangedMessage>,
     mut query: Query<&mut FluentText<T>>,
 ) where
     T: RefreshForLocale + FluentMessage + Send + Sync + 'static,
 {
-    for event in locale_changed_messages.read() {
-        for mut fluent_text in query.iter_mut() {
-            fluent_text.value.refresh_for_locale(&event.0);
-        }
+    let Some(LocaleChangedMessage(lang)) = locale_changed_messages.read().last() else {
+        return;
+    };
+    for mut fluent_text in &mut query {
+        fluent_text.value.refresh_for_locale(lang);
     }
 }

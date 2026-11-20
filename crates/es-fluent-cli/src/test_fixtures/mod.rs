@@ -440,6 +440,7 @@ pub fn save_runner_cache(
         workspace_inputs_hash: crate::generation::cache::compute_workspace_inputs_hash(
             workspace_root,
         ),
+        build_started_at: None,
     }
     .save(temp_store.base_dir())
     .expect("save runner cache");

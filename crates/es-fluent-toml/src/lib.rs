@@ -440,7 +440,11 @@ impl I18nConfig {
         Ok(())
     }
 
-    fn validated_assets_dir_from_base(
+    /// Resolves the assets directory from a base directory and verifies that it
+    /// exists as a directory.
+    ///
+    /// If `base_dir` is `None`, uses the `CARGO_MANIFEST_DIR` environment variable.
+    pub fn validated_assets_dir_from_base(
         &self,
         base_dir: Option<&Path>,
     ) -> Result<PathBuf, I18nConfigError> {
@@ -458,8 +462,12 @@ impl I18nConfig {
         }
 
         let content = fs::read_to_string(path)?;
+        Self::from_toml_str(&content)
+    }
 
-        let raw: RawI18nConfig = toml::from_str(&content)?;
+    /// Parses and validates configuration from `i18n.toml` contents.
+    pub fn from_toml_str(content: &str) -> Result<Self, I18nConfigError> {
+        let raw: RawI18nConfig = toml::from_str(content)?;
         raw.validate()
     }
 

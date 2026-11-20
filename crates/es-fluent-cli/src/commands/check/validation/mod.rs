@@ -44,19 +44,22 @@ fn validate_ftl_files(
     };
     let check_fallback_copies =
         check_all && check_fallback_copies && locale_ctx.check_fallback_copies;
-    let fallback_keys = if check_fallback_copies {
-        locale_ctx
-            .discover_and_load_files(&locale_ctx.fallback)
-            .ok()
-            .map(|files| loaded::collect_fallback_keys(&ctx, &files))
-    } else {
-        None
-    };
+    // Loaded once, then used for the fallback-copy comparison and as the
+    // fallback locale's own files in the loop below.
+    let mut fallback_files =
+        check_fallback_copies.then(|| locale_ctx.discover_and_load_files(&locale_ctx.fallback));
+    let fallback_keys = fallback_files
+        .as_ref()
+        .and_then(|files| files.as_ref().ok())
+        .map(|files| loaded::collect_fallback_keys(&ctx, files));
 
     let mut issues = Vec::new();
 
     for locale in &locale_ctx.locales {
-        match locale_ctx.discover_and_load_files(locale) {
+        let loaded_files = fallback_files
+            .take_if(|_| locale == &locale_ctx.fallback)
+            .unwrap_or_else(|| locale_ctx.discover_and_load_files(locale));
+        match loaded_files {
             Ok(loaded_files) if loaded_files.is_empty() => {
                 let ftl_abs_path = crate::ftl::main_ftl_path(
                     &locale_ctx.assets_dir,

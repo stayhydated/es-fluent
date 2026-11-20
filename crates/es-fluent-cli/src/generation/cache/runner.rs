@@ -3,6 +3,7 @@ use fs_err as fs;
 use indexmap::IndexMap;
 use serde::{Deserialize, Serialize};
 use std::path::Path;
+use std::time::SystemTime;
 
 /// Runner binary cache tracking which content hashes it was built with.
 ///
@@ -23,6 +24,13 @@ pub struct RunnerCache {
     /// Hash of workspace-level Cargo inputs, including transitive config, manifest, and lockfiles.
     #[serde(default)]
     pub workspace_inputs_hash: String,
+    /// When the build that produced the cached runner started.
+    ///
+    /// Inputs Cargo recorded in the runner's dep-info that changed after this
+    /// time make the runner stale. Unlike the binary's mtime, it advances even
+    /// when Cargo finds the runner fresh and does not relink it.
+    #[serde(default)]
+    pub build_started_at: Option<SystemTime>,
 }
 
 impl RunnerCache {

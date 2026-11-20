@@ -32,14 +32,14 @@ fn render_args(message: &impl FluentMessage) -> HashMap<String, String> {
     let intls = intl_memoizer::IntlLangMemoizer::new("en-US".parse().unwrap());
     message.to_fluent_string_with(
         &mut |_key: StaticFluentMessageKey, args: Option<&FluentArgs<'_>>| {
-            for (name, value) in args.expect("Chrono message arguments").as_raw() {
+            for (name, value) in args.expect("Chrono message arguments").as_raw().iter() {
                 let value = match value {
                     FluentValue::String(value) => value.as_ref().to_string(),
                     FluentValue::Custom(value) => value.as_string(&intls).into_owned(),
                     FluentValue::None => "<none>".to_string(),
                     other => panic!("expected a Fluent temporal value, got {other:?}"),
                 };
-                rendered.insert(name.as_str().to_string(), value);
+                rendered.insert(name.to_string(), value);
             }
             "rendered".to_string()
         },

@@ -313,12 +313,14 @@ fn resolve_clean_paths_reports_missing_assets_dir_for_all_locales() {
 fn validate_namespaces_allows_configured_namespaces_only() {
     let temp = tempfile::tempdir().expect("tempdir");
     write_basic_i18n_config(temp.path());
+    let layout = ResolvedI18nLayout::from_manifest_dir(temp.path()).expect("layout");
 
-    super::inventory::validate_namespaces(&[&ALLOWED_INFO], temp.path())
+    super::inventory::validate_namespaces(&[&ALLOWED_INFO], temp.path(), Some(&layout))
         .expect("allowed namespace should pass");
 
-    let err = super::inventory::validate_namespaces(&[&DISALLOWED_INFO], temp.path())
-        .expect_err("disallowed namespace should fail");
+    let err =
+        super::inventory::validate_namespaces(&[&DISALLOWED_INFO], temp.path(), Some(&layout))
+            .expect_err("disallowed namespace should fail");
     assert!(matches!(
         err,
         GeneratorError::InvalidNamespace {
@@ -333,7 +335,7 @@ fn validate_namespaces_allows_configured_namespaces_only() {
 fn validate_namespaces_rejects_malformed_namespace_paths() {
     let temp = tempfile::tempdir().expect("tempdir");
 
-    let err = super::inventory::validate_namespaces(&[&INVALID_NAMESPACE_INFO], temp.path())
+    let err = super::inventory::validate_namespaces(&[&INVALID_NAMESPACE_INFO], temp.path(), None)
         .expect_err("malformed namespace should fail");
 
     assert!(matches!(
@@ -495,4 +497,24 @@ fn collect_type_infos_returns_empty_for_unknown_crate() {
     let infos = super::inventory::collect_type_infos("definitely_unknown_crate_name")
         .expect("valid package name");
     assert!(infos.is_empty());
+}
+
+#[test]
+fn plan_generate_with_explicit_output_reports_invalid_config() {
+    let temp = tempfile::tempdir().expect("tempdir");
+    let generator = EsFluentGenerator::builder()
+        .crate_name("config-check-crate")
+        .manifest_dir(temp.path())
+        .output_path(temp.path().join("i18n/en"))
+        .build();
+
+    generator
+        .plan_generate()
+        .expect("an explicit output path works without i18n.toml");
+
+    fs::write(temp.path().join("i18n.toml"), "fallback_language = [\n").expect("write config");
+    let error = generator
+        .plan_generate()
+        .expect_err("an invalid i18n.toml must not skip namespace validation");
+    assert!(matches!(error, GeneratorError::Config(_)));
 }
