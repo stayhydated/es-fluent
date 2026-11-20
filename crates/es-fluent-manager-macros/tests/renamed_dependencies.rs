@@ -19,6 +19,7 @@ fn manager_macros_compile_when_runtime_dependencies_are_renamed() {
         .ancestors()
         .nth(2)
         .expect("workspace root");
+    let build_path = workspace_root.join("crates/es-fluent-build");
     let facade_path = workspace_root.join("crates/es-fluent");
     let embedded_path = workspace_root.join("crates/es-fluent-manager-embedded");
     let bevy_path = workspace_root.join("crates/es-fluent-manager-bevy");
@@ -53,6 +54,9 @@ bevy_runtime = {{ package = "es-fluent-manager-bevy", path = "{}", default-featu
 dioxus_runtime = {{ package = "es-fluent-manager-dioxus", path = "{}" }}
 language_pack = {{ package = "iso-types", path = "{}", features = ["locales", "fluent"] }}
 
+[build-dependencies]
+es-fluent-build = {{ path = "{}" }}
+
 [patch.crates-io]
 es-fluent = {{ path = "{}" }}
 es-fluent-manager-core = {{ path = "{}" }}
@@ -63,12 +67,19 @@ es-fluent-toml = {{ path = "{}" }}
             toml_path(&bevy_path),
             toml_path(&dioxus_path),
             toml_path(lang_path),
+            toml_path(&build_path),
             toml_path(&facade_path),
             toml_path(&workspace_root.join("crates/es-fluent-manager-core")),
             toml_path(&workspace_root.join("crates/es-fluent-toml"))
         ),
     )
     .expect("write Cargo.toml");
+
+    std::fs::write(
+        crate_dir.join("build.rs"),
+        "fn main() { es_fluent_build::track_i18n_assets(); }\n",
+    )
+    .expect("write build script");
 
     std::fs::write(
         crate_dir.join("i18n.toml"),

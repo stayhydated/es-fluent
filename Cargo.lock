@@ -5991,7 +5991,7 @@ checksum = "a6cb138bb79a146c1bd460005623e142ef0181e3d0219cb493e02f7d08a35695"
 [[package]]
 name = "iso-types"
 version = "0.1.0"
-source = "git+https://github.com/stayhydated/iso-types?rev=4580d5b60aad92504b1b5f9bc963d042241cba06#4580d5b60aad92504b1b5f9bc963d042241cba06"
+source = "git+https://github.com/stayhydated/iso-types?rev=76f5fd98377720c345ea3f94d77ed3a1741ef3ad#76f5fd98377720c345ea3f94d77ed3a1741ef3ad"
 dependencies = [
  "es-fluent",
  "es-fluent-manager-core",
@@ -6009,7 +6009,7 @@ dependencies = [
 [[package]]
 name = "iso-types-macros"
 version = "0.1.0"
-source = "git+https://github.com/stayhydated/iso-types?rev=4580d5b60aad92504b1b5f9bc963d042241cba06#4580d5b60aad92504b1b5f9bc963d042241cba06"
+source = "git+https://github.com/stayhydated/iso-types?rev=76f5fd98377720c345ea3f94d77ed3a1741ef3ad#76f5fd98377720c345ea3f94d77ed3a1741ef3ad"
 dependencies = [
  "es-fluent-toml",
  "heck",
@@ -6018,7 +6018,7 @@ dependencies = [
  "proc-macro2",
  "quote",
  "serde_json",
- "syn 3.0.7",
+ "syn 3.0.9",
  "unic-langid",
  "writeable",
 ]

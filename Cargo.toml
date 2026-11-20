@@ -92,7 +92,7 @@ inventory = "0.3.25"
 iso-types = { features = [
   "locales",
   "fluent",
-], git = "https://github.com/stayhydated/iso-types", rev = "4580d5b60aad92504b1b5f9bc963d042241cba06" }
+], git = "https://github.com/stayhydated/iso-types", rev = "76f5fd98377720c345ea3f94d77ed3a1741ef3ad" }
 jiff = "0.2.39"
 miette = "7.6.0"
 notify = "8.2.1"
