@@ -11,5 +11,5 @@ Allo = "Allo"
 
 [default.extend-identifiers]
 # ICU4X's published crate and trait names use these exact spellings.
-writeable = "writeable"
 Writeable = "Writeable"
+writeable = "writeable"
