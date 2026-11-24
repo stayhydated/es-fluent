@@ -98,7 +98,7 @@ across namespace files. The same ID may be reused in another domain or package.
 
 ## Localized temporal arguments
 
-Enable `es-fluent`'s `icu-datetime`, `chrono`, or `jiff` feature to use that
+Enable `es-fluent`'s `icu-datetime` or `jiff` feature to use that
 library's temporal types directly in derived message fields. Owned, borrowed,
 optional, and explicitly transformed temporal fields use the same argument
 inference as other supported field types.
@@ -131,7 +131,6 @@ operation_elapsed = Completed in { $elapsed }
 - `icu-datetime`: `std::time::SystemTime`, `std::time::Duration`, plus ICU4X
   `Date<Gregorian>`, `Time`, `DateTime<Gregorian>`, and
   `ZonedDateTime<Gregorian, TimeZoneInfo<AtTime>>`.
-- `chrono`: `NaiveDate`, `NaiveTime`, `NaiveDateTime`, and `DateTime<Tz>`.
 - `jiff`: `civil::Date`, `civil::Time`, `civil::DateTime`, `Timestamp`, `Zoned`,
   `Span`, and `SignedDuration`.
 
@@ -140,6 +139,11 @@ active Fluent locale. `SystemTime` is rendered as a UTC instant with
 millisecond precision. `Duration` uses ICU4X's locale-aware short duration
 format after balancing through hours, minutes, seconds, and subsecond units.
 Jiff durations use Jiff's friendly duration format.
+
+In the next incompatible release, replace the removed `chrono` feature with
+`jiff` and migrate fields to Jiff 0.2. Use civil types for zone-free values,
+`Timestamp` for UTC, and `Zoned` for a named zone or fixed offset. Retain
+argument names so the FTL messages do not have to change.
 
 ## Delegate wrapper messages
 

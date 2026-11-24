@@ -18,7 +18,6 @@ keywords = [ "fluent", "i18n", "locale" ]
 ignored = [ "icu_provider" ]
 
 [features]
-chrono = [ "dep:chrono", "icu-datetime", "icu_datetime/unstable_chrono_0_4" ]
 default = [ "derive" ]
 derive = [ "dep:es-fluent-derive" ]
 icu-datetime = [
@@ -34,7 +33,6 @@ icu-datetime = [
 jiff = [ "dep:jiff", "icu-datetime", "icu_datetime/unstable_jiff_0_2" ]
 
 [dependencies]
-chrono = { optional = true, workspace = true }
 es-fluent-derive = { optional = true, workspace = true }
 es-fluent-manager-core = { workspace = true }
 es-fluent-shared = { workspace = true }

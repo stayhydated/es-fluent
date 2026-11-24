@@ -44,7 +44,6 @@ bon = "3.10.3"
 camino = "1.2.6"
 cargo-manifest = "0.21.0"
 cargo_metadata = "0.23.1"
-chrono = { default-features = false, features = [ "std" ], version = "0.4.45" }
 clap = "4.6.9"
 colored = "3.1.1"
 console_error_panic_hook = "0.1.7"

@@ -20,8 +20,11 @@ The default feature set enables `derive`.
 | --- | --- | --- |
 | `derive` | Yes | Re-exports `EsFluent`, `EsFluentChoice`, `EsFluentLabel`, and `EsFluentVariants`. |
 | `icu-datetime` | No | Formats `SystemTime` and `Duration` arguments with ICU4X in the active locale. |
-| `chrono` | No | Enables `icu-datetime` and Chrono temporal arguments. |
 | `jiff` | No | Enables `icu-datetime` and Jiff temporal arguments. |
+
+The next incompatible release removes the `chrono` feature. Enable `jiff` and
+use Jiff 0.2 temporal types instead. The `icu-datetime` feature still supports
+standard-library and ICU4X temporal arguments without Jiff.
 
 ## Example
 

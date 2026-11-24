@@ -33,9 +33,6 @@ pub use traits::{
 #[cfg(feature = "jiff")]
 mod jiff;
 
-#[cfg(feature = "chrono")]
-mod chrono;
-
 #[cfg(feature = "icu-datetime")]
 mod icu_datetime;
 

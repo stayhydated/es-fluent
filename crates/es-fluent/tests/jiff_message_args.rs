@@ -13,6 +13,13 @@ struct JiffMessage<'a> {
     time: civil::Time,
     timestamp: Timestamp,
     zoned: Zoned,
+    borrowed_zoned: &'a Zoned,
+    maybe_zoned_present: Option<Zoned>,
+    maybe_zoned_missing: Option<Zoned>,
+    maybe_borrowed_zoned_present: Option<&'a Zoned>,
+    maybe_borrowed_zoned_missing: Option<&'a Zoned>,
+    #[fluent(value = |value: &Zoned| value.clone())]
+    transformed_zoned: Zoned,
     maybe_date_present: Option<civil::Date>,
     maybe_date_missing: Option<civil::Date>,
     maybe_borrowed_date_present: Option<&'a civil::Date>,
@@ -58,13 +65,20 @@ fn derived_messages_accept_owned_borrowed_and_optional_jiff_values() {
     let zoned = "2026-07-14T09:30:15-04:00[America/New_York]"
         .parse::<Zoned>()
         .unwrap();
+    let utc_zoned = timestamp.to_zoned(jiff::tz::TimeZone::UTC);
     let args = render_args(&JiffMessage {
         date: civil::date(2026, 7, 14),
         borrowed_date: &borrowed_date,
         date_time: civil::date(2026, 7, 14).at(9, 30, 15, 0),
         time: civil::time(10, 45, 30, 0),
         timestamp,
-        zoned,
+        zoned: zoned.clone(),
+        borrowed_zoned: &zoned,
+        maybe_zoned_present: Some(utc_zoned),
+        maybe_zoned_missing: None,
+        maybe_borrowed_zoned_present: Some(&zoned),
+        maybe_borrowed_zoned_missing: None,
+        transformed_zoned: zoned.clone(),
         maybe_date_present: Some(civil::date(2026, 7, 16)),
         maybe_date_missing: None,
         maybe_borrowed_date_present: Some(&borrowed_date),
@@ -85,7 +99,23 @@ fn derived_messages_accept_owned_borrowed_and_optional_jiff_values() {
     assert_eq!(args["date_time"], "Jul 14, 2026, 9:30:15\u{202f}AM");
     assert_eq!(args["time"], "10:45:30\u{202f}AM");
     assert_eq!(args["timestamp"], "Jul 14, 2026, 1:30:15\u{202f}PM GMT+0");
-    assert_eq!(args["zoned"], "Jul 14, 2026, 9:30:15\u{202f}AM GMT-4");
+    for name in [
+        "zoned",
+        "borrowed_zoned",
+        "maybe_borrowed_zoned_present",
+        "transformed_zoned",
+    ] {
+        assert_eq!(
+            args[name], "Jul 14, 2026, 9:30:15\u{202f}AM GMT-4",
+            "{name}"
+        );
+    }
+    assert_eq!(
+        args["maybe_zoned_present"],
+        "Jul 14, 2026, 1:30:15\u{202f}PM GMT+0",
+    );
+    assert_eq!(args["maybe_zoned_missing"], "<none>");
+    assert_eq!(args["maybe_borrowed_zoned_missing"], "<none>");
     assert_eq!(args["maybe_date_present"], "Jul 16, 2026");
     assert_eq!(args["maybe_date_missing"], "<none>");
     assert_eq!(args["maybe_borrowed_date_present"], "Jul 15, 2026");

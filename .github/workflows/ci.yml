@@ -76,6 +76,8 @@ jobs:
   dioxus-manager-feature-matrix:
     name: dioxus manager (${{ matrix.name }})
     runs-on: ubuntu-latest
+    env:
+      SCCACHE_CONF: ${{ github.workspace }}/.github/sccache.toml
     strategy:
       fail-fast: false
       matrix:
@@ -162,6 +164,8 @@ jobs:
 
   clippy:
     runs-on: ubuntu-latest
+    env:
+      SCCACHE_CONF: ${{ github.workspace }}/.github/sccache.toml
 
     steps:
       - uses: actions/checkout@v7
@@ -380,7 +384,6 @@ jobs:
           cargo check -p es-fluent --lib --locked --no-default-features
           cargo check -p es-fluent --lib --locked --no-default-features --features derive
           cargo check -p es-fluent --lib --locked --no-default-features --features icu-datetime
-          cargo check -p es-fluent --lib --locked --no-default-features --features chrono
           cargo check -p es-fluent --lib --locked --no-default-features --features jiff
           cargo check -p es-fluent-manager-core --lib --locked --no-default-features
           cargo check -p es-fluent-manager-embedded --lib --locked --no-default-features
