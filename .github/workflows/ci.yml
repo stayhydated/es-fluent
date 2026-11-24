@@ -10,20 +10,22 @@ permissions:
 
 env:
   CARGO_TERM_COLOR: always
-  RUSTUP_TOOLCHAIN: stable
+  RUSTUP_TOOLCHAIN: "1.100.0"
   SCCACHE_GHA_ENABLED: true
   RUSTC_WRAPPER: sccache
 
 jobs:
   es-fluent-local-cli:
     runs-on: ubuntu-latest
+    env:
+      SCCACHE_CONF: ${{ github.workspace }}/.github/sccache.toml
 
     steps:
       - uses: actions/checkout@v7
         with:
           persist-credentials: false
 
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@1.100.0
 
       - name: Setup sccache
         uses: mozilla-actions/sccache-action@v0.0.11
@@ -39,6 +41,8 @@ jobs:
   test:
     name: test (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
+    env:
+      SCCACHE_CONF: ${{ github.workspace }}/.github/sccache.toml
     strategy:
       fail-fast: false
       matrix:
@@ -55,7 +59,7 @@ jobs:
         with:
           persist-credentials: false
 
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@1.100.0
 
       - name: Setup sccache
         uses: mozilla-actions/sccache-action@v0.0.11
@@ -76,6 +80,8 @@ jobs:
   dioxus-manager-feature-matrix:
     name: dioxus manager (${{ matrix.name }})
     runs-on: ubuntu-latest
+    env:
+      SCCACHE_CONF: ${{ github.workspace }}/.github/sccache.toml
     strategy:
       fail-fast: false
       matrix:
@@ -96,7 +102,7 @@ jobs:
         with:
           persist-credentials: false
 
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@1.100.0
         with:
           targets: wasm32-unknown-unknown
 
@@ -114,6 +120,8 @@ jobs:
   dioxus-integration-surface:
     name: dioxus integration surface (${{ matrix.name }})
     runs-on: ubuntu-latest
+    env:
+      SCCACHE_CONF: ${{ github.workspace }}/.github/sccache.toml
     strategy:
       fail-fast: false
       matrix:
@@ -130,7 +138,7 @@ jobs:
         with:
           persist-credentials: false
 
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@1.100.0
         with:
           targets: wasm32-unknown-unknown
 
@@ -153,7 +161,7 @@ jobs:
         with:
           persist-credentials: false
 
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@1.100.0
         with:
           components: rustfmt
 
@@ -162,13 +170,15 @@ jobs:
 
   clippy:
     runs-on: ubuntu-latest
+    env:
+      SCCACHE_CONF: ${{ github.workspace }}/.github/sccache.toml
 
     steps:
       - uses: actions/checkout@v7
         with:
           persist-credentials: false
 
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@1.100.0
         with:
           components: clippy
 
@@ -185,13 +195,15 @@ jobs:
 
   docs:
     runs-on: ubuntu-latest
+    env:
+      SCCACHE_CONF: ${{ github.workspace }}/.github/sccache.toml
 
     steps:
       - uses: actions/checkout@v7
         with:
           persist-credentials: false
 
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@1.100.0
 
       - name: Setup sccache
         uses: mozilla-actions/sccache-action@v0.0.11
@@ -206,13 +218,15 @@ jobs:
 
   package:
     runs-on: ubuntu-latest
+    env:
+      SCCACHE_CONF: ${{ github.workspace }}/.github/sccache.toml
 
     steps:
       - uses: actions/checkout@v7
         with:
           persist-credentials: false
 
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@1.100.0
 
       - name: Setup sccache
         uses: mozilla-actions/sccache-action@v0.0.11
@@ -236,7 +250,7 @@ jobs:
       - uses: actions/checkout@v7
         with:
           persist-credentials: false
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@1.100.0
       - uses: cargo-bins/cargo-binstall@v1.28.0
         with:
           version: "1.28.0"
@@ -261,13 +275,15 @@ jobs:
 
   rust-coverage:
     runs-on: ubuntu-latest
+    env:
+      SCCACHE_CONF: ${{ github.workspace }}/.github/sccache.toml
 
     steps:
       - uses: actions/checkout@v7
         with:
           persist-credentials: false
 
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@1.100.0
 
       - name: Setup sccache
         uses: mozilla-actions/sccache-action@v0.0.11
@@ -311,7 +327,7 @@ jobs:
       - uses: actions/checkout@v7
         with:
           persist-credentials: false
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@1.100.0
       - name: Install Taplo and ShellCheck
         uses: taiki-e/install-action@v2.90.8
         with:
@@ -363,11 +379,13 @@ jobs:
 
   feature-checks:
     runs-on: ubuntu-latest
+    env:
+      SCCACHE_CONF: ${{ github.workspace }}/.github/sccache.toml
     steps:
       - uses: actions/checkout@v7
         with:
           persist-credentials: false
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@1.100.0
       - name: Setup sccache
         uses: mozilla-actions/sccache-action@v0.0.11
         with:
@@ -380,7 +398,6 @@ jobs:
           cargo check -p es-fluent --lib --locked --no-default-features
           cargo check -p es-fluent --lib --locked --no-default-features --features derive
           cargo check -p es-fluent --lib --locked --no-default-features --features icu-datetime
-          cargo check -p es-fluent --lib --locked --no-default-features --features chrono
           cargo check -p es-fluent --lib --locked --no-default-features --features jiff
           cargo check -p es-fluent-manager-core --lib --locked --no-default-features
           cargo check -p es-fluent-manager-embedded --lib --locked --no-default-features
@@ -398,7 +415,7 @@ jobs:
       - uses: actions/checkout@v7
         with:
           persist-credentials: false
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@1.100.0
         with:
           targets: wasm32-unknown-unknown
       - uses: cargo-bins/cargo-binstall@v1.28.0
@@ -455,7 +472,7 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@1.100.0
 
       - name: Setup sccache
         uses: mozilla-actions/sccache-action@v0.0.11

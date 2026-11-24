@@ -165,6 +165,12 @@ mod tests {
             "Jul 14, 2026, 1:30:15\u{202f}PM GMT+0"
         );
 
+        let fixed = timestamp.to_zoned(jiff::tz::offset(2).to_time_zone());
+        assert_eq!(
+            localized(zoned_date_time(fixed), "en-US"),
+            "Jul 14, 2026, 3:30:15\u{202f}PM GMT+2"
+        );
+
         let zoned = "2026-07-14T09:30:15-04:00[America/New_York]"
             .parse::<Zoned>()
             .unwrap();

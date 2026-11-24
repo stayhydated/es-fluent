@@ -8,3 +8,8 @@ extend-exclude = [ "*.ftl", "*.snap" ]
 Existant = "Existant"
 # French greeting in the module-localizer locale fallback fixture.
 Allo = "Allo"
+
+[default.extend-identifiers]
+# ICU4X's published crate and trait names use these exact spellings.
+Writeable = "Writeable"
+writeable = "writeable"

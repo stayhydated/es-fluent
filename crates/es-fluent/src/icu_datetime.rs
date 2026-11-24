@@ -312,7 +312,7 @@ macro_rules! impl_temporal_argument {
     };
 }
 
-#[cfg(any(feature = "chrono", feature = "jiff"))]
+#[cfg(feature = "jiff")]
 pub(crate) use impl_temporal_argument;
 
 fn icu_date(value: IcuDate) -> IcuTemporalValue {

@@ -153,7 +153,6 @@ operation_elapsed = Completed in { $elapsed }
 | Feature | Supported field types |
 | --- | --- |
 | `icu-datetime` | `std::time::SystemTime`, `std::time::Duration`, plus ICU4X `Date<Gregorian>`, `Time`, `DateTime<Gregorian>`, and `ZonedDateTime<Gregorian, TimeZoneInfo<AtTime>>` |
-| `chrono` | `NaiveDate`, `NaiveTime`, `NaiveDateTime`, and `DateTime<Tz>` for any `Tz: TimeZone` |
 | `jiff` | `civil::Date`, `civil::Time`, `civil::DateTime`, `Timestamp`, `Zoned`, `Span`, and `SignedDuration` |
 
 Calendar, time, instant, and zoned values use ICU4X's medium localized formats
@@ -163,6 +162,19 @@ epoch and converted with millisecond precision. `Duration` is balanced through
 hours, minutes, seconds, and subsecond units, then rendered with ICU4X's
 locale-aware short duration format. Jiff `Timestamp` values are rendered in UTC.
 Jiff `Span` and `SignedDuration` arguments use Jiff's friendly duration format.
+
+### Migrate Chrono arguments to Jiff
+
+The next incompatible release removes the `chrono` feature and its argument
+conversions. Enable `jiff` on `es-fluent` and use Jiff 0.2 in your application:
+
+- Replace `NaiveDate`, `NaiveTime`, and `NaiveDateTime` with `jiff::civil::Date`,
+  `jiff::civil::Time`, and `jiff::civil::DateTime`, respectively.
+- Use `jiff::Timestamp` when the argument should render in UTC. Use
+  `jiff::Zoned` to preserve a local zone or fixed offset. When converting at an
+  application boundary, carry the named zone separately if you need its rules:
+  an RFC 3339 string with an offset alone does not retain that zone.
+- Keep the argument names unchanged to reuse the same FTL messages.
 
 ## Delegate skipped wrapper variants
 

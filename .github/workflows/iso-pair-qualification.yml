@@ -1,0 +1,114 @@
+# Temporary qualification for the exact two source trees, not registry validation.
+name: ISO paired-source qualification
+on:
+  pull_request:
+    branches: [master]
+    types: [opened, synchronize, reopened]
+permissions:
+  contents: read
+jobs:
+  exact-pair:
+    if: github.repository == 'stayhydated/es-fluent' && github.event.pull_request.number == 246 && github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      CARGO_NET_GIT_FETCH_WITH_CLI: "true"
+      RUSTUP_TOOLCHAIN: "1.100.0"
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          path: es-fluent
+          persist-credentials: false
+      - name: Read and validate the exact ISO pin
+        id: pin
+        working-directory: es-fluent
+        env:
+          EXPECTED_ES_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          test "$(git rev-parse HEAD)" = "$EXPECTED_ES_SHA"
+          python3 - <<'PY'
+          import os, re, tomllib
+          with open("Cargo.toml", "rb") as stream:
+              pinned = tomllib.load(stream)["workspace"]["dependencies"]["iso-types"]
+          assert pinned["git"] == "https://github.com/stayhydated/iso-types"
+          assert re.fullmatch(r"[0-9a-f]{40}", pinned["rev"])
+          with open(os.environ["GITHUB_OUTPUT"], "a") as output:
+              print(f"sha={pinned['rev']}", file=output)
+          PY
+          printf 'es-fluent PR head: %s\n' "$EXPECTED_ES_SHA"
+      - uses: actions/checkout@v7
+        with:
+          repository: stayhydated/iso-types
+          ref: ${{ steps.pin.outputs.sha }}
+          path: iso-types
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@1.100.0
+        with:
+          targets: wasm32-unknown-unknown
+          components: rustfmt
+      - name: Resolve ISO root against this exact es-fluent checkout
+        working-directory: iso-types
+        env:
+          EXPECTED_ISO_SHA: ${{ steps.pin.outputs.sha }}
+        run: |
+          test "$(git rev-parse HEAD)" = "$EXPECTED_ISO_SHA"
+          printf 'ISO source: %s\n' "$EXPECTED_ISO_SHA"
+          rustc -Vv
+          cargo -Vv
+          cargo fetch --locked
+          (cd ../es-fluent && cargo fetch --locked)
+          python3 - <<'PY'
+          import json, pathlib, re, tomllib
+          manifest = pathlib.Path("Cargo.toml")
+          original = manifest.read_text()
+          patches = tomllib.loads(original)["patch"]["crates-io"]
+          es = pathlib.Path("../es-fluent/crates").resolve()
+          expected = {
+              "es-fluent", "es-fluent-build", "es-fluent-derive-core",
+              "es-fluent-manager-core", "es-fluent-manager-dioxus", "es-fluent-toml",
+          }
+          for name in sorted(expected):
+              assert patches[name]["git"] == "https://github.com/stayhydated/es-fluent"
+              assert (es / name / "Cargo.toml").is_file()
+              original, applied = re.subn(
+                  rf"^{name} = \{{ git = [^\n]+ \}}$",
+                  lambda _: f"{name} = {{ path = {json.dumps(str(es / name))} }}",
+                  original,
+                  flags=re.M,
+              )
+              assert applied == 1, name
+          manifest.write_text(original)
+          PY
+          cargo metadata --offline --format-version 1 > /dev/null
+          cargo metadata --offline --locked --format-version 1 > "${RUNNER_TEMP}/iso-pair-metadata.json"
+          python3 - <<'PY'
+          import collections, json, os, pathlib
+          root = pathlib.Path("../es-fluent/crates").resolve()
+          document = pathlib.Path(os.environ["RUNNER_TEMP"]) / "iso-pair-metadata.json"
+          packages = collections.defaultdict(list)
+          for package in json.loads(document.read_text())["packages"]:
+              name = package["name"]
+              if name.startswith(("es-fluent", "iso-types", "stayhydated-")) or name in {"icu_locale", "icu_provider", "icu_experimental"}:
+                  packages[name].append(package)
+          for name, choices in sorted(packages.items()):
+              assert len(choices) == 1, [item["id"] for item in choices]
+              if name.startswith("es-fluent"):
+                  assert pathlib.Path(choices[0]["manifest_path"]).is_relative_to(root), choices[0]["id"]
+              print(choices[0]["id"])
+          PY
+          git diff --stat -- Cargo.toml Cargo.lock
+      - name: Verify geography, locale behavior, and web WASM
+        working-directory: iso-types
+        run: |
+          python3 -m unittest discover -s tools/codegen/tests -v
+          python3 -m tools.codegen --check
+          cargo test --workspace --all-features --locked
+          python3 tools/check_features.py --wasm
+          cargo check -p web --target wasm32-unknown-unknown --locked
+      - uses: mozilla-actions/sccache-action@v0.0.11
+        with:
+          version: "v0.20.0"
+      - name: Verify locale-only invalidation through sccache
+        working-directory: iso-types
+        run: python3 tools/check_locale_tracking.py --sccache
