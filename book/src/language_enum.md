@@ -18,7 +18,7 @@ matches the integration in this repository:
 [dependencies]
 es-fluent = "0.21.2"
 es-fluent-manager-embedded = "0.21.2"
-iso-types = { git = "https://github.com/stayhydated/iso-types", rev = "8d9d025312c0cbac84471e02b17816b83448361c", features = ["locales", "fluent"] }
+iso-types = { git = "https://github.com/stayhydated/iso-types", rev = "1820793487f47ac93536195f35b0940780eb1473", features = ["locales", "fluent"] }
 
 [build-dependencies]
 es-fluent-build = "0.21.2"
