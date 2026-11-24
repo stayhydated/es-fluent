@@ -57,6 +57,11 @@ jobs:
 
       - uses: dtolnay/rust-toolchain@1.100.0
 
+      - name: Allow bounded sccache startup on macOS
+        if: runner.os == 'macOS'
+        shell: bash
+        run: printf 'SCCACHE_CONF=%s/.github/sccache.toml\n' "$GITHUB_WORKSPACE" >> "$GITHUB_ENV"
+
       - name: Setup sccache
         uses: mozilla-actions/sccache-action@v0.0.11
         with:
