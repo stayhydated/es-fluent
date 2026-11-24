@@ -240,7 +240,7 @@ pub fn load_ftl_files(files: Vec<FtlFileInfo>) -> Result<Vec<LoadedFtlFile>> {
 
             loaded_files.push(LoadedFtlFile {
                 abs_path: file_info.abs_path.clone(),
-                relative_path: file_info.relative_path.clone(),
+                relative_path: file_info.relative_path,
                 resource,
                 keys,
             });

@@ -125,8 +125,7 @@ pub fn run_status(args: StatusArgs) -> Result<(), CliError> {
                     for result in results {
                         if result.keys_added > 0 {
                             missing_synced_keys += result.keys_added;
-                            locales_need_sync
-                                .insert((krate.name.to_string(), result.locale.clone()));
+                            locales_need_sync.insert((krate.name.to_string(), result.locale));
                         }
                     }
                 },

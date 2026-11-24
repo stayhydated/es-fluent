@@ -191,7 +191,7 @@ fn collect_actual_keys(
                         domain.clone(),
                         id.clone(),
                     );
-                    let bundle_key = (domain.clone(), id.clone());
+                    let bundle_key = (domain.clone(), id);
                     if let Some(first_file) = seen_bundle_entries.get(&bundle_key) {
                         issues.push(ctx.duplicate_key_issue(
                             key.id().as_str(),

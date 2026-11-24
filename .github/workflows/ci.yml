@@ -17,6 +17,8 @@ env:
 jobs:
   es-fluent-local-cli:
     runs-on: ubuntu-latest
+    env:
+      SCCACHE_CONF: ${{ github.workspace }}/.github/sccache.toml
 
     steps:
       - uses: actions/checkout@v7
@@ -118,6 +120,8 @@ jobs:
   dioxus-integration-surface:
     name: dioxus integration surface (${{ matrix.name }})
     runs-on: ubuntu-latest
+    env:
+      SCCACHE_CONF: ${{ github.workspace }}/.github/sccache.toml
     strategy:
       fail-fast: false
       matrix:
@@ -191,6 +195,8 @@ jobs:
 
   docs:
     runs-on: ubuntu-latest
+    env:
+      SCCACHE_CONF: ${{ github.workspace }}/.github/sccache.toml
 
     steps:
       - uses: actions/checkout@v7
@@ -212,6 +218,8 @@ jobs:
 
   package:
     runs-on: ubuntu-latest
+    env:
+      SCCACHE_CONF: ${{ github.workspace }}/.github/sccache.toml
 
     steps:
       - uses: actions/checkout@v7
@@ -267,6 +275,8 @@ jobs:
 
   rust-coverage:
     runs-on: ubuntu-latest
+    env:
+      SCCACHE_CONF: ${{ github.workspace }}/.github/sccache.toml
 
     steps:
       - uses: actions/checkout@v7
