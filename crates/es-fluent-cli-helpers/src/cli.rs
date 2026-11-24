@@ -83,7 +83,7 @@ pub fn write_inventory_for_crate_at(
                     resource: resource.clone(),
                     source_file: info.source_file(),
                     source_line: variant.source_line(),
-                    source_description: source_description.clone(),
+                    source_description,
                 }),
                 Entry::Occupied(entry) => {
                     return Err(es_fluent_runner::RunnerIoError::Message(format!(

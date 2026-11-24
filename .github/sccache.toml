@@ -1,2 +1,2 @@
 # Give the hosted cache backend time to initialize without bypassing it.
-server_startup_timeout_ms = 30000
+server_startup_timeout_ms = 90000
